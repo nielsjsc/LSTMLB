@@ -23,7 +23,7 @@ Features:
 Prerequisites:
 
 - Python 3.7+
-- Required libraries: `pandas`, `numpy`, `scikit-learn`, `torch`, `beautifulsoup4`, `selenium`
+- Required libraries: `pandas`, `numpy`, `scikit-learn`, `torch`, `beautifulsoup4`, `selenium`, `pybaseball`
 
 Installation
 1. Clone the repository:
