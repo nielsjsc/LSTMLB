@@ -131,7 +131,7 @@ def main():
     base_dir = "./data/tables/"
     
     # Generate scouting files dynamically
-    scouting_files = [f"{base_dir}prospects_{year}_{role}.html" for year in range(2019, 2024) for role in ['hitters', 'pitchers']]
+    scouting_files = [f"{base_dir}prospects_{year}_{role}.html" for year in range(2019, 2025) for role in ['hitters', 'pitchers']]
     scouting_files += [f"{base_dir}prospects_{year}.html" for year in [2017, 2018]]
 
     # Generate summary files dynamically
