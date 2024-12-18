@@ -80,11 +80,11 @@ def main():
     driver = initialize_driver()
     team_abbreviations = [
         "ari", "atl", "bal", "bos", "chc", "chw", "cin", "cle", "col", "det", "hou", "kc", "laa", "lad", "mia",
-        "mil", "min", "nym", "nyy", "oak", "phi", "pit", "sd", "sf", "sea", "stl", "tb", "tex", "tor", "was"
+        "mil", "min", "nym", "nyy", "ath", "phi", "pit", "sd", "sf", "sea", "stl", "tb", "tex", "tor", "wsh"
     ]
     
     # Use a relative path for the CSV file
-    csv_file = "./data/SPORTRAC_mlb_salary_data"
+    csv_file = "./data/SPORTRAC_mlb_salary_data.csv"
     os.makedirs(os.path.dirname(csv_file), exist_ok=True)
     
     with open(csv_file, mode="w", newline='', encoding="utf-8") as file:
