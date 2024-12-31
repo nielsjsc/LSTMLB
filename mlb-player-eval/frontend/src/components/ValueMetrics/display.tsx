@@ -10,7 +10,15 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis }) => {
   const tradeDifferential = team1.total_value - team2.total_value;
 
   const formatValue = (value: number) => {
-    return `$${Math.abs(value).toFixed(1)}M`;
+    return `$${(value / 1000000).toFixed(1)}M`;
+  };
+
+  const formatWar = (war: number) => {
+    return war.toFixed(1);
+  };
+
+  const calculateProductionValue = (war: number) => {
+    return war * 8000000; // $8M per WAR
   };
 
   return (
@@ -20,30 +28,31 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[team1, team2].map((team, index) => (
           <div key={index} className="border rounded-lg p-4">
-            <h3 className="font-bold text-lg mb-4">Team {index + 1}</h3>
+            <h3 className="font-bold text-lg mb-4">
+              {team.players[0]?.team.toUpperCase()}
+            </h3>
             
             <div className="space-y-4">
               {team.players.map(player => (
                 <div key={player.name} className="border-b pb-4">
                   <h4 className="font-semibold">{player.name}</h4>
-                  <p className="text-sm text-gray-600">{player.team}</p>
                   
-                  <div className="mt-2 space-y-1">
-                    <p>Total Value: {formatValue(player.total_surplus)}</p>
-                    <p>Contract Cost: {formatValue(player.total_contract)}</p>
-                    
-                    <div className="mt-2">
-                      <p className="font-semibold">Yearly Projections:</p>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        {player.yearly_projections.map(year => (
-                          <div key={year.year} className="border-l pl-2">
-                            <p>{year.year}: {year.war.toFixed(1)} WAR</p>
-                            <p className="text-gray-600">
-                              {formatValue(year.surplus_value)}
+                  <div className="mt-2">
+                    <p className="font-semibold mb-2">Contract Years:</p>
+                    <div className="space-y-3">
+                      {player.yearly_projections.map(year => (
+                        <div key={year.year} className="bg-gray-50 p-3 rounded">
+                          <p className="font-medium text-lg mb-2">{year.year}</p>
+                          <div className="space-y-1 text-sm">
+                            <p>Projected WAR: {formatWar(year.war)}</p>
+                            <p>Production Value: {formatValue(year.base_value)}</p>
+                            <p>Contract Cost: {formatValue(year.contract_value)}</p>
+                            <p className={year.surplus_value > 0 ? 'text-green-600' : 'text-red-600'}>
+                              Surplus Value: {formatValue(year.surplus_value)}
                             </p>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -64,7 +73,9 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis }) => {
           Trade Differential: 
           <span className={`ml-2 ${tradeDifferential > 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatValue(Math.abs(tradeDifferential))}
-            {tradeDifferential > 0 ? ' in favor of Team 1' : ' in favor of Team 2'}
+            {tradeDifferential > 0 
+              ? ` in favor of ${team2.players[0]?.team.toUpperCase()}`
+              : ` in favor of ${team1.players[0]?.team.toUpperCase()}`}
           </span>
         </p>
       </div>

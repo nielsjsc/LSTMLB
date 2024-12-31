@@ -17,11 +17,10 @@ def analyze_trade(
     db: Session = Depends(get_db)
 ):
     def get_player_values(player_name: str):
-    # Use distinct to prevent duplicates
         player_years = (
             db.query(Player)
             .filter(Player.name == player_name)
-            .distinct(Player.year)  # Add distinct clause
+            .distinct(Player.year)
             .order_by(Player.year)
             .all()
         )
@@ -39,12 +38,12 @@ def analyze_trade(
                 {
                     "year": p.year,
                     "war": p.war,
-                    "surplus_value": p.surplus_value,
+                    "base_value": p.base_value,  # Use CSV value instead of calculating
                     "contract_value": p.contract_value,
+                    "surplus_value": p.surplus_value,
                     "status": p.status
                 } for p in player_years
-            ],
-            "years_remaining": len(player_years)
+            ]
         }
 
     team1_analysis = [get_player_values(name) for name in trade.team1_players]
