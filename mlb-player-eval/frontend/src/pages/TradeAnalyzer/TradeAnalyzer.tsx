@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { analyzeTrade, getPlayers, Player, TradeAnalysis } from '../../services/api'
-import TeamSelector from './components/TeamSelector/TeamSelector'
+import { teamDivisions, sortTeamsByDivision } from '../../config/teams'
 import TeamPlayerList from './components/PlayerSelector/TeamPlayerList'
 import ValueDisplay from '../../components/ValueMetrics/display'
 
@@ -12,8 +12,6 @@ interface TradeState {
 }
 
 const TradeAnalyzer = () => {
-  console.log('1. Component Rendering');
-  
   const [players, setPlayers] = useState<Player[]>([])
   const [trade, setTrade] = useState<TradeState>({
     teamA: null,
@@ -28,16 +26,9 @@ const TradeAnalyzer = () => {
   useEffect(() => {
     const fetchPlayers = async () => {
       try {
-        console.log('2. Fetching Players');
         const data = await getPlayers(2025);
-        console.log('3. Players Received:', {
-          count: data.length,
-          teams: [...new Set(data.map(p => p.team))],
-          samplePlayers: data.slice(0, 3)
-        });
         setPlayers(data);
       } catch (err) {
-        console.error('4. Error:', err);
         setError('Failed to load players');
       }
     };
@@ -45,7 +36,6 @@ const TradeAnalyzer = () => {
   }, []);
 
   const handleTeamAdd = (team: string) => {
-    console.log('5. Adding Team:', team);
     if (!trade.teamA) {
       setTrade({ ...trade, teamA: team });
     } else if (!trade.teamB) {
@@ -54,7 +44,6 @@ const TradeAnalyzer = () => {
   }
 
   const handleTeamRemove = (team: string) => {
-    console.log('6. Removing Team:', team);
     if (trade.teamA === team) {
       setTrade({ ...trade, teamA: null, teamAReceiving: [] });
     } else if (trade.teamB === team) {
@@ -64,7 +53,6 @@ const TradeAnalyzer = () => {
   }
 
   const handlePlayerAdd = async (receivingTeam: string, player: Player) => {
-    console.log('7. Adding Player:', { player, receivingTeam });
     let updatedTrade: TradeState;
     if (receivingTeam === trade.teamA) {
       updatedTrade = {
@@ -85,7 +73,6 @@ const TradeAnalyzer = () => {
   }
 
   const handlePlayerRemove = async (receivingTeam: string, player: Player) => {
-    console.log('8. Removing Player:', { player, receivingTeam });
     let updatedTrade: TradeState;
     if (receivingTeam === trade.teamA) {
       updatedTrade = {
@@ -124,15 +111,6 @@ const TradeAnalyzer = () => {
 
   const selectedTeams = [trade.teamA, trade.teamB].filter(Boolean) as string[];
 
-  console.log('9. Render State:', {
-    playersCount: players.length,
-    selectedTeams,
-    teamA: trade.teamA,
-    teamB: trade.teamB,
-    availablePlayersA: players.filter(p => p.team === trade.teamB).length,
-    availablePlayersB: players.filter(p => p.team === trade.teamA).length
-  });
-
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">MLB Trade Analyzer</h1>
@@ -143,12 +121,37 @@ const TradeAnalyzer = () => {
         </div>
       )}
 
-      <TeamSelector
-        selectedTeams={selectedTeams}
-        onTeamAdd={handleTeamAdd}
-        onTeamRemove={handleTeamRemove}
-        maxTeams={2}
-      />
+      <div className="mb-6">
+        <div className="flex flex-wrap gap-4">
+          {selectedTeams.map((team) => (
+            <div key={team} className="flex items-center bg-gray-100 rounded-lg p-2">
+              <span className="mr-2">{team.toUpperCase()} - {teamDivisions[team].name}</span>
+              <button
+                onClick={() => handleTeamRemove(team)}
+                className="text-red-500 hover:text-red-700"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {selectedTeams.length < 2 && (
+            <select
+              onChange={(e) => handleTeamAdd(e.target.value)}
+              className="border rounded-lg p-2"
+              value=""
+            >
+              <option value="">Select team...</option>
+              {sortTeamsByDivision(Object.keys(teamDivisions)
+                .filter(team => !selectedTeams.includes(team)))
+                .map((team) => (
+                  <option key={team} value={team}>
+                    {team.toUpperCase()} - {teamDivisions[team].name}
+                  </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
       
       {trade.teamA && trade.teamB && (
         <>
