@@ -12,14 +12,16 @@ async def get_players(
     team: Optional[str] = None,
     position: Optional[str] = None,
     sort_by: Optional[str] = "war",
+    search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     try:
         query = db.query(Player).filter(Player.year == year)
         
+        if search:
+            query = query.filter(Player.name.ilike(f"%{search}%"))
         if team:
             query = query.filter(Player.team == team.lower())
-        
         if position:
             query = query.filter(Player.status == position)
         
@@ -48,9 +50,64 @@ async def get_players(
         print(f"Error in get_players: {str(e)}")
         raise
 
-@router.get("/players/{player_name}")
-async def get_player(player_name: str, db: Session = Depends(get_db)):
-    player = db.query(Player).filter(Player.name == player_name).first()
-    if player is None:
-        raise HTTPException(status_code=404, detail="Player not found")
-    return player
+@router.get("/players/{player_name}/details")
+async def get_player_details(
+    player_name: str,
+    db: Session = Depends(get_db)
+):
+    try:
+        print(f"Fetching details for player: {player_name}")  # Debug log
+        player_years = db.query(Player).filter(
+            Player.name == player_name
+        ).order_by(Player.year).all()
+        
+        if not player_years:
+            raise HTTPException(status_code=404, detail="Player not found")
+        
+        print(f"Found {len(player_years)} years for {player_name}")
+        
+        response = {
+            "name": player_name,
+            "team": player_years[0].team,
+            "position": player_years[0].status,
+            "projections": [{
+                "year": p.year,
+                "war": p.war,
+                "value": {
+                    "base": p.base_value,
+                    "contract": p.contract_value,
+                    "surplus": p.surplus_value
+                },
+                **({"pitching": {
+                    "age": p.age_pit,
+                    "fip": p.fip,
+                    "siera": p.siera,
+                    "k_pct": p.k_pct_pit,
+                    "bb_pct": p.bb_pct_pit,
+                    "gb_pct": p.gb_pct,
+                    "fb_pct": p.fb_pct,
+                    "stuff_plus": p.stuff_plus,
+                    "location_plus": p.location_plus,
+                    "pitching_plus": p.pitching_plus,
+                    "fbv": p.fbv
+                }} if p.status in ['SP', 'RP'] else {"hitting": {
+                    "age": p.age_bat,
+                    "bb_pct": p.bb_pct_bat,
+                    "k_pct": p.k_pct_bat,
+                    "avg": p.avg,
+                    "obp": p.obp,
+                    "slg": p.slg,
+                    "woba": p.woba,
+                    "wrc_plus": p.wrc_plus,
+                    "ev": p.ev,
+                    "off": p.off,
+                    "bsr": p.bsr,
+                    "def": p.def_value
+                }})
+            } for p in player_years]
+        }
+        print(f"Response: {response}")  # Debug log
+        return response
+    except Exception as e:
+        print(f"Error in get_player_details: {str(e)}")
+        raise

@@ -24,7 +24,30 @@ def load_player_data(year: float, file_path: str):
                 war=row['WAR'],
                 base_value=row['Base_Value'],
                 contract_value=row['Contract_Value'],
-                surplus_value=row['Surplus_Value']
+                surplus_value=row['Surplus_Value'],
+                age_bat=row.get('age_bat'),
+                age_pit=row.get('age_pit'),
+                bb_pct_bat=row.get('BB%_bat'),
+                bb_pct_pit=row.get('BB%_pit'),
+                k_pct_bat=row.get('K%_bat'),
+                k_pct_pit=row.get('K%_pit'),
+                avg=row.get('AVG'),
+                obp=row.get('OBP'),
+                slg=row.get('SLG'),
+                woba=row.get('wOBA'),
+                wrc_plus=row.get('wRC+'),
+                ev=row.get('EV'),
+                off=row.get('Off'),
+                bsr=row.get('BsR'),
+                def_value=row.get('Def'),
+                fip=row.get('FIP'),
+                siera=row.get('SIERA'),
+                gb_pct=row.get('GB%'),
+                fb_pct=row.get('FB%'),
+                stuff_plus=row.get('Stuff+'),
+                location_plus=row.get('Location+'),
+                pitching_plus=row.get('Pitching+'),
+                fbv=row.get('FBv')
             )
             db.add(player)
         db.commit()
