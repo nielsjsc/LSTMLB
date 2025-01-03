@@ -1,2 +1,2 @@
-Player Name,Team,Status,WAR,Base_Value,Contract_Value,Surplus_Value
-Juan Soto,nym,,-0.4923559392081814,0.0,51000000.0,-51000000.0
+Player Name,Team,Status,WAR,Base_Value,Contract_Value,Surplus_Value,Age_bat,BB%_bat,K%_bat,AVG,OBP,SLG,wOBA,wRC+,EV,Off,BsR,Def,Age_pit,FIP,SIERA,K%_pit,BB%_pit,GB%,FB%,Stuff+,Location+,Pitching+,FBv
+Juan Soto,nym,,-0.4923559392081814,0.0,51000000.0,-51000000.0,40.0,0.06919889,0.22830647,0.2366776,0.29892427,0.3789896,0.29841015,86.40003,89.50145,-5.4240708292984365,-4.873370497953147,-13.428865000605583,,,,,,,,,,,
