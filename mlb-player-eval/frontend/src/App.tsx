@@ -1,26 +1,23 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import Layout from './components/Layout/Layout'
+import Navbar from './components/Navbar'
+import Home from './pages/Home/Home'
 import Players from './pages/Players/Players'
 import TradeAnalyzer from './pages/TradeAnalyzer/TradeAnalyzer'
-import About from './pages/About/About'
+import PlayerDetails from './pages/PlayerDetails/PlayerDetails'
 
 function App() {
   return (
     <Router>
-      <Layout>
+      <Navbar />
+      <div className="container mx-auto px-4 pt-20">
         <Routes>
-          <Route path="/" element={
-            <div>
-              <h1>MLB Player Evaluation</h1>
-              <p>Welcome to the MLB Player Evaluation Dashboard</p>
-            </div>
-          } />
+          <Route path="/" element={<Home />} />
           <Route path="/players" element={<Players />} />
-          <Route path="/TradeAnalyzer" element={<TradeAnalyzer />} />
-          <Route path="/about" element={<About />} />
+          <Route path="/tradeanalyzer" element={<TradeAnalyzer />} />
+          <Route path="/player/:playerName" element={<PlayerDetails />} />
         </Routes>
-      </Layout>
+      </div>
     </Router>
   )
 }
