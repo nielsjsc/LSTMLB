@@ -1,4 +1,5 @@
 export interface Player {
+    id: number;
     name: string;
     team: string;
     status: string | null;
@@ -19,6 +20,7 @@ export interface PlayerFilter {
 export interface PlayerResponse {
     count: number;
     players: Array<{
+        id: number;
         name: string;
         team: string;
         position: string;
@@ -130,6 +132,19 @@ export interface PlayerStats {
         contract: number;
         surplus: number;
       };
+      pitching?: {
+        age: number;
+        fip: number;
+        siera: number;
+        k_pct: number;
+        bb_pct: number;
+        gb_pct: number;
+        fb_pct: number;
+        stuff_plus: number;
+        location_plus: number;
+        pitching_plus: number;
+        fbv: number;
+      };
       hitting?: {
         age: number;
         bb_pct: number;
@@ -144,35 +159,18 @@ export interface PlayerStats {
         bsr: number;
         def: number;
       };
-      pitching?: {
-        age: number;
-        fip: number;
-        siera: number;
-        k_pct: number;
-        bb_pct: number;
-        gb_pct: number;
-        fb_pct: number;
-        stuff_plus: number;
-        location_plus: number;
-        pitching_plus: number;
-        fbv: number;
-      };
     }>;
   }
   
-  export const getPlayerDetails = async (playerName: string): Promise<PlayerStats> => {
-    try {
-        console.log(`Fetching details for player: ${playerName}`); // Debug log
-        const response = await fetch(`${API_BASE}/players/${encodeURIComponent(playerName)}/details`);
-        if (!response.ok) {
-            console.error(`API Error: ${response.status}`); // Debug log
-            throw new Error('Failed to fetch player details');
-        }
-        const data = await response.json();
-        console.log('API Response:', data); // Debug log
-        return data;
-    } catch (error) {
-        console.error('Error fetching player details:', error);
-        throw error;
+  export const getPlayerDetails = async (playerId: number): Promise<PlayerStats> => {
+    const url = `${API_BASE}/players/${playerId}/details`;
+    console.log('Calling API:', url);
+    const response = await fetch(url);
+    if (!response.ok) {
+        console.error(`API Error: ${response.status}`);
+        throw new Error('Failed to fetch player details');
     }
+    const data = await response.json();
+    console.log('API Response:', data);
+    return data;
 };

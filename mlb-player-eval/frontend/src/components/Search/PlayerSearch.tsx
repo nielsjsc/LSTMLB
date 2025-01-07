@@ -2,9 +2,16 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { filterPlayers } from '../../services/api'
 
+interface PlayerResult {
+  id: number;
+  name: string;
+  team: string;
+  war: number;
+}
+
 const PlayerSearch = () => {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<string[]>([])
+  const [results, setResults] = useState<PlayerResult[]>([])
   const navigate = useNavigate()
 
   const handleSearch = async (value: string) => {
@@ -15,15 +22,20 @@ const PlayerSearch = () => {
     }
 
     try {
-      const players = await filterPlayers({ year: 2025, search: value })
-      setResults(players.players.map(p => p.name))
+      const response = await filterPlayers({ year: 2025, search: value })
+      setResults(response.players.map(p => ({
+        id: p.id,
+        name: p.name,
+        team: p.team,
+        war: p.war
+      })))
     } catch (err) {
       console.error('Search failed:', err)
     }
-  }
+}
 
-  const handleSelect = (playerName: string) => {
-    navigate(`/player/${encodeURIComponent(playerName)}`)
+  const handleSelect = (player: PlayerResult) => {
+    navigate(`/player/${player.id}`)
     setQuery('')
     setResults([])
   }
@@ -39,13 +51,14 @@ const PlayerSearch = () => {
       />
       {results.length > 0 && (
         <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg">
-          {results.map((name) => (
+          {results.map((player) => (
             <button
-              key={name}
-              onClick={() => handleSelect(name)}
-              className="w-full p-2 text-left text-gray-800 hover:bg-gray-100"
+              key={player.id}
+              onClick={() => handleSelect(player)}
+              className="w-full p-2 text-left text-gray-800 hover:bg-gray-100 flex justify-between items-center"
             >
-              {name}
+              <span>{player.name} ({player.team.toUpperCase()})</span>
+              <span className="text-gray-600">{player.war.toFixed(1)} WAR</span>
             </button>
           ))}
         </div>

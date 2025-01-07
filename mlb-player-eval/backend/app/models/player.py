@@ -1,14 +1,15 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, PrimaryKeyConstraint
 from ..database import Base
 
 class Player(Base):
     __tablename__ = "players"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     name = Column(String, index=True)
     team = Column(String)
     status = Column(String)
     year = Column(Float)
+    
     
     # Core Value Metrics
     war = Column(Float)
@@ -44,6 +45,9 @@ class Player(Base):
     location_plus = Column(Float)
     pitching_plus = Column(Float)
     fbv = Column(Float)
+    __table_args__ = (
+        PrimaryKeyConstraint('id', 'year'),
+    )
 
     def __repr__(self):
         return f"<Player {self.name}>"
