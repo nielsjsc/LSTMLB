@@ -18,6 +18,7 @@ def load_player_data(year: float, file_path: str):
         for _, row in df.iterrows():
             player = Player(
                 name=row['Player Name'],
+                id=row['IDfg'],
                 team=row['Team'],
                 status=row['Status'],
                 year=year,

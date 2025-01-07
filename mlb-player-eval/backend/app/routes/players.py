@@ -37,6 +37,7 @@ async def get_players(
         return {
             "count": len(players),
             "players": [{
+                "id": p.id,
                 "name": p.name,
                 "team": p.team,
                 "position": p.status,
@@ -50,24 +51,24 @@ async def get_players(
         print(f"Error in get_players: {str(e)}")
         raise
 
-@router.get("/players/{player_name}/details")
+@router.get("/players/{player_id}/details")
 async def get_player_details(
-    player_name: str,
+    player_id: int,
     db: Session = Depends(get_db)
 ):
     try:
-        print(f"Fetching details for player: {player_name}")  # Debug log
+        print(f"Fetching details for player ID: {player_id}")  # Debug log
         player_years = db.query(Player).filter(
-            Player.name == player_name
+            Player.id == player_id
         ).order_by(Player.year).all()
+        
+        print(f"Found {len(player_years)} years for player ID {player_id}")  # Debug log
         
         if not player_years:
             raise HTTPException(status_code=404, detail="Player not found")
         
-        print(f"Found {len(player_years)} years for {player_name}")
-        
         response = {
-            "name": player_name,
+            "name": player_years[0].name,
             "team": player_years[0].team,
             "position": player_years[0].status,
             "projections": [{
