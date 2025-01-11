@@ -70,17 +70,17 @@ async def get_player_details(
         response = {
             "name": player_years[0].name,
             "team": player_years[0].team,
-            "position": player_years[0].status,
+            "position": player_years[0].position,
             "projections": [{
                 "year": p.year,
                 "war": p.war,
+                "age": p.age,
                 "value": {
                     "base": p.base_value,
                     "contract": p.contract_value,
                     "surplus": p.surplus_value
                 },
                 **({"pitching": {
-                    "age": p.age_pit,
                     "fip": p.fip,
                     "siera": p.siera,
                     "k_pct": p.k_pct_pit,
@@ -91,8 +91,7 @@ async def get_player_details(
                     "location_plus": p.location_plus,
                     "pitching_plus": p.pitching_plus,
                     "fbv": p.fbv
-                }} if p.status in ['SP', 'RP'] else {"hitting": {
-                    "age": p.age_bat,
+                }} if p.position in ['SP', 'RP'] else {"hitting": {
                     "bb_pct": p.bb_pct_bat,
                     "k_pct": p.k_pct_bat,
                     "avg": p.avg,

@@ -1,4 +1,3 @@
 export { default as StatTable } from './BaseTable/StatTable';
-export { default as ValueTable } from './PlayerTables/ValueTable';
-export { default as HittingTable } from './PlayerTables/HittingTable';
-export { default as PitchingTable } from './PlayerTables/PitchingTable';
+export { default as CombinedHittingTable } from './PlayerTables/CombinedHittingTable';
+export { default as CombinedPitchingTable } from './PlayerTables/CombinedPitchingTable';

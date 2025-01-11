@@ -24,28 +24,28 @@ const columns: Column[] = [
 
 interface HittingTableProps {
   data: Array<{
-    year: number;
-    hitting: {
-      age: number;
-      bb_pct: number;
-      k_pct: number;
-      avg: number;
-      obp: number;
-      slg: number;
-      woba: number;
-      wrc_plus: number;
-      ev: number;
-      off: number;
-      bsr: number;
-      def: number;
-    };
+      year: number;
+      age: number;  // Updated
+      hitting: {
+          bb_pct: number;
+          k_pct: number;
+          avg: number;
+          obp: number;
+          slg: number;
+          woba: number;
+          wrc_plus: number;
+          ev: number;
+          off: number;
+          bsr: number;
+          def: number;
+      };
   }>;
 }
 
 const HittingTable: React.FC<HittingTableProps> = ({ data }) => {
   const formattedData = data.map(row => ({
     year: row.year,
-    age: row.hitting.age,
+    age: row.age,
     bb_pct: row.hitting.bb_pct,
     k_pct: row.hitting.k_pct,
     avg: row.hitting.avg,

@@ -2,6 +2,7 @@ export interface Player {
     id: number;
     name: string;
     team: string;
+    position: string;
     status: string | null;
     year: number;
     war: number;
@@ -125,42 +126,41 @@ export interface PlayerStats {
     team: string;
     position: string;
     projections: Array<{
-      year: number;
-      war: number;
-      value: {
-        base: number;
-        contract: number;
-        surplus: number;
-      };
-      pitching?: {
-        age: number;
-        fip: number;
-        siera: number;
-        k_pct: number;
-        bb_pct: number;
-        gb_pct: number;
-        fb_pct: number;
-        stuff_plus: number;
-        location_plus: number;
-        pitching_plus: number;
-        fbv: number;
-      };
-      hitting?: {
-        age: number;
-        bb_pct: number;
-        k_pct: number;
-        avg: number;
-        obp: number;
-        slg: number;
-        woba: number;
-        wrc_plus: number;
-        ev: number;
-        off: number;
-        bsr: number;
-        def: number;
-      };
+        year: number;
+        war: number;
+        age: number;  // Single age field
+        value: {
+            base: number;
+            contract: number;
+            surplus: number;
+        };
+        pitching?: {
+            fip: number;
+            siera: number;
+            k_pct: number;
+            bb_pct: number;
+            gb_pct: number;
+            fb_pct: number;
+            stuff_plus: number;
+            location_plus: number;
+            pitching_plus: number;
+            fbv: number;
+        };
+        hitting?: {
+            bb_pct: number;
+            k_pct: number;
+            avg: number;
+            obp: number;
+            slg: number;
+            woba: number;
+            wrc_plus: number;
+            ev: number;
+            off: number;
+            bsr: number;
+            def: number;
+        };
     }>;
-  }
+}
   
   export const getPlayerDetails = async (playerId: number): Promise<PlayerStats> => {
     const url = `${API_BASE}/players/${playerId}/details`;
