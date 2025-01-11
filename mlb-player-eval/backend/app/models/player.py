@@ -4,11 +4,13 @@ from ..database import Base
 class Player(Base):
     __tablename__ = "players"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer)
     name = Column(String, index=True)
     team = Column(String)
     status = Column(String)
     year = Column(Float)
+    position = Column(String)
+    age = Column(Float)
     
     
     # Core Value Metrics
@@ -18,8 +20,6 @@ class Player(Base):
     surplus_value = Column(Float)
     
     # Shared Stats with Different Sources
-    age_bat = Column(Float)
-    age_pit = Column(Float)
     bb_pct_bat = Column(Float)
     bb_pct_pit = Column(Float)
     k_pct_bat = Column(Float)

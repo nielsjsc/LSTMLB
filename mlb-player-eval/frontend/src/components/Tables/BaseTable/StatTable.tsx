@@ -23,14 +23,16 @@ const StatTable: React.FC<StatTableProps> = ({
   className = ''
 }) => {
   const [sortColumn, setSortColumn] = useState(defaultSort || columns[0].key);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
-      setSortDirection(current => current === 'asc' ? 'desc' : 'asc');
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortColumn(column);
-      setSortDirection('desc');
+      // Change initial direction to 'asc' when new column selected
+      setSortDirection('asc');
     }
   };
 

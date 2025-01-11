@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { getPlayerDetails, PlayerStats } from '../../services/api';
-import { ValueTable, HittingTable, PitchingTable } from '../../components/Tables';
+import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
+
 
 
 const PlayerDetails = () => {
@@ -33,11 +34,21 @@ const PlayerDetails = () => {
         fetchPlayer();
     }, [playerId]);
 
-  const formatValue = (value: number) => `$${(value / 1000000).toFixed(1)}M`
-  const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
-  const formatDecimal = (value: number) => value.toFixed(3)
-  const hasPitchingStats = player?.projections.some(proj => proj.pitching !== undefined);
-  const hasHittingStats = player?.projections.some(proj => proj.hitting !== undefined);
+    const formatValue = (value: number | undefined) => 
+        value ? `$${(value / 1000000).toFixed(1)}M` : '-';
+    const formatPercent = (value: number | undefined) => 
+        value ? `${(value * 100).toFixed(1)}%` : '-';
+    const formatDecimal = (value: number | undefined) => 
+        value ? value.toFixed(3) : '-';
+
+    const hasPitchingStats = player?.projections.some(
+        proj => proj.pitching?.fip != null && !isNaN(proj.pitching.fip)
+    );
+
+    const hasHittingStats = player?.projections.some(
+        proj => proj.hitting?.avg != null && !isNaN(proj.hitting.avg)
+    );
+
 
 
   if (loading) return <div className="p-4">Loading...</div>;
@@ -47,63 +58,67 @@ const PlayerDetails = () => {
   const isPitcher = player?.projections[0]?.pitching !== undefined;
 
     // Format data for tables
-    const valueData = player?.projections.map(proj => ({
+    const formattedData = player?.projections.map(proj => ({
         year: proj.year,
+        age: proj.age,
         war: proj.war,
         value: {
             base: proj.value.base,
             contract: proj.value.contract,
             surplus: proj.value.surplus
-        }
+        },
+        hitting: proj.hitting,
+        pitching: proj.pitching
     })) || [];
 
-    const pitchingData = player?.projections
+    const pitchingTableData = player?.projections
         .filter((proj): proj is (typeof proj & { pitching: NonNullable<typeof proj.pitching> }) => 
             proj.pitching !== undefined
         )
         .map(proj => ({
             year: proj.year,
+            age: proj.age,
+            war: proj.war,
+            value: proj.value,
             pitching: proj.pitching
         })) || [];
 
-    const hittingData = player?.projections
+    const hittingTableData = player?.projections
         .filter((proj): proj is (typeof proj & { hitting: NonNullable<typeof proj.hitting> }) => 
             proj.hitting !== undefined
         )
         .map(proj => ({
             year: proj.year,
+            age: proj.age,
+            war: proj.war,
+            value: proj.value,
             hitting: proj.hitting
         })) || [];
 
-    return (
-        <div className="max-w-7xl mx-auto py-8 px-4">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold">{player?.name}</h1>
-                <p className="text-gray-600">{player?.team.toUpperCase()} - {player?.position}</p>
-            </div>
-
-            <div className="space-y-8">
-                <section>
-                    <h2 className="text-xl font-semibold mb-4">Value Projections</h2>
-                    <ValueTable data={valueData} />
-                </section>
-
+        return (
+            <div className="max-w-7xl mx-auto py-8 px-4">
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold">{player?.name}</h1>
+                    <p className="text-gray-600">{player?.team.toUpperCase()} - {player?.position}</p>
+                </div>
+    
+                <div className="space-y-8">
                 {hasPitchingStats && (
                     <section>
                         <h2 className="text-xl font-semibold mb-4">Pitching Projections</h2>
-                        <PitchingTable data={pitchingData} />
+                        <CombinedPitchingTable data={pitchingTableData} />
                     </section>
                 )}
 
                 {hasHittingStats && (
                     <section>
                         <h2 className="text-xl font-semibold mb-4">Hitting Projections</h2>
-                        <HittingTable data={hittingData} />
+                        <CombinedHittingTable data={hittingTableData} />
                     </section>
                 )}
             </div>
         </div>
     );
 };
-
-export default PlayerDetails;
+    
+    export default PlayerDetails;

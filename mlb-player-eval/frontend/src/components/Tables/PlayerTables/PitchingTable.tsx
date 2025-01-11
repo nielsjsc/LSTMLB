@@ -24,8 +24,8 @@ const columns: Column[] = [
 interface PitchingTableProps {
   data: Array<{
     year: number;
+    age: number;
     pitching: {
-      age: number;
       fip: number;
       siera: number;
       k_pct: number;
@@ -43,7 +43,7 @@ interface PitchingTableProps {
 const PitchingTable: React.FC<PitchingTableProps> = ({ data }) => {
   const formattedData = data.map(row => ({
     year: row.year,
-    age: row.pitching.age,
+    age: row.age,
     fip: row.pitching.fip,
     siera: row.pitching.siera,
     k_pct: row.pitching.k_pct,

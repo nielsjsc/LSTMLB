@@ -1,3 +1,2 @@
-export { default as ValueTable } from './ValueTable';
-export { default as HittingTable } from './HittingTable';
-export { default as PitchingTable } from './PitchingTable';
+export { default as CombinedHittingTable } from './CombinedHittingTable';
+export { default as CombinedPitchingTable } from './CombinedPitchingTable';
