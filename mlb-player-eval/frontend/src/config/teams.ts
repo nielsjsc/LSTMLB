@@ -20,7 +20,7 @@ export const teamDivisions: TeamDivision = {
   'kc': { division: 'AL Central', name: 'Kansas City Royals' },
   'min': { division: 'AL Central', name: 'Minnesota Twins' },
   'hou': { division: 'AL West', name: 'Houston Astros' },
-  'ana': { division: 'AL West', name: 'Los Angeles Angels' },
+  'laa': { division: 'AL West', name: 'Los Angeles Angels' },
   'ath': { division: 'AL West', name: 'Sacramento Athletics' },
   'sea': { division: 'AL West', name: 'Seattle Mariners' },
   'tex': { division: 'AL West', name: 'Texas Rangers' },

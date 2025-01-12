@@ -42,67 +42,47 @@ const PlayerDetails = () => {
         value ? value.toFixed(3) : '-';
 
     const hasPitchingStats = player?.projections.some(
-        proj => proj.pitching?.fip != null && !isNaN(proj.pitching.fip)
+        proj => proj.pitching?.war_pit != null
     );
 
     const hasHittingStats = player?.projections.some(
-        proj => proj.hitting?.avg != null && !isNaN(proj.hitting.avg)
+        proj => proj.hitting?.war_bat != null
     );
-
-
-
-  if (loading) return <div className="p-4">Loading...</div>;
-  if (error) return <div className="p-4 text-red-600">{error}</div>;
-  if (!player) return <div className="p-4">Player not found</div>;
-
-  const isPitcher = player?.projections[0]?.pitching !== undefined;
-
-    // Format data for tables
-    const formattedData = player?.projections.map(proj => ({
-        year: proj.year,
-        age: proj.age,
-        war: proj.war,
-        value: {
-            base: proj.value.base,
-            contract: proj.value.contract,
-            surplus: proj.value.surplus
-        },
-        hitting: proj.hitting,
-        pitching: proj.pitching
-    })) || [];
 
     const pitchingTableData = player?.projections
         .filter((proj): proj is (typeof proj & { pitching: NonNullable<typeof proj.pitching> }) => 
-            proj.pitching !== undefined
+            proj.pitching?.war_pit != null
         )
         .map(proj => ({
             year: proj.year,
             age: proj.age,
-            war: proj.war,
             value: proj.value,
             pitching: proj.pitching
         })) || [];
 
     const hittingTableData = player?.projections
         .filter((proj): proj is (typeof proj & { hitting: NonNullable<typeof proj.hitting> }) => 
-            proj.hitting !== undefined
+            proj.hitting?.war_bat != null
         )
         .map(proj => ({
             year: proj.year,
             age: proj.age,
-            war: proj.war,
             value: proj.value,
             hitting: proj.hitting
         })) || [];
-
-        return (
-            <div className="max-w-7xl mx-auto py-8 px-4">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold">{player?.name}</h1>
-                    <p className="text-gray-600">{player?.team.toUpperCase()} - {player?.position}</p>
-                </div>
+    console.log('Has pitching stats:', hasPitchingStats);
+    console.log('Pitching data:', pitchingTableData);
+    console.log('Has hitting stats:', hasHittingStats);
+    console.log('Hitting data:', hittingTableData);
     
-                <div className="space-y-8">
+    return (
+        <div className="max-w-7xl mx-auto py-8 px-4">
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold">{player?.name}</h1>
+                <p className="text-gray-600">{player?.team.toUpperCase()} - {player?.position}</p>
+            </div>
+
+            <div className="space-y-8">
                 {hasPitchingStats && (
                     <section>
                         <h2 className="text-xl font-semibold mb-4">Pitching Projections</h2>

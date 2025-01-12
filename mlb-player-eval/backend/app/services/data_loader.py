@@ -25,6 +25,8 @@ def load_player_data(year: float, file_path: str):
                 year=year,
                 position=row['Position'],
                 war=row['WAR'],
+                war_bat=row.get('WAR_batter'),
+                war_pit=row.get('WAR_pitcher'),
                 base_value=row['Base_Value'],
                 contract_value=row['Contract_Value'],
                 surplus_value=row['Surplus_Value'],
