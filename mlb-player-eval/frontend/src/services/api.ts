@@ -127,26 +127,14 @@ export interface PlayerStats {
     position: string;
     projections: Array<{
         year: number;
-        war: number;
-        age: number;  // Single age field
+        age: number;
         value: {
             base: number;
             contract: number;
             surplus: number;
         };
-        pitching?: {
-            fip: number;
-            siera: number;
-            k_pct: number;
-            bb_pct: number;
-            gb_pct: number;
-            fb_pct: number;
-            stuff_plus: number;
-            location_plus: number;
-            pitching_plus: number;
-            fbv: number;
-        };
         hitting?: {
+            war_bat: number;
             bb_pct: number;
             k_pct: number;
             avg: number;
@@ -158,6 +146,19 @@ export interface PlayerStats {
             off: number;
             bsr: number;
             def: number;
+        };
+        pitching?: {
+            war_pit: number;
+            fip: number;
+            siera: number;
+            k_pct: number;
+            bb_pct: number;
+            gb_pct: number;
+            fb_pct: number;
+            stuff_plus: number;
+            location_plus: number;
+            pitching_plus: number;
+            fbv: number;
         };
     }>;
 }

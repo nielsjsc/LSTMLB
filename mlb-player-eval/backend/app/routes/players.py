@@ -52,20 +52,9 @@ async def get_players(
         raise
 
 @router.get("/players/{player_id}/details")
-async def get_player_details(
-    player_id: int,
-    db: Session = Depends(get_db)
-):
+async def get_player_details(player_id: int, db: Session = Depends(get_db)):
     try:
-        print(f"Fetching details for player ID: {player_id}")  # Debug log
-        player_years = db.query(Player).filter(
-            Player.id == player_id
-        ).order_by(Player.year).all()
-        
-        print(f"Found {len(player_years)} years for player ID {player_id}")  # Debug log
-        
-        if not player_years:
-            raise HTTPException(status_code=404, detail="Player not found")
+        player_years = db.query(Player).filter(Player.id == player_id).order_by(Player.year).all()
         
         response = {
             "name": player_years[0].name,
@@ -73,25 +62,14 @@ async def get_player_details(
             "position": player_years[0].position,
             "projections": [{
                 "year": p.year,
-                "war": p.war,
                 "age": p.age,
                 "value": {
                     "base": p.base_value,
                     "contract": p.contract_value,
                     "surplus": p.surplus_value
                 },
-                **({"pitching": {
-                    "fip": p.fip,
-                    "siera": p.siera,
-                    "k_pct": p.k_pct_pit,
-                    "bb_pct": p.bb_pct_pit,
-                    "gb_pct": p.gb_pct,
-                    "fb_pct": p.fb_pct,
-                    "stuff_plus": p.stuff_plus,
-                    "location_plus": p.location_plus,
-                    "pitching_plus": p.pitching_plus,
-                    "fbv": p.fbv
-                }} if p.position in ['SP', 'RP'] else {"hitting": {
+                **({"hitting": {
+                    "war_bat": p.war_bat,
                     "bb_pct": p.bb_pct_bat,
                     "k_pct": p.k_pct_bat,
                     "avg": p.avg,
@@ -103,10 +81,22 @@ async def get_player_details(
                     "off": p.off,
                     "bsr": p.bsr,
                     "def": p.def_value
-                }})
+                }} if p.war_bat is not None else {}),
+                **({"pitching": {
+                    "war_pit": p.war_pit,
+                    "fip": p.fip,
+                    "siera": p.siera,
+                    "k_pct": p.k_pct_pit,
+                    "bb_pct": p.bb_pct_pit,
+                    "gb_pct": p.gb_pct,
+                    "fb_pct": p.fb_pct,
+                    "stuff_plus": p.stuff_plus,
+                    "location_plus": p.location_plus,
+                    "pitching_plus": p.pitching_plus,
+                    "fbv": p.fbv
+                }} if p.war_pit is not None else {})
             } for p in player_years]
         }
-        print(f"Response: {response}")  # Debug log
         return response
     except Exception as e:
         print(f"Error in get_player_details: {str(e)}")

@@ -1,3 +1,4 @@
+from math import isnan
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -28,21 +29,26 @@ def analyze_trade(
         if not player_years:
             raise HTTPException(status_code=404, detail=f"Player {player_name} not found")
         
+        def safe_sum(values):
+            return sum(v for v in values if v is not None and not isnan(v))
+        
+        valid_years = [p for p in player_years if p.contract_value is not None and not isnan(p.contract_value)]
+        
         return {
             "name": player_name,
-            "team": player_years[0].team,
-            "status": player_years[0].status,
-            "total_surplus": sum(p.surplus_value for p in player_years),
-            "total_contract": sum(p.contract_value for p in player_years),
+            "team": valid_years[0].team,
+            "status": valid_years[0].status,
+            "total_surplus": safe_sum(p.surplus_value for p in valid_years),
+            "total_contract": safe_sum(p.contract_value for p in valid_years),
             "yearly_projections": [
                 {
                     "year": p.year,
-                    "war": p.war,
-                    "base_value": p.base_value,  # Use CSV value instead of calculating
-                    "contract_value": p.contract_value,
-                    "surplus_value": p.surplus_value,
+                    "war": p.war or 0,
+                    "base_value": p.base_value or 0,
+                    "contract_value": p.contract_value or 0,
+                    "surplus_value": p.surplus_value or 0,
                     "status": p.status
-                } for p in player_years
+                } for p in valid_years
             ]
         }
 

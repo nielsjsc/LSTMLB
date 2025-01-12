@@ -20,50 +20,53 @@ const columns: Column[] = [
   { key: 'bsr', header: 'BsR', formatter: 'decimal', align: 'right' },
 
   // Value Metrics
-  { key: 'war', header: 'WAR', formatter: 'war', align: 'right' },
+  { key: 'war_bat', header: 'WAR', formatter: 'war', align: 'right' },
   { key: 'base', header: 'Value', formatter: 'money', align: 'right' },
   { key: 'contract', header: 'Contract', formatter: 'money', align: 'right' },
   { key: 'surplus', header: 'Surplus', formatter: 'money', align: 'right' }
 ];
 
 interface CombinedHittingTableProps {
-  data: Array<{
-    year: number;
-    age: number;
-    war: number;
-    value: {
-      base: number;
-      contract: number;
-      surplus: number;
-    };
-    hitting: {
-      bb_pct: number;
-      k_pct: number;
-      avg: number;
-      obp: number;
-      slg: number;
-      woba: number;
-      wrc_plus: number;
-      ev: number;
-      off: number;
-      bsr: number;
-      def: number;
-    };
-  }>;
-}
+    data: Array<{
+      year: number;
+      age: number;
+      value: {
+        base: number;
+        contract: number;
+        surplus: number;
+      };
+      hitting: {
+        war_bat: number;
+        bb_pct: number;
+        k_pct: number;
+        avg: number;
+        obp: number;
+        slg: number;
+        woba: number;
+        wrc_plus: number;
+        ev: number;
+        off: number;
+        bsr: number;
+        def: number;
+      };
+    }>;
+  }
 
-const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data }) => {
-  const formattedData = data.map(row => ({
-    year: row.year,
-    age: row.age,
-    war: row.war,
-    base: row.value.base,
-    contract: row.value.contract,
-    surplus: row.value.surplus,
-    ...row.hitting
-  }));
-
-  return <StatTable data={formattedData} columns={columns} defaultSort="year" />;
-};
+  const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data }) => {
+    const formattedData = data.map(row => {
+      const { war_bat, ...otherHittingStats } = row.hitting;
+      return {
+        year: row.year,
+        age: row.age,
+        war_bat,
+        base: row.value.base,
+        contract: row.value.contract,
+        surplus: row.value.surplus,
+        ...otherHittingStats
+      };
+    });
+  
+    return <StatTable data={formattedData} columns={columns} defaultSort="year" />;
+  };
 
 export default CombinedHittingTable;

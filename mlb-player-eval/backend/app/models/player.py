@@ -26,6 +26,7 @@ class Player(Base):
     k_pct_pit = Column(Float)
     
     # Hitting Only Stats
+    war_bat = Column(Float)
     avg = Column(Float)
     obp = Column(Float)
     slg = Column(Float)
@@ -37,6 +38,7 @@ class Player(Base):
     def_value = Column(Float)
     
     # Pitching Only Stats
+    war_pit = Column(Float)
     fip = Column(Float)
     siera = Column(Float)
     gb_pct = Column(Float)
