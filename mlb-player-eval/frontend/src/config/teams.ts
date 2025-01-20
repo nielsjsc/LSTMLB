@@ -14,7 +14,7 @@ export const teamDivisions: TeamDivision = {
   'nyy': { division: 'AL East', name: 'New York Yankees' },
   'tb': { division: 'AL East', name: 'Tampa Bay Rays' },
   'tor': { division: 'AL East', name: 'Toronto Blue Jays' },
-  'cws': { division: 'AL Central', name: 'Chicago White Sox' },
+  'chw': { division: 'AL Central', name: 'Chicago White Sox' },
   'cle': { division: 'AL Central', name: 'Cleveland Guardians' },
   'det': { division: 'AL Central', name: 'Detroit Tigers' },
   'kc': { division: 'AL Central', name: 'Kansas City Royals' },
