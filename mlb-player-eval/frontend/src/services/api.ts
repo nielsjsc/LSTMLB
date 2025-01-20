@@ -5,7 +5,8 @@ export interface Player {
     position: string;
     status: string | null;
     year: number;
-    war: number;
+    war_bat?: number | null;  // Changed from war
+    war_pit?: number | null;  // Added
     base_value: number;
     contract_value: number;
     surplus_value: number;
@@ -18,6 +19,8 @@ export interface PlayerFilter {
     search?: string; 
 }
 
+
+
 export interface PlayerResponse {
     count: number;
     players: Array<{
@@ -25,7 +28,8 @@ export interface PlayerResponse {
         name: string;
         team: string;
         position: string;
-        war: number;
+        war_bat?: number | null;  // Changed
+        war_pit?: number | null;  // Added
         base_value: number;
         contract_value: number;
         surplus_value: number;
@@ -33,17 +37,20 @@ export interface PlayerResponse {
 }
 export interface TradeAnalysis {
     team1: {
-        total_value: number;
+        total_surplus: number;
+        total_contract: number;
+        total_production: number;
         players: Array<{
             name: string;
             team: string;
             status: string;
             total_surplus: number;
             total_contract: number;
+            total_production: number;
             yearly_projections: Array<{
                 year: number;
                 war: number;
-                base_value: number;  // Add this field
+                base_value: number;
                 contract_value: number;
                 surplus_value: number;
                 status: string;
@@ -51,17 +58,20 @@ export interface TradeAnalysis {
         }>;
     };
     team2: {
-        total_value: number;
+        total_surplus: number;
+        total_contract: number;
+        total_production: number;
         players: Array<{
             name: string;
             team: string;
             status: string;
             total_surplus: number;
             total_contract: number;
+            total_production: number;
             yearly_projections: Array<{
                 year: number;
                 war: number;
-                base_value: number;  // Add this field
+                base_value: number;
                 contract_value: number;
                 surplus_value: number;
                 status: string;
@@ -69,7 +79,6 @@ export interface TradeAnalysis {
         }>;
     };
 }
-
 const API_BASE = 'http://localhost:8000/api';
 
 export const getPlayers = async (year: number = 2024): Promise<Player[]> => {
@@ -128,38 +137,47 @@ export interface PlayerStats {
     projections: Array<{
         year: number;
         age: number;
+        position: string;
+        fa_year: number;
+        team: string;
+        probable_fa_year: number;
+        earliest_fa_year: number;
         value: {
-            base: number;
-            contract: number;
-            surplus: number;
+            base_value: number;
+            contract_value: number;
+            surplus_value: number;
         };
         hitting?: {
             war_bat: number;
-            bb_pct: number;
-            k_pct: number;
+            bb_pct_bat: number;
+            k_pct_bat: number;
             avg: number;
             obp: number;
             slg: number;
+            ops: number;
             woba: number;
             wrc_plus: number;
             ev: number;
             off: number;
             bsr: number;
-            def: number;
+            def_value: number;
+            hr: number;
+            doubles: number;
+            triples: number;
+            r: number;
+            rbi: number;
+            sb: number;
+            cs: number;
         };
         pitching?: {
             war_pit: number;
+            era: number;
             fip: number;
             siera: number;
-            k_pct: number;
-            bb_pct: number;
-            gb_pct: number;
-            fb_pct: number;
-            stuff_plus: number;
-            location_plus: number;
-            pitching_plus: number;
-            fbv: number;
+            k_pct_pit: number;
+            bb_pct_pit: number;
         };
+        
     }>;
 }
   
@@ -174,4 +192,88 @@ export interface PlayerStats {
     const data = await response.json();
     console.log('API Response:', data);
     return data;
+};
+
+export type BasePosition = 'C' | '1B' | '2B' | '3B' | 'SS' | 'OF' | 'LF' | 'CF' | 'RF' | 'DH' | 'SP' | 'RP';
+export type PlayerPosition = string;
+export interface ProjectionResponse {
+    count: number;
+    players: Array<{
+        id: number;
+        name: string;
+        team: string;
+        position: string;
+        age: number;
+        fa_year: number;
+        probable_fa_year: number;
+        earliest_fa_year: number;
+        value: {
+            base_value: number;
+            contract_value: number;
+            surplus_value: number;
+        };
+        hitting?: {
+            war_bat: number;
+            bb_pct_bat: number;
+            k_pct_bat: number;
+            avg: number;
+            obp: number;
+            slg: number;
+            ops: number;
+            woba: number;
+            wrc_plus: number;
+            ev: number;
+            off: number;
+            bsr: number;
+            def_val: number;
+            hr: number;
+            doubles: number;
+            triples: number;
+            r: number;
+            rbi: number;
+            sb: number;
+            cs: number;
+        };
+        pitching?: {
+            war_pit: number;
+            era: number;
+            fip: number;
+            siera: number;
+            k_pct_pit: number;
+            bb_pct_pit: number;
+            gb_pct: number;
+            fb_pct: number;
+            stuff_plus: number;
+            location_plus: number;
+            pitching_plus: number;
+            fbv: number;
+        };
+    }>;
+}
+
+export const getProjections = async (
+    year: number,
+    playerType: 'hitter' | 'pitcher',
+    team?: string,
+    position?: PlayerPosition
+): Promise<ProjectionResponse> => {
+    try {
+        const params = new URLSearchParams({
+            year: year.toString(),
+            player_type: playerType,
+            ...(team && { team }),
+            ...(position && { position })
+        });
+
+        const response = await fetch(`${API_BASE}/projections?${params}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch projections');
+        }
+        const data = await response.json();
+        console.log('Projections API Response:', data);
+        return data;
+    } catch (error) {
+        console.error('Error fetching projections:', error);
+        throw error;
+    }
 };

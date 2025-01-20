@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { analyzeTrade, getPlayers, Player, TradeAnalysis } from '../../services/api'
 import { teamDivisions, sortTeamsByDivision } from '../../config/teams'
 import TeamPlayerList from './components/PlayerSelector/TeamPlayerList'
-import ValueDisplay from '../../components/ValueMetrics/display'
+import ValueDisplay from './components/TradeBreakdown/ValueDisplay'
 
 interface TradeState {
   teamA: string | null;
@@ -176,7 +176,13 @@ const TradeAnalyzer = () => {
           
           {loading && <div className="text-center py-4">Analyzing trade...</div>}
           
-          {analysis && <ValueDisplay analysis={analysis} />}
+          {analysis && (
+            <ValueDisplay 
+              analysis={analysis} 
+              team1Name={trade.teamA?.toUpperCase() || ''} 
+              team2Name={trade.teamB?.toUpperCase() || ''}
+            />
+          )}
         </>
       )}
     </div>

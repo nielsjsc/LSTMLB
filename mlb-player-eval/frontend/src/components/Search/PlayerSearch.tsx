@@ -6,8 +6,9 @@ interface PlayerResult {
   id: number;
   name: string;
   team: string;
-  war: number;
   position: string;
+  war_bat?: number | null;
+  war_pit?: number | null;
 }
 
 const PlayerSearch = () => {
@@ -36,11 +37,12 @@ const PlayerSearch = () => {
       }
 
       setResults(response.players.map(p => ({
-          id: p.id,
-          name: p.name,
-          team: p.team,
-          position: p.position,
-          war: p.war
+        id: p.id,
+        name: p.name,
+        team: p.team,
+        position: p.position,
+        war_bat: p.war_bat,
+        war_pit: p.war_pit
       })));
   } catch (err) {
       console.error('Search failed:', err);
@@ -48,7 +50,7 @@ const PlayerSearch = () => {
 };
 
   const handleSelect = (player: PlayerResult) => {
-    navigate(`/player/${player.id}`)
+    navigate(`/players/${player.id}`)
     setQuery('')
     setResults([])
   }
@@ -72,7 +74,7 @@ const PlayerSearch = () => {
         >
             <span>{player.name} ({player.team.toUpperCase()} - {player.position})</span>
             <span className="text-gray-600">
-                {player.war != null ? player.war.toFixed(1) : '-'} WAR
+                {(player.war_bat ?? player.war_pit)?.toFixed(1) ?? '-'} WAR
             </span>
         </button>
           ))}

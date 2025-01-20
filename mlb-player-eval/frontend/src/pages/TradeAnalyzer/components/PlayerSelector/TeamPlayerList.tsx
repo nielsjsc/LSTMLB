@@ -18,15 +18,20 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
   onPlayerRemove,
   otherTeam
 }) => {
-  // Filter out already selected players
   const unselectedPlayers = availablePlayers.filter(player => 
     !receivingPlayers.some(selected => selected.name === player.name)
   );
 
-  // Sort by WAR
-  const sortedPlayers = [...unselectedPlayers].sort((a, b) => b.war - a.war);
+  const sortedPlayers = [...unselectedPlayers].sort((a, b) => {
+    const warA = a.war_bat ?? a.war_pit ?? 0;
+    const warB = b.war_bat ?? b.war_pit ?? 0;
+    return warB - warA;
+  });
 
-  const formatWar = (war: number) => war.toFixed(1);
+  const formatWar = (player: Player): string => {
+    const war = player.war_bat ?? player.war_pit;
+    return war != null ? war.toFixed(1) : '-';
+  };
 
   return (
     <div className="border rounded-lg p-4">
@@ -34,11 +39,11 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
       
       <div className="space-y-2">
         {receivingPlayers.map(player => (
-          <div key={player.name} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+          <div key={player.id} className="flex justify-between items-center bg-gray-50 p-2 rounded">
             <div>
               <span className="font-semibold">{player.name}</span>
               <div className="text-sm text-gray-600">
-                WAR: {formatWar(player.war)}
+                WAR: {formatWar(player)}
               </div>
             </div>
             <button
@@ -52,7 +57,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
 
         <select
           onChange={(e) => {
-            const player = sortedPlayers.find(p => p.name === e.target.value);
+            const player = sortedPlayers.find(p => p.id === parseInt(e.target.value));
             if (player) onPlayerSelect(player);
           }}
           className="w-full border rounded p-2 mt-4"
@@ -60,8 +65,8 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
         >
           <option value="">Add player...</option>
           {sortedPlayers.map(player => (
-            <option key={player.name} value={player.name}>
-              {player.name} (WAR: {formatWar(player.war)})
+            <option key={player.id} value={player.id}>
+              {player.name} (WAR: {formatWar(player)})
             </option>
           ))}
         </select>
