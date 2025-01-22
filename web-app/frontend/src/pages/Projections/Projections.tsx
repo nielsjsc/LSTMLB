@@ -57,76 +57,88 @@ const ProjectionsPage = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4">
-      <h1 className="text-3xl font-bold mb-8">Player Projections</h1>
-      <div className="flex flex-wrap gap-4 mb-8">
-        <select 
-          value={year} 
-          onChange={(e) => setYear(Number(e.target.value))}
-          className="rounded border p-2"
-        >
-          {years.map(year => (
-            <option key={year} value={year}>{year}</option>
-          ))}
-        </select>
+    <div className="min-h-screen bg-white">
+      <div className="max-w-7xl mx-auto py-16 px-4">
+        <h1 className="text-4xl font-bold mb-8 text-gray-900">Player Projections</h1>
+        
+        {/* Controls Section */}
+        <div className="bg-white rounded-lg p-6 mb-8 shadow-md border border-gray-200">
+          <div className="flex flex-wrap gap-4">
+            <select 
+              value={year} 
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="bg-white rounded-md px-4 py-2 border border-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              {years.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
 
-        <select 
-          value={playerType} 
-          onChange={(e) => {
-            setPlayerType(e.target.value as 'hitter' | 'pitcher');
-            setPosition(undefined);
-          }}
-          className="rounded border p-2"
-        >
-          <option value="hitter">Hitters</option>
-          <option value="pitcher">Pitchers</option>
-        </select>
+            <select 
+              value={playerType}
+              onChange={(e) => {
+                setPlayerType(e.target.value as 'hitter' | 'pitcher');
+                setPosition(undefined);
+              }}
+              className="bg-white rounded-md px-4 py-2 border border-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="hitter">Hitters</option>
+              <option value="pitcher">Pitchers</option>
+            </select>
 
-        <select
-          value={team || ''}
-          onChange={(e) => setTeam(e.target.value || undefined)}
-          className="rounded border p-2"
-        >
-          <option value="">All Teams</option>
-          {teams.map(team => (
-            <option key={team} value={team}>{team}</option>
-          ))}
-        </select>
+            <select
+              value={team || ''}
+              onChange={(e) => setTeam(e.target.value || undefined)}
+              className="bg-white rounded-md px-4 py-2 border border-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="">All Teams</option>
+              {teams.map(team => (
+                <option key={team} value={team}>{team}</option>
+              ))}
+            </select>
 
-        <select
-          value={position || ''}
-          onChange={(e) => setPosition(e.target.value || undefined)}
-          className="rounded border p-2"
-        >
-          <option value="">All Positions</option>
-          {(playerType === 'hitter' ? hitterPositions : pitcherPositions).map(pos => (
-            <option key={pos} value={pos}>{pos}</option>
-          ))}
-        </select>
+            <select
+              value={position || ''}
+              onChange={(e) => setPosition(e.target.value || undefined)}
+              className="bg-white rounded-md px-4 py-2 border border-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="">All Positions</option>
+              {(playerType === 'hitter' ? hitterPositions : pitcherPositions).map(pos => (
+                <option key={pos} value={pos}>{pos}</option>
+              ))}
+            </select>
 
-        <button
-          onClick={handleSearch}
-          disabled={loading}
-          className={`px-4 py-2 rounded text-white ${
-            loading ? 'bg-blue-300' : 'bg-blue-500 hover:bg-blue-600'
-          }`}
-        >
-          {loading ? 'Loading...' : 'Search'}
-        </button>
-      </div>
-
-      {error && (
-        <div className="text-red-500 mb-4">{error}</div>
-      )}
-
-      {data && (
-        <div>
-          <div className="text-sm text-gray-500 mb-4">
-            Found {data.count} players
+            <button
+              onClick={handleSearch}
+              disabled={loading}
+              className={`px-6 py-2 rounded-md text-white ${
+                loading 
+                  ? 'bg-emerald-400 cursor-not-allowed' 
+                  : 'bg-emerald-500 hover:bg-emerald-600 transition-colors'
+              }`}
+            >
+              {loading ? 'Loading...' : 'Search'}
+            </button>
           </div>
-          <ProjectionsTable data={data} playerType={playerType} />
         </div>
-      )}
+
+        {error && (
+          <div className="text-red-700 mb-4 bg-red-50 rounded-md px-4 py-2 border border-red-200">
+            {error}
+          </div>
+        )}
+
+        {data && (
+          <div>
+            <div className="text-sm text-gray-600 mb-4">
+              Found {data.count} players
+            </div>
+            <div className="bg-white rounded-lg shadow-md border border-gray-200">
+              <ProjectionsTable data={data} playerType={playerType} />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
