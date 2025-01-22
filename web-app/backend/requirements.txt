@@ -1,0 +1,8 @@
+# filename: requirements.txt
+fastapi
+uvicorn
+sqlalchemy
+pandas
+numpy
+torch
+python-dotenv

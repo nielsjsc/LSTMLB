@@ -128,83 +128,104 @@ const PlayerDetails = () => {
 
 
         return (
-            <div className="max-w-7xl mx-auto py-8 px-4">
-                {/* Player Info Header */}
-                <div className="bg-white shadow rounded-lg p-6 mb-8">
-                    <div className="mb-6">
-                        <h1 className="text-3xl font-bold mb-2">{player?.name}</h1>
-                        <div className="flex space-x-4 text-gray-600">
-                            <span className="font-semibold">{get2025Data()?.team?.toUpperCase()}</span>
-                            <span>{player?.position}</span>
+            <div className="min-h-screen bg-gray-50">
+              <div className="max-w-7xl mx-auto py-8 px-4">
+                {loading ? (
+                  <div className="flex justify-center items-center h-64">
+                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent"></div>
+                  </div>
+                ) : error ? (
+                  <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                    <p className="text-red-700">{error}</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Player Hero Section */}
+                    <div className="bg-white shadow-sm rounded-lg p-8 mb-8">
+                      <div className="flex justify-between items-start mb-6">
+                        <div>
+                          <h1 className="text-3xl font-bold text-gray-900 mb-2">{player?.name}</h1>
+                          <div className="flex items-center space-x-3 text-gray-600">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100">
+                              {get2025Data()?.team?.toUpperCase()}
+                            </span>
+                            <span className="text-sm">{player?.position}</span>
+                          </div>
                         </div>
-                    </div>
-    
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-3 gap-6">
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                        <h3 className="text-sm font-medium text-gray-500 mb-2">Actual Stats</h3>
-                        <div className="space-y-2">
-                            <p className="flex justify-between">
-                                <span>WAR:</span>
-                                <span className="font-medium">{stats?.actual.war.toFixed(1)}</span>
-                            </p>
-                            <p className="flex justify-between">
-                                <span>Production Value:</span>
-                                <span className="font-medium">{formatValue(stats?.actual.value || 0)}</span>
-                            </p>
+                      </div>
+          
+                      {/* Stats Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-gray-50 rounded-lg p-6 border border-gray-100">
+                          <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4">Actual Stats</h3>
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600">WAR</span>
+                              <span className="text-lg font-semibold text-gray-900">{stats?.actual.war.toFixed(1)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600">Value</span>
+                              <span className="text-lg font-semibold text-emerald-600">{formatValue(stats?.actual.value || 0)}</span>
+                            </div>
+                          </div>
                         </div>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                        <h3 className="text-sm font-medium text-gray-500 mb-2">Projected Stats</h3>
-                        <div className="space-y-2">
-                            <p className="flex justify-between">
-                                <span>WAR:</span>
-                                <span className="font-medium">{stats?.projected.war.toFixed(1)}</span>
-                            </p>
-                            <p className="flex justify-between">
-                                <span>Production Value:</span>
-                                <span className="font-medium">{formatValue(stats?.projected.value || 0)}</span>
-                            </p>
+          
+                        <div className="bg-gray-50 rounded-lg p-6 border border-gray-100">
+                          <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4">Projected Stats</h3>
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600">WAR</span>
+                              <span className="text-lg font-semibold text-gray-900">{stats?.projected.war.toFixed(1)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600">Value</span>
+                              <span className="text-lg font-semibold text-emerald-600">{formatValue(stats?.projected.value || 0)}</span>
+                            </div>
+                          </div>
                         </div>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                        <h3 className="text-sm font-medium text-gray-500 mb-2">Career Totals</h3>
-                        <div className="space-y-2">
-                            <p className="flex justify-between">
-                                <span>WAR:</span>
-                                <span className="font-medium">{stats?.total.war.toFixed(1)}</span>
-                            </p>
-                            <p className="flex justify-between">
-                                <span>Production Value:</span>
-                                <span className="font-medium">{formatValue(stats?.total.value || 0)}</span>
-                            </p>
+          
+                        <div className="bg-gray-50 rounded-lg p-6 border border-gray-100">
+                          <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4">Career Totals</h3>
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600">WAR</span>
+                              <span className="text-lg font-semibold text-gray-900">{stats?.total.war.toFixed(1)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600">Value</span>
+                              <span className="text-lg font-semibold text-emerald-600">{formatValue(stats?.total.value || 0)}</span>
+                            </div>
+                          </div>
                         </div>
+                      </div>
                     </div>
-                </div>
-                </div>
-    
-                <div className="space-y-8">
-                    {hasPitchingStats && (
-                        <section>
-                            <h2 className="text-xl font-semibold mb-4">Pitching Projections</h2>
-                            <CombinedPitchingTable 
-                                data={[...pitchingTableData].sort((a, b) => a.year - b.year)}
-                                dividerYear={2025}
-                            />
+          
+                    {/* Projections Tables */}
+                    <div className="space-y-8">
+                      {hasPitchingStats && (
+                        <section className="bg-white shadow-sm rounded-lg p-6">
+                          <h2 className="text-xl font-semibold text-gray-900 mb-6">Pitching Projections</h2>
+                          <CombinedPitchingTable 
+                            data={[...pitchingTableData].sort((a, b) => a.year - b.year)}
+                            dividerYear={2025}
+                          />
                         </section>
-                    )}
-
-                    {hasHittingStats && (
-                        <section>
-                            <h2 className="text-xl font-semibold mb-4">Hitting Projections</h2>
-                            <CombinedHittingTable 
-                                data={[...hittingTableData].sort((a, b) => a.year - b.year)}
-                                dividerYear={2025}
-                            />
+                      )}
+          
+                      {hasHittingStats && (
+                        <section className="bg-white shadow-sm rounded-lg p-6">
+                          <h2 className="text-xl font-semibold text-gray-900 mb-6">Hitting Projections</h2>
+                          <CombinedHittingTable 
+                            data={[...hittingTableData].sort((a, b) => a.year - b.year)}
+                            dividerYear={2025}
+                          />
                         </section>
-                    )}
-                </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-        );
+          );
     };
 export default PlayerDetails;

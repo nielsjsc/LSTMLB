@@ -112,79 +112,102 @@ const TradeAnalyzer = () => {
   const selectedTeams = [trade.teamA, trade.teamB].filter(Boolean) as string[];
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">MLB Trade Analyzer</h1>
-      
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
-      )}
-
-      <div className="mb-6">
-        <div className="flex flex-wrap gap-4">
-          {selectedTeams.map((team) => (
-            <div key={team} className="flex items-center bg-gray-100 rounded-lg p-2">
-              <span className="mr-2">{team.toUpperCase()} - {teamDivisions[team].name}</span>
-              <button
-                onClick={() => handleTeamRemove(team)}
-                className="text-red-500 hover:text-red-700"
-              >
-                ×
-              </button>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto py-16 px-4">
+        <h1 className="text-4xl font-bold mb-8 text-gray-900">Trade Analyzer</h1>
+        
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded-r">
+            <div className="flex">
+              <div className="ml-3">
+                <p className="text-red-700">{error}</p>
+              </div>
             </div>
-          ))}
-          {selectedTeams.length < 2 && (
-            <select
-              onChange={(e) => handleTeamAdd(e.target.value)}
-              className="border rounded-lg p-2"
-              value=""
-            >
-              <option value="">Select team...</option>
-              {sortTeamsByDivision(Object.keys(teamDivisions)
-                .filter(team => !selectedTeams.includes(team)))
-                .map((team) => (
-                  <option key={team} value={team}>
-                    {team.toUpperCase()} - {teamDivisions[team].name}
-                  </option>
-              ))}
-            </select>
-          )}
-        </div>
-      </div>
-      
-      {trade.teamA && trade.teamB && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <TeamPlayerList
-              team={trade.teamA}
-              availablePlayers={players.filter(p => p.team?.toLowerCase() === trade.teamB?.toLowerCase())}
-              receivingPlayers={trade.teamAReceiving}
-              onPlayerSelect={(player) => handlePlayerAdd(trade.teamA!, player)}
-              onPlayerRemove={(player) => handlePlayerRemove(trade.teamA!, player)}
-              otherTeam={trade.teamB}
-            />
-            <TeamPlayerList
-              team={trade.teamB}
-              availablePlayers={players.filter(p => p.team?.toLowerCase() === trade.teamA?.toLowerCase())}
-              receivingPlayers={trade.teamBReceiving}
-              onPlayerSelect={(player) => handlePlayerAdd(trade.teamB!, player)}
-              onPlayerRemove={(player) => handlePlayerRemove(trade.teamB!, player)}
-              otherTeam={trade.teamA}
-            />
           </div>
-          
-          {loading && <div className="text-center py-4">Analyzing trade...</div>}
-          
-          {analysis && (
-            <ValueDisplay 
-              analysis={analysis} 
-              team1Name={trade.teamA?.toUpperCase() || ''} 
-              team2Name={trade.teamB?.toUpperCase() || ''}
-            />
-          )}
-        </>
-      )}
+        )}
+
+        {/* Team Selection */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+          <div className="flex flex-wrap gap-4 items-center">
+            {selectedTeams.map((team) => (
+              <div key={team} 
+                className="flex items-center bg-emerald-50 rounded-lg px-4 py-2 border border-emerald-200"
+              >
+                <span className="text-emerald-900 font-medium">
+                  {team.toUpperCase()} - {teamDivisions[team].name}
+                </span>
+                <button
+                  onClick={() => handleTeamRemove(team)}
+                  className="ml-3 text-emerald-600 hover:text-emerald-800"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {selectedTeams.length < 2 && (
+              <select
+                onChange={(e) => handleTeamAdd(e.target.value)}
+                className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                value=""
+              >
+                <option value="">Select team...</option>
+                {sortTeamsByDivision(Object.keys(teamDivisions)
+                  .filter(team => !selectedTeams.includes(team)))
+                  .map((team) => (
+                    <option key={team} value={team}>
+                      {team.toUpperCase()} - {teamDivisions[team].name}
+                    </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+        
+        {/* Trade Builder */}
+        {trade.teamA && trade.teamB && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <TeamPlayerList
+                  team={trade.teamA}
+                  availablePlayers={players.filter(p => p.team?.toLowerCase() === trade.teamB?.toLowerCase())}
+                  receivingPlayers={trade.teamAReceiving}
+                  onPlayerSelect={(player) => handlePlayerAdd(trade.teamA!, player)}
+                  onPlayerRemove={(player) => handlePlayerRemove(trade.teamA!, player)}
+                  otherTeam={trade.teamB}
+                />
+              </div>
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <TeamPlayerList
+                  team={trade.teamB}
+                  availablePlayers={players.filter(p => p.team?.toLowerCase() === trade.teamA?.toLowerCase())}
+                  receivingPlayers={trade.teamBReceiving}
+                  onPlayerSelect={(player) => handlePlayerAdd(trade.teamB!, player)}
+                  onPlayerRemove={(player) => handlePlayerRemove(trade.teamB!, player)}
+                  otherTeam={trade.teamA}
+                />
+              </div>
+            </div>
+            
+            {loading && (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent"></div>
+                <p className="mt-2 text-gray-600">Analyzing trade...</p>
+              </div>
+            )}
+            
+            {analysis && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <ValueDisplay 
+                  analysis={analysis} 
+                  team1Name={trade.teamA?.toUpperCase() || ''} 
+                  team2Name={trade.teamB?.toUpperCase() || ''}
+                />
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

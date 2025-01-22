@@ -43,6 +43,17 @@ const Navbar = () => {
             >
               Projections
             </Link>
+
+            <Link 
+              to="/about"
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                location.pathname === '/about'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+              }`}
+            >
+              About
+            </Link>
           </div>
 
           {/* Right side - Search */}

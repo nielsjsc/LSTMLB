@@ -5,6 +5,7 @@ import Home from './pages/Home/Home'
 import TradeAnalyzer from './pages/TradeAnalyzer/TradeAnalyzer'
 import PlayerDetails from './pages/PlayerDetails/PlayerDetails'
 import Projections from './pages/Projections/Projections'
+import About from './pages/About/About'
 
 function App() {
   return (
@@ -14,8 +15,9 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/tradeanalyzer" element={<TradeAnalyzer />} />
-          <Route path="/players/:playerId" element={<PlayerDetails />} />  {/* Changed from /player to /players */}
+          <Route path="/players/:playerId" element={<PlayerDetails />} />
           <Route path="/projections" element={<Projections />} />
+          <Route path="/about" element={<About />} /> 
         </Routes>
       </div>
     </Router>
