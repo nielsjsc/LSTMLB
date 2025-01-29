@@ -32,7 +32,10 @@ async def get_projections(
         print(f"Filtering with team: {team}, position: {position}")
         print(f"Query before filters: {query.count()}")
         if team:
-            query = query.filter(Player.team == team.lower())
+            if team.lower() == 'fa':
+                query = query.filter(Player.team == 'FA')
+            else:
+                query = query.filter(Player.team == team.lower())
             print(f"After team filter: {query.count()}")
         if position:
             query = query.filter(Player.position == position)
