@@ -84,7 +84,7 @@ def main():
     ]
     
     # Use a relative path for the CSV file
-    csv_file = "./data/mlb_salary_data.csv"
+    csv_file = "../data/mlb_salary_data.csv"
     os.makedirs(os.path.dirname(csv_file), exist_ok=True)
     
     with open(csv_file, mode="w", newline='', encoding="utf-8") as file:
