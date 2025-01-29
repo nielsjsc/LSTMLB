@@ -14,7 +14,7 @@ const TechnicalOverview = () => {
         </div>
         </div>
   
-        <div className="learning-patterns" className="mb-12">
+        <div id="learning-patterns" className="mb-12">
             <h2 className="text-2xl font-bold mb-4">Learning from History</h2>
             <div className="prose dark:prose-invert prose-slate max-w-none">
                 <p className="mb-4">
