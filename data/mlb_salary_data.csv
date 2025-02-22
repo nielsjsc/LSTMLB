@@ -1,13 +1,13 @@
 Player Name,Team,Year,Status,Payroll,Luxury Tax
-Corbin Burnes,ari,2025,,"$31,666,667","$32,292,964"
-Corbin Burnes,ari,2026,,"$31,666,667","$32,292,964"
+Corbin Burnes,ari,2025,,"$31,666,667","$32,910,744"
+Corbin Burnes,ari,2026,,"$31,666,667","$32,910,744"
 Corbin Burnes,ari,"PLAYER OPT-OUT:    AVAILABLE 
                                         
                                         2027, 4 YR, $96,000,000 REMAINING",,,
-Corbin Burnes,ari,2027,Opt-Out,"$36,666,666","$32,292,964"
-Corbin Burnes,ari,2028,,"$36,666,666","$32,292,964"
-Corbin Burnes,ari,2029,,"$36,666,666","$32,292,964"
-Corbin Burnes,ari,2030,,"$36,666,667","$32,292,964"
+Corbin Burnes,ari,2027,Opt-Out,"$36,666,666","$32,910,744"
+Corbin Burnes,ari,2028,,"$36,666,666","$32,910,744"
+Corbin Burnes,ari,2029,,"$36,666,666","$32,910,744"
+Corbin Burnes,ari,2030,,"$36,666,667","$32,910,744"
 Corbin Burnes,ari,2031,UFA,,
 Corbin Carroll,ari,2023,,"$1,625,000","$13,875,000"
 Corbin Carroll,ari,2024,Pre-Arb,"$3,625,000","$13,875,000"
@@ -60,6 +60,9 @@ Zac Gallen,ari,2025,Arb Avoided,"$13,500,000","$13,500,000"
 Zac Gallen,ari,2026,UFA,,
 Josh Naylor,ari,2025,Arb Avoided,"$10,900,000","$10,900,000"
 Josh Naylor,ari,2026,UFA,,
+Randal Grichuk,ari,2025,,"$2,000,000","$5,000,000"
+Randal Grichuk,ari,2026,Mutual,"$5,000,000","$5,000,000"
+Randal Grichuk,ari,2027,UFA,,
 Ryan Thompson,ari,2025,Arb Avoided,"$2,965,000","$2,965,000"
 Ryan Thompson,ari,2026,,,
 Ryan Thompson,ari,2027,UFA,,
@@ -84,59 +87,59 @@ Kyle Nelson,ari,2025,Arb Avoided,"$825,000","$825,000"
 Kyle Nelson,ari,2026,ARB 2,,
 Kyle Nelson,ari,2027,ARB 3,,
 Kyle Nelson,ari,2028,UFA,,
-René Pinto,ari,2025,Estimate,"$800,000","$800,000"
-Grae Kessinger,ari,2025,Estimate,"$800,000","$800,000"
 Joe Elbis,ari,2025,Estimate,"$800,000","$800,000"
-Tim Tawa,ari,2025,Estimate,"$800,000","$800,000"
-Seth Martinez,ari,2025,Estimate,"$800,000","$800,000"
-Seth Martinez,ari,2026,ARB 1,,
-Jordan Lawlar,ari,2025,Estimate,"$800,000","$800,000"
-Jordan Lawlar,ari,2026,PRE-ARB,,
-Jordan Lawlar,ari,2027,PRE-ARB,,
-Drey Jameson,ari,2025,Estimate,"$800,000","$800,000"
-Drey Jameson,ari,2026,ARB 1,,
 Jake McCarthy,ari,2025,Estimate,"$800,000","$800,000"
 Jake McCarthy,ari,2026,ARB 1,,
+René Pinto,ari,2025,Estimate,"$800,000","$800,000"
 Jose Herrera,ari,2025,Estimate,"$800,000","$800,000"
 Jose Herrera,ari,2026,ARB 1,,
 Alek Thomas,ari,2025,Estimate,"$800,000","$800,000"
 Alek Thomas,ari,2026,ARB 1,,
+Grae Kessinger,ari,2025,Estimate,"$800,000","$800,000"
 Justin Martinez,ari,2025,Estimate,"$800,000","$800,000"
 Justin Martinez,ari,2026,PRE-ARB,,
 Justin Martinez,ari,2027,ARB 1,,
 Brandon Pfaadt,ari,2025,Estimate,"$800,000","$800,000"
 Brandon Pfaadt,ari,2026,PRE-ARB,,
 Brandon Pfaadt,ari,2027,ARB 1,,
+Tim Tawa,ari,2025,Estimate,"$800,000","$800,000"
+Seth Martinez,ari,2025,Estimate,"$800,000","$800,000"
+Seth Martinez,ari,2026,ARB 1,,
+Jordan Lawlar,ari,2025,Estimate,"$800,000","$800,000"
+Jordan Lawlar,ari,2026,PRE-ARB,,
+Jordan Lawlar,ari,2027,PRE-ARB,,
+Cristian Mena,ari,2025,Estimate,"$800,000","$800,000"
+Cristian Mena,ari,2026,PRE-ARB,,
+Cristian Mena,ari,2027,PRE-ARB,,
+Jorge Barrosa,ari,2025,Estimate,"$800,000","$800,000"
+Jorge Barrosa,ari,2026,PRE-ARB,,
+Jorge Barrosa,ari,2027,PRE-ARB,,
+Yilber Diaz,ari,2025,Estimate,"$800,000","$800,000"
+Yilber Diaz,ari,2026,PRE-ARB,,
+Yilber Diaz,ari,2027,PRE-ARB,,
+Adrian Del Castillo,ari,2025,Estimate,"$800,000","$800,000"
+Adrian Del Castillo,ari,2026,PRE-ARB,,
+Adrian Del Castillo,ari,2027,PRE-ARB,,
+Tommy Henry,ari,2025,Estimate,"$800,000","$800,000"
+Tommy Henry,ari,2026,PRE-ARB,,
+Tommy Henry,ari,2027,ARB 1,,
+Blake Walston,ari,2025,Estimate,"$800,000","$800,000"
+Blake Walston,ari,2026,PRE-ARB,,
+Blake Walston,ari,2027,PRE-ARB,,
+Blaze Alexander,ari,2025,Estimate,"$800,000","$800,000"
+Blaze Alexander,ari,2026,PRE-ARB,,
+Blaze Alexander,ari,2027,PRE-ARB,,
+Drey Jameson,ari,2025,Estimate,"$800,000","$800,000"
+Drey Jameson,ari,2026,ARB 1,,
+Bryce Jarvis,ari,2025,Estimate,"$800,000","$800,000"
+Bryce Jarvis,ari,2026,PRE-ARB,,
+Bryce Jarvis,ari,2027,ARB 1,,
+Ryne Nelson,ari,2025,Estimate,"$800,000","$800,000"
+Ryne Nelson,ari,2026,ARB 1,,
 Gabriel Moreno,ari,2025,Estimate,"$800,000","$800,000"
 Gabriel Moreno,ari,2026,ARB 1,,
 Gabriel Moreno,ari,2027,ARB 2,,
 Gabriel Moreno,ari,2028,ARB 3,,
-Ryne Nelson,ari,2025,Estimate,"$800,000","$800,000"
-Ryne Nelson,ari,2026,ARB 1,,
-Bryce Jarvis,ari,2025,Estimate,"$800,000","$800,000"
-Bryce Jarvis,ari,2026,PRE-ARB,,
-Bryce Jarvis,ari,2027,ARB 1,,
-Cristian Mena,ari,2025,Estimate,"$800,000","$800,000"
-Cristian Mena,ari,2026,PRE-ARB,,
-Cristian Mena,ari,2027,PRE-ARB,,
-Blaze Alexander,ari,2025,Estimate,"$800,000","$800,000"
-Blaze Alexander,ari,2026,PRE-ARB,,
-Blaze Alexander,ari,2027,PRE-ARB,,
-Blake Walston,ari,2025,Estimate,"$800,000","$800,000"
-Blake Walston,ari,2026,PRE-ARB,,
-Blake Walston,ari,2027,PRE-ARB,,
-Tommy Henry,ari,2025,Estimate,"$800,000","$800,000"
-Tommy Henry,ari,2026,PRE-ARB,,
-Tommy Henry,ari,2027,ARB 1,,
-Adrian Del Castillo,ari,2025,Estimate,"$800,000","$800,000"
-Adrian Del Castillo,ari,2026,PRE-ARB,,
-Adrian Del Castillo,ari,2027,PRE-ARB,,
-Yilber Diaz,ari,2025,Estimate,"$800,000","$800,000"
-Yilber Diaz,ari,2026,PRE-ARB,,
-Yilber Diaz,ari,2027,PRE-ARB,,
-Jorge Barrosa,ari,2025,Estimate,"$800,000","$800,000"
-Jorge Barrosa,ari,2026,PRE-ARB,,
-Jorge Barrosa,ari,2027,PRE-ARB,,
 Andrew Saalfrank,ari,2025,-,-,-
 Austin Riley,atl,2023,ARB 2,"$15,000,000","$21,200,000"
 Austin Riley,atl,2024,ARB 3,"$21,000,000","$21,200,000"
@@ -209,6 +212,10 @@ Raisel Iglesias,atl,2023,"$16,000,000","$14,500,000",6.22%
 Raisel Iglesias,atl,2024,"$16,000,000","$14,500,000",6.12%
 Raisel Iglesias,atl,2025,"$16,000,000","$15,382,405",6.38%
 Raisel Iglesias,atl,2026,UFA,,
+Jurickson Profar,atl,2025,"$12,000,000","$14,000,000",5.81%
+Jurickson Profar,atl,2026,"$15,000,000","$14,000,000",5.74%
+Jurickson Profar,atl,2027,"$15,000,000","$14,000,000",-
+Jurickson Profar,atl,2028,UFA,,
 Chris Sale,atl,2024,,-,"$3,000,000"
 Chris Sale,atl,2025,,"$22,000,000","$19,000,000"
 Chris Sale,atl,2026,Club,"$18,000,000","$18,000,000"
@@ -254,13 +261,23 @@ Dylan Lee,atl,2027,ARB 3,,
 Dylan Lee,atl,2028,ARB 4,,
 Dylan Lee,atl,2029,UFA,,
 Bryan De La Cruz,atl,2025,"$860,000","$860,000",0.36%
-Connor Gillispie,atl,2025,"$820,000","$820,000",0.34%
+Eli White,atl,2025,Estimate,"$800,000","$800,000"
+Eli White,atl,2026,ARB 1,,
+Daysbel Hernández,atl,2025,Estimate,"$800,000","$800,000"
+Daysbel Hernández,atl,2026,PRE-ARB,,
+Daysbel Hernández,atl,2027,PRE-ARB,,
 Amos Willingham,atl,2025,Estimate,"$800,000","$800,000"
 Davis Daniel,atl,2025,Estimate,"$800,000","$800,000"
 Christian Cairo,atl,2025,Estimate,"$800,000","$800,000"
 Anderson Pilar,atl,2025,Estimate,"$800,000","$800,000"
 Rolddy Muñoz,atl,2025,Estimate,"$800,000","$800,000"
 Domingo Gonzalez,atl,2025,Estimate,"$800,000","$800,000"
+Spencer Schwellenbach,atl,2025,Estimate,"$800,000","$800,000"
+Spencer Schwellenbach,atl,2026,PRE-ARB,,
+Spencer Schwellenbach,atl,2027,PRE-ARB,,
+Grant Holmes,atl,2025,Estimate,"$800,000","$800,000"
+Grant Holmes,atl,2026,PRE-ARB,,
+Grant Holmes,atl,2027,PRE-ARB,,
 Angel Perdomo,atl,2025,Estimate,"$800,000","$800,000"
 Angel Perdomo,atl,2026,ARB 1,,
 Nick Allen,atl,2025,Estimate,"$800,000","$800,000"
@@ -286,17 +303,6 @@ Dylan Dodd,atl,2026,PRE-ARB,,
 Dylan Dodd,atl,2027,PRE-ARB,,
 Ian Anderson,atl,2025,Estimate,"$800,000","$800,000"
 Ian Anderson,atl,2026,ARB 1,,
-Spencer Schwellenbach,atl,2025,Estimate,"$800,000","$800,000"
-Spencer Schwellenbach,atl,2026,PRE-ARB,,
-Spencer Schwellenbach,atl,2027,PRE-ARB,,
-Grant Holmes,atl,2025,Estimate,"$800,000","$800,000"
-Grant Holmes,atl,2026,PRE-ARB,,
-Grant Holmes,atl,2027,PRE-ARB,,
-Eli White,atl,2025,Estimate,"$800,000","$800,000"
-Eli White,atl,2026,ARB 1,,
-Daysbel Hernández,atl,2025,Estimate,"$800,000","$800,000"
-Daysbel Hernández,atl,2026,PRE-ARB,,
-Daysbel Hernández,atl,2027,PRE-ARB,,
 Carlos D. Rodriguez,atl,2025,Estimate,"$760,000","$760,000"
 Tyler O'Neill,bal,2025,,"$16,500,000","$16,500,000"
 Tyler O'Neill,bal,"PLAYER OPT-OUT:    AVAILABLE 
@@ -333,9 +339,12 @@ Adley Rutschman,bal,2027,ARB 3,,
 Adley Rutschman,bal,2028,UFA,,
 Gregory Soto,bal,2025,Arb Avoided,"$5,350,000","$5,350,000"
 Gregory Soto,bal,2026,UFA,,
-Jorge Mateo,bal,2025,Arb Filed,"$3,550,000                                                                                                                        
-                                                                                (Arb. Midpoint)","$3,550,000"
-Jorge Mateo,bal,2026,UFA,,
+Ramon Laureano,bal,2025,,"$4,000,000","$4,000,000"
+Ramon Laureano,bal,2026,Club,"$6,500,000","$4,000,000"
+Ramon Laureano,bal,2027,UFA,,
+Jorge Mateo,bal,2025,Arb Avoided #,"$3,550,000","$3,550,000"
+Jorge Mateo,bal,2026,Club,"$5,500,000","$3,550,000"
+Jorge Mateo,bal,2027,UFA,,
 Ryan O'Hearn,bal,2024,Arb Avoided #,"$3,500,000","$3,500,000"
 Ryan O'Hearn,bal,2025,Club,"$8,000,000","$8,000,000"
 Ryan O'Hearn,bal,2026,UFA,,
@@ -370,23 +379,19 @@ Cionel Perez,bal,2024,Arb Avoided #,"$1,200,000","$1,200,000"
 Cionel Perez,bal,2025,Club,"$2,200,000","$2,200,000"
 Cionel Perez,bal,2026,ARB 3,,
 Cionel Perez,bal,2027,UFA,,
-Emmanuel Rivera,bal,2025,Arb Avoided,"$1,000,000","$1,000,000"
-Emmanuel Rivera,bal,2026,ARB 2,,
-Emmanuel Rivera,bal,2027,ARB 3,,
-Emmanuel Rivera,bal,2028,UFA,,
-Jacob Amaya,bal,2025,Estimate,"$800,000","$800,000"
-Grayson Rodriguez,bal,2025,Estimate,"$800,000","$800,000"
-Grayson Rodriguez,bal,2026,PRE-ARB,,
-Grayson Rodriguez,bal,2027,PRE-ARB,,
+Dylan Carlson,bal,2025,"$975,000","$975,000",0.40%
+Cade Povich,bal,2025,Estimate,"$800,000","$800,000"
+Cade Povich,bal,2026,PRE-ARB,,
+Cade Povich,bal,2027,PRE-ARB,,
+Roansy Contreras,bal,2025,Estimate,"$800,000","$800,000"
 Colin Selby,bal,2025,Estimate,"$800,000","$800,000"
 Colin Selby,bal,2026,PRE-ARB,,
 Colin Selby,bal,2027,PRE-ARB,,
 Jackson Holliday,bal,2025,Estimate,"$800,000","$800,000"
 Jackson Holliday,bal,2026,PRE-ARB,,
 Jackson Holliday,bal,2027,PRE-ARB,,
-Cade Povich,bal,2025,Estimate,"$800,000","$800,000"
-Cade Povich,bal,2026,PRE-ARB,,
-Cade Povich,bal,2027,PRE-ARB,,
+Gunnar Henderson,bal,2025,Estimate,"$800,000","$800,000"
+Gunnar Henderson,bal,2026,ARB 1,,
 Heston Kjerstad,bal,2025,Estimate,"$800,000","$800,000"
 Heston Kjerstad,bal,2026,PRE-ARB,,
 Heston Kjerstad,bal,2027,PRE-ARB,,
@@ -398,23 +403,22 @@ Jordan Westburg,bal,2026,PRE-ARB,,
 Jordan Westburg,bal,2027,ARB 1,,
 Yennier Cano,bal,2025,Estimate,"$800,000","$800,000"
 Yennier Cano,bal,2026,ARB 1,,
-Gunnar Henderson,bal,2025,Estimate,"$800,000","$800,000"
-Gunnar Henderson,bal,2026,ARB 1,,
 Brandon Young,bal,2025,Estimate,"$800,000","$800,000"
-Chayce McDermott,bal,2025,Estimate,"$800,000","$800,000"
-Chayce McDermott,bal,2026,PRE-ARB,,
-Chayce McDermott,bal,2027,PRE-ARB,,
+Kade Strowd,bal,2025,Estimate,"$800,000","$800,000"
+Luis Gonzalez,bal,2025,Estimate,"$800,000","$800,000"
+Albert Suarez,bal,2025,Estimate,"$800,000","$800,000"
+Albert Suarez,bal,2026,ARB 1,,
+Bryan Baker,bal,2025,Estimate,"$800,000","$800,000"
+Bryan Baker,bal,2026,ARB 1,,
 Coby Mayo,bal,2025,Estimate,"$800,000","$800,000"
 Coby Mayo,bal,2026,PRE-ARB,,
 Coby Mayo,bal,2027,PRE-ARB,,
-Bryan Baker,bal,2025,Estimate,"$800,000","$800,000"
-Bryan Baker,bal,2026,ARB 1,,
-Daz Cameron,bal,2025,Estimate,"$800,000","$800,000"
-Daz Cameron,bal,2026,ARB 1,,
-Albert Suarez,bal,2025,Estimate,"$800,000","$800,000"
-Albert Suarez,bal,2026,ARB 1,,
-Luis Gonzalez,bal,2025,Estimate,"$800,000","$800,000"
-Kade Strowd,bal,2025,Estimate,"$800,000","$800,000"
+Chayce McDermott,bal,2025,Estimate,"$800,000","$800,000"
+Chayce McDermott,bal,2026,PRE-ARB,,
+Chayce McDermott,bal,2027,PRE-ARB,,
+Grayson Rodriguez,bal,2025,Estimate,"$800,000","$800,000"
+Grayson Rodriguez,bal,2026,PRE-ARB,,
+Grayson Rodriguez,bal,2027,PRE-ARB,,
 Rafael Devers,bos,2023,ARB 3,"$19,318,182","$17,500,000"
 Rafael Devers,bos,2024,,"$29,318,181","$29,152,686"
 Rafael Devers,bos,2025,,"$29,318,181","$29,152,686"
@@ -595,6 +599,10 @@ Nico Hoerner,chc,2024,ARB 2,"$11,500,000","$11,666,667"
 Nico Hoerner,chc,2025,ARB 3,"$11,500,000","$11,666,667"
 Nico Hoerner,chc,2026,,"$12,000,000","$11,666,667"
 Nico Hoerner,chc,2027,UFA,,
+Ryan Pressly,chc,2023,,"$14,000,000","$15,000,000"
+Ryan Pressly,chc,2024,,"$14,000,000","$15,000,000"
+Ryan Pressly,chc,2025,Vesting,"$14,000,000","$8,500,000"
+Ryan Pressly,chc,2026,UFA,,
 Matt Boyd,chc,2025,,"$10,000,000","$14,500,000"
 Matt Boyd,chc,2026,,"$17,000,000","$14,500,000"
 Matt Boyd,chc,2027,Mutual,"$15,000,000","$14,500,000"
@@ -605,6 +613,9 @@ Carson Kelly,chc,2025,,"$5,000,000","$5,750,000"
 Carson Kelly,chc,2026,,"$5,000,000","$5,750,000"
 Carson Kelly,chc,2027,Mutual,"$7,500,000","$5,750,000"
 Carson Kelly,chc,2028,UFA,,
+Ryan Brasier,chc,2024,"$4,500,000","$4,500,000",1.90%
+Ryan Brasier,chc,2025,"$4,500,000","$4,500,000",1.87%
+Ryan Brasier,chc,2026,UFA,,
 Justin Steele,chc,2025,Arb Avoided,"$6,550,000","$6,550,000"
 Justin Steele,chc,2026,ARB 3,,
 Justin Steele,chc,2027,ARB 4,,
@@ -630,36 +641,32 @@ Keegan Thompson,chc,2025,Arb Avoided,"$850,000","$850,000"
 Keegan Thompson,chc,2026,ARB 2,,
 Keegan Thompson,chc,2027,ARB 3,,
 Keegan Thompson,chc,2028,UFA,,
-Michael Busch,chc,2025,Estimate,"$800,000","$800,000"
-Michael Busch,chc,2026,PRE-ARB,,
-Michael Busch,chc,2027,ARB 1,,
+Gage Workman,chc,2025,Estimate,"$800,000","$800,000"
 Kevin Alcantara,chc,2025,Estimate,"$800,000","$800,000"
 Kevin Alcantara,chc,2026,PRE-ARB,,
 Kevin Alcantara,chc,2027,PRE-ARB,,
 Vidal Brujan,chc,2025,Estimate,"$800,000","$800,000"
-Luis Vazquez,chc,2025,Estimate,"$800,000","$800,000"
-Luis Vazquez,chc,2026,PRE-ARB,,
-Luis Vazquez,chc,2027,PRE-ARB,,
 Porter Hodge,chc,2025,Estimate,"$800,000","$800,000"
 Porter Hodge,chc,2026,PRE-ARB,,
 Porter Hodge,chc,2027,PRE-ARB,,
 Caleb Kilian,chc,2025,Estimate,"$800,000","$800,000"
 Caleb Kilian,chc,2026,PRE-ARB,,
 Caleb Kilian,chc,2027,PRE-ARB,,
-Matt Festa,chc,2025,Estimate,"$800,000","$800,000"
 Tyson Miller,chc,2025,Estimate,"$800,000","$800,000"
 Tyson Miller,chc,2026,PRE-ARB,,
 Tyson Miller,chc,2027,ARB 1,,
 Pete Crow-Armstrong,chc,2025,Estimate,"$800,000","$800,000"
 Pete Crow-Armstrong,chc,2026,PRE-ARB,,
 Pete Crow-Armstrong,chc,2027,PRE-ARB,,
-Gage Workman,chc,2025,Estimate,"$800,000","$800,000"
+Michael Busch,chc,2025,Estimate,"$800,000","$800,000"
+Michael Busch,chc,2026,PRE-ARB,,
+Michael Busch,chc,2027,ARB 1,,
+Javier Assad,chc,2025,Estimate,"$800,000","$800,000"
+Javier Assad,chc,2026,ARB 1,,
 Miguel Amaya,chc,2025,Estimate,"$800,000","$800,000"
 Miguel Amaya,chc,2026,ARB 1 (S2),,
 Benjamin Cowles,chc,2025,Estimate,"$800,000","$800,000"
 Owen Caissie,chc,2025,Estimate,"$800,000","$800,000"
-Rob Zastryzny,chc,2025,Estimate,"$800,000","$800,000"
-Rob Zastryzny,chc,2026,ARB 1,,
 Cody Poteet,chc,2025,Estimate,"$800,000","$800,000"
 Cody Poteet,chc,2026,ARB 1,,
 Daniel Palencia,chc,2025,Estimate,"$800,000","$800,000"
@@ -683,21 +690,12 @@ Ben Brown,chc,2027,ARB 1,,
 Luke Little,chc,2025,Estimate,"$800,000","$800,000"
 Luke Little,chc,2026,PRE-ARB,,
 Luke Little,chc,2027,ARB 1,,
-Javier Assad,chc,2025,Estimate,"$800,000","$800,000"
-Javier Assad,chc,2026,ARB 1,,
 Andrew Benintendi,chw,2023,"$8,600,000","$15,000,000",6.44%
 Andrew Benintendi,chw,2024,"$17,100,000","$15,000,000",6.33%
 Andrew Benintendi,chw,2025,"$17,100,000","$15,000,000",6.22%
 Andrew Benintendi,chw,2026,"$17,100,000","$15,000,000",6.15%
 Andrew Benintendi,chw,2027,"$15,100,000","$15,000,000",-
 Andrew Benintendi,chw,2028,UFA,,
-Yoan Moncada,chw,2020,,"$1,170,370","$14,000,000"
-Yoan Moncada,chw,2021,ARB 1,"$6,800,000","$14,000,000"
-Yoan Moncada,chw,2022,ARB 2,"$13,800,000","$14,000,000"
-Yoan Moncada,chw,2023,ARB 3,"$17,800,000","$14,000,000"
-Yoan Moncada,chw,2024,,"$24,800,000","$14,000,000"
-Yoan Moncada,chw,2025,,"$25,000,000","$25,000,000"
-Yoan Moncada,chw,2026,UFA,,
 Luis Robert Jr.,chw,2020,Pre-Arb,"$555,556","$8,333,333"
 Luis Robert Jr.,chw,2021,Pre-Arb,"$3,500,000","$8,333,333"
 Luis Robert Jr.,chw,2022,Pre-Arb,"$6,000,000","$8,333,333"
@@ -714,6 +712,8 @@ Martín Pérez,chw,2025,,"$3,500,000","$5,000,000"
 Martín Pérez,chw,2026,Mutual,"$1,000,000","$5,000,000"
 Martín Pérez,chw,2027,UFA,,
 Josh Rojas,chw,2025,"$3,500,000","$3,500,000",1.45%
+Michael A. Taylor,chw,2025,"$1,950,000","$1,950,000",0.81%
+Michael A. Taylor,chw,2026,UFA,,
 Mike Tauchman,chw,2025,"$1,950,000","$1,950,000",0.81%
 Austin Slater,chw,2025,"$1,750,000","$1,750,000",0.73%
 Austin Slater,chw,2026,UFA,,
@@ -723,59 +723,40 @@ Matt Thaiss,chw,2025,Arb Avoided,"$1,000,000","$1,000,000"
 Matt Thaiss,chw,2026,ARB 2,,
 Matt Thaiss,chw,2027,ARB 3,,
 Matt Thaiss,chw,2028,UFA,,
-Steven Wilson,chw,2025,Arb Avoided,"$950,000","$950,000"
-Steven Wilson,chw,2026,ARB 2,,
-Steven Wilson,chw,2027,ARB 3,,
-Steven Wilson,chw,2028,UFA,,
 Justin Anderson,chw,2025,Arb Avoided,"$900,000","$900,000"
 Justin Anderson,chw,2026,ARB 2,,
 Justin Anderson,chw,2027,ARB 3,,
 Justin Anderson,chw,2028,UFA,,
-Drew Thorpe,chw,2025,Estimate,"$800,000","$800,000"
-Drew Thorpe,chw,2026,PRE-ARB,,
-Drew Thorpe,chw,2027,PRE-ARB,,
-Ky Bush,chw,2025,Estimate,"$800,000","$800,000"
-Ky Bush,chw,2026,PRE-ARB,,
-Ky Bush,chw,2027,PRE-ARB,,
-Óscar Colás,chw,2025,Estimate,"$800,000","$800,000"
-Óscar Colás,chw,2026,PRE-ARB,,
-Óscar Colás,chw,2027,PRE-ARB,,
-Nick Nastrini,chw,2025,Estimate,"$800,000","$800,000"
-Nick Nastrini,chw,2026,PRE-ARB,,
-Nick Nastrini,chw,2027,PRE-ARB,,
-Jordan Leasure,chw,2025,Estimate,"$800,000","$800,000"
-Jordan Leasure,chw,2026,PRE-ARB,,
-Jordan Leasure,chw,2027,PRE-ARB,,
-Ron Marinaccio,chw,2025,Estimate,"$800,000","$800,000"
-Ron Marinaccio,chw,2026,ARB 1,,
+Sean Burke,chw,2025,Estimate,"$800,000","$800,000"
+Sean Burke,chw,2026,PRE-ARB,,
+Sean Burke,chw,2027,PRE-ARB,,
+Prelander Berroa,chw,2025,Estimate,"$800,000","$800,000"
+Prelander Berroa,chw,2026,PRE-ARB,,
+Prelander Berroa,chw,2027,PRE-ARB,,
 Tyler Gilbert,chw,2025,Estimate,"$800,000","$800,000"
 Tyler Gilbert,chw,2026,PRE-ARB,,
 Tyler Gilbert,chw,2027,ARB 1,,
 Colson Montgomery,chw,2025,Estimate,"$800,000","$800,000"
 Juan Carela,chw,2025,Estimate,"$800,000","$800,000"
-Shane Smith,chw,2025,Estimate,"$800,000","$800,000"
-Brooks Baldwin,chw,2025,Estimate,"$800,000","$800,000"
-Brooks Baldwin,chw,2026,PRE-ARB,,
-Brooks Baldwin,chw,2027,PRE-ARB,,
-Wikelman Gonzalez,chw,2025,Estimate,"$800,000","$800,000"
-Cam Booser,chw,2025,Estimate,"$800,000","$800,000"
-Cam Booser,chw,2026,PRE-ARB,,
-Cam Booser,chw,2027,PRE-ARB,,
-Jake Eder,chw,2025,Estimate,"$800,000","$800,000"
-Jake Eder,chw,2026,PRE-ARB,,
-Jake Eder,chw,2027,PRE-ARB,,
-Sean Burke,chw,2025,Estimate,"$800,000","$800,000"
-Sean Burke,chw,2026,PRE-ARB,,
-Sean Burke,chw,2027,PRE-ARB,,
 Jairo Iriarte,chw,2025,Estimate,"$800,000","$800,000"
 Jairo Iriarte,chw,2026,PRE-ARB,,
 Jairo Iriarte,chw,2027,PRE-ARB,,
-Prelander Berroa,chw,2025,Estimate,"$800,000","$800,000"
-Prelander Berroa,chw,2026,PRE-ARB,,
-Prelander Berroa,chw,2027,PRE-ARB,,
-Zach DeLoach,chw,2025,Estimate,"$800,000","$800,000"
-Zach DeLoach,chw,2026,PRE-ARB,,
-Zach DeLoach,chw,2027,PRE-ARB,,
+Shane Smith,chw,2025,Estimate,"$800,000","$800,000"
+Jordan Leasure,chw,2025,Estimate,"$800,000","$800,000"
+Jordan Leasure,chw,2026,PRE-ARB,,
+Jordan Leasure,chw,2027,PRE-ARB,,
+Jake Eder,chw,2025,Estimate,"$800,000","$800,000"
+Jake Eder,chw,2026,PRE-ARB,,
+Jake Eder,chw,2027,PRE-ARB,,
+Cam Booser,chw,2025,Estimate,"$800,000","$800,000"
+Cam Booser,chw,2026,PRE-ARB,,
+Cam Booser,chw,2027,PRE-ARB,,
+Jacob Amaya,chw,2025,Estimate,"$800,000","$800,000"
+Brandon Eisert,chw,2025,Estimate,"$800,000","$800,000"
+Wikelman Gonzalez,chw,2025,Estimate,"$800,000","$800,000"
+Dominic Fletcher,chw,2025,Estimate,"$800,000","$800,000"
+Dominic Fletcher,chw,2026,PRE-ARB,,
+Dominic Fletcher,chw,2027,ARB 1,,
 Gus Varland,chw,2025,Estimate,"$800,000","$800,000"
 Gus Varland,chw,2026,PRE-ARB,,
 Gus Varland,chw,2027,PRE-ARB,,
@@ -797,17 +778,29 @@ Lenyn Sosa,chw,2027,ARB 1,,
 Jonathan Cannon,chw,2025,Estimate,"$800,000","$800,000"
 Jonathan Cannon,chw,2026,PRE-ARB,,
 Jonathan Cannon,chw,2027,PRE-ARB,,
-Dominic Fletcher,chw,2025,Estimate,"$800,000","$800,000"
-Dominic Fletcher,chw,2026,PRE-ARB,,
-Dominic Fletcher,chw,2027,ARB 1,,
+Nick Nastrini,chw,2025,Estimate,"$800,000","$800,000"
+Nick Nastrini,chw,2026,PRE-ARB,,
+Nick Nastrini,chw,2027,PRE-ARB,,
 Jared Shuster,chw,2025,Estimate,"$800,000","$800,000"
 Jared Shuster,chw,2026,PRE-ARB,,
 Jared Shuster,chw,2027,ARB 1,,
 Korey Lee,chw,2025,Estimate,"$800,000","$800,000"
 Korey Lee,chw,2026,PRE-ARB,,
 Korey Lee,chw,2027,ARB 1,,
+Brooks Baldwin,chw,2025,Estimate,"$800,000","$800,000"
+Brooks Baldwin,chw,2026,PRE-ARB,,
+Brooks Baldwin,chw,2027,PRE-ARB,,
+Drew Thorpe,chw,2025,Estimate,"$800,000","$800,000"
+Drew Thorpe,chw,2026,PRE-ARB,,
+Drew Thorpe,chw,2027,PRE-ARB,,
 Jesse Scholtens,chw,2025,Estimate,"$800,000","$800,000"
 Jesse Scholtens,chw,2026,ARB 1 (S2),,
+Ky Bush,chw,2025,Estimate,"$800,000","$800,000"
+Ky Bush,chw,2026,PRE-ARB,,
+Ky Bush,chw,2027,PRE-ARB,,
+Óscar Colás,chw,2025,Estimate,"$800,000","$800,000"
+Óscar Colás,chw,2026,PRE-ARB,,
+Óscar Colás,chw,2027,PRE-ARB,,
 Penn Murfee,chw,2025,Arb Avoided,"$780,000","$780,000"
 Penn Murfee,chw,2026,ARB 2,,
 Penn Murfee,chw,2027,ARB 3,,
@@ -825,6 +818,10 @@ Jeimer Candelario,cin,2025,,"$15,000,000","$15,000,000"
 Jeimer Candelario,cin,2026,,"$12,000,000","$15,000,000"
 Jeimer Candelario,cin,2027,Club,"$18,000,000","$18,000,000"
 Jeimer Candelario,cin,2028,UFA,,
+Taylor Rogers,cin,2023,"$9,000,000","$11,000,000",4.72%
+Taylor Rogers,cin,2024,"$12,000,000","$11,000,000",4.64%
+Taylor Rogers,cin,2025,"$6,000,000","$6,000,000",2.49%
+Taylor Rogers,cin,2026,UFA,,
 Nick Martinez,cin,2025,RFA / QO,"$21,050,000","$21,050,000"
 Nick Martinez,cin,2026,,,
 Nick Martinez,cin,2026,UFA,,
@@ -834,6 +831,9 @@ Emilio Pagan,cin,2026,UFA,,
 Brady Singer,cin,2025,Arb Avoided,"$8,750,000","$8,750,000"
 Brady Singer,cin,2026,ARB 4,,
 Brady Singer,cin,2027,UFA,,
+Austin Hays,cin,2025,,"$4,000,000","$5,000,000"
+Austin Hays,cin,2026,Mutual,"$12,000,000","$5,000,000"
+Austin Hays,cin,2027,UFA,,
 Tyler Stephenson,cin,2025,Arb Avoided,"$4,925,000","$4,925,000"
 Tyler Stephenson,cin,2026,ARB 3,,
 Tyler Stephenson,cin,2027,UFA,,
@@ -852,6 +852,8 @@ Gavin Lux,cin,2027,UFA,,
 Jake Fraley,cin,2025,Arb Avoided,"$3,125,000","$3,125,000"
 Jake Fraley,cin,2026,ARB 3,,
 Jake Fraley,cin,2027,UFA,,
+Scott Barlow,cin,2025,"$2,500,000","$2,500,000",1.04%
+Scott Barlow,cin,2026,UFA,,
 Brent Suter,cin,2025,,"$2,250,000","$2,500,000"
 Brent Suter,cin,2026,Club,"$3,000,000","$2,500,000"
 Brent Suter,cin,2027,UFA,,
@@ -866,8 +868,7 @@ Sam Moll,cin,2025,Arb Avoided,"$1,007,500","$1,007,500"
 Sam Moll,cin,2026,ARB 2,,
 Sam Moll,cin,2027,ARB 3,,
 Sam Moll,cin,2028,UFA,,
-Tony Santillan,cin,2025,Estimate,"$800,000","$800,000"
-Tony Santillan,cin,2026,ARB 1,,
+Luis Mey,cin,2025,Estimate,"$800,000","$800,000"
 Yosver Zulueta,cin,2025,Estimate,"$800,000","$800,000"
 Yosver Zulueta,cin,2026,PRE-ARB,,
 Yosver Zulueta,cin,2027,PRE-ARB,,
@@ -877,25 +878,37 @@ Rhett Lowder,cin,2027,PRE-ARB,,
 Blake Dunn,cin,2025,Estimate,"$800,000","$800,000"
 Blake Dunn,cin,2026,PRE-ARB,,
 Blake Dunn,cin,2027,PRE-ARB,,
-Owen White,cin,2025,Estimate,"$800,000","$800,000"
-Cooper Bowman,cin,2025,Estimate,"$800,000","$800,000"
-Luis Mey,cin,2025,Estimate,"$800,000","$800,000"
-Tyler Callihan,cin,2025,Estimate,"$800,000","$800,000"
 Rece Hinds,cin,2025,Estimate,"$800,000","$800,000"
 Rece Hinds,cin,2026,PRE-ARB,,
 Rece Hinds,cin,2027,PRE-ARB,,
 Noelvi Marte,cin,2025,Estimate,"$800,000","$800,000"
 Noelvi Marte,cin,2026,PRE-ARB,,
 Noelvi Marte,cin,2027,PRE-ARB,,
+Carson Spiers,cin,2025,Estimate,"$800,000","$800,000"
+Carson Spiers,cin,2026,PRE-ARB,,
+Carson Spiers,cin,2027,PRE-ARB,,
+Elly De La Cruz,cin,2025,Estimate,"$800,000","$800,000"
+Elly De La Cruz,cin,2026,PRE-ARB,,
+Elly De La Cruz,cin,2027,ARB 1,,
+T.J. Friedl,cin,2025,Estimate,"$800,000","$800,000"
+T.J. Friedl,cin,2026,ARB 1,,
+Cooper Bowman,cin,2025,Estimate,"$800,000","$800,000"
+Julian Aguiar,cin,2025,Estimate,"$800,000","$800,000"
+Julian Aguiar,cin,2026,PRE-ARB,,
+Julian Aguiar,cin,2027,PRE-ARB,,
+Tyler Callihan,cin,2025,Estimate,"$800,000","$800,000"
+Spencer Steer,cin,2025,Estimate,"$800,000","$800,000"
+Spencer Steer,cin,2026,ARB 1,,
+Will Benson,cin,2025,Estimate,"$800,000","$800,000"
+Will Benson,cin,2026,ARB 1,,
+Tony Santillan,cin,2025,Estimate,"$800,000","$800,000"
+Tony Santillan,cin,2026,ARB 1,,
 Connor Phillips,cin,2025,Estimate,"$800,000","$800,000"
 Connor Phillips,cin,2026,PRE-ARB,,
 Connor Phillips,cin,2027,PRE-ARB,,
 Jacob Hurtubise,cin,2025,Estimate,"$800,000","$800,000"
 Jacob Hurtubise,cin,2026,PRE-ARB,,
 Jacob Hurtubise,cin,2027,PRE-ARB,,
-Casey Legumina,cin,2025,Estimate,"$800,000","$800,000"
-Casey Legumina,cin,2026,PRE-ARB,,
-Casey Legumina,cin,2027,PRE-ARB,,
 Lyon Richardson,cin,2025,Estimate,"$800,000","$800,000"
 Lyon Richardson,cin,2026,PRE-ARB,,
 Lyon Richardson,cin,2027,PRE-ARB,,
@@ -911,21 +924,6 @@ Andrew Abbott,cin,2027,ARB 1,,
 Christian Encarnacion-Strand,cin,2025,Estimate,"$800,000","$800,000"
 Christian Encarnacion-Strand,cin,2026,PRE-ARB,,
 Christian Encarnacion-Strand,cin,2027,ARB 1,,
-Julian Aguiar,cin,2025,Estimate,"$800,000","$800,000"
-Julian Aguiar,cin,2026,PRE-ARB,,
-Julian Aguiar,cin,2027,PRE-ARB,,
-Will Benson,cin,2025,Estimate,"$800,000","$800,000"
-Will Benson,cin,2026,ARB 1,,
-Spencer Steer,cin,2025,Estimate,"$800,000","$800,000"
-Spencer Steer,cin,2026,ARB 1,,
-T.J. Friedl,cin,2025,Estimate,"$800,000","$800,000"
-T.J. Friedl,cin,2026,ARB 1,,
-Elly De La Cruz,cin,2025,Estimate,"$800,000","$800,000"
-Elly De La Cruz,cin,2026,PRE-ARB,,
-Elly De La Cruz,cin,2027,ARB 1,,
-Carson Spiers,cin,2025,Estimate,"$800,000","$800,000"
-Carson Spiers,cin,2026,PRE-ARB,,
-Carson Spiers,cin,2027,PRE-ARB,,
 José Ramírez,cle,2022,"$22,000,000","$20,142,857",8.76%
 José Ramírez,cle,2023,"$14,000,000","$20,142,857",8.65%
 José Ramírez,cle,2024,"$17,000,000","$20,142,857",8.50%
@@ -956,6 +954,9 @@ Trevor Stephan,cle,2028,Club,"$7,500,000","$7,500,000"
 Trevor Stephan,cle,2029,UFA,,
 Lane Thomas,cle,2025,Arb Avoided,"$7,825,000","$7,825,000"
 Lane Thomas,cle,2026,UFA,,
+Paul Sewald,cle,2025,,"$6,000,000","$7,000,000"
+Paul Sewald,cle,2026,Mutual,"$10,000,000","$7,000,000"
+Paul Sewald,cle,2027,UFA,,
 Steven Kwan,cle,2025,Arb Avoided,"$4,175,000","$4,175,000"
 Steven Kwan,cle,2026,ARB 2,,
 Steven Kwan,cle,2027,ARB 3,,
@@ -975,45 +976,36 @@ Sam Hentges,cle,2025,Arb Avoided,"$1,377,500","$1,377,500"
 Sam Hentges,cle,2026,ARB 3,,
 Sam Hentges,cle,2027,ARB 4,,
 Sam Hentges,cle,2028,UFA,,
-Gabriel Arias,cle,2025,Estimate,"$800,000","$800,000"
-Gabriel Arias,cle,2026,PRE-ARB,,
-Gabriel Arias,cle,2027,ARB 1,,
-Slade Cecconi,cle,2025,Estimate,"$800,000","$800,000"
-Slade Cecconi,cle,2026,PRE-ARB,,
-Slade Cecconi,cle,2027,PRE-ARB,,
-Andrew Walters,cle,2025,Estimate,"$800,000","$800,000"
-Andrew Walters,cle,2026,PRE-ARB,,
-Andrew Walters,cle,2027,PRE-ARB,,
-Joey Cantillo,cle,2025,Estimate,"$800,000","$800,000"
-Joey Cantillo,cle,2026,PRE-ARB,,
-Joey Cantillo,cle,2027,PRE-ARB,,
 Erik Sabrowski,cle,2025,Estimate,"$800,000","$800,000"
 Erik Sabrowski,cle,2026,PRE-ARB,,
 Erik Sabrowski,cle,2027,PRE-ARB,,
-Kyle Manzardo,cle,2025,Estimate,"$800,000","$800,000"
-Kyle Manzardo,cle,2026,PRE-ARB,,
-Kyle Manzardo,cle,2027,PRE-ARB,,
-Jhonkensy Noel,cle,2025,Estimate,"$800,000","$800,000"
-Jhonkensy Noel,cle,2026,PRE-ARB,,
-Jhonkensy Noel,cle,2027,PRE-ARB,,
-Petey Halpin,cle,2025,Estimate,"$800,000","$800,000"
-Doug Nikhazy,cle,2025,Estimate,"$800,000","$800,000"
-Nic Enright,cle,2025,Estimate,"$800,000","$800,000"
-Franco Aleman,cle,2025,Estimate,"$800,000","$800,000"
-Angel Martinez,cle,2025,Estimate,"$800,000","$800,000"
-Angel Martinez,cle,2026,PRE-ARB,,
-Angel Martinez,cle,2027,PRE-ARB,,
+Gabriel Arias,cle,2025,Estimate,"$800,000","$800,000"
+Gabriel Arias,cle,2026,PRE-ARB,,
+Gabriel Arias,cle,2027,ARB 1,,
+Tyler Freeman,cle,2025,Estimate,"$800,000","$800,000"
+Tyler Freeman,cle,2026,ARB 1,,
 Luis Ortiz,cle,2025,Estimate,"$800,000","$800,000"
 Luis Ortiz,cle,2026,PRE-ARB,,
 Luis Ortiz,cle,2027,ARB 1,,
-Tyler Freeman,cle,2025,Estimate,"$800,000","$800,000"
-Tyler Freeman,cle,2026,ARB 1,,
-Cade Smith,cle,2025,Estimate,"$800,000","$800,000"
-Cade Smith,cle,2026,PRE-ARB,,
-Cade Smith,cle,2027,ARB 1,,
+Franco Aleman,cle,2025,Estimate,"$800,000","$800,000"
+Nic Enright,cle,2025,Estimate,"$800,000","$800,000"
+Doug Nikhazy,cle,2025,Estimate,"$800,000","$800,000"
+Petey Halpin,cle,2025,Estimate,"$800,000","$800,000"
 Logan Allen,cle,2025,Estimate,"$800,000","$800,000"
 Logan Allen,cle,2026,PRE-ARB,,
 Logan Allen,cle,2027,ARB 1,,
+Joey Cantillo,cle,2025,Estimate,"$800,000","$800,000"
+Joey Cantillo,cle,2026,PRE-ARB,,
+Joey Cantillo,cle,2027,PRE-ARB,,
+Andrew Walters,cle,2025,Estimate,"$800,000","$800,000"
+Andrew Walters,cle,2026,PRE-ARB,,
+Andrew Walters,cle,2027,PRE-ARB,,
+Slade Cecconi,cle,2025,Estimate,"$800,000","$800,000"
+Slade Cecconi,cle,2026,PRE-ARB,,
+Slade Cecconi,cle,2027,PRE-ARB,,
+Kyle Manzardo,cle,2025,Estimate,"$800,000","$800,000"
+Kyle Manzardo,cle,2026,PRE-ARB,,
+Kyle Manzardo,cle,2027,PRE-ARB,,
 Johnathan Rodriguez,cle,2025,Estimate,"$800,000","$800,000"
 Johnathan Rodriguez,cle,2026,PRE-ARB,,
 Johnathan Rodriguez,cle,2027,PRE-ARB,,
@@ -1045,6 +1037,15 @@ Brayan Rocchio,cle,2027,ARB 1,,
 Daniel Schneemann,cle,2025,Estimate,"$800,000","$800,000"
 Daniel Schneemann,cle,2026,PRE-ARB,,
 Daniel Schneemann,cle,2027,PRE-ARB,,
+Cade Smith,cle,2025,Estimate,"$800,000","$800,000"
+Cade Smith,cle,2026,PRE-ARB,,
+Cade Smith,cle,2027,ARB 1,,
+Angel Martinez,cle,2025,Estimate,"$800,000","$800,000"
+Angel Martinez,cle,2026,PRE-ARB,,
+Angel Martinez,cle,2027,PRE-ARB,,
+Jhonkensy Noel,cle,2025,Estimate,"$800,000","$800,000"
+Jhonkensy Noel,cle,2026,PRE-ARB,,
+Jhonkensy Noel,cle,2027,PRE-ARB,,
 Kris Bryant,col,2022,"$18,000,000","$26,000,000",11.30%
 Kris Bryant,col,2023,"$28,000,000","$26,000,000",11.16%
 Kris Bryant,col,2024,"$28,000,000","$26,000,000",10.97%
@@ -1093,10 +1094,6 @@ Tyler Kinley,col,2024,ARB 3,"$1,300,000","$2,083,333"
 Tyler Kinley,col,2025,,"$4,000,000","$2,083,333"
 Tyler Kinley,col,2026,Club,"$5,000,000","$5,000,000"
 Tyler Kinley,col,2027,UFA,,
-Thairo Estrada,col,2025,,"$3,250,000","$4,000,000"
-Thairo Estrada,col,2026,Mutual,"$7,000,000","$4,000,000"
-Thairo Estrada,col,2027,,,
-Thairo Estrada,col,2028,UFA,,
 Thairo Estrada,col,2025,,"$3,250,000","$4,000,000"
 Thairo Estrada,col,2026,Mutual,"$7,000,000","$4,000,000"
 Thairo Estrada,col,2027,,,
@@ -1194,6 +1191,9 @@ Javier Báez,det,2025,,"$25,000,000","$23,333,333"
 Javier Báez,det,2026,,"$24,000,000","$23,333,333"
 Javier Báez,det,2027,,"$24,000,000","$23,333,333"
 Javier Báez,det,2028,UFA,,
+Jack Flaherty,det,2025,,"$25,000,000","$17,500,000"
+Jack Flaherty,det,2026,Player,"$10,000,000","$17,500,000"
+Jack Flaherty,det,2027,UFA,,
 Colt Keith,det,2024,,"$2,833,333","$4,773,750"
 Colt Keith,det,2025,Pre-Arb,"$3,833,333","$4,773,750"
 Colt Keith,det,2026,Pre-Arb,"$4,333,333","$4,773,750"
@@ -1214,6 +1214,8 @@ Alex Cobb,det,2026,UFA,,
 Tarik Skubal,det,2025,Arb Avoided,"$10,150,000","$10,150,000"
 Tarik Skubal,det,2026,ARB 3,,
 Tarik Skubal,det,2027,UFA,,
+Tommy Kahnle,det,2025,"$7,750,000","$7,750,000",3.22%
+Tommy Kahnle,det,2026,UFA,,
 Jason Foley,det,2025,Arb Avoided,"$3,150,000","$3,150,000"
 Jason Foley,det,2026,ARB 2,,
 Jason Foley,det,2027,ARB 3,,
@@ -1246,13 +1248,21 @@ Beau Brieske,det,2026,ARB 2,,
 Beau Brieske,det,2027,ARB 3,,
 Beau Brieske,det,2028,ARB 4,,
 Beau Brieske,det,2029,UFA,,
+Alex Lange,det,2025,Estimate,"$800,000","$800,000"
+Alex Lange,det,2026,ARB 1,,
+Ryan Kreidler,det,2025,Estimate,"$800,000","$800,000"
+Ryan Kreidler,det,2026,PRE-ARB,,
+Ryan Kreidler,det,2027,PRE-ARB,,
+Chase Lee,det,2025,Estimate,"$800,000","$800,000"
 Tyler Mattison,det,2025,Estimate,"$800,000","$800,000"
+Tyler Owens,det,2025,Estimate,"$800,000","$800,000"
 Jackson Jobe,det,2025,Estimate,"$800,000","$800,000"
 Jackson Jobe,det,2026,PRE-ARB,,
 Jackson Jobe,det,2027,PRE-ARB,,
-Ty Madden,det,2025,Estimate,"$800,000","$800,000"
-Ty Madden,det,2026,PRE-ARB,,
-Ty Madden,det,2027,PRE-ARB,,
+Spencer Torkelson,det,2025,Estimate,"$800,000","$800,000"
+Spencer Torkelson,det,2026,ARB 1,,
+Spencer Torkelson,det,2027,ARB 2,,
+Spencer Torkelson,det,2028,ARB 3,,
 Sean Guenther,det,2025,Estimate,"$800,000","$800,000"
 Sean Guenther,det,2026,PRE-ARB,,
 Sean Guenther,det,2027,ARB 1,,
@@ -1277,42 +1287,29 @@ Keider Montero,det,2027,PRE-ARB,,
 Justyn-Henry Malloy,det,2025,Estimate,"$800,000","$800,000"
 Justyn-Henry Malloy,det,2026,PRE-ARB,,
 Justyn-Henry Malloy,det,2027,PRE-ARB,,
-Spencer Torkelson,det,2025,Estimate,"$800,000","$800,000"
-Spencer Torkelson,det,2026,ARB 1,,
-Spencer Torkelson,det,2027,ARB 2,,
-Spencer Torkelson,det,2028,ARB 3,,
-Tyler Owens,det,2025,Estimate,"$800,000","$800,000"
+Ty Madden,det,2025,Estimate,"$800,000","$800,000"
+Ty Madden,det,2026,PRE-ARB,,
+Ty Madden,det,2027,PRE-ARB,,
 Parker Meadows,det,2025,Estimate,"$800,000","$800,000"
 Parker Meadows,det,2026,PRE-ARB,,
 Parker Meadows,det,2027,PRE-ARB,,
-Chase Lee,det,2025,Estimate,"$800,000","$800,000"
-Alex Lange,det,2025,Estimate,"$800,000","$800,000"
-Alex Lange,det,2026,ARB 1,,
-Ryan Kreidler,det,2025,Estimate,"$800,000","$800,000"
-Ryan Kreidler,det,2026,PRE-ARB,,
-Ryan Kreidler,det,2027,PRE-ARB,,
-Mason Englert,det,2025,Estimate,"$800,000","$800,000"
-Mason Englert,det,2026,PRE-ARB,,
-Mason Englert,det,2027,ARB 1,,
-Matt Manning,det,2025,Estimate,"$800,000","$800,000"
-Matt Manning,det,2026,ARB 1,,
-Alex Faedo,det,2025,Estimate,"$800,000","$800,000"
-Alex Faedo,det,2026,ARB 1 (S2),,
-Sawyer Gipson-Long,det,2025,Estimate,"$800,000","$800,000"
-Sawyer Gipson-Long,det,2026,PRE-ARB,,
-Sawyer Gipson-Long,det,2027,PRE-ARB,,
-Riley Greene,det,2025,Estimate,"$800,000","$800,000"
-Riley Greene,det,2026,ARB 1,,
-Kerry Carpenter,det,2025,Estimate,"$800,000","$800,000"
-Kerry Carpenter,det,2026,ARB 1,,
-Tyler Holton,det,2025,Estimate,"$800,000","$800,000"
-Tyler Holton,det,2026,ARB 1,,
-Reese Olson,det,2025,Estimate,"$800,000","$800,000"
-Reese Olson,det,2026,PRE-ARB,,
-Reese Olson,det,2027,ARB 1,,
 Wenceel Perez,det,2025,Estimate,"$800,000","$800,000"
 Wenceel Perez,det,2026,PRE-ARB,,
 Wenceel Perez,det,2027,PRE-ARB,,
+Reese Olson,det,2025,Estimate,"$800,000","$800,000"
+Reese Olson,det,2026,PRE-ARB,,
+Reese Olson,det,2027,ARB 1,,
+Tyler Holton,det,2025,Estimate,"$800,000","$800,000"
+Tyler Holton,det,2026,ARB 1,,
+Kerry Carpenter,det,2025,Estimate,"$800,000","$800,000"
+Kerry Carpenter,det,2026,ARB 1,,
+Riley Greene,det,2025,Estimate,"$800,000","$800,000"
+Riley Greene,det,2026,ARB 1,,
+Sawyer Gipson-Long,det,2025,Estimate,"$800,000","$800,000"
+Sawyer Gipson-Long,det,2026,PRE-ARB,,
+Sawyer Gipson-Long,det,2027,PRE-ARB,,
+Matt Manning,det,2025,Estimate,"$800,000","$800,000"
+Matt Manning,det,2026,ARB 1,,
 Jose Altuve,hou,2025,"$32,500,000","$25,000,000",10.37%
 Jose Altuve,hou,2026,"$32,500,000","$25,000,000",10.25%
 Jose Altuve,hou,2027,"$32,500,000","$25,000,000",-
@@ -1348,10 +1345,6 @@ Christian Walker,hou,2025,"$20,000,000","$20,000,000",8.30%
 Christian Walker,hou,2026,"$20,000,000","$20,000,000",8.20%
 Christian Walker,hou,2027,"$20,000,000","$20,000,000",-
 Christian Walker,hou,2028,UFA,,
-Ryan Pressly,hou,2023,,"$14,000,000","$15,000,000"
-Ryan Pressly,hou,2024,,"$14,000,000","$15,000,000"
-Ryan Pressly,hou,2025,Vesting,"$14,000,000","$14,000,000"
-Ryan Pressly,hou,2026,UFA,,
 Framber Valdez,hou,2025,Arb Avoided,"$18,000,000","$18,000,000"
 Framber Valdez,hou,2026,UFA,,
 Victor Caratini,hou,2024,"$6,000,000","$6,000,000",2.53%
@@ -1381,13 +1374,39 @@ Jake Meyers,hou,2028,UFA,,
 Luis Garcia,hou,2025,Arb Avoided,"$1,875,000","$1,875,000"
 Luis Garcia,hou,2026,ARB 3,,
 Luis Garcia,hou,2027,UFA,,
-Pedro León,hou,2025,Estimate,"$800,000","$800,000"
-Pedro León,hou,2026,PRE-ARB,,
-Pedro León,hou,2027,PRE-ARB,,
+Ben Gamel,hou,2025,"$1,200,000","$1,200,000",0.50%
+Ben Gamel,hou,2026,UFA,,
+Taylor Trammell,hou,2025,Estimate,"$800,000","$800,000"
 Hayden Wesneski,hou,2025,Estimate,"$800,000","$800,000"
 Hayden Wesneski,hou,2026,ARB 1 (S2),,
+Ryan Gusto,hou,2025,Estimate,"$800,000","$800,000"
+Ryan Gusto,hou,2026,PRE-ARB,,
+Ryan Gusto,hou,2027,PRE-ARB,,
+Zach Dezenzo,hou,2025,Estimate,"$800,000","$800,000"
+Zach Dezenzo,hou,2026,PRE-ARB,,
+Zach Dezenzo,hou,2027,PRE-ARB,,
+César Salazar,hou,2025,Estimate,"$800,000","$800,000"
+César Salazar,hou,2026,PRE-ARB,,
+César Salazar,hou,2027,PRE-ARB,,
+Kaleb Ort,hou,2025,Estimate,"$800,000","$800,000"
+Kaleb Ort,hou,2026,PRE-ARB,,
+Kaleb Ort,hou,2027,ARB 1,,
+Bryan King,hou,2025,Estimate,"$800,000","$800,000"
+Bryan King,hou,2026,PRE-ARB,,
+Bryan King,hou,2027,PRE-ARB,,
+Spencer Arrighetti,hou,2025,Estimate,"$800,000","$800,000"
+Spencer Arrighetti,hou,2026,PRE-ARB,,
+Spencer Arrighetti,hou,2027,PRE-ARB,,
+Ronel Blanco,hou,2025,Estimate,"$800,000","$800,000"
+Ronel Blanco,hou,2026,PRE-ARB,,
+Ronel Blanco,hou,2027,ARB 1,,
+Yainer Diaz,hou,2025,Estimate,"$800,000","$800,000"
+Yainer Diaz,hou,2026,ARB 1,,
+Hunter Brown,hou,2025,Estimate,"$800,000","$800,000"
+Hunter Brown,hou,2026,ARB 1,,
 Colton Gordon,hou,2025,Estimate,"$800,000","$800,000"
-Taylor Trammell,hou,2025,Estimate,"$800,000","$800,000"
+Jon Singleton,hou,2025,Estimate,"$800,000","$800,000"
+Jon Singleton,hou,2026,ARB 1,,
 Bennett Sousa,hou,2025,Estimate,"$800,000","$800,000"
 Bennett Sousa,hou,2026,ARB 1 (S2),,
 J.P. France,hou,2025,Estimate,"$800,000","$800,000"
@@ -1398,9 +1417,9 @@ Tayler Scott,hou,2026,ARB 1,,
 Cooper Hummel,hou,2025,Estimate,"$800,000","$800,000"
 Cooper Hummel,hou,2026,PRE-ARB,,
 Cooper Hummel,hou,2027,ARB 1,,
-Ryan Gusto,hou,2025,Estimate,"$800,000","$800,000"
-Ryan Gusto,hou,2026,PRE-ARB,,
-Ryan Gusto,hou,2027,PRE-ARB,,
+Pedro León,hou,2025,Estimate,"$800,000","$800,000"
+Pedro León,hou,2026,PRE-ARB,,
+Pedro León,hou,2027,PRE-ARB,,
 Nick Hernandez,hou,2025,Estimate,"$800,000","$800,000"
 Nick Hernandez,hou,2026,PRE-ARB,,
 Nick Hernandez,hou,2027,PRE-ARB,,
@@ -1417,30 +1436,6 @@ Kenedy Corona,hou,2025,Estimate,"$800,000","$800,000"
 Shay Whitcomb,hou,2025,Estimate,"$800,000","$800,000"
 Shay Whitcomb,hou,2026,PRE-ARB,,
 Shay Whitcomb,hou,2027,PRE-ARB,,
-Jon Singleton,hou,2025,Estimate,"$800,000","$800,000"
-Jon Singleton,hou,2026,ARB 1,,
-Hunter Brown,hou,2025,Estimate,"$800,000","$800,000"
-Hunter Brown,hou,2026,ARB 1,,
-Yainer Diaz,hou,2025,Estimate,"$800,000","$800,000"
-Yainer Diaz,hou,2026,ARB 1,,
-Ronel Blanco,hou,2025,Estimate,"$800,000","$800,000"
-Ronel Blanco,hou,2026,PRE-ARB,,
-Ronel Blanco,hou,2027,ARB 1,,
-Spencer Arrighetti,hou,2025,Estimate,"$800,000","$800,000"
-Spencer Arrighetti,hou,2026,PRE-ARB,,
-Spencer Arrighetti,hou,2027,PRE-ARB,,
-Bryan King,hou,2025,Estimate,"$800,000","$800,000"
-Bryan King,hou,2026,PRE-ARB,,
-Bryan King,hou,2027,PRE-ARB,,
-Kaleb Ort,hou,2025,Estimate,"$800,000","$800,000"
-Kaleb Ort,hou,2026,PRE-ARB,,
-Kaleb Ort,hou,2027,ARB 1,,
-César Salazar,hou,2025,Estimate,"$800,000","$800,000"
-César Salazar,hou,2026,PRE-ARB,,
-César Salazar,hou,2027,PRE-ARB,,
-Zach Dezenzo,hou,2025,Estimate,"$800,000","$800,000"
-Zach Dezenzo,hou,2026,PRE-ARB,,
-Zach Dezenzo,hou,2027,PRE-ARB,,
 Bobby Witt Jr.,kc,2024,,"$2,707,070","$26,252,525"
 Bobby Witt Jr.,kc,2025,ARB 1,"$7,707,070","$26,252,525"
 Bobby Witt Jr.,kc,2026,ARB 2,"$13,707,070","$26,252,525"
@@ -1474,6 +1469,10 @@ Seth Lugo,kc,2024,,"$15,000,000","$15,000,000"
 Seth Lugo,kc,2025,,"$15,000,000","$15,000,000"
 Seth Lugo,kc,2026,Player,"$15,000,000","$15,000,000"
 Seth Lugo,kc,2027,UFA,,
+Carlos Estevez,kc,2025,,"$10,100,000","$11,100,000"
+Carlos Estevez,kc,2026,,"$10,100,000","$11,100,000"
+Carlos Estevez,kc,2027,Club,"$13,000,000","$11,100,000"
+Carlos Estevez,kc,2028,UFA,,
 Hunter Renfroe,kc,2024,,"$5,570,000","$6,500,000"
 Hunter Renfroe,kc,2025,Player,"$7,570,000","$6,570,000"
 Hunter Renfroe,kc,2026,UFA,,
@@ -1511,37 +1510,23 @@ Carlos Hernandez,kc,2025,Arb Avoided,"$1,160,000","$1,160,000"
 Carlos Hernandez,kc,2026,ARB 3,,
 Carlos Hernandez,kc,2027,ARB 4,,
 Carlos Hernandez,kc,2028,UFA,,
-Evan Sisk,kc,2025,Estimate,"$800,000","$800,000"
-Daniel Lynch,kc,2025,Estimate,"$800,000","$800,000"
-Daniel Lynch,kc,2026,ARB 1,,
-Joey Wiemer,kc,2025,Estimate,"$800,000","$800,000"
-Joey Wiemer,kc,2026,PRE-ARB,,
-Joey Wiemer,kc,2027,ARB 1,,
-Lucas Erceg,kc,2025,Estimate,"$800,000","$800,000"
-Lucas Erceg,kc,2026,ARB 1 (S2),,
-Alec Marsh,kc,2025,Estimate,"$800,000","$800,000"
-Alec Marsh,kc,2026,PRE-ARB,,
-Alec Marsh,kc,2027,PRE-ARB,,
-Angel Zerpa,kc,2025,Estimate,"$800,000","$800,000"
-Angel Zerpa,kc,2026,ARB 1,,
-Braden Shewmake,kc,2025,Estimate,"$800,000","$800,000"
-Dairon Blanco,kc,2025,Estimate,"$800,000","$800,000"
-Dairon Blanco,kc,2026,ARB 1 (S2),,
+Nelson Velazquez,kc,2025,Estimate,"$800,000","$800,000"
+Nelson Velazquez,kc,2026,PRE-ARB,,
+Nelson Velazquez,kc,2027,ARB 1,,
 Eric Cerantola,kc,2025,Estimate,"$800,000","$800,000"
 Luinder Avila,kc,2025,Estimate,"$800,000","$800,000"
 Noah Cameron,kc,2025,Estimate,"$800,000","$800,000"
-Freddy Fermin,kc,2025,Estimate,"$800,000","$800,000"
-Freddy Fermin,kc,2026,ARB 1 (S2),,
-Maikel Garcia,kc,2025,Estimate,"$800,000","$800,000"
-Maikel Garcia,kc,2026,ARB 1 (S2),,
+Daniel Lynch,kc,2025,Estimate,"$800,000","$800,000"
+Daniel Lynch,kc,2026,ARB 1,,
+Evan Sisk,kc,2025,Estimate,"$800,000","$800,000"
 Sam Long,kc,2025,Estimate,"$800,000","$800,000"
 Sam Long,kc,2026,ARB 1,,
 Nick Loftin,kc,2025,Estimate,"$800,000","$800,000"
 Nick Loftin,kc,2026,PRE-ARB,,
 Nick Loftin,kc,2027,PRE-ARB,,
-Nelson Velazquez,kc,2025,Estimate,"$800,000","$800,000"
-Nelson Velazquez,kc,2026,PRE-ARB,,
-Nelson Velazquez,kc,2027,ARB 1,,
+Joey Wiemer,kc,2025,Estimate,"$800,000","$800,000"
+Joey Wiemer,kc,2026,PRE-ARB,,
+Joey Wiemer,kc,2027,ARB 1,,
 Steven Cruz,kc,2025,Estimate,"$800,000","$800,000"
 Steven Cruz,kc,2026,PRE-ARB,,
 Steven Cruz,kc,2027,PRE-ARB,,
@@ -1565,6 +1550,19 @@ Michael Massey,kc,2025,Estimate,"$800,000","$800,000"
 Michael Massey,kc,2026,ARB 1,,
 Cole Ragans,kc,2025,Estimate,"$800,000","$800,000"
 Cole Ragans,kc,2026,ARB 1,,
+Maikel Garcia,kc,2025,Estimate,"$800,000","$800,000"
+Maikel Garcia,kc,2026,ARB 1 (S2),,
+Freddy Fermin,kc,2025,Estimate,"$800,000","$800,000"
+Freddy Fermin,kc,2026,ARB 1 (S2),,
+Dairon Blanco,kc,2025,Estimate,"$800,000","$800,000"
+Dairon Blanco,kc,2026,ARB 1 (S2),,
+Angel Zerpa,kc,2025,Estimate,"$800,000","$800,000"
+Angel Zerpa,kc,2026,ARB 1,,
+Alec Marsh,kc,2025,Estimate,"$800,000","$800,000"
+Alec Marsh,kc,2026,PRE-ARB,,
+Alec Marsh,kc,2027,PRE-ARB,,
+Lucas Erceg,kc,2025,Estimate,"$800,000","$800,000"
+Lucas Erceg,kc,2026,ARB 1 (S2),,
 Mike Trout,laa,2019,"$17,666,667","$35,541,667",17.25%
 Mike Trout,laa,2020,"$15,000,000","$35,541,667",17.09%
 Mike Trout,laa,2021,"$37,166,667","$35,541,667",-
@@ -1606,12 +1604,15 @@ Robert Stephenson,laa,2027,UFA,,
 Travis d'Arnaud,laa,2025,"$6,000,000","$6,000,000",2.49%
 Travis d'Arnaud,laa,2026,"$6,000,000","$6,000,000",2.46%
 Travis d'Arnaud,laa,2027,UFA,,
+Kenley Jansen,laa,2025,"$10,000,000","$10,000,000",4.15%
+Kenley Jansen,laa,2026,UFA,,
 Taylor Ward,laa,2025,Arb Avoided,"$7,825,000","$7,825,000"
 Taylor Ward,laa,2026,ARB 4,,
 Taylor Ward,laa,2027,UFA,,
-Luis Rengifo,laa,2025,Arb Filed,"$5,875,000                                                                                                                        
-                                                                                (Arb. Midpoint)","$5,875,000"
+Luis Rengifo,laa,2025,Arb Settled,"$5,950,000","$5,950,000"
 Luis Rengifo,laa,2026,UFA,,
+Yoan Moncada,laa,2025,"$5,000,000","$5,000,000",2.07%
+Yoan Moncada,laa,2026,UFA,,
 Kevin Newman,laa,2025,,"$2,500,000","$2,750,000"
 Kevin Newman,laa,2026,Club,"$2,500,000","$2,750,000"
 Kevin Newman,laa,2027,UFA,,
@@ -1621,16 +1622,15 @@ Jo Adell,laa,2025,Arb Avoided,"$2,100,000","$2,100,000"
 Jo Adell,laa,2026,ARB 2,,
 Jo Adell,laa,2027,ARB 3,,
 Jo Adell,laa,2028,UFA,,
+Mickey Moniak,laa,2025,Arb Settled,"$2,000,000","$2,000,000"
+Mickey Moniak,laa,2026,ARB 2,,
+Mickey Moniak,laa,2027,ARB 3,,
+Mickey Moniak,laa,2028,UFA,,
 Reid Detmers,laa,2025,Arb Avoided,"$1,825,000","$1,825,000"
 Reid Detmers,laa,2026,ARB 2,,
 Reid Detmers,laa,2027,ARB 3,,
 Reid Detmers,laa,2028,ARB 4,,
 Reid Detmers,laa,2029,UFA,,
-Mickey Moniak,laa,2025,Arb Filed,"$1,750,000                                                                                                                        
-                                                                                (Arb. Midpoint)","$1,750,000"
-Mickey Moniak,laa,2026,ARB 2,,
-Mickey Moniak,laa,2027,ARB 3,,
-Mickey Moniak,laa,2028,UFA,,
 Brock Burke,laa,2025,Arb Avoided,"$1,150,000","$1,150,000"
 Brock Burke,laa,2026,ARB 3,,
 Brock Burke,laa,2027,UFA,,
@@ -1639,9 +1639,14 @@ José Suarez,laa,2026,ARB 3,,
 José Suarez,laa,2027,UFA,,
 Jose Quijada,laa,2025,Arb Avoided #,"$1,075,000","$1,075,000"
 Jose Quijada,laa,2026,Club,"$3,750,000","$1,075,000"
-Jose Quijada,laa,2026,Club,"$3,750,000","$1,075,000"
 Jose Quijada,laa,2027,UFA,,
+Garrett McDaniels,laa,2025,Estimate,"$800,000","$800,000"
 Jack Dashwood,laa,2025,Estimate,"$800,000","$800,000"
+Matthew Lugo,laa,2025,Estimate,"$800,000","$800,000"
+Michael Petersen,laa,2025,Estimate,"$800,000","$800,000"
+Ben Joyce,laa,2025,Estimate,"$800,000","$800,000"
+Ben Joyce,laa,2026,PRE-ARB,,
+Ben Joyce,laa,2027,ARB 1,,
 Gustavo Campero,laa,2025,Estimate,"$800,000","$800,000"
 Gustavo Campero,laa,2026,PRE-ARB,,
 Gustavo Campero,laa,2027,PRE-ARB,,
@@ -1664,40 +1669,32 @@ Logan O'Hoppe,laa,2026,ARB 1,,
 Samuel Aldegheri,laa,2025,Estimate,"$800,000","$800,000"
 Samuel Aldegheri,laa,2026,PRE-ARB,,
 Samuel Aldegheri,laa,2027,PRE-ARB,,
-Garrett McDaniels,laa,2025,Estimate,"$800,000","$800,000"
-Ben Joyce,laa,2025,Estimate,"$800,000","$800,000"
-Ben Joyce,laa,2026,PRE-ARB,,
-Ben Joyce,laa,2027,ARB 1,,
-Victor Mederos,laa,2025,Estimate,"$800,000","$800,000"
-Victor Mederos,laa,2026,PRE-ARB,,
-Victor Mederos,laa,2027,PRE-ARB,,
-Matthew Lugo,laa,2025,Estimate,"$800,000","$800,000"
-Kelvin Cáceres,laa,2025,Estimate,"$800,000","$800,000"
-Kelvin Cáceres,laa,2026,PRE-ARB,,
-Kelvin Cáceres,laa,2027,PRE-ARB,,
+Chuckie Robinson,laa,2025,Estimate,"$800,000","$800,000"
+Chuckie Robinson,laa,2026,PRE-ARB,,
+Chuckie Robinson,laa,2027,PRE-ARB,,
 Jose Soriano,laa,2025,Estimate,"$800,000","$800,000"
 Jose Soriano,laa,2026,ARB 1,,
 Caden Dana,laa,2025,Estimate,"$800,000","$800,000"
 Caden Dana,laa,2026,PRE-ARB,,
 Caden Dana,laa,2027,PRE-ARB,,
-Chuckie Robinson,laa,2025,Estimate,"$800,000","$800,000"
-Chuckie Robinson,laa,2026,PRE-ARB,,
-Chuckie Robinson,laa,2027,PRE-ARB,,
-Ryan Noda,laa,2025,Estimate,"$800,000","$800,000"
-Ryan Noda,laa,2026,PRE-ARB,,
-Ryan Noda,laa,2027,ARB 1,,
-Chase Silseth,laa,2025,Estimate,"$800,000","$800,000"
-Chase Silseth,laa,2026,PRE-ARB,,
-Chase Silseth,laa,2027,ARB 1,,
-Sam Bachman,laa,2025,Estimate,"$800,000","$800,000"
-Sam Bachman,laa,2026,PRE-ARB,,
-Sam Bachman,laa,2027,ARB 1,,
-Hans Crouse,laa,2025,Estimate,"$800,000","$800,000"
-Hans Crouse,laa,2026,PRE-ARB,,
-Hans Crouse,laa,2027,ARB 1,,
+Victor Mederos,laa,2025,Estimate,"$800,000","$800,000"
+Victor Mederos,laa,2026,PRE-ARB,,
+Victor Mederos,laa,2027,PRE-ARB,,
 Kyren Paris,laa,2025,Estimate,"$800,000","$800,000"
 Kyren Paris,laa,2026,PRE-ARB,,
 Kyren Paris,laa,2027,PRE-ARB,,
+Hans Crouse,laa,2025,Estimate,"$800,000","$800,000"
+Hans Crouse,laa,2026,PRE-ARB,,
+Hans Crouse,laa,2027,ARB 1,,
+Sam Bachman,laa,2025,Estimate,"$800,000","$800,000"
+Sam Bachman,laa,2026,PRE-ARB,,
+Sam Bachman,laa,2027,ARB 1,,
+Chase Silseth,laa,2025,Estimate,"$800,000","$800,000"
+Chase Silseth,laa,2026,PRE-ARB,,
+Chase Silseth,laa,2027,ARB 1,,
+Ryan Noda,laa,2025,Estimate,"$800,000","$800,000"
+Ryan Noda,laa,2026,PRE-ARB,,
+Ryan Noda,laa,2027,ARB 1,,
 Scott Kingery,laa,2025,Arb Avoided,"$770,000","$770,000"
 Shohei Ohtani,lad,2024,"$2,000,000","$46,081,476",19.44%
 Shohei Ohtani,lad,2025,"$2,000,000","$46,081,476",19.12%
@@ -1739,11 +1736,11 @@ Yoshinobu Yamamoto,lad,2033,,"$32,166,666","$27,083,333"
 Yoshinobu Yamamoto,lad,2034,,"$32,166,666","$27,083,333"
 Yoshinobu Yamamoto,lad,2035,,"$32,166,670","$27,083,333"
 Yoshinobu Yamamoto,lad,2036,UFA,,
-Blake Snell,lad,2025,,"$36,400,000","$31,735,498"
-Blake Snell,lad,2026,,"$36,400,000","$31,735,498"
-Blake Snell,lad,2027,,"$36,400,000","$31,735,498"
-Blake Snell,lad,2028,,"$36,400,000","$31,735,498"
-Blake Snell,lad,2029,,"$36,400,000","$31,735,498"
+Blake Snell,lad,2025,,"$36,400,000","$31,306,185"
+Blake Snell,lad,2026,,"$36,400,000","$31,306,185"
+Blake Snell,lad,2027,,"$36,400,000","$31,306,185"
+Blake Snell,lad,2028,,"$36,400,000","$31,306,185"
+Blake Snell,lad,2029,,"$36,400,000","$31,306,185"
 Blake Snell,lad,2030,Club,"$10,000,000","$36,400,000"
 Blake Snell,lad,2031,UFA,,
 Freddie Freeman,lad,2022,"$27,000,000","$27,000,000",11.74%
@@ -1770,21 +1767,22 @@ Tyler Glasnow,lad,2026,,"$32,500,000","$27,312,500"
 Tyler Glasnow,lad,2027,,"$32,500,000","$27,312,500"
 Tyler Glasnow,lad,2028,Club,"$30,000,000","$30,000,000"
 Tyler Glasnow,lad,2029,UFA,,
-Tommy Edman,lad,2025,arbitration-bypassed,"$8,400,000","$13,100,000"
-Tommy Edman,lad,2026,,"$15,650,000","$13,100,000"
-Tommy Edman,lad,2027,,"$15,650,000","$13,100,000"
-Tommy Edman,lad,2028,,"$15,650,000","$13,100,000"
-Tommy Edman,lad,2029,,"$15,650,000","$13,100,000"
+Tommy Edman,lad,2025,arbitration-bypassed,"$8,400,000","$13,049,190"
+Tommy Edman,lad,2026,,"$15,650,000","$13,049,190"
+Tommy Edman,lad,2027,,"$15,650,000","$13,049,190"
+Tommy Edman,lad,2028,,"$15,650,000","$13,049,190"
+Tommy Edman,lad,2029,,"$15,650,000","$13,049,190"
 Tommy Edman,lad,2030,Club,"$13,000,000","$13,000,000"
 Tommy Edman,lad,2031,UFA,,
-Tanner Scott,lad,2025,-,"$18,000,000",7.47%
-Tanner Scott,lad,2026,-,"$18,000,000",7.38%
-Tanner Scott,lad,2027,-,"$18,000,000",-
-Tanner Scott,lad,2028,-,"$18,000,000",-
+Tanner Scott,lad,2025,,"$16,000,000","$16,262,248"
+Tanner Scott,lad,2026,,"$16,000,000","$16,262,248"
+Tanner Scott,lad,2027,,"$20,000,000","$16,262,248"
+Tanner Scott,lad,2028,,"$20,000,000","$16,262,248"
+Tanner Scott,lad,2029,vesting,"$5,000,000","$18,000,000"
 Tanner Scott,lad,2029,UFA,,
-Teoscar Hernandez,lad,2025,,"$17,666,666","$19,366,666"
-Teoscar Hernandez,lad,2026,,"$19,666,666","$19,366,666"
-Teoscar Hernandez,lad,2027,,"$22,166,668","$19,366,666"
+Teoscar Hernandez,lad,2025,,"$17,666,666","$19,364,439"
+Teoscar Hernandez,lad,2026,,"$19,666,666","$19,364,439"
+Teoscar Hernandez,lad,2027,,"$22,166,668","$19,364,439"
 Teoscar Hernandez,lad,2028,Club,"$15,000,000","$15,000,000"
 Teoscar Hernandez,lad,2029,UFA,,
 Chris Taylor,lad,2022,,"$15,000,000","$15,000,000"
@@ -1802,6 +1800,8 @@ Blake Treinen,lad,2026,"$13,500,000","$11,000,000",4.51%
 Blake Treinen,lad,2027,UFA,,
 Michael Conforto,lad,2025,"$17,000,000","$17,000,000",7.05%
 Michael Conforto,lad,2026,UFA,,
+Kirby Yates,lad,2025,"$13,000,000","$13,000,000",5.39%
+Kirby Yates,lad,2026,UFA,,
 Hyeseong Kim,lad,2025,,"$2,833,333","$4,166,667"
 Hyeseong Kim,lad,2026,,"$4,083,333","$4,166,667"
 Hyeseong Kim,lad,2027,,"$4,083,334","$4,166,667"
@@ -1812,16 +1812,12 @@ Miguel Rojas,lad,2023,,"$4,250,000","$5,500,000"
 Miguel Rojas,lad,2024,,"$5,750,000","$4,250,000"
 Miguel Rojas,lad,2025,Club,"$5,000,000","$4,000,000"
 Miguel Rojas,lad,2026,UFA,,
-Clayton Kershaw,lad,2024,,"$7,500,000","$5,000,000"
-Clayton Kershaw,lad,2025,,"$10,000,000","$10,000,000"
-Clayton Kershaw,lad,2026,UFA,,
-Ryan Brasier,lad,2024,"$4,500,000","$4,500,000",1.90%
-Ryan Brasier,lad,2025,"$4,500,000","$4,500,000",1.87%
-Ryan Brasier,lad,2026,UFA,,
 Austin Barnes,lad,2023,,"$3,500,000","$3,500,000"
 Austin Barnes,lad,2024,,"$3,500,000","$3,500,000"
 Austin Barnes,lad,2025,Club,"$3,500,000","$3,500,000"
 Austin Barnes,lad,2026,UFA,,
+Enrique Hernandez,lad,2025,"$6,500,000","$6,500,000",2.70%
+Enrique Hernandez,lad,2026,UFA,,
 Evan Phillips,lad,2025,Arb Avoided,"$6,100,000","$6,100,000"
 Evan Phillips,lad,2026,ARB 4,,
 Evan Phillips,lad,2027,UFA,,
@@ -1833,9 +1829,8 @@ Michael Kopech,lad,2026,UFA,,
 Brusdar Graterol,lad,2025,Arb Avoided,"$2,800,000","$2,800,000"
 Brusdar Graterol,lad,2026,ARB 4,,
 Brusdar Graterol,lad,2027,UFA,,
-Alex Vesia,lad,2025,Arb Filed,"$2,200,000                                                                                                                        
-                                                                                (Arb. Midpoint)","$2,200,000"
-Alex Vesia,lad,2026,ARB 3,,
+Alex Vesia,lad,2025,Arb Avoided #,"$2,250,000","$2,300,000"
+Alex Vesia,lad,2026,Club,"$3,550,000","$2,300,000"
 Alex Vesia,lad,2027,UFA,,
 Dustin May,lad,2025,Arb Avoided,"$2,135,000","$2,135,000"
 Dustin May,lad,2026,UFA,,
@@ -1843,21 +1838,21 @@ Anthony Banda,lad,2025,Arb Avoided,"$1,000,000","$1,000,000"
 Anthony Banda,lad,2026,ARB 2,,
 Anthony Banda,lad,2027,ARB 3,,
 Anthony Banda,lad,2028,UFA,,
-Hunter Feduccia,lad,2025,Estimate,"$800,000","$800,000"
-Hunter Feduccia,lad,2026,PRE-ARB,,
-Hunter Feduccia,lad,2027,PRE-ARB,,
+Kyle Hurt,lad,2025,Estimate,"$800,000","$800,000"
+Kyle Hurt,lad,2026,PRE-ARB,,
+Kyle Hurt,lad,2027,PRE-ARB,,
 Jack Dreyer,lad,2025,Estimate,"$800,000","$800,000"
 Michael Grove,lad,2025,Estimate,"$800,000","$800,000"
 Michael Grove,lad,2026,ARB 1,,
 Bobby Miller,lad,2025,Estimate,"$800,000","$800,000"
 Bobby Miller,lad,2026,PRE-ARB,,
 Bobby Miller,lad,2027,ARB 1,,
-Kyle Hurt,lad,2025,Estimate,"$800,000","$800,000"
-Kyle Hurt,lad,2026,PRE-ARB,,
-Kyle Hurt,lad,2027,PRE-ARB,,
 Justin Wrobleski,lad,2025,Estimate,"$800,000","$800,000"
 Justin Wrobleski,lad,2026,PRE-ARB,,
 Justin Wrobleski,lad,2027,PRE-ARB,,
+Hunter Feduccia,lad,2025,Estimate,"$800,000","$800,000"
+Hunter Feduccia,lad,2026,PRE-ARB,,
+Hunter Feduccia,lad,2027,PRE-ARB,,
 Ben Casparius,lad,2025,Estimate,"$800,000","$800,000"
 Ben Casparius,lad,2026,PRE-ARB,,
 Ben Casparius,lad,2027,PRE-ARB,,
@@ -1883,7 +1878,7 @@ Landon Knack,lad,2027,PRE-ARB,,
 Edgardo Henriquez,lad,2025,Estimate,"$800,000","$800,000"
 Edgardo Henriquez,lad,2026,PRE-ARB,,
 Edgardo Henriquez,lad,2027,PRE-ARB,,
-Kirby Yates,lad,2025,-,-,-
+Clayton Kershaw,lad,2025,-,-,-
 Sandy Alcantara,mia,2022,Arb Avoided,"$3,800,000","$11,200,000"
 Sandy Alcantara,mia,2023,ARB 2,"$6,300,000","$11,200,000"
 Sandy Alcantara,mia,2024,ARB 3,"$9,300,000","$11,200,000"
@@ -1914,37 +1909,33 @@ Anthony Bender,mia,2025,Arb Avoided,"$1,420,000","$1,420,000"
 Anthony Bender,mia,2026,ARB 3,,
 Anthony Bender,mia,2027,ARB 4,,
 Anthony Bender,mia,2028,UFA,,
-Andrew Nardi,mia,2025,Estimate,"$800,000","$800,000"
-Andrew Nardi,mia,2026,ARB 1,,
-Victor Mesa Jr.,mia,2025,Estimate,"$800,000","$800,000"
-Agustin Ramirez,mia,2025,Estimate,"$800,000","$800,000"
-George Soriano,mia,2025,Estimate,"$800,000","$800,000"
-George Soriano,mia,2026,PRE-ARB,,
-George Soriano,mia,2027,ARB 1,,
-Graham Pauley,mia,2025,Estimate,"$800,000","$800,000"
-Graham Pauley,mia,2026,PRE-ARB,,
-Graham Pauley,mia,2027,PRE-ARB,,
-Adam Mazur,mia,2025,Estimate,"$800,000","$800,000"
-Adam Mazur,mia,2026,PRE-ARB,,
-Adam Mazur,mia,2027,PRE-ARB,,
-Jesus Tinoco,mia,2025,Estimate,"$800,000","$800,000"
-Jesus Tinoco,mia,2026,PRE-ARB,,
-Jesus Tinoco,mia,2027,ARB 1,,
-Derek Hill,mia,2025,Estimate,"$800,000","$800,000"
-Derek Hill,mia,2026,ARB 1,,
-Luarbert Arias,mia,2025,Estimate,"$800,000","$800,000"
-Deyvison De Los Santos,mia,2025,Estimate,"$800,000","$800,000"
-Jared Serna,mia,2025,Estimate,"$800,000","$800,000"
-Daxton Fulton,mia,2025,Estimate,"$800,000","$800,000"
-Max Acosta,mia,2025,Estimate,"$800,000","$800,000"
-Liam Hicks,mia,2025,Estimate,"$800,000","$800,000"
+Connor Gillispie,mia,2025,"$820,000","$770,000",0.32%
+Ronny Henriquez,mia,2025,Estimate,"$800,000","$800,000"
 Eric Wagaman,mia,2025,Estimate,"$800,000","$800,000"
-Valente Bellozo,mia,2025,Estimate,"$800,000","$800,000"
-Valente Bellozo,mia,2026,PRE-ARB,,
-Valente Bellozo,mia,2027,PRE-ARB,,
+Liam Hicks,mia,2025,Estimate,"$800,000","$800,000"
 Matt Mervis,mia,2025,Estimate,"$800,000","$800,000"
 Matt Mervis,mia,2026,PRE-ARB,,
 Matt Mervis,mia,2027,PRE-ARB,,
+Max Acosta,mia,2025,Estimate,"$800,000","$800,000"
+Daxton Fulton,mia,2025,Estimate,"$800,000","$800,000"
+Jared Serna,mia,2025,Estimate,"$800,000","$800,000"
+Deyvison De Los Santos,mia,2025,Estimate,"$800,000","$800,000"
+Luarbert Arias,mia,2025,Estimate,"$800,000","$800,000"
+Derek Hill,mia,2025,Estimate,"$800,000","$800,000"
+Derek Hill,mia,2026,ARB 1,,
+Jesus Tinoco,mia,2025,Estimate,"$800,000","$800,000"
+Jesus Tinoco,mia,2026,PRE-ARB,,
+Jesus Tinoco,mia,2027,ARB 1,,
+Adam Mazur,mia,2025,Estimate,"$800,000","$800,000"
+Adam Mazur,mia,2026,PRE-ARB,,
+Adam Mazur,mia,2027,PRE-ARB,,
+Graham Pauley,mia,2025,Estimate,"$800,000","$800,000"
+Graham Pauley,mia,2026,PRE-ARB,,
+Graham Pauley,mia,2027,PRE-ARB,,
+George Soriano,mia,2025,Estimate,"$800,000","$800,000"
+George Soriano,mia,2026,PRE-ARB,,
+George Soriano,mia,2027,ARB 1,,
+Victor Mesa Jr.,mia,2025,Estimate,"$800,000","$800,000"
 Javier Sanoja,mia,2025,Estimate,"$800,000","$800,000"
 Javier Sanoja,mia,2026,PRE-ARB,,
 Javier Sanoja,mia,2027,PRE-ARB,,
@@ -1954,24 +1945,18 @@ Lake Bachar,mia,2027,PRE-ARB,,
 Anthony Veneziano,mia,2025,Estimate,"$800,000","$800,000"
 Anthony Veneziano,mia,2026,PRE-ARB,,
 Anthony Veneziano,mia,2027,PRE-ARB,,
-Xzavion Curry,mia,2025,Estimate,"$800,000","$800,000"
-Xzavion Curry,mia,2026,PRE-ARB,,
-Xzavion Curry,mia,2027,ARB 1,,
 Griffin Conine,mia,2025,Estimate,"$800,000","$800,000"
 Griffin Conine,mia,2026,PRE-ARB,,
 Griffin Conine,mia,2027,PRE-ARB,,
 Connor Norby,mia,2025,Estimate,"$800,000","$800,000"
 Connor Norby,mia,2026,PRE-ARB,,
 Connor Norby,mia,2027,PRE-ARB,,
-Jhonny Pereda,mia,2025,Estimate,"$800,000","$800,000"
-Jhonny Pereda,mia,2026,PRE-ARB,,
-Jhonny Pereda,mia,2027,PRE-ARB,,
 Kyle Stowers,mia,2025,Estimate,"$800,000","$800,000"
 Kyle Stowers,mia,2026,PRE-ARB,,
 Kyle Stowers,mia,2027,ARB 1,,
-Eury Pérez,mia,2025,Estimate,"$800,000","$800,000"
-Eury Pérez,mia,2026,PRE-ARB,,
-Eury Pérez,mia,2027,ARB 1,,
+Valente Bellozo,mia,2025,Estimate,"$800,000","$800,000"
+Valente Bellozo,mia,2026,PRE-ARB,,
+Valente Bellozo,mia,2027,PRE-ARB,,
 Jonah Bride,mia,2025,Estimate,"$800,000","$800,000"
 Jonah Bride,mia,2026,ARB 1 (S2),,
 Xavier Edwards,mia,2025,Estimate,"$800,000","$800,000"
@@ -1992,15 +1977,23 @@ Declan Cronin,mia,2026,PRE-ARB,,
 Declan Cronin,mia,2027,ARB 1,,
 Calvin Faucher,mia,2025,Estimate,"$800,000","$800,000"
 Calvin Faucher,mia,2026,ARB 1 (S2),,
+Eury Pérez,mia,2025,Estimate,"$800,000","$800,000"
+Eury Pérez,mia,2026,PRE-ARB,,
+Eury Pérez,mia,2027,ARB 1,,
+Andrew Nardi,mia,2025,Estimate,"$800,000","$800,000"
+Andrew Nardi,mia,2026,ARB 1,,
+Agustin Ramirez,mia,2025,Estimate,"$800,000","$800,000"
+Cal Quantrill,mia,2025,-,-,-
+Cal Quantrill,mia,2026,UFA,,
 Christian Yelich,mil,2020,,"$4,629,630","$7,081,429"
 Christian Yelich,mil,2021,,"$14,000,000","$7,081,429"
-Christian Yelich,mil,2022,,"$22,000,000","$23,888,888"
-Christian Yelich,mil,2023,,"$22,000,000","$23,888,888"
-Christian Yelich,mil,2024,,"$22,000,000","$23,938,888"
-Christian Yelich,mil,2025,,"$22,000,000","$23,888,888"
-Christian Yelich,mil,2026,,"$22,000,000","$23,888,888"
-Christian Yelich,mil,2027,,"$22,000,000","$23,888,888"
-Christian Yelich,mil,2028,,"$22,000,000","$23,888,888"
+Christian Yelich,mil,2022,,"$22,000,000","$23,370,000"
+Christian Yelich,mil,2023,,"$22,000,000","$23,370,000"
+Christian Yelich,mil,2024,,"$22,000,000","$23,370,000"
+Christian Yelich,mil,2025,,"$22,000,000","$23,370,000"
+Christian Yelich,mil,2026,,"$22,000,000","$23,370,000"
+Christian Yelich,mil,2027,,"$22,000,000","$23,370,000"
+Christian Yelich,mil,2028,,"$22,000,000","$23,370,000"
 Christian Yelich,mil,2029,Mutual,"$20,000,000","$26,928,571"
 Christian Yelich,mil,2030,UFA,,
 Jackson Chourio,mil,2024,Pre-Arb,"$2,250,000","$10,250,000"
@@ -2042,9 +2035,8 @@ Aaron Civale,mil,2025,Arb Avoided,"$8,000,000","$8,000,000"
 Aaron Civale,mil,2026,UFA,,
 Nestor Cortes,mil,2025,Arb Avoided,"$7,600,000","$5,600,000"
 Nestor Cortes,mil,2026,UFA,,
-William Contreras,mil,2025,Arb Filed,"$6,050,000                                                                                                                        
-                                                                                (Arb. Midpoint)","$6,050,000"
-William Contreras,mil,2026,ARB 2,,
+William Contreras,mil,2025,Arb Avoided #,"$6,000,000","$6,100,000"
+William Contreras,mil,2026,Club,"$12,000,000","$6,100,000"
 William Contreras,mil,2027,ARB 3,,
 William Contreras,mil,2028,UFA,,
 Joel Payamps,mil,2025,Arb Avoided,"$2,995,000","$2,995,000"
@@ -2062,13 +2054,37 @@ Nick Mears,mil,2025,Arb Avoided,"$963,000","$963,000"
 Nick Mears,mil,2026,ARB 2,,
 Nick Mears,mil,2027,ARB 3,,
 Nick Mears,mil,2028,UFA,,
-Brewer Hicklen,mil,2025,Estimate,"$800,000","$800,000"
-Brewer Hicklen,mil,2026,PRE-ARB,,
-Brewer Hicklen,mil,2027,PRE-ARB,,
+Elvin Rodriguez,mil,2025,,"$900,000","$900,000"
+Elvin Rodriguez,mil,2026,Club,"$1,350,000","$900,000"
+Elvin Rodriguez,mil,2027,PRE-ARB,,
+Logan Henderson,mil,2025,Estimate,"$800,000","$800,000"
+Isaac Collins,mil,2025,Estimate,"$800,000","$800,000"
+Isaac Collins,mil,2026,PRE-ARB,,
+Isaac Collins,mil,2027,PRE-ARB,,
+Tobias Myers,mil,2025,Estimate,"$800,000","$800,000"
+Tobias Myers,mil,2026,PRE-ARB,,
+Tobias Myers,mil,2027,PRE-ARB,,
+Jared Koenig,mil,2025,Estimate,"$800,000","$800,000"
+Jared Koenig,mil,2026,PRE-ARB,,
+Jared Koenig,mil,2027,ARB 1,,
+D.L. Hall,mil,2025,Estimate,"$800,000","$800,000"
+D.L. Hall,mil,2026,PRE-ARB,,
+D.L. Hall,mil,2027,ARB 1,,
+Andruw Monasterio,mil,2025,Estimate,"$800,000","$800,000"
+Andruw Monasterio,mil,2026,ARB 1 (S2),,
+Joey Ortiz,mil,2025,Estimate,"$800,000","$800,000"
+Joey Ortiz,mil,2026,PRE-ARB,,
+Joey Ortiz,mil,2027,ARB 1,,
+Garrett Mitchell,mil,2025,Estimate,"$800,000","$800,000"
+Garrett Mitchell,mil,2026,ARB 1,,
+Sal Frelick,mil,2025,Estimate,"$800,000","$800,000"
+Sal Frelick,mil,2026,PRE-ARB,,
+Sal Frelick,mil,2027,ARB 1,,
 Connor Thomas,mil,2025,Estimate,"$800,000","$800,000"
 Caleb Durbin,mil,2025,Estimate,"$800,000","$800,000"
 Chad Patrick,mil,2025,Estimate,"$800,000","$800,000"
-Logan Henderson,mil,2025,Estimate,"$800,000","$800,000"
+Brice Turang,mil,2025,Estimate,"$800,000","$800,000"
+Brice Turang,mil,2026,ARB 1 (S2),,
 Bryan Hudson,mil,2025,Estimate,"$800,000","$800,000"
 Bryan Hudson,mil,2026,PRE-ARB,,
 Bryan Hudson,mil,2027,ARB 1,,
@@ -2080,9 +2096,15 @@ Abner Uribe,mil,2027,PRE-ARB,,
 Tyler Black,mil,2025,Estimate,"$800,000","$800,000"
 Tyler Black,mil,2026,PRE-ARB,,
 Tyler Black,mil,2027,PRE-ARB,,
+Carlos F. Rodriguez,mil,2025,Estimate,"$800,000","$800,000"
+Carlos F. Rodriguez,mil,2026,PRE-ARB,,
+Carlos F. Rodriguez,mil,2027,PRE-ARB,,
 Vinny Capra,mil,2025,Estimate,"$800,000","$800,000"
 Vinny Capra,mil,2026,PRE-ARB,,
 Vinny Capra,mil,2027,PRE-ARB,,
+Brewer Hicklen,mil,2025,Estimate,"$800,000","$800,000"
+Brewer Hicklen,mil,2026,PRE-ARB,,
+Brewer Hicklen,mil,2027,PRE-ARB,,
 Jeferson Quero,mil,2025,Estimate,"$800,000","$800,000"
 Robert Gasser,mil,2025,Estimate,"$800,000","$800,000"
 Robert Gasser,mil,2026,PRE-ARB,,
@@ -2092,36 +2114,7 @@ Oliver Dunn,mil,2026,PRE-ARB,,
 Oliver Dunn,mil,2027,ARB 1,,
 Blake Perkins,mil,2025,Estimate,"$800,000","$800,000"
 Blake Perkins,mil,2026,ARB 1 (S2),,
-Brice Turang,mil,2025,Estimate,"$800,000","$800,000"
-Brice Turang,mil,2026,ARB 1 (S2),,
-Sal Frelick,mil,2025,Estimate,"$800,000","$800,000"
-Sal Frelick,mil,2026,PRE-ARB,,
-Sal Frelick,mil,2027,ARB 1,,
-Carlos F. Rodriguez,mil,2025,Estimate,"$800,000","$800,000"
-Carlos F. Rodriguez,mil,2026,PRE-ARB,,
-Carlos F. Rodriguez,mil,2027,PRE-ARB,,
-Garrett Mitchell,mil,2025,Estimate,"$800,000","$800,000"
-Garrett Mitchell,mil,2026,ARB 1,,
-Joey Ortiz,mil,2025,Estimate,"$800,000","$800,000"
-Joey Ortiz,mil,2026,PRE-ARB,,
-Joey Ortiz,mil,2027,ARB 1,,
-Andruw Monasterio,mil,2025,Estimate,"$800,000","$800,000"
-Andruw Monasterio,mil,2026,ARB 1 (S2),,
-D.L. Hall,mil,2025,Estimate,"$800,000","$800,000"
-D.L. Hall,mil,2026,PRE-ARB,,
-D.L. Hall,mil,2027,ARB 1,,
-Jared Koenig,mil,2025,Estimate,"$800,000","$800,000"
-Jared Koenig,mil,2026,PRE-ARB,,
-Jared Koenig,mil,2027,ARB 1,,
-Tobias Myers,mil,2025,Estimate,"$800,000","$800,000"
-Tobias Myers,mil,2026,PRE-ARB,,
-Tobias Myers,mil,2027,PRE-ARB,,
-Isaac Collins,mil,2025,Estimate,"$800,000","$800,000"
-Isaac Collins,mil,2026,PRE-ARB,,
-Isaac Collins,mil,2027,PRE-ARB,,
 Grant Wolfram,mil,2025,Estimate,"$760,000","$760,000"
-Elvin Rodriguez,mil,2025,,-,-
-Elvin Rodriguez,mil,2026,Club,-,-
 Carlos Correa,min,2023,,"$33,333,333","$33,333,333"
 Carlos Correa,min,2024,,"$33,333,333","$33,433,333"
 Carlos Correa,min,2025,,"$37,333,333","$33,333,333"
@@ -2156,6 +2149,9 @@ Chris Paddack,min,2025,,"$7,500,000","$4,175,000"
 Chris Paddack,min,2026,UFA,,
 Willi Castro,min,2025,Arb Avoided,"$6,400,000","$6,400,000"
 Willi Castro,min,2026,UFA,,
+Harrison Bader,min,2025,,"$4,750,000","$6,250,000"
+Harrison Bader,min,2026,Mutual,-,"$6,250,000"
+Harrison Bader,min,2027,UFA,,
 Ryan Jeffers,min,2025,Arb Avoided,"$4,550,000","$4,550,000"
 Ryan Jeffers,min,2026,ARB 3,,
 Ryan Jeffers,min,2027,UFA,,
@@ -2171,6 +2167,8 @@ Joe Ryan,min,2025,Arb Avoided,"$3,000,000","$3,000,000"
 Joe Ryan,min,2026,ARB 2,,
 Joe Ryan,min,2027,ARB 3,,
 Joe Ryan,min,2028,UFA,,
+Danny Coulombe,min,2025,"$3,000,000","$3,000,000",1.24%
+Danny Coulombe,min,2026,UFA,,
 Griffin Jax,min,2025,Arb Avoided,"$2,365,000","$2,365,000"
 Griffin Jax,min,2026,ARB 2,,
 Griffin Jax,min,2027,ARB 3,,
@@ -2187,6 +2185,8 @@ Royce Lewis,min,2029,UFA,,
 Justin Topa,min,2025,Arb Avoided,"$1,225,000","$1,225,000"
 Justin Topa,min,2026,Club,"$2,000,000","$1,225,000"
 Justin Topa,min,2027,UFA,,
+Ty France,min,2025,"$1,000,000","$1,000,000",0.41%
+Ty France,min,2026,UFA,,
 Michael Tonkin,min,2025,Arb Avoided,"$1,000,000","$1,000,000"
 Michael Tonkin,min,2026,ARB 3,,
 Michael Tonkin,min,2027,UFA,,
@@ -2198,16 +2198,14 @@ Jorge Alcala,min,2024,Arb Avoided #,"$790,000","$845,000"
 Jorge Alcala,min,2025,Club,"$1,500,000","$1,500,000"
 Jorge Alcala,min,2026,,,
 Jorge Alcala,min,2027,UFA,,
-Travis Adams,min,2025,Estimate,"$800,000","$800,000"
+Cole Sands,min,2025,Estimate,"$800,000","$800,000"
+Cole Sands,min,2026,ARB 1,,
 Mickey Gasper,min,2025,Estimate,"$800,000","$800,000"
 Mickey Gasper,min,2026,PRE-ARB,,
 Mickey Gasper,min,2027,PRE-ARB,,
 DaShawn Keirsey,min,2025,Estimate,"$800,000","$800,000"
 DaShawn Keirsey,min,2026,PRE-ARB,,
 DaShawn Keirsey,min,2027,PRE-ARB,,
-Michael Helman,min,2025,Estimate,"$800,000","$800,000"
-Michael Helman,min,2026,PRE-ARB,,
-Michael Helman,min,2027,PRE-ARB,,
 Zebby Matthews,min,2025,Estimate,"$800,000","$800,000"
 Zebby Matthews,min,2026,PRE-ARB,,
 Zebby Matthews,min,2027,PRE-ARB,,
@@ -2219,68 +2217,61 @@ David Festa,min,2026,PRE-ARB,,
 Brooks Lee,min,2025,Estimate,"$800,000","$800,000"
 Brooks Lee,min,2026,PRE-ARB,,
 Brooks Lee,min,2027,PRE-ARB,,
-Diego Cartaya,min,2025,Estimate,"$800,000","$800,000"
-Eiberson Castellano,min,2025,Estimate,"$800,000","$800,000"
 Edouard Julien,min,2025,Estimate,"$800,000","$800,000"
 Edouard Julien,min,2026,PRE-ARB,,
 Edouard Julien,min,2027,ARB 1,,
+Austin Martin,min,2025,Estimate,"$800,000","$800,000"
+Austin Martin,min,2026,PRE-ARB,,
+Austin Martin,min,2027,PRE-ARB,,
+Kody Funderburk,min,2025,Estimate,"$800,000","$800,000"
+Kody Funderburk,min,2026,PRE-ARB,,
+Kody Funderburk,min,2027,ARB 1,,
+Matt Wallner,min,2025,Estimate,"$800,000","$800,000"
+Matt Wallner,min,2026,PRE-ARB,,
+Matt Wallner,min,2027,ARB 1,,
+Jose Miranda,min,2025,Estimate,"$800,000","$800,000"
+Jose Miranda,min,2026,ARB 1,,
+Simeon Woods-Richardson,min,2025,Estimate,"$800,000","$800,000"
+Simeon Woods-Richardson,min,2026,PRE-ARB,,
+Simeon Woods-Richardson,min,2027,PRE-ARB,,
+Diego Cartaya,min,2025,Estimate,"$800,000","$800,000"
+Eiberson Castellano,min,2025,Estimate,"$800,000","$800,000"
+Travis Adams,min,2025,Estimate,"$800,000","$800,000"
 Marco Raya,min,2025,Estimate,"$800,000","$800,000"
 Jair Camargo,min,2025,Estimate,"$800,000","$800,000"
 Jair Camargo,min,2026,PRE-ARB,,
 Jair Camargo,min,2027,PRE-ARB,,
-Brent Headrick,min,2025,Estimate,"$800,000","$800,000"
-Brent Headrick,min,2026,PRE-ARB,,
-Brent Headrick,min,2027,PRE-ARB,,
 Matt Canterino,min,2025,Estimate,"$800,000","$800,000"
 Emmanuel Rodriguez,min,2025,Estimate,"$800,000","$800,000"
-Kody Funderburk,min,2025,Estimate,"$800,000","$800,000"
-Kody Funderburk,min,2026,PRE-ARB,,
-Kody Funderburk,min,2027,ARB 1,,
-Simeon Woods-Richardson,min,2025,Estimate,"$800,000","$800,000"
-Simeon Woods-Richardson,min,2026,PRE-ARB,,
-Simeon Woods-Richardson,min,2027,PRE-ARB,,
-Ronny Henriquez,min,2025,Estimate,"$800,000","$800,000"
-Ronny Henriquez,min,2026,PRE-ARB,,
-Ronny Henriquez,min,2027,PRE-ARB,,
-Jose Miranda,min,2025,Estimate,"$800,000","$800,000"
-Jose Miranda,min,2026,ARB 1,,
-Matt Wallner,min,2025,Estimate,"$800,000","$800,000"
-Matt Wallner,min,2026,PRE-ARB,,
-Matt Wallner,min,2027,ARB 1,,
-Cole Sands,min,2025,Estimate,"$800,000","$800,000"
-Cole Sands,min,2026,ARB 1,,
-Austin Martin,min,2025,Estimate,"$800,000","$800,000"
-Austin Martin,min,2026,PRE-ARB,,
-Austin Martin,min,2027,PRE-ARB,,
-Juan Soto,nym,2025,,"$51,875,000","$51,000,000"
-Juan Soto,nym,2026,,"$51,875,000","$51,000,000"
-Juan Soto,nym,2027,,"$47,500,000","$51,000,000"
-Juan Soto,nym,2028,,"$51,875,000","$51,000,000"
-Juan Soto,nym,2029,,"$46,875,000","$51,000,000"
+Juan Soto,nym,2025,,"$61,875,000","$51,000,000"
+Juan Soto,nym,2026,,"$61,875,000","$51,000,000"
+Juan Soto,nym,2027,,"$57,500,000","$51,000,000"
+Juan Soto,nym,2028,,"$61,875,000","$51,000,000"
+Juan Soto,nym,2029,,"$61,875,000","$51,000,000"
 Juan Soto,nym,"PLAYER OPT-OUT:    AVAILABLE 
                                         
                                         2030, 10 YR, $460,000,000 REMAINING",,,
-Juan Soto,nym,2030,Opt-Out,"$51,000,000","$51,000,000"
-Juan Soto,nym,2031,,"$51,000,000","$51,000,000"
-Juan Soto,nym,2032,,"$51,000,000","$51,000,000"
-Juan Soto,nym,2033,,"$51,000,000","$51,000,000"
-Juan Soto,nym,2034,,"$51,000,000","$51,000,000"
-Juan Soto,nym,2035,,"$51,000,000","$51,000,000"
-Juan Soto,nym,2036,,"$51,000,000","$51,000,000"
-Juan Soto,nym,2037,,"$51,000,000","$51,000,000"
-Juan Soto,nym,2038,,"$51,000,000","$51,000,000"
-Juan Soto,nym,2039,,"$51,000,000","$51,000,000"
+Juan Soto,nym,2030,Opt-Out,"$46,000,000","$51,000,000"
+Juan Soto,nym,2031,,"$46,000,000","$51,000,000"
+Juan Soto,nym,2032,,"$46,000,000","$51,000,000"
+Juan Soto,nym,2033,,"$46,000,000","$51,000,000"
+Juan Soto,nym,2034,,"$46,000,000","$51,000,000"
+Juan Soto,nym,2035,,"$46,000,000","$51,000,000"
+Juan Soto,nym,2036,,"$46,000,000","$51,000,000"
+Juan Soto,nym,2037,,"$46,000,000","$51,000,000"
+Juan Soto,nym,2038,,"$46,000,000","$51,000,000"
+Juan Soto,nym,2039,,"$46,000,000","$51,000,000"
 Juan Soto,nym,2040,UFA,,
-Francisco Lindor,nym,2022,"$34,100,000","$33,800,000",14.70%
-Francisco Lindor,nym,2023,"$34,100,000","$33,800,000",14.51%
-Francisco Lindor,nym,2024,"$34,100,000","$33,800,000",14.26%
-Francisco Lindor,nym,2025,"$34,100,000","$33,800,000",14.02%
-Francisco Lindor,nym,2026,"$34,100,000","$33,800,000",13.85%
-Francisco Lindor,nym,2027,"$34,100,000","$33,800,000",-
-Francisco Lindor,nym,2028,"$34,100,000","$33,800,000",-
-Francisco Lindor,nym,2029,"$34,100,000","$33,800,000",-
-Francisco Lindor,nym,2030,"$34,100,000","$33,800,000",-
-Francisco Lindor,nym,2031,"$34,100,000","$33,800,000",-
+Francisco Lindor,nym,2022,"$34,100,000","$34,100,000",14.83%
+Francisco Lindor,nym,2023,"$34,100,000","$34,100,000",14.64%
+Francisco Lindor,nym,2024,"$34,100,000","$34,100,000",14.39%
+Francisco Lindor,nym,2025,"$34,100,000","$34,100,000",14.15%
+Francisco Lindor,nym,2026,"$34,100,000","$34,100,000",13.98%
+Francisco Lindor,nym,2027,"$34,100,000","$34,100,000",-
+Francisco Lindor,nym,2028,"$34,100,000","$34,100,000",-
+Francisco Lindor,nym,2029,"$34,100,000","$34,100,000",-
+Francisco Lindor,nym,2030,"$34,100,000","$34,100,000",-
+Francisco Lindor,nym,2031,"$34,100,000","$34,100,000",-
 Francisco Lindor,nym,2032,UFA,,
 Brandon Nimmo,nym,2023,"$18,500,000","$20,250,000",8.69%
 Brandon Nimmo,nym,2024,"$20,500,000","$20,250,000",8.54%
@@ -2293,12 +2284,12 @@ Brandon Nimmo,nym,2030,"$20,500,000","$20,250,000",-
 Brandon Nimmo,nym,2031,UFA,,
 Edwin Diaz,nym,2023,,"$14,150,000","$18,638,385"
 Edwin Diaz,nym,2024,,"$14,150,000","$18,638,385"
-Edwin Diaz,nym,2025,,"$14,400,000","$18,638,385"
+Edwin Diaz,nym,2025,,"$18,500,000","$18,638,385"
 Edwin Diaz,nym,"PLAYER OPT-OUT:    AVAILABLE 
                                         
                                         2026, 3 YR, $28,000,000 REMAINING",,,
-Edwin Diaz,nym,2026,Opt-Out,"$15,900,000","$18,638,385"
-Edwin Diaz,nym,2027,,"$16,900,000","$18,638,385"
+Edwin Diaz,nym,2026,Opt-Out,"$15,500,000","$18,638,385"
+Edwin Diaz,nym,2027,,"$15,500,000","$18,638,385"
 Edwin Diaz,nym,2028,Club,"$17,250,000","$20,400,000"
 Edwin Diaz,nym,2029,UFA,,
 Starling Marte,nym,2022,"$15,750,000","$19,500,000",8.48%
@@ -2320,6 +2311,9 @@ Sean Manaea,nym,2025,"$25,000,000","$22,009,731",9.13%
 Sean Manaea,nym,2026,"$25,000,000","$22,009,731",9.02%
 Sean Manaea,nym,2027,"$25,000,000","$22,009,731",-
 Sean Manaea,nym,2028,UFA,,
+Pete Alonso,nym,2025,,"$30,000,000","$27,000,000"
+Pete Alonso,nym,2026,Player,"$24,000,000","$27,000,000"
+Pete Alonso,nym,2027,UFA,,
 Jeff McNeil,nym,2023,Arb Avoided #,"$6,250,000","$12,500,000"
 Jeff McNeil,nym,2024,ARB 3,"$10,250,000","$12,500,000"
 Jeff McNeil,nym,2025,,"$15,750,000","$12,500,000"
@@ -2333,8 +2327,8 @@ Clay Holmes,nym,2028,UFA,,
 Frankie Montas,nym,2025,,"$17,000,000","$17,000,000"
 Frankie Montas,nym,2026,Player,"$17,000,000","$17,000,000"
 Frankie Montas,nym,2027,UFA,,
-A.J. Minter,nym,2025,,-,"$11,000,000"
-A.J. Minter,nym,2026,Player,-,"$11,000,000"
+A.J. Minter,nym,2025,,"$11,000,000","$11,000,000"
+A.J. Minter,nym,2026,Player,"$11,000,000","$11,000,000"
 A.J. Minter,nym,2027,UFA,,
 Jesse Winker,nym,2025,"$7,500,000","$7,500,000",3.11%
 Jesse Winker,nym,2026,UFA,,
@@ -2359,55 +2353,57 @@ Tylor Megill,nym,2028,UFA,,
 Luis Torrens,nym,2025,Arb Avoided,"$1,500,000","$1,500,000"
 Luis Torrens,nym,2026,ARB 3,,
 Luis Torrens,nym,2027,UFA,,
+Nick Madrigal,nym,2025,"$1,350,000","$1,350,000",0.56%
+Nick Madrigal,nym,2026,UFA,,
 Jared Young,nym,2025,"$1,150,000","$1,150,000",0.48%
 Jared Young,nym,2026,PRE-ARB,,
 Jared Young,nym,2027,PRE-ARB,,
+Drew Smith,nym,2025,,-,"$1,000,000"
+Drew Smith,nym,2026,Club,-,"$1,000,000"
+Drew Smith,nym,2027,UFA,,
 Justin Hagenman,nym,2025,"$850,000","$850,000",0.35%
-Huascar Brazoban,nym,2025,Estimate,"$800,000","$800,000"
-Huascar Brazoban,nym,2026,ARB 1,,
 Kevin Herget,nym,2025,Estimate,"$800,000","$800,000"
 Kevin Herget,nym,2026,PRE-ARB,,
 Kevin Herget,nym,2027,PRE-ARB,,
-Austin Warren,nym,2025,Estimate,"$800,000","$800,000"
-Sean Reid-Foley,nym,2025,Arb Avoided,"$800,000","$800,000"
-Sean Reid-Foley,nym,2026,ARB 2,,
-Sean Reid-Foley,nym,2027,ARB 3,,
-Sean Reid-Foley,nym,2028,UFA,,
+Max Kranick,nym,2025,Estimate,"$800,000","$800,000"
 Luisangel Acuna,nym,2025,Estimate,"$800,000","$800,000"
 Luisangel Acuna,nym,2026,PRE-ARB,,
 Luisangel Acuna,nym,2027,PRE-ARB,,
-Reed Garrett,nym,2025,Estimate,"$800,000","$800,000"
-Reed Garrett,nym,2026,ARB 1 (S2),,
+Huascar Brazoban,nym,2025,Estimate,"$800,000","$800,000"
+Huascar Brazoban,nym,2026,ARB 1,,
 Jose Butto,nym,2025,Estimate,"$800,000","$800,000"
 Jose Butto,nym,2026,PRE-ARB,,
 Jose Butto,nym,2027,PRE-ARB,,
 Mark Vientos,nym,2025,Estimate,"$800,000","$800,000"
 Mark Vientos,nym,2026,PRE-ARB,,
 Mark Vientos,nym,2027,ARB 1,,
-Max Kranick,nym,2025,Estimate,"$800,000","$800,000"
-Danny Young,nym,2025,Estimate,"$800,000","$800,000"
-Danny Young,nym,2026,PRE-ARB,,
-Danny Young,nym,2027,PRE-ARB,,
-Luis De Los Santos,nym,2025,Estimate,"$800,000","$800,000"
-Luis De Los Santos,nym,2026,PRE-ARB,,
-Luis De Los Santos,nym,2027,PRE-ARB,,
-Jose Azocar,nym,2025,Estimate,"$800,000","$800,000"
-Jose Azocar,nym,2026,ARB 1,,
-Tyler Zuber,nym,2025,Estimate,"$800,000","$800,000"
-Tyler Zuber,nym,2026,ARB 1,,
-Brett Baty,nym,2025,Estimate,"$800,000","$800,000"
-Brett Baty,nym,2026,PRE-ARB,,
-Brett Baty,nym,2027,ARB 1,,
-Ronny Mauricio,nym,2025,Estimate,"$800,000","$800,000"
-Ronny Mauricio,nym,2026,PRE-ARB,,
-Ronny Mauricio,nym,2027,ARB 1,,
-Dedniel Nunez,nym,2025,Estimate,"$800,000","$800,000"
-Dedniel Nunez,nym,2026,PRE-ARB,,
+Austin Warren,nym,2025,Estimate,"$800,000","$800,000"
+Reed Garrett,nym,2025,Estimate,"$800,000","$800,000"
+Reed Garrett,nym,2026,ARB 1 (S2),,
+Francisco Alvarez,nym,2025,Estimate,"$800,000","$800,000"
+Francisco Alvarez,nym,2026,ARB 1,,
+Sean Reid-Foley,nym,2025,Arb Avoided,"$800,000","$800,000"
+Sean Reid-Foley,nym,2026,ARB 2,,
+Sean Reid-Foley,nym,2027,ARB 3,,
+Sean Reid-Foley,nym,2028,UFA,,
 Christian Scott,nym,2025,Estimate,"$800,000","$800,000"
 Christian Scott,nym,2026,PRE-ARB,,
 Christian Scott,nym,2027,PRE-ARB,,
-Francisco Alvarez,nym,2025,Estimate,"$800,000","$800,000"
-Francisco Alvarez,nym,2026,ARB 1,,
+Dedniel Nunez,nym,2025,Estimate,"$800,000","$800,000"
+Dedniel Nunez,nym,2026,PRE-ARB,,
+Ronny Mauricio,nym,2025,Estimate,"$800,000","$800,000"
+Ronny Mauricio,nym,2026,PRE-ARB,,
+Ronny Mauricio,nym,2027,ARB 1,,
+Brett Baty,nym,2025,Estimate,"$800,000","$800,000"
+Brett Baty,nym,2026,PRE-ARB,,
+Brett Baty,nym,2027,ARB 1,,
+Tyler Zuber,nym,2025,Estimate,"$800,000","$800,000"
+Tyler Zuber,nym,2026,ARB 1,,
+Jose Azocar,nym,2025,Estimate,"$800,000","$800,000"
+Jose Azocar,nym,2026,ARB 1,,
+Danny Young,nym,2025,Estimate,"$800,000","$800,000"
+Danny Young,nym,2026,PRE-ARB,,
+Danny Young,nym,2027,PRE-ARB,,
 Aaron Judge,nyy,2023,"$40,000,000","$40,000,000",17.17%
 Aaron Judge,nyy,2024,"$40,000,000","$40,000,000",16.88%
 Aaron Judge,nyy,2025,"$40,000,000","$40,000,000",16.60%
@@ -2487,17 +2483,19 @@ Devin Williams,nyy,2026,UFA,,
 Jazz Chisholm,nyy,2025,Arb Avoided,"$5,850,000","$5,850,000"
 Jazz Chisholm,nyy,2026,ARB 3,,
 Jazz Chisholm,nyy,2027,UFA,,
-Trent Grisham,nyy,2025,Arb Avoided,"$5,000,000","$5,000,000"
-Trent Grisham,nyy,2026,UFA,,
 Jonathan Loaisiga,nyy,2025,,"$5,000,000","$5,000,000"
 Jonathan Loaisiga,nyy,2026,Club,"$5,000,000","$5,000,000"
 Jonathan Loaisiga,nyy,2027,UFA,,
+Trent Grisham,nyy,2025,Arb Avoided,"$5,000,000","$5,000,000"
+Trent Grisham,nyy,2026,UFA,,
 Clarke Schmidt,nyy,2025,Arb Avoided,"$3,600,000","$3,600,000"
 Clarke Schmidt,nyy,2026,ARB 3,,
 Clarke Schmidt,nyy,2027,ARB 4,,
 Clarke Schmidt,nyy,2028,UFA,,
-Mark Leiter Jr.,nyy,2025,Arb Filed,"$2,275,000                                                                                                                        
-                                                                                (Arb. Midpoint)","$2,275,000"
+Tim Hill,nyy,2025,,"$2,500,000","$2,850,000"
+Tim Hill,nyy,2026,Club,"$3,000,000","$2,850,000"
+Tim Hill,nyy,2027,UFA,,
+Mark Leiter Jr.,nyy,2025,Arb Settled,"$2,050,000","$2,050,000"
 Mark Leiter Jr.,nyy,2026,ARB 3,,
 Mark Leiter Jr.,nyy,2027,UFA,,
 Luke Weaver,nyy,2024,,"$2,250,000","$2,000,000"
@@ -2505,12 +2503,11 @@ Luke Weaver,nyy,2025,Club,"$2,500,000","$2,500,000"
 Luke Weaver,nyy,2026,UFA,,
 JT Brubaker,nyy,2025,Arb Avoided,"$1,820,000","$1,820,000"
 JT Brubaker,nyy,2026,UFA,,
-Lou Trivino,nyy,2024,,"$1,500,000","$1,500,000"
-Lou Trivino,nyy,2025,,"$5,000,000","$1,500,000"
-Lou Trivino,nyy,2026,UFA,,
-Michael Arias,nyy,2025,Estimate,"$800,000","$800,000"
 Jesus Rodriguez,nyy,2025,Estimate,"$800,000","$800,000"
+Brent Headrick,nyy,2025,Estimate,"$800,000","$800,000"
 Yerry De Los Santos,nyy,2025,Estimate,"$800,000","$800,000"
+Michael Arias,nyy,2025,Estimate,"$800,000","$800,000"
+Braden Shewmake,nyy,2025,Estimate,"$800,000","$800,000"
 J.C. Escarra,nyy,2025,Estimate,"$800,000","$800,000"
 Jake Cousins,nyy,2025,Estimate,"$800,000","$800,000"
 Jake Cousins,nyy,2026,ARB 1,,
@@ -2583,25 +2580,18 @@ T.J. McFarland,ath,2026,UFA,,
 Brett Harris,ath,2025,Estimate,"$800,000","$800,000"
 Brett Harris,ath,2026,PRE-ARB,,
 Brett Harris,ath,2027,PRE-ARB,,
-Anthony Maldonado,ath,2025,Estimate,"$800,000","$800,000"
-Anthony Maldonado,ath,2026,PRE-ARB,,
-Anthony Maldonado,ath,2027,PRE-ARB,,
-Noah Murdock,ath,2025,Estimate,"$800,000","$800,000"
-Justin Sterner,ath,2025,Estimate,"$800,000","$800,000"
-Justin Sterner,ath,2026,PRE-ARB,,
-Justin Sterner,ath,2027,PRE-ARB,,
-Denzel Clarke,ath,2025,Estimate,"$800,000","$800,000"
-Ryan Cusick,ath,2025,Estimate,"$800,000","$800,000"
-Gunnar Hoglund,ath,2025,Estimate,"$800,000","$800,000"
-Osvaldo Bido,ath,2025,Estimate,"$800,000","$800,000"
-Osvaldo Bido,ath,2026,PRE-ARB,,
-Osvaldo Bido,ath,2027,ARB 1,,
+Elvis Alvarado,ath,2025,Estimate,"$800,000","$800,000"
 C.J. Alexander,ath,2025,Estimate,"$800,000","$800,000"
 C.J. Alexander,ath,2026,PRE-ARB,,
 C.J. Alexander,ath,2027,PRE-ARB,,
-Jacob Lopez,ath,2025,Estimate,"$800,000","$800,000"
-Jacob Lopez,ath,2026,PRE-ARB,,
-Jacob Lopez,ath,2027,PRE-ARB,,
+Osvaldo Bido,ath,2025,Estimate,"$800,000","$800,000"
+Osvaldo Bido,ath,2026,PRE-ARB,,
+Osvaldo Bido,ath,2027,ARB 1,,
+Gunnar Hoglund,ath,2025,Estimate,"$800,000","$800,000"
+Ryan Cusick,ath,2025,Estimate,"$800,000","$800,000"
+Denzel Clarke,ath,2025,Estimate,"$800,000","$800,000"
+Noah Murdock,ath,2025,Estimate,"$800,000","$800,000"
+Jhonny Pereda,ath,2025,Estimate,"$800,000","$800,000"
 Brady Basso,ath,2025,Estimate,"$800,000","$800,000"
 Brady Basso,ath,2026,PRE-ARB,,
 Brady Basso,ath,2027,PRE-ARB,,
@@ -2638,6 +2628,12 @@ Hogan Harris,ath,2027,PRE-ARB,,
 Michel Otanez,ath,2025,Estimate,"$800,000","$800,000"
 Michel Otanez,ath,2026,PRE-ARB,,
 Michel Otanez,ath,2027,PRE-ARB,,
+Jacob Lopez,ath,2025,Estimate,"$800,000","$800,000"
+Jacob Lopez,ath,2026,PRE-ARB,,
+Jacob Lopez,ath,2027,PRE-ARB,,
+Justin Sterner,ath,2025,Estimate,"$800,000","$800,000"
+Justin Sterner,ath,2026,PRE-ARB,,
+Justin Sterner,ath,2027,PRE-ARB,,
 Michael Kelly,ath,2025,-,-,-
 Bryce Harper,phi,2019,"$11,538,462","$25,384,615",12.32%
 Bryce Harper,phi,2020,"$11,168,092","$25,384,615",12.20%
@@ -2825,6 +2821,8 @@ David Bednar,pit,2026,ARB 3,,
 David Bednar,pit,2027,UFA,,
 Andrew McCutchen,pit,2025,"$5,000,000","$5,000,000",2.07%
 Andrew McCutchen,pit,2026,UFA,,
+Tommy Pham,pit,2025,"$4,025,000","$4,025,000",1.67%
+Tommy Pham,pit,2026,UFA,,
 Caleb Ferguson,pit,2025,"$3,000,000","$3,000,000",1.24%
 Caleb Ferguson,pit,2026,UFA,,
 Bailey Falter,pit,2025,Arb Avoided,"$2,222,000","$2,222,000"
@@ -2832,59 +2830,51 @@ Bailey Falter,pit,2026,ARB 2,,
 Bailey Falter,pit,2027,ARB 3,,
 Bailey Falter,pit,2028,ARB 4,,
 Bailey Falter,pit,2029,UFA,,
-Dennis Santana,pit,2025,Arb Filed,"$1,750,000                                                                                                                        
-                                                                                (Arb. Midpoint)","$1,750,000"
-Dennis Santana,pit,2026,ARB 3,,
-Dennis Santana,pit,2027,UFA,,
+Adam Frazier,pit,2025,"$1,525,000","$1,525,000",0.63%
+Adam Frazier,pit,2026,UFA,,
 Colin Holderman,pit,2025,Arb Avoided,"$1,500,000","$1,500,000"
 Colin Holderman,pit,2026,ARB 2,,
 Colin Holderman,pit,2027,ARB 3,,
 Colin Holderman,pit,2028,ARB 4,,
 Colin Holderman,pit,2029,UFA,,
+Dennis Santana,pit,2025,Arb Settled,"$1,400,000","$1,400,000"
+Dennis Santana,pit,2026,ARB 3,,
+Dennis Santana,pit,2027,UFA,,
 Joey Bart,pit,2025,Arb Avoided,"$1,175,000","$1,175,000"
 Joey Bart,pit,2026,ARB 2,,
 Joey Bart,pit,2027,ARB 3,,
 Joey Bart,pit,2028,UFA,,
-Johan Oviedo,pit,2025,Arb Filed,"$1,000,000                                                                                                                        
-                                                                                (Arb. Midpoint)","$1,000,000"
+Tim Mayza,pit,2025,"$1,150,000","$1,150,000",0.48%
+Tim Mayza,pit,2026,UFA,,
+Johan Oviedo,pit,2025,Arb Settled,"$850,000","$850,000"
 Johan Oviedo,pit,2026,ARB 2,,
 Johan Oviedo,pit,2027,ARB 3,,
 Johan Oviedo,pit,2028,UFA,,
-Chase Shugart,pit,2025,Estimate,"$800,000","$800,000"
-Enmanuel Valdez,pit,2025,Estimate,"$800,000","$800,000"
-Peter Strzelecki,pit,2025,Estimate,"$800,000","$800,000"
-Omar Cruz,pit,2025,Estimate,"$800,000","$800,000"
-Tristan Gray,pit,2025,Estimate,"$800,000","$800,000"
-Tristan Gray,pit,2026,PRE-ARB,,
-Tristan Gray,pit,2027,PRE-ARB,,
-Spencer Horwitz,pit,2025,Estimate,"$800,000","$800,000"
-Spencer Horwitz,pit,2026,PRE-ARB,,
-Spencer Horwitz,pit,2027,PRE-ARB,,
-Brett de Geus,pit,2025,Estimate,"$800,000","$800,000"
-Brett de Geus,pit,2026,PRE-ARB,,
-Brett de Geus,pit,2027,ARB 1,,
-Jared Jones,pit,2025,Estimate,"$800,000","$800,000"
-Jared Jones,pit,2026,PRE-ARB,,
-Jared Jones,pit,2027,ARB 1,,
-Alika Williams,pit,2025,Estimate,"$800,000","$800,000"
-Alika Williams,pit,2026,PRE-ARB,,
-Alika Williams,pit,2027,ARB 1,,
-Jack Suwinski,pit,2025,Estimate,"$800,000","$800,000"
-Jack Suwinski,pit,2026,ARB 1,,
-Jared Triolo,pit,2025,Estimate,"$800,000","$800,000"
-Jared Triolo,pit,2026,PRE-ARB,,
-Jared Triolo,pit,2027,ARB 1,,
-Michael Burrows,pit,2025,Estimate,"$800,000","$800,000"
-Michael Burrows,pit,2026,PRE-ARB,,
-Michael Burrows,pit,2027,PRE-ARB,,
 Liover Peguero,pit,2025,Estimate,"$800,000","$800,000"
 Liover Peguero,pit,2026,PRE-ARB,,
 Liover Peguero,pit,2027,PRE-ARB,,
+Brett de Geus,pit,2025,Estimate,"$800,000","$800,000"
+Brett de Geus,pit,2026,PRE-ARB,,
+Brett de Geus,pit,2027,ARB 1,,
+Spencer Horwitz,pit,2025,Estimate,"$800,000","$800,000"
+Spencer Horwitz,pit,2026,PRE-ARB,,
+Spencer Horwitz,pit,2027,PRE-ARB,,
+Omar Cruz,pit,2025,Estimate,"$800,000","$800,000"
+Peter Strzelecki,pit,2025,Estimate,"$800,000","$800,000"
+Enmanuel Valdez,pit,2025,Estimate,"$800,000","$800,000"
 Billy Cook,pit,2025,Estimate,"$800,000","$800,000"
 Billy Cook,pit,2026,PRE-ARB,,
 Billy Cook,pit,2027,PRE-ARB,,
-Joey Wentz,pit,2025,Estimate,"$800,000","$800,000"
-Joey Wentz,pit,2026,ARB 1 (S2),,
+Jared Jones,pit,2025,Estimate,"$800,000","$800,000"
+Jared Jones,pit,2026,PRE-ARB,,
+Jared Jones,pit,2027,ARB 1,,
+Chase Shugart,pit,2025,Estimate,"$800,000","$800,000"
+Michael Burrows,pit,2025,Estimate,"$800,000","$800,000"
+Michael Burrows,pit,2026,PRE-ARB,,
+Michael Burrows,pit,2027,PRE-ARB,,
+Kyle Nicolas,pit,2025,Estimate,"$800,000","$800,000"
+Kyle Nicolas,pit,2026,PRE-ARB,,
+Kyle Nicolas,pit,2027,PRE-ARB,,
 Joshua Palacios,pit,2025,Estimate,"$800,000","$800,000"
 Joshua Palacios,pit,2026,PRE-ARB,,
 Joshua Palacios,pit,2027,ARB 1,,
@@ -2900,17 +2890,16 @@ Carmen Mlodzinski,pit,2027,ARB 1,,
 Nick Yorke,pit,2025,Estimate,"$800,000","$800,000"
 Nick Yorke,pit,2026,PRE-ARB,,
 Nick Yorke,pit,2027,PRE-ARB,,
-Ji-Hwan Bae,pit,2025,Estimate,"$800,000","$800,000"
-Ji-Hwan Bae,pit,2026,PRE-ARB,,
-Ji-Hwan Bae,pit,2027,ARB 1,,
+Jared Triolo,pit,2025,Estimate,"$800,000","$800,000"
+Jared Triolo,pit,2026,PRE-ARB,,
+Jared Triolo,pit,2027,ARB 1,,
 Oneil Cruz,pit,2025,Estimate,"$800,000","$800,000"
 Oneil Cruz,pit,2026,ARB 1,,
 Henry Davis,pit,2025,Estimate,"$800,000","$800,000"
 Henry Davis,pit,2026,PRE-ARB,,
 Henry Davis,pit,2027,ARB 1,,
-Kyle Nicolas,pit,2025,Estimate,"$800,000","$800,000"
-Kyle Nicolas,pit,2026,PRE-ARB,,
-Kyle Nicolas,pit,2027,PRE-ARB,,
+Joey Wentz,pit,2025,Estimate,"$800,000","$800,000"
+Joey Wentz,pit,2026,ARB 1 (S2),,
 Endy Rodriguez,pit,2025,Estimate,"$800,000","$800,000"
 Endy Rodriguez,pit,2026,PRE-ARB,,
 Endy Rodriguez,pit,2027,ARB 1,,
@@ -2920,6 +2909,11 @@ Tsung-Che Cheng,pit,2025,Estimate,"$800,000","$800,000"
 Braxton Ashcraft,pit,2025,Estimate,"$800,000","$800,000"
 Jason Delay,pit,2025,Estimate,"$800,000","$800,000"
 Jason Delay,pit,2026,ARB 1,,
+Ji-Hwan Bae,pit,2025,Estimate,"$800,000","$800,000"
+Ji-Hwan Bae,pit,2026,PRE-ARB,,
+Ji-Hwan Bae,pit,2027,ARB 1,,
+Jack Suwinski,pit,2025,Estimate,"$800,000","$800,000"
+Jack Suwinski,pit,2026,ARB 1,,
 Manny Machado,sd,2023,"$17,090,909","$31,818,182",13.66%
 Manny Machado,sd,2024,"$17,090,909","$31,818,182",13.43%
 Manny Machado,sd,2025,"$17,090,909","$31,818,182",13.20%
@@ -3007,15 +3001,22 @@ Luis Arraez,sd,2025,Arb Avoided,"$14,000,000","$14,000,000"
 Luis Arraez,sd,2026,UFA,,
 Dylan Cease,sd,2025,Arb Avoided,"$13,750,000","$13,750,000"
 Dylan Cease,sd,2026,UFA,,
-Michael King,sd,2025,Arb Filed,"$8,062,500                                                                                                                        
-                                                                                (Arb. Midpoint)","$8,062,500"
-Michael King,sd,2026,UFA,,
+Michael King,sd,2025,Arb Avoided #,"$4,000,000","$7,750,000"
+Michael King,sd,2026,Mutual,"$15,000,000","$7,750,000"
+Michael King,sd,2027,UFA,,
 Jason Adam,sd,2025,Arb Avoided,"$4,800,000","$4,800,000"
 Jason Adam,sd,2026,ARB 4,,
 Jason Adam,sd,2027,UFA,,
+Elias Diaz,sd,2025,,"$1,500,000","$3,500,000"
+Elias Diaz,sd,2026,Club,"$7,000,000","$3,500,000"
+Elias Diaz,sd,2027,UFA,,
 Adrian Morejon,sd,2025,Arb Avoided,"$2,000,000","$2,000,000"
 Adrian Morejon,sd,2026,,,
 Adrian Morejon,sd,2027,UFA,,
+Connor Joe,sd,2025,"$1,000,000","$1,000,000",0.41%
+Connor Joe,sd,2026,UFA,,
+Jason Heyward,sd,2025,"$1,000,000","$1,000,000",0.41%
+Jason Heyward,sd,2026,UFA,,
 Luis Campusano,sd,2025,Arb Avoided,"$1,000,000","$1,000,000"
 Luis Campusano,sd,2026,ARB 2,,
 Luis Campusano,sd,2027,ARB 3,,
@@ -3024,20 +3025,37 @@ Luis Campusano,sd,2029,UFA,,
 Tyler Wade,sd,2025,Arb Avoided,"$850,000","$900,000"
 Tyler Wade,sd,2026,Club,"$1,000,000","$900,000"
 Tyler Wade,sd,2027,UFA,,
-Randy Vasquez,sd,2025,Estimate,"$800,000","$800,000"
-Randy Vasquez,sd,2026,PRE-ARB,,
-Randy Vasquez,sd,2027,PRE-ARB,,
+Brett Sullivan,sd,2025,Estimate,"$800,000","$800,000"
+Brett Sullivan,sd,2026,PRE-ARB,,
+Brett Sullivan,sd,2027,PRE-ARB,,
+Ron Marinaccio,sd,2025,Estimate,"$800,000","$800,000"
+Ron Marinaccio,sd,2026,ARB 1,,
 Brandon Lockridge,sd,2025,Estimate,"$800,000","$800,000"
 Brandon Lockridge,sd,2026,PRE-ARB,,
 Brandon Lockridge,sd,2027,PRE-ARB,,
 Bryan Hoeing,sd,2025,Estimate,"$800,000","$800,000"
 Bryan Hoeing,sd,2026,ARB 1,,
-Juan Nunez,sd,2025,Estimate,"$800,000","$800,000"
-Ryan Bergert,sd,2025,Estimate,"$800,000","$800,000"
-Henry Baez,sd,2025,Estimate,"$800,000","$800,000"
 Matt Waldron,sd,2025,Estimate,"$800,000","$800,000"
 Matt Waldron,sd,2026,PRE-ARB,,
 Matt Waldron,sd,2027,ARB 1,,
+Jeremiah Estrada,sd,2025,Estimate,"$800,000","$800,000"
+Jeremiah Estrada,sd,2026,PRE-ARB,,
+Jeremiah Estrada,sd,2027,ARB 1,,
+Jackson Merrill,sd,2025,Estimate,"$800,000","$800,000"
+Jackson Merrill,sd,2026,PRE-ARB,,
+Jackson Merrill,sd,2027,ARB 1,,
+Jhony Brito,sd,2025,Estimate,"$800,000","$800,000"
+Jhony Brito,sd,2026,PRE-ARB,,
+Jhony Brito,sd,2027,ARB 1,,
+Stephen Kolek,sd,2025,Estimate,"$800,000","$800,000"
+Stephen Kolek,sd,2026,PRE-ARB,,
+Stephen Kolek,sd,2027,ARB 1,,
+Juan Nunez,sd,2025,Estimate,"$800,000","$800,000"
+Ryan Bergert,sd,2025,Estimate,"$800,000","$800,000"
+Henry Baez,sd,2025,Estimate,"$800,000","$800,000"
+Randy Vasquez,sd,2025,Estimate,"$800,000","$800,000"
+Randy Vasquez,sd,2026,PRE-ARB,,
+Randy Vasquez,sd,2027,PRE-ARB,,
 Tom Cosgrove,sd,2025,Estimate,"$800,000","$800,000"
 Tom Cosgrove,sd,2026,PRE-ARB,,
 Tom Cosgrove,sd,2027,ARB 1,,
@@ -3050,22 +3068,7 @@ Alek Jacob,sd,2027,PRE-ARB,,
 Sean Reynolds,sd,2025,Estimate,"$800,000","$800,000"
 Sean Reynolds,sd,2026,PRE-ARB,,
 Sean Reynolds,sd,2027,PRE-ARB,,
-Brett Sullivan,sd,2025,Estimate,"$800,000","$800,000"
-Brett Sullivan,sd,2026,PRE-ARB,,
-Brett Sullivan,sd,2027,PRE-ARB,,
 Tirso Ornelas,sd,2025,Estimate,"$800,000","$800,000"
-Stephen Kolek,sd,2025,Estimate,"$800,000","$800,000"
-Stephen Kolek,sd,2026,PRE-ARB,,
-Stephen Kolek,sd,2027,ARB 1,,
-Jhony Brito,sd,2025,Estimate,"$800,000","$800,000"
-Jhony Brito,sd,2026,PRE-ARB,,
-Jhony Brito,sd,2027,ARB 1,,
-Jackson Merrill,sd,2025,Estimate,"$800,000","$800,000"
-Jackson Merrill,sd,2026,PRE-ARB,,
-Jackson Merrill,sd,2027,ARB 1,,
-Jeremiah Estrada,sd,2025,Estimate,"$800,000","$800,000"
-Jeremiah Estrada,sd,2026,PRE-ARB,,
-Jeremiah Estrada,sd,2027,ARB 1,,
 Jay Groome,sd,2025,-,-,-
 Willy Adames,sf,2025,"$13,142,857","$26,000,000",10.79%
 Willy Adames,sf,2026,"$13,142,857","$26,000,000",10.66%
@@ -3112,10 +3115,6 @@ Jordan Hicks,sf,2025,"$12,500,000","$11,000,000",4.56%
 Jordan Hicks,sf,2026,"$12,500,000","$11,000,000",4.51%
 Jordan Hicks,sf,2027,"$12,500,000","$11,000,000",-
 Jordan Hicks,sf,2028,UFA,,
-Taylor Rogers,sf,2023,"$9,000,000","$11,000,000",4.72%
-Taylor Rogers,sf,2024,"$12,000,000","$11,000,000",4.64%
-Taylor Rogers,sf,2025,"$12,000,000","$11,000,000",4.56%
-Taylor Rogers,sf,2026,UFA,,
 Wilmer Flores,sf,2023,,"$6,500,000","$5,500,000"
 Wilmer Flores,sf,2024,,"$6,500,000","$5,500,000"
 Wilmer Flores,sf,2025,Player,"$3,500,000","$5,500,000"
@@ -3136,9 +3135,30 @@ Camilo Doval,sf,2025,Arb Avoided,"$4,525,000","$4,525,000"
 Camilo Doval,sf,2026,ARB 2,,
 Camilo Doval,sf,2027,ARB 3,,
 Camilo Doval,sf,2028,UFA,,
+Osleivis Basabe,sf,2025,Estimate,"$800,000","$800,000"
+Sam Huff,sf,2025,Estimate,"$800,000","$800,000"
+Carson Ragsdale,sf,2025,Estimate,"$800,000","$800,000"
+Carson Seymour,sf,2025,Estimate,"$800,000","$800,000"
+Landen Roupp,sf,2025,Estimate,"$800,000","$800,000"
+Landen Roupp,sf,2026,PRE-ARB,,
+Landen Roupp,sf,2027,PRE-ARB,,
+Marco Luciano,sf,2025,Estimate,"$800,000","$800,000"
+Marco Luciano,sf,2026,PRE-ARB,,
+Marco Luciano,sf,2027,PRE-ARB,,
+Mason Black,sf,2025,Estimate,"$800,000","$800,000"
+Mason Black,sf,2026,PRE-ARB,,
+Mason Black,sf,2027,PRE-ARB,,
 David Villar,sf,2025,Estimate,"$800,000","$800,000"
 David Villar,sf,2026,PRE-ARB,,
 David Villar,sf,2027,PRE-ARB,,
+Wade Meckler,sf,2025,Estimate,"$800,000","$800,000"
+Wade Meckler,sf,2026,PRE-ARB,,
+Wade Meckler,sf,2027,PRE-ARB,,
+Keaton Winn,sf,2025,Estimate,"$800,000","$800,000"
+Keaton Winn,sf,2026,PRE-ARB,,
+Keaton Winn,sf,2027,ARB 1,,
+Heliot Ramos,sf,2025,Estimate,"$800,000","$800,000"
+Heliot Ramos,sf,2026,ARB 1 (S2),,
 Trevor McDonald,sf,2025,Estimate,"$800,000","$800,000"
 Trevor McDonald,sf,2026,PRE-ARB,,
 Trevor McDonald,sf,2027,PRE-ARB,,
@@ -3151,60 +3171,40 @@ Jerar Encarnacion,sf,2027,PRE-ARB,,
 Luis Matos,sf,2025,Estimate,"$800,000","$800,000"
 Luis Matos,sf,2026,PRE-ARB,,
 Luis Matos,sf,2027,ARB 1,,
-Sam Huff,sf,2025,Estimate,"$800,000","$800,000"
 Casey Schmitt,sf,2025,Estimate,"$800,000","$800,000"
 Casey Schmitt,sf,2026,PRE-ARB,,
 Casey Schmitt,sf,2027,ARB 1,,
 Spencer Bivens,sf,2025,Estimate,"$800,000","$800,000"
 Spencer Bivens,sf,2026,PRE-ARB,,
 Spencer Bivens,sf,2027,PRE-ARB,,
-Carson Ragsdale,sf,2025,Estimate,"$800,000","$800,000"
-Carson Seymour,sf,2025,Estimate,"$800,000","$800,000"
-Landen Roupp,sf,2025,Estimate,"$800,000","$800,000"
-Landen Roupp,sf,2026,PRE-ARB,,
-Landen Roupp,sf,2027,PRE-ARB,,
-Marco Luciano,sf,2025,Estimate,"$800,000","$800,000"
-Marco Luciano,sf,2026,PRE-ARB,,
-Marco Luciano,sf,2027,PRE-ARB,,
-Mason Black,sf,2025,Estimate,"$800,000","$800,000"
-Mason Black,sf,2026,PRE-ARB,,
-Mason Black,sf,2027,PRE-ARB,,
 Hayden Birdsong,sf,2025,Estimate,"$800,000","$800,000"
 Hayden Birdsong,sf,2026,PRE-ARB,,
 Hayden Birdsong,sf,2027,PRE-ARB,,
-Wade Meckler,sf,2025,Estimate,"$800,000","$800,000"
-Wade Meckler,sf,2026,PRE-ARB,,
-Wade Meckler,sf,2027,PRE-ARB,,
-Keaton Winn,sf,2025,Estimate,"$800,000","$800,000"
-Keaton Winn,sf,2026,PRE-ARB,,
-Keaton Winn,sf,2027,ARB 1,,
-Kyle Harrison,sf,2025,Estimate,"$800,000","$800,000"
-Kyle Harrison,sf,2026,PRE-ARB,,
-Kyle Harrison,sf,2027,ARB 1,,
-Tristan Beck,sf,2025,Estimate,"$800,000","$800,000"
-Tristan Beck,sf,2026,PRE-ARB,,
-Tristan Beck,sf,2027,ARB 1 (S2),,
-Ryan Walker,sf,2025,Estimate,"$800,000","$800,000"
-Ryan Walker,sf,2026,ARB 1 (S2),,
-Patrick Bailey,sf,2025,Estimate,"$800,000","$800,000"
-Patrick Bailey,sf,2026,ARB 1 (S2),,
-Sean Hjelle,sf,2025,Estimate,"$800,000","$800,000"
-Sean Hjelle,sf,2026,PRE-ARB,,
-Sean Hjelle,sf,2027,ARB 1,,
-Erik Miller,sf,2025,Estimate,"$800,000","$800,000"
-Erik Miller,sf,2026,PRE-ARB,,
-Erik Miller,sf,2027,ARB 1,,
-Tyler Fitzgerald,sf,2025,Estimate,"$800,000","$800,000"
-Tyler Fitzgerald,sf,2026,PRE-ARB,,
-Tyler Fitzgerald,sf,2027,ARB 1,,
-Randy Rodriguez,sf,2025,Estimate,"$800,000","$800,000"
-Randy Rodriguez,sf,2026,PRE-ARB,,
-Randy Rodriguez,sf,2027,PRE-ARB,,
-Heliot Ramos,sf,2025,Estimate,"$800,000","$800,000"
-Heliot Ramos,sf,2026,ARB 1 (S2),,
 Brett Wisely,sf,2025,Estimate,"$800,000","$800,000"
 Brett Wisely,sf,2026,PRE-ARB,,
 Brett Wisely,sf,2027,ARB 1,,
+Kyle Harrison,sf,2025,Estimate,"$800,000","$800,000"
+Kyle Harrison,sf,2026,PRE-ARB,,
+Kyle Harrison,sf,2027,ARB 1,,
+Randy Rodriguez,sf,2025,Estimate,"$800,000","$800,000"
+Randy Rodriguez,sf,2026,PRE-ARB,,
+Randy Rodriguez,sf,2027,PRE-ARB,,
+Tyler Fitzgerald,sf,2025,Estimate,"$800,000","$800,000"
+Tyler Fitzgerald,sf,2026,PRE-ARB,,
+Tyler Fitzgerald,sf,2027,ARB 1,,
+Erik Miller,sf,2025,Estimate,"$800,000","$800,000"
+Erik Miller,sf,2026,PRE-ARB,,
+Erik Miller,sf,2027,ARB 1,,
+Sean Hjelle,sf,2025,Estimate,"$800,000","$800,000"
+Sean Hjelle,sf,2026,PRE-ARB,,
+Sean Hjelle,sf,2027,ARB 1,,
+Patrick Bailey,sf,2025,Estimate,"$800,000","$800,000"
+Patrick Bailey,sf,2026,ARB 1 (S2),,
+Ryan Walker,sf,2025,Estimate,"$800,000","$800,000"
+Ryan Walker,sf,2026,ARB 1 (S2),,
+Tristan Beck,sf,2025,Estimate,"$800,000","$800,000"
+Tristan Beck,sf,2026,PRE-ARB,,
+Tristan Beck,sf,2027,ARB 1 (S2),,
 Julio Rodriguez,sea,2023,Pre-Arb,"$5,937,500","$17,441,667"
 Julio Rodriguez,sea,2024,Pre-Arb,"$11,912,500","$17,441,667"
 Julio Rodriguez,sea,2025,ARB 1,"$19,912,500","$17,441,667"
@@ -3250,6 +3250,9 @@ Dylan Moore,sea,2023,Arb Avoided #,"$2,083,333","$2,958,333"
 Dylan Moore,sea,2024,ARB 3,"$3,133,333","$2,958,333"
 Dylan Moore,sea,2025,,"$3,908,334","$3,208,333"
 Dylan Moore,sea,2026,UFA,,
+Jorge Polanco,sea,2025,,"$7,000,000","$7,750,000"
+Jorge Polanco,sea,2026,Mutual,"$6,000,000","$7,750,000"
+Jorge Polanco,sea,2027,UFA,,
 Logan Gilbert,sea,2025,Arb Avoided,"$7,625,000","$7,625,000"
 Logan Gilbert,sea,2026,ARB 3,,
 Logan Gilbert,sea,2027,ARB 4,,
@@ -3284,21 +3287,18 @@ Gabe Speier,sea,2025,Arb Avoided,"$845,000","$845,000"
 Gabe Speier,sea,2026,ARB 2,,
 Gabe Speier,sea,2027,ARB 3,,
 Gabe Speier,sea,2028,UFA,,
-Tyler Jay,sea,2025,Estimate,"$800,000","$800,000"
-Blake Hunt,sea,2025,Estimate,"$800,000","$800,000"
-Miles Mastrobuoni,sea,2025,Estimate,"$800,000","$800,000"
-Hagen Danner,sea,2025,Estimate,"$800,000","$800,000"
 Austin Shenton,sea,2025,Estimate,"$800,000","$800,000"
+Casey Legumina,sea,2025,Estimate,"$800,000","$800,000"
 Blas Castano,sea,2025,Estimate,"$800,000","$800,000"
+Hagen Danner,sea,2025,Estimate,"$800,000","$800,000"
+Miles Mastrobuoni,sea,2025,Estimate,"$800,000","$800,000"
+Blake Hunt,sea,2025,Estimate,"$800,000","$800,000"
 Leonardo Rivas,sea,2025,Estimate,"$800,000","$800,000"
 Leonardo Rivas,sea,2026,PRE-ARB,,
 Leonardo Rivas,sea,2027,PRE-ARB,,
 Tyler Locklear,sea,2025,Estimate,"$800,000","$800,000"
 Tyler Locklear,sea,2026,PRE-ARB,,
 Tyler Locklear,sea,2027,PRE-ARB,,
-Cade Marlowe,sea,2025,Estimate,"$800,000","$800,000"
-Cade Marlowe,sea,2026,PRE-ARB,,
-Cade Marlowe,sea,2027,PRE-ARB,,
 Carlos Vargas,sea,2025,Estimate,"$800,000","$800,000"
 Carlos Vargas,sea,2026,PRE-ARB,,
 Carlos Vargas,sea,2027,PRE-ARB,,
@@ -3311,9 +3311,6 @@ Cody Bolton,sea,2027,PRE-ARB,,
 Ryan Bliss,sea,2025,Estimate,"$800,000","$800,000"
 Ryan Bliss,sea,2026,PRE-ARB,,
 Ryan Bliss,sea,2027,PRE-ARB,,
-Jhonathan Diaz,sea,2025,Estimate,"$800,000","$800,000"
-Jhonathan Diaz,sea,2026,PRE-ARB,,
-Jhonathan Diaz,sea,2027,PRE-ARB,,
 Bryce Miller,sea,2025,Estimate,"$800,000","$800,000"
 Bryce Miller,sea,2026,ARB 1 (S2),,
 Jackson Kowar,sea,2025,Estimate,"$800,000","$800,000"
@@ -3374,16 +3371,14 @@ Erick Fedde,stl,2025,"$7,500,000","$7,500,000",3.11%
 Erick Fedde,stl,2026,UFA,,
 Ryan Helsley,stl,2025,Arb Avoided,"$8,200,000","$8,200,000"
 Ryan Helsley,stl,2026,UFA,,
-Brendan Donovan,stl,2025,Arb Filed,"$3,075,000                                                                                                                        
-                                                                                (Arb. Midpoint)","$3,075,000"
-Brendan Donovan,stl,2026,ARB 2,,
-Brendan Donovan,stl,2027,ARB 3,,
-Brendan Donovan,stl,2028,UFA,,
-Lars Nootbaar,stl,2025,Arb Filed,"$2,700,000                                                                                                                        
-                                                                                (Arb. Midpoint)","$2,700,000"
+Lars Nootbaar,stl,2025,Arb Settled,"$2,950,000","$2,950,000"
 Lars Nootbaar,stl,2026,ARB 2,,
 Lars Nootbaar,stl,2027,ARB 3,,
 Lars Nootbaar,stl,2028,UFA,,
+Brendan Donovan,stl,2025,Arb Settled,"$2,850,000","$2,850,000"
+Brendan Donovan,stl,2026,ARB 2,,
+Brendan Donovan,stl,2027,ARB 3,,
+Brendan Donovan,stl,2028,UFA,,
 JoJo Romero,stl,2025,Arb Avoided,"$2,260,000","$2,260,000"
 JoJo Romero,stl,2026,ARB 3,,
 JoJo Romero,stl,2027,UFA,,
@@ -3397,23 +3392,23 @@ John King,stl,2025,Arb Avoided,"$1,605,000","$1,605,000"
 John King,stl,2026,ARB 3,,
 John King,stl,2027,ARB 4,,
 John King,stl,2028,UFA,,
-Ryan Loutos,stl,2025,Estimate,"$800,000","$800,000"
-Ryan Loutos,stl,2026,PRE-ARB,,
-Ryan Loutos,stl,2027,PRE-ARB,,
+Gordon Graceffo,stl,2025,Estimate,"$800,000","$800,000"
+Gordon Graceffo,stl,2026,PRE-ARB,,
+Gordon Graceffo,stl,2027,PRE-ARB,,
 Bailey Horn,stl,2025,Estimate,"$800,000","$800,000"
 Bailey Horn,stl,2026,PRE-ARB,,
 Bailey Horn,stl,2027,PRE-ARB,,
 Roddery Munoz,stl,2025,Estimate,"$800,000","$800,000"
 Roddery Munoz,stl,2026,PRE-ARB,,
 Roddery Munoz,stl,2027,PRE-ARB,,
+Michael Helman,stl,2025,Estimate,"$800,000","$800,000"
+Michael Helman,stl,2026,PRE-ARB,,
+Michael Helman,stl,2027,PRE-ARB,,
 Alec Burleson,stl,2025,Estimate,"$800,000","$800,000"
 Alec Burleson,stl,2026,ARB 1,,
 Michael McGreevy,stl,2025,Estimate,"$800,000","$800,000"
 Michael McGreevy,stl,2026,PRE-ARB,,
 Michael McGreevy,stl,2027,PRE-ARB,,
-Thomas Saggese,stl,2025,Estimate,"$800,000","$800,000"
-Thomas Saggese,stl,2026,PRE-ARB,,
-Thomas Saggese,stl,2027,PRE-ARB,,
 Matt Svanson,stl,2025,Estimate,"$800,000","$800,000"
 Tekoah Roby,stl,2025,Estimate,"$800,000","$800,000"
 Tink Hence,stl,2025,Estimate,"$800,000","$800,000"
@@ -3426,12 +3421,12 @@ Victor Scott II,stl,2027,PRE-ARB,,
 Zack Thompson,stl,2025,Estimate,"$800,000","$800,000"
 Zack Thompson,stl,2026,PRE-ARB,,
 Zack Thompson,stl,2027,ARB 1,,
-Luken Baker,stl,2025,Estimate,"$800,000","$800,000"
-Luken Baker,stl,2026,PRE-ARB,,
-Luken Baker,stl,2027,PRE-ARB,,
-Gordon Graceffo,stl,2025,Estimate,"$800,000","$800,000"
-Gordon Graceffo,stl,2026,PRE-ARB,,
-Gordon Graceffo,stl,2027,PRE-ARB,,
+Ryan Loutos,stl,2025,Estimate,"$800,000","$800,000"
+Ryan Loutos,stl,2026,PRE-ARB,,
+Ryan Loutos,stl,2027,PRE-ARB,,
+Thomas Saggese,stl,2025,Estimate,"$800,000","$800,000"
+Thomas Saggese,stl,2026,PRE-ARB,,
+Thomas Saggese,stl,2027,PRE-ARB,,
 Sem Robberse,stl,2025,Estimate,"$800,000","$800,000"
 Matthew Liberatore,stl,2025,Estimate,"$800,000","$800,000"
 Matthew Liberatore,stl,2026,ARB 1 (S2),,
@@ -3464,6 +3459,9 @@ Jordan Walker,stl,2027,ARB 1,,
 Chris Roycroft,stl,2025,Estimate,"$800,000","$800,000"
 Chris Roycroft,stl,2026,PRE-ARB,,
 Chris Roycroft,stl,2027,PRE-ARB,,
+Luken Baker,stl,2025,Estimate,"$800,000","$800,000"
+Luken Baker,stl,2026,PRE-ARB,,
+Luken Baker,stl,2027,PRE-ARB,,
 Wander Franco,tb,2022,,"$1,454,545","$16,545,455"
 Wander Franco,tb,2023,Pre-Arb,"$2,454,545","$16,545,455"
 Wander Franco,tb,2024,,"$2,454,545","$14,650,050"
@@ -3477,6 +3475,9 @@ Wander Franco,tb,2031,,"$25,454,545","$16,545,455"
 Wander Franco,tb,2032,,"$25,454,550","$16,545,455"
 Wander Franco,tb,2033,Club,"$25,000,000","$16,545,455"
 Wander Franco,tb,2034,UFA,,
+Ha-seong Kim,tb,2025,,"$13,000,000","$14,500,000"
+Ha-seong Kim,tb,2026,Player,"$16,000,000","$14,500,000"
+Ha-seong Kim,tb,2027,UFA,,
 Yandy Diaz,tb,2023,Arb Avoided #,"$6,000,000","$8,000,000"
 Yandy Diaz,tb,2024,ARB 3,"$8,000,000","$8,000,000"
 Yandy Diaz,tb,2025,,"$10,000,000","$8,000,000"
@@ -3515,7 +3516,7 @@ Shane Baz,tb,2026,ARB 2,,
 Shane Baz,tb,2027,ARB 3,,
 Shane Baz,tb,2028,ARB 4,,
 Shane Baz,tb,2029,UFA,,
-Taylor Walls,tb,2025,Arb Avoided,"$1,350,000","$1,400,000"
+Taylor Walls,tb,2025,Arb Avoided #,"$1,350,000","$1,400,000"
 Taylor Walls,tb,2026,Club,"$2,450,000","$1,400,000"
 Taylor Walls,tb,2027,ARB 3,,
 Taylor Walls,tb,2028,UFA,,
@@ -3532,9 +3533,19 @@ Ben Rortvedt,tb,2028,UFA,,
 Cole Sulser,tb,2025,Arb Avoided,"$900,000","$900,000"
 Cole Sulser,tb,2026,ARB 3,,
 Cole Sulser,tb,2027,UFA,,
+Alex Faedo,tb,2025,Estimate,"$800,000","$800,000"
+Mike Vasil,tb,2025,Estimate,"$800,000","$800,000"
+Nathan Lavender,tb,2025,Estimate,"$800,000","$800,000"
+Jake Mangum,tb,2025,Estimate,"$800,000","$800,000"
+Joe Rock,tb,2025,Estimate,"$800,000","$800,000"
+Ian Seymour,tb,2025,Estimate,"$800,000","$800,000"
+Edwin Uceta,tb,2025,Estimate,"$800,000","$800,000"
+Edwin Uceta,tb,2026,ARB 1 (S2),,
 Joe Boyle,tb,2025,Estimate,"$800,000","$800,000"
 Joe Boyle,tb,2026,PRE-ARB,,
 Joe Boyle,tb,2027,PRE-ARB,,
+Kevin Kelly,tb,2025,Estimate,"$800,000","$800,000"
+Kevin Kelly,tb,2026,ARB 1 (S2),,
 Eric Orze,tb,2025,Estimate,"$800,000","$800,000"
 Eric Orze,tb,2026,PRE-ARB,,
 Eric Orze,tb,2027,PRE-ARB,,
@@ -3544,52 +3555,40 @@ Mason Montgomery,tb,2027,PRE-ARB,,
 Logan Driscoll,tb,2025,Estimate,"$800,000","$800,000"
 Logan Driscoll,tb,2026,PRE-ARB,,
 Logan Driscoll,tb,2027,PRE-ARB,,
-Mike Vasil,tb,2025,Estimate,"$800,000","$800,000"
-Nathan Lavender,tb,2025,Estimate,"$800,000","$800,000"
 Hunter Bigge,tb,2025,Estimate,"$800,000","$800,000"
 Hunter Bigge,tb,2026,PRE-ARB,,
 Hunter Bigge,tb,2027,PRE-ARB,,
-Jake Mangum,tb,2025,Estimate,"$800,000","$800,000"
-Joe Rock,tb,2025,Estimate,"$800,000","$800,000"
-Ian Seymour,tb,2025,Estimate,"$800,000","$800,000"
-Edwin Uceta,tb,2025,Estimate,"$800,000","$800,000"
-Edwin Uceta,tb,2026,ARB 1 (S2),,
 Junior Caminero,tb,2025,Estimate,"$800,000","$800,000"
 Junior Caminero,tb,2026,PRE-ARB,,
 Junior Caminero,tb,2027,PRE-ARB,,
-Curtis Mead,tb,2025,Estimate,"$800,000","$800,000"
-Curtis Mead,tb,2026,PRE-ARB,,
-Curtis Mead,tb,2027,PRE-ARB,,
-Kameron Misner,tb,2025,Estimate,"$800,000","$800,000"
-Kameron Misner,tb,2026,PRE-ARB,,
-Kameron Misner,tb,2027,PRE-ARB,,
-Osleivis Basabe,tb,2025,Estimate,"$800,000","$800,000"
-Osleivis Basabe,tb,2026,PRE-ARB,,
-Osleivis Basabe,tb,2027,PRE-ARB,,
-Yoniel Curet,tb,2025,Estimate,"$800,000","$800,000"
-Josh Lowe,tb,2025,Estimate,"$800,000","$800,000"
-Josh Lowe,tb,2026,ARB 1,,
-José Caballero,tb,2025,Estimate,"$800,000","$800,000"
-José Caballero,tb,2026,ARB 1 (S2),,
-Richard Palacios,tb,2025,Estimate,"$800,000","$800,000"
-Richard Palacios,tb,2026,ARB 1 (S2),,
-Ryan Pepiot,tb,2025,Estimate,"$800,000","$800,000"
-Ryan Pepiot,tb,2026,ARB 1,,
-Taj Bradley,tb,2025,Estimate,"$800,000","$800,000"
-Taj Bradley,tb,2026,PRE-ARB,,
-Taj Bradley,tb,2027,ARB 1,,
-Jonny DeLuca,tb,2025,Estimate,"$800,000","$800,000"
-Jonny DeLuca,tb,2026,PRE-ARB,,
-Jonny DeLuca,tb,2027,ARB 1,,
-Kevin Kelly,tb,2025,Estimate,"$800,000","$800,000"
-Kevin Kelly,tb,2026,ARB 1 (S2),,
-Manuel Rodriguez,tb,2025,Estimate,"$800,000","$800,000"
-Manuel Rodriguez,tb,2026,ARB 1 (S2),,
+Christopher Morel,tb,2025,Estimate,"$800,000","$800,000"
+Christopher Morel,tb,2026,ARB 1,,
 Jonathan Aranda,tb,2025,Estimate,"$800,000","$800,000"
 Jonathan Aranda,tb,2026,PRE-ARB,,
 Jonathan Aranda,tb,2027,ARB 1,,
-Christopher Morel,tb,2025,Estimate,"$800,000","$800,000"
-Christopher Morel,tb,2026,ARB 1,,
+Manuel Rodriguez,tb,2025,Estimate,"$800,000","$800,000"
+Manuel Rodriguez,tb,2026,ARB 1 (S2),,
+Curtis Mead,tb,2025,Estimate,"$800,000","$800,000"
+Curtis Mead,tb,2026,PRE-ARB,,
+Curtis Mead,tb,2027,PRE-ARB,,
+Jonny DeLuca,tb,2025,Estimate,"$800,000","$800,000"
+Jonny DeLuca,tb,2026,PRE-ARB,,
+Jonny DeLuca,tb,2027,ARB 1,,
+Taj Bradley,tb,2025,Estimate,"$800,000","$800,000"
+Taj Bradley,tb,2026,PRE-ARB,,
+Taj Bradley,tb,2027,ARB 1,,
+Ryan Pepiot,tb,2025,Estimate,"$800,000","$800,000"
+Ryan Pepiot,tb,2026,ARB 1,,
+Richard Palacios,tb,2025,Estimate,"$800,000","$800,000"
+Richard Palacios,tb,2026,ARB 1 (S2),,
+José Caballero,tb,2025,Estimate,"$800,000","$800,000"
+José Caballero,tb,2026,ARB 1 (S2),,
+Josh Lowe,tb,2025,Estimate,"$800,000","$800,000"
+Josh Lowe,tb,2026,ARB 1,,
+Yoniel Curet,tb,2025,Estimate,"$800,000","$800,000"
+Kameron Misner,tb,2025,Estimate,"$800,000","$800,000"
+Kameron Misner,tb,2026,PRE-ARB,,
+Kameron Misner,tb,2027,PRE-ARB,,
 Corey Seager,tex,2022,"$33,000,000","$32,500,000",14.13%
 Corey Seager,tex,2023,"$35,500,000","$32,500,000",13.95%
 Corey Seager,tex,2024,"$35,000,000","$32,500,000",13.71%
@@ -3662,8 +3661,9 @@ Jacob Webb,tex,2027,UFA,,
 Josh Sborz,tex,2025,Arb Avoided,"$1,100,000","$1,100,000"
 Josh Sborz,tex,2026,ARB 3,,
 Josh Sborz,tex,2027,UFA,,
-Ezequiel Duran,tex,2025,Estimate,"$800,000","$800,000"
-Ezequiel Duran,tex,2026,ARB 1,,
+Luis Curvelo,tex,2025,Estimate,"$800,000","$800,000"
+Luis Curvelo,tex,2026,PRE-ARB,,
+Luis Curvelo,tex,2027,PRE-ARB,,
 Jake Burger,tex,2025,Estimate,"$800,000","$800,000"
 Jake Burger,tex,2026,ARB 1,,
 Josh H. Smith,tex,2025,Estimate,"$800,000","$800,000"
@@ -3685,6 +3685,9 @@ Gerson Garabito,tex,2026,PRE-ARB,,
 Gerson Garabito,tex,2027,PRE-ARB,,
 Winston Santos,tex,2025,Estimate,"$800,000","$800,000"
 Emiliano Teodo,tex,2025,Estimate,"$800,000","$800,000"
+Justin Foscue,tex,2025,Estimate,"$800,000","$800,000"
+Justin Foscue,tex,2026,PRE-ARB,,
+Justin Foscue,tex,2027,PRE-ARB,,
 Robert Garcia,tex,2025,Estimate,"$800,000","$800,000"
 Robert Garcia,tex,2026,PRE-ARB,,
 Robert Garcia,tex,2027,ARB 1,,
@@ -3715,10 +3718,8 @@ Cody Bradford,tex,2027,ARB 1,,
 Wyatt Langford,tex,2025,Estimate,"$800,000","$800,000"
 Wyatt Langford,tex,2026,PRE-ARB,,
 Wyatt Langford,tex,2027,ARB 1,,
-Justin Foscue,tex,2025,Estimate,"$800,000","$800,000"
-Justin Foscue,tex,2026,PRE-ARB,,
-Justin Foscue,tex,2027,PRE-ARB,,
-Luis Curvelo,tex,2025,-,-,-
+Ezequiel Duran,tex,2025,Estimate,"$800,000","$800,000"
+Ezequiel Duran,tex,2026,ARB 1,,
 George Springer,tor,2021,"$23,666,666","$25,000,000",11.90%
 George Springer,tor,2022,"$29,666,666","$25,000,000",10.87%
 George Springer,tor,2023,"$24,166,666","$25,000,000",10.73%
@@ -3752,15 +3753,15 @@ Andres Gimenez,tor,2028,,"$23,571,428","$15,214,286"
 Andres Gimenez,tor,2029,,"$23,571,428","$15,214,286"
 Andres Gimenez,tor,2030,Club,"$23,000,000","$15,214,286"
 Andres Gimenez,tor,2031,UFA,,
-Anthony Santander,tor,2025,,-,"$18,500,000"
-Anthony Santander,tor,2026,,-,"$18,500,000"
-Anthony Santander,tor,2027,,-,"$18,500,000"
+Anthony Santander,tor,2025,,"$16,200,000","$13,720,000"
+Anthony Santander,tor,2026,,"$19,200,000","$13,720,000"
+Anthony Santander,tor,2027,,"$19,200,000","$13,720,000"
 Anthony Santander,tor,"PLAYER OPT-OUT:    AVAILABLE 
                                         
-                                        2028, 3 YR, $0 REMAINING",,,
-Anthony Santander,tor,2028,Opt-Out,-,"$18,500,000"
-Anthony Santander,tor,2029,,-,"$18,500,000"
-Anthony Santander,tor,2030,Club,-,"$18,500,000"
+                                        2028, 3 YR, $7,500,000 REMAINING",,,
+Anthony Santander,tor,2028,Opt-Out,"$17,450,000","$13,720,000"
+Anthony Santander,tor,2029,,"$15,450,000","$13,720,000"
+Anthony Santander,tor,2030,Club,"$15,000,000","$18,500,000"
 Anthony Santander,tor,2031,UFA,,
 Chris Bassitt,tor,2023,"$19,000,000","$21,000,000",9.01%
 Chris Bassitt,tor,2024,"$22,000,000","$21,000,000",8.86%
@@ -3776,8 +3777,10 @@ Jeff Hoffman,tor,2027,"$12,666,667","$11,000,000",-
 Jeff Hoffman,tor,2028,UFA,,
 Vladimir Guerrero Jr.,tor,2025,Arb Avoided,"$28,500,000","$28,500,000"
 Vladimir Guerrero Jr.,tor,2026,UFA,,
-Yimi Garcia,tor,2025,-,"$7,500,000",3.11%
-Yimi Garcia,tor,2026,-,"$7,500,000",-
+Max Scherzer,tor,2025,"$15,500,000","$15,500,000",6.43%
+Max Scherzer,tor,2026,UFA,,
+Yimi Garcia,tor,2025,Estimate,"$7,500,000","$7,500,000"
+Yimi Garcia,tor,2026,Estimate,"$7,500,000","$7,500,000"
 Yimi Garcia,tor,2027,UFA,,
 Chad Green,tor,2023,,"$2,250,000","$4,250,000"
 Chad Green,tor,2024,Club,"$10,500,000","$10,500,000"
@@ -3805,22 +3808,32 @@ Nick Sandlin,tor,2025,Arb Avoided,"$1,630,000","$1,630,000"
 Nick Sandlin,tor,2026,ARB 3,,
 Nick Sandlin,tor,2027,ARB 4,,
 Nick Sandlin,tor,2028,UFA,,
-Easton Lucas,tor,2025,Estimate,"$800,000","$800,000"
-Easton Lucas,tor,2026,PRE-ARB,,
-Easton Lucas,tor,2027,PRE-ARB,,
-Angel Bastardo,tor,2025,Estimate,"$800,000","$800,000"
 Jake Bloss,tor,2025,Estimate,"$800,000","$800,000"
 Jake Bloss,tor,2026,PRE-ARB,,
 Jake Bloss,tor,2027,PRE-ARB,,
+Nick Robertson,tor,2025,Estimate,"$800,000","$800,000"
+Nick Robertson,tor,2026,PRE-ARB,,
+Nick Robertson,tor,2027,PRE-ARB,,
+Jonatan Clase,tor,2025,Estimate,"$800,000","$800,000"
+Jonatan Clase,tor,2026,PRE-ARB,,
+Jonatan Clase,tor,2027,PRE-ARB,,
+Tyler Heineman,tor,2025,Estimate,"$800,000","$800,000"
+Tyler Heineman,tor,2026,ARB 1,,
+Angel Bastardo,tor,2025,Estimate,"$800,000","$800,000"
+Nathan Lukes,tor,2025,Estimate,"$800,000","$800,000"
+Nathan Lukes,tor,2026,PRE-ARB,,
+Nathan Lukes,tor,2027,PRE-ARB,,
 Orelvis Martinez,tor,2025,Estimate,"$800,000","$800,000"
 Orelvis Martinez,tor,2026,PRE-ARB,,
 Orelvis Martinez,tor,2027,PRE-ARB,,
 Tommy Nance,tor,2025,Estimate,"$800,000","$800,000"
 Tommy Nance,tor,2026,ARB 1,,
-Michael Petersen,tor,2025,Estimate,"$800,000","$800,000"
-Michael Petersen,tor,2026,PRE-ARB,,
-Michael Petersen,tor,2027,PRE-ARB,,
+Easton Lucas,tor,2025,Estimate,"$800,000","$800,000"
+Easton Lucas,tor,2026,PRE-ARB,,
+Easton Lucas,tor,2027,PRE-ARB,,
 Adam Macko,tor,2025,Estimate,"$800,000","$800,000"
+Adam Macko,tor,2026,PRE-ARB,,
+Adam Macko,tor,2027,PRE-ARB,,
 Will Wagner,tor,2025,Estimate,"$800,000","$800,000"
 Will Wagner,tor,2026,PRE-ARB,,
 Will Wagner,tor,2027,PRE-ARB,,
@@ -3847,18 +3860,9 @@ Steward Berroa,tor,2027,PRE-ARB,,
 Joey Loperfido,tor,2025,Estimate,"$800,000","$800,000"
 Joey Loperfido,tor,2026,PRE-ARB,,
 Joey Loperfido,tor,2027,PRE-ARB,,
-Nathan Lukes,tor,2025,Estimate,"$800,000","$800,000"
-Nathan Lukes,tor,2026,PRE-ARB,,
-Nathan Lukes,tor,2027,PRE-ARB,,
-Tyler Heineman,tor,2025,Estimate,"$800,000","$800,000"
-Tyler Heineman,tor,2026,ARB 1,,
-Jonatan Clase,tor,2025,Estimate,"$800,000","$800,000"
-Jonatan Clase,tor,2026,PRE-ARB,,
-Jonatan Clase,tor,2027,PRE-ARB,,
-Nick Robertson,tor,2025,Estimate,"$800,000","$800,000"
-Nick Robertson,tor,2026,PRE-ARB,,
-Nick Robertson,tor,2027,PRE-ARB,,
 Josh Walker,tor,2025,"$760,000","$760,000",0.32%
+Josh Walker,tor,2026,PRE-ARB,,
+Josh Walker,tor,2027,PRE-ARB,,
 Keibert Ruiz,wsh,2023,,"$1,375,000","$6,250,000"
 Keibert Ruiz,wsh,2024,Pre-Arb,"$6,375,000","$6,250,000"
 Keibert Ruiz,wsh,2025,ARB 1,"$5,375,000","$6,250,000"
@@ -3874,8 +3878,8 @@ Will Harris,wsh,2020,"$2,962,963","$8,000,000",3.85%
 Will Harris,wsh,2021,"$8,000,000","$8,000,000",-
 Will Harris,wsh,2022,"$8,000,000","$8,000,000",-
 Will Harris,wsh,2023,UFA,,
-Trevor Williams,wsh,2025,-,"$7,000,000",2.90%
-Trevor Williams,wsh,2026,-,"$7,000,000",2.87%
+Trevor Williams,wsh,2025,Estimate,"$7,000,000","$7,000,000"
+Trevor Williams,wsh,2026,Estimate,"$7,000,000","$7,000,000"
 Trevor Williams,wsh,2027,UFA,,
 Nathaniel Lowe,wsh,2025,Arb Filed,"$10,700,000                                                                                                                        
                                                                                 (Arb. Midpoint)","$10,700,000"
@@ -3889,6 +3893,8 @@ Luis Garcia,wsh,2025,Arb Avoided,"$4,500,000","$4,500,000"
 Luis Garcia,wsh,2026,ARB 3,,
 Luis Garcia,wsh,2027,ARB 4,,
 Luis Garcia,wsh,2028,UFA,,
+Shinnosuke Ogasawara,wsh,2025,"$1,500,000","$1,750,000",0.73%
+Shinnosuke Ogasawara,wsh,2026,"$2,000,000","$1,750,000",0.72%
 Jorge López,wsh,2025,"$3,000,000","$3,000,000",1.24%
 Jorge López,wsh,2026,UFA,,
 MacKenzie Gore,wsh,2025,Arb Avoided,"$2,890,000","$2,890,000"
@@ -3907,9 +3913,7 @@ Riley Adams,wsh,2025,Arb Avoided,"$850,000","$850,000"
 Riley Adams,wsh,2026,ARB 2,,
 Riley Adams,wsh,2027,ARB 3,,
 Riley Adams,wsh,2028,ARB 4,,
-Juan Yepez,wsh,2025,Estimate,"$800,000","$800,000"
-Juan Yepez,wsh,2026,PRE-ARB,,
-Juan Yepez,wsh,2027,ARB 1,,
+Robert Hassell,wsh,2025,Estimate,"$800,000","$800,000"
 Jackson Rutledge,wsh,2025,Estimate,"$800,000","$800,000"
 Jackson Rutledge,wsh,2026,PRE-ARB,,
 Jackson Rutledge,wsh,2027,PRE-ARB,,
@@ -3922,18 +3926,20 @@ Dylan Crews,wsh,2027,PRE-ARB,,
 Stone Garrett,wsh,2025,Estimate,"$800,000","$800,000"
 Stone Garrett,wsh,2026,PRE-ARB,,
 Stone Garrett,wsh,2027,ARB 1,,
-Joe La Sorsa,wsh,2025,Estimate,"$800,000","$800,000"
-Joe La Sorsa,wsh,2026,PRE-ARB,,
-Joe La Sorsa,wsh,2027,PRE-ARB,,
 José Tena,wsh,2025,Estimate,"$800,000","$800,000"
 José Tena,wsh,2026,PRE-ARB,,
 José Tena,wsh,2027,PRE-ARB,,
-Evan Reifert,wsh,2025,Estimate,"$800,000","$800,000"
-Andry Lara,wsh,2025,Estimate,"$800,000","$800,000"
-Robert Hassell,wsh,2025,Estimate,"$800,000","$800,000"
 Trey Lipscomb,wsh,2025,Estimate,"$800,000","$800,000"
 Trey Lipscomb,wsh,2026,PRE-ARB,,
 Trey Lipscomb,wsh,2027,PRE-ARB,,
+Evan Reifert,wsh,2025,Estimate,"$800,000","$800,000"
+Andry Lara,wsh,2025,Estimate,"$800,000","$800,000"
+Drew Millas,wsh,2025,Estimate,"$800,000","$800,000"
+Drew Millas,wsh,2026,PRE-ARB,,
+Drew Millas,wsh,2027,PRE-ARB,,
+Juan Yepez,wsh,2025,Estimate,"$800,000","$800,000"
+Juan Yepez,wsh,2026,PRE-ARB,,
+Juan Yepez,wsh,2027,ARB 1,,
 Eduardo Salazar,wsh,2025,Estimate,"$800,000","$800,000"
 Eduardo Salazar,wsh,2026,PRE-ARB,,
 Eduardo Salazar,wsh,2027,PRE-ARB,,
@@ -3971,9 +3977,8 @@ Mitchell Parker,wsh,2027,PRE-ARB,,
 James Wood,wsh,2025,Estimate,"$800,000","$800,000"
 James Wood,wsh,2026,PRE-ARB,,
 James Wood,wsh,2027,PRE-ARB,,
-Drew Millas,wsh,2025,Estimate,"$800,000","$800,000"
-Drew Millas,wsh,2026,PRE-ARB,,
-Drew Millas,wsh,2027,PRE-ARB,,
 Mason Thompson,wsh,2025,Arb Avoided,"$770,000","$770,000"
 Mason Thompson,wsh,2026,ARB 2,,
 Mason Thompson,wsh,2027,ARB 3,,
+CJ Abrams,wsh,2025,Estimate,"$800,000",
+CJ Abrams,wsh,2026,Arb 1,,
