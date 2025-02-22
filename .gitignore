@@ -40,3 +40,30 @@ datasets/
 logs/
 wandb/
 mlruns/
+
+# Node.js
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# React/Frontend
+web-app/frontend/build/
+web-app/frontend/coverage/
+web-app/frontend/.env.local
+web-app/frontend/.env.development.local
+web-app/frontend/.env.test.local
+web-app/frontend/.env.production.local
+
+# Cache
+.cache/
+.npm/
+.next/
+
+# Testing
+coverage/
+
+# Production
+build/
