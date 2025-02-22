@@ -32,9 +32,7 @@ datasets/
 *.npy
 *.pt
 
-# Jupyter Notebooks
-.ipynb_checkpoints/
-*/.ipynb_checkpoints/*
+
 
 # Logs and local files
 logs/
