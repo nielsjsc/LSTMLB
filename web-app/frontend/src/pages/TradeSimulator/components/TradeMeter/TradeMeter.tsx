@@ -26,26 +26,19 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
     setAngle(calculatedAngle);
   }, [differential]);
 
-  return (
+    return (
     <div className="flex flex-col items-center mt-4">
       <div className="relative w-64 h-48">
         <svg className="w-full h-full" viewBox="0 0 100 100">
-          {/* Define gradient for meter */}
+          {/* Update gradient colors for dark theme */}
           <defs>
             <linearGradient id="meterGradient" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#ef4444" />
-              <stop offset="50%" stopColor="#22c55e" />
+              <stop offset="50%" stopColor="#10b981" />
               <stop offset="100%" stopColor="#ef4444" />
             </linearGradient>
-            <marker
-              id="arrowhead"
-              markerWidth="8"    // Reduced from 10
-              markerHeight="5"   // Reduced from 7
-              refX="8"          // Adjusted for new size
-              refY="2.5"        // Adjusted for new size
-              orient="auto"
-            >
-              <polygon points="0 0, 8 2.5, 0 5" fill="#dc2626" />
+            <marker id="arrowhead" markerWidth="8" markerHeight="5" refX="8" refY="2.5" orient="auto">
+              <polygon points="0 0, 8 2.5, 0 5" fill="#ef4444" />
             </marker>
           </defs>
           
@@ -54,32 +47,25 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
             fill="none"
             stroke="url(#meterGradient)"
             strokeWidth="4"
-            className="drop-shadow-md"
           />
           
-          {/* Tick marks and values separated */}
+          {/* Update tick colors */}
           <g className="meter-ticks">
             {tickValues.map(({ angle, value }) => (
               <g key={angle}>
-                {/* Tick mark */}
                 <line
                   transform={`rotate(${angle}, 50, 50)`}
                   x1="50"
                   y1="15"
                   x2="50"
                   y2="18"
-                  stroke="#6b7280"
+                  stroke="#4b5563"
                   strokeWidth="1"
                 />
-                {/* Value label - moved outside */}
                 <text
-                  transform={`
-                    rotate(${angle} 50 50)
-                    translate(50 4)
-                    rotate(${-angle})
-                  `}
+                  transform={`rotate(${angle} 50 50) translate(50 4) rotate(${-angle})`}
                   textAnchor="middle"
-                  fill="#6b7280"
+                  fill="#9ca3af"
                   style={{ fontSize: '0.35em' }}
                 >
                   {value}
@@ -88,63 +74,43 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
             ))}
           </g>
           
-          {/* Fair trade indicator */}
-          <line
-            x1="50"
-            y1="15"
-            x2="50"
-            y2="20"
-            stroke="#22c55e"
-            strokeWidth="2"
-          />
+          {/* Update fair trade indicator */}
+          <line x1="50" y1="15" x2="50" y2="20" stroke="#10b981" strokeWidth="2" />
           
-          {/* Team labels with background - Switched positions */}
+          {/* Update team labels */}
           <g className="team-labels">
-            <rect x="2" y="42" width="20" height="10" fill="white" rx="2" />
             <text 
               x="5" 
               y="50" 
-              className="text-xs font-medium"
-              fill="#374151"
+              fill="#9ca3af"
               style={{ fontSize: '0.65em' }}
             >
               {team1Name}
             </text>
             
-            <rect x="78" y="42" width="20" height="10" fill="white" rx="2" />
             <text 
               x="80" 
               y="50" 
-              className="text-xs font-medium"
-              fill="#374151"
+              fill="#9ca3af"
               style={{ fontSize: '0.65em' }}
             >
               {team2Name}
             </text>
           </g>
           
-          {/* Needle with slimmer arrow */}
-          <g 
-            transform={`rotate(${angle}, 50, 50)`}
-            className="transition-all duration-1000 ease-in-out"
-          >
+          {/* Update needle colors */}
+          <g transform={`rotate(${angle}, 50, 50)`} className="transition-all duration-1000 ease-in-out">
             <line
               x1="50"
               y1="50"
               x2="50"
               y2="20"
-              stroke="#dc2626"
+              stroke="#ef4444"
               strokeWidth="1.5"
               strokeLinecap="round"
               markerEnd="url(#arrowhead)"
             />
-            <circle 
-              cx="50" 
-              cy="50" 
-              r="2.5" 
-              fill="#dc2626" 
-              className="drop-shadow-sm" 
-            />
+            <circle cx="50" cy="50" r="2.5" fill="#ef4444" />
           </g>
         </svg>
       </div>
