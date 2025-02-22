@@ -1,8 +1,8 @@
 import pandas as pd
 
 # Read the CSV files
-fielding_df = pd.read_csv('mlb_fielding_data_2000_2024.csv')
-batting_df = pd.read_csv('mlb_batting_data_2000_2024.csv')
+fielding_df = pd.read_csv('mlb_fielding_data_1950_2024.csv')
+batting_df = pd.read_csv('mlb_batting_data_1950_2024.csv')
 
 # Create mapping dictionary from batting data
 # Combine IDfg and Season as key for matching
@@ -19,6 +19,6 @@ fielding_df['Age'] = fielding_df['matching_key'].map(age_mapping)
 fielding_df = fielding_df.drop('matching_key', axis=1)
 
 # Save the updated fielding data
-fielding_df.to_csv('mlb_fielding_data_2000_2024_with_age.csv', index=False)
+fielding_df.to_csv('mlb_fielding_data_1950_2024_with_age.csv', index=False)
 
 print("Processing complete. New file saved with Age column added.")
