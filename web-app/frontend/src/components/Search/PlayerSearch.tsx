@@ -16,44 +16,50 @@ const PlayerSearch = () => {
   const [results, setResults] = useState<PlayerResult[]>([])
   const navigate = useNavigate()
 
+  const formatWAR = (player: PlayerResult) => {
+    // If player has both hitting and pitching WAR, sum them
+    if (player.war_bat != null && player.war_pit != null) {
+      return (player.war_bat + player.war_pit).toFixed(1);
+    }
+    // Otherwise show whichever WAR value exists
+    return (player.war_bat ?? player.war_pit)?.toFixed(1) ?? '-';
+  };
+
   const handleSearch = async (value: string) => {
-    console.log('Search value:', value);  // Debug input
     setQuery(value);
     
     if (value.length < 2) {
-        console.log('Search too short');  // Debug early return
-        setResults([]);
-        return;
+      setResults([]);
+      return;
     }
 
     try {
-      console.log('Calling API with:', value);  // Debug API call
       const response = await filterPlayers({ year: 2025, search: value });
-      console.log('API Response:', response);  // Debug response
       
       if (!response || !response.players) {
-          console.error('Invalid response structure');
-          return;
+        console.error('Invalid response structure');
+        return;
       }
 
+      // Just use the backend results directly
       setResults(response.players.map(p => ({
-        id: p.id,
+        id: p.real_id,
         name: p.name,
         team: p.team,
         position: p.position,
         war_bat: p.war_bat,
         war_pit: p.war_pit
       })));
-  } catch (err) {
+    } catch (err) {
       console.error('Search failed:', err);
-  }
-};
+    }
+  };
 
   const handleSelect = (player: PlayerResult) => {
-    navigate(`/players/${player.id}`)
-    setQuery('')
-    setResults([])
-  }
+    setQuery('');
+    setResults([]);
+    navigate(`/players/${player.id}`);
+  };
 
   return (
     <div className="relative">
@@ -68,20 +74,20 @@ const PlayerSearch = () => {
         <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg">
           {results.map((player) => (
             <button
-            key={player.id}
-            onClick={() => handleSelect(player)}
-            className="w-full p-2 text-left text-gray-800 hover:bg-gray-100 flex justify-between items-center"
-        >
-            <span>{player.name} ({player.team.toUpperCase()} - {player.position})</span>
-            <span className="text-gray-600">
-                {(player.war_bat ?? player.war_pit)?.toFixed(1) ?? '-'} WAR
-            </span>
-        </button>
+              key={player.id}
+              onClick={() => handleSelect(player)}
+              className="w-full p-2 text-left text-gray-800 hover:bg-gray-100 flex justify-between items-center"
+            >
+              <span>{player.name} ({player.team.toUpperCase()} - {player.position})</span>
+              <span className="text-gray-600">
+                {formatWAR(player)} WAR
+              </span>
+            </button>
           ))}
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default PlayerSearch
+export default PlayerSearch;
