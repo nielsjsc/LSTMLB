@@ -11,8 +11,11 @@ const Navigation = () => {
           </Link>
           <div className="space-x-4">
             <Link to="/players" className="text-white">Players</Link>
-            <Link to="/TradeAnalyzer" className="text-white">Trade Anlayzer</Link>
+            <Link to="/TradeSimulator" className="text-white">Trade Simulator</Link>
+            <Link to="/projections" className="text-white">Projections</Link>
+            <Link to="/prospects" className="text-white">Prospects</Link>
             <Link to="/about" className="text-white">About</Link>
+            <Link to="/tradevalues" className="text-white">Trade Values</Link>
           </div>
         </div>
       </div>
