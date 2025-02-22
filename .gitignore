@@ -69,3 +69,4 @@ coverage/
 build/
 scrapers/extractTables.py
 scrapers/fangraphs_MiLB_scraper.py
+*.db
