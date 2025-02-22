@@ -14,15 +14,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="MLB Player Evaluation API",
-    description="API for MLB player valuations and trade analysis",
+    title="LongBall API",
+    description="API for baseball projections and trade analysis",
     version="1.0.0"
 )
 
-# Configure CORS
+# Update CORS for Railway deployment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",  # Local development
+        "https://*.railway.app",   # Railway domains
+        "https://longball-production.up.railway.app"  # Your Railway frontend app
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -89,15 +93,22 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "environment": "production" if "RAILWAY_STATIC_URL" in os.environ else "development"
     }
 
+# Update main entry point for Railway
 if __name__ == "__main__":
     import uvicorn
+    import os
+    
+    port = int(os.getenv("PORT", 8000))
+    
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True,
+        port=port,
+        reload=False,  # Disable reload in production
+        workers=4,     # Number of worker processes
         log_level="info"
     )
