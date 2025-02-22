@@ -23,14 +23,24 @@ const Navbar = () => {
             </Link>
             
             <Link 
-              to="/tradeanalyzer"
+              to="/tradesimulator"
               className={`px-3 py-2 rounded-md text-sm font-medium ${
-                location.pathname === '/tradeanalyzer'
+                location.pathname === '/tradesimulator'
                   ? 'bg-gray-900 text-white'
                   : 'text-gray-300 hover:bg-gray-700 hover:text-white'
               }`}
             >
-              Trade Analyzer
+              Trade Simulator
+            </Link>
+            <Link 
+              to="/tradevalues"
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                location.pathname === '/tradevalues'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+              }`}
+            >
+              Trade Values
             </Link>
 
             <Link 
@@ -42,6 +52,17 @@ const Navbar = () => {
               }`}
             >
               Projections
+            </Link>
+
+            <Link 
+              to="/prospects"
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                location.pathname === '/prospects'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+              }`}
+            >
+              Prospects
             </Link>
 
             <Link 
