@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from .routes import players, trades, projections
+from .routes import players, trades, projections, prospects
 import logging
 import time
 from datetime import datetime
@@ -68,6 +68,13 @@ app.include_router(
     prefix="/api",
     tags=["projections"]
 )
+
+app.include_router(
+    prospects.router,
+    prefix="/api",
+    tags=["prospects"]
+)
+
 @app.get("/")
 async def root():
     return {
