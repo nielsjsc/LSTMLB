@@ -19,7 +19,7 @@ from app.models.player import Player
 from app.models.prospect import Prospect
 
 # Initialize router and logger
-router = APIRouter(prefix="/trades", tags=["trades"])
+router = APIRouter()
 logger = logging.getLogger(__name__)
 
 

@@ -96,7 +96,7 @@ async def get_players(
         logger.error(f"Error in get_players: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/players/{player_id}/details")
+@router.get("/{player_id}/details")
 async def get_player_details(player_id: int, db: Session = Depends(get_db)):
     logger.info(f"Received request for player_id: {player_id}")  # Debug log
     

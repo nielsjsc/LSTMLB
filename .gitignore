@@ -7,7 +7,14 @@ __pycache__/
 # Virtual Environment
 venv/
 env/
+# Environment files
 .env
+.env.local
+.env.*.local
+
+# Keep these files
+!.env.production
+!.env.d.ts
 
 # Distribution / packaging
 dist/
