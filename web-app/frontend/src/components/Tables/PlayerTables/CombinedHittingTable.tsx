@@ -35,7 +35,34 @@ interface CombinedHittingTableProps {
   }>;
   dividerYear?: number;
 }
-
+interface FormattedRow extends Record<string, any> {
+  year: number;
+  age: number;
+  status: string;
+  base_value: number;
+  contract_value: number;
+  surplus_value: number;
+  g_bat: number;
+  war_bat: number;
+  bb_pct_bat: number;
+  k_pct_bat: number;
+  avg: number;
+  obp: number;
+  slg: number;
+  ops: number;
+  woba: number;
+  wrc_plus: number;
+  off: number;
+  bsr: number;
+  def_value: number;
+  hr: number;
+  doubles: number;
+  triples: number;
+  r: number;
+  rbi: number;
+  sb: number;
+  cs: number;
+}
 const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, dividerYear }) => {
   const [sortKey, setSortKey] = useState<string>('year');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -124,7 +151,7 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
     surplus_value: row.value.surplus_value,
     status: row.status,
     ...row.hitting
-  }));
+  })) as FormattedRow[];
 
   const handleSort = (key: string) => {
     const newDirection = sortKey === key && sortDirection === 'asc' ? 'desc' : 'asc';
@@ -132,7 +159,7 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
     setSortDirection(newDirection);
   };
 
-  const sortedData = [...formattedData].sort((a: any, b: any) => {
+  const sortedData = [...formattedData].sort((a: FormattedRow, b: FormattedRow) => {
     const aValue = a[sortKey] ?? -Infinity;
     const bValue = b[sortKey] ?? -Infinity;
     return sortDirection === 'asc' 

@@ -23,7 +23,22 @@ interface CombinedPitchingTableProps {
   }>;
   dividerYear?: number;
 }
-
+interface FormattedPitchingRow extends Record<string, any> {
+  year: number;
+  age: number;
+  status: string;
+  base_value: number;
+  contract_value: number;
+  surplus_value: number;
+  g_pit: number;
+  gs: number;
+  war_pit: number;
+  era: number;
+  fip: number;
+  siera: number;
+  k_pct_pit: number;
+  bb_pct_pit: number;
+}
 const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, dividerYear }) => {
   const [sortKey, setSortKey] = useState<string>('year');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -89,7 +104,7 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
     surplus_value: row.value.surplus_value,
     status: row.status,
     ...row.pitching
-  }));
+  })) as FormattedPitchingRow[];
 
   const handleSort = (key: string) => {
     const newDirection = sortKey === key && sortDirection === 'asc' ? 'desc' : 'asc';
@@ -97,7 +112,7 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
     setSortDirection(newDirection);
   };
 
-  const sortedData = [...formattedData].sort((a: any, b: any) => {
+  const sortedData = [...formattedData].sort((a: FormattedPitchingRow, b: FormattedPitchingRow) => {
     const aValue = a[sortKey] ?? -Infinity;
     const bValue = b[sortKey] ?? -Infinity;
     return sortDirection === 'asc' 
