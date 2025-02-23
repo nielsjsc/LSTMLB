@@ -144,24 +144,25 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Enhanced health check
 @app.get("/health")
 async def health_check():
-    """Enhanced health check endpoint for Railway monitoring"""
+    """Health check endpoint for monitoring"""
     health_status = {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "version": "1.0.0",
-        "environment": ENVIRONMENT,
+        "environment": os.getenv("ENVIRONMENT", "development"),
         "cors_origins": origins,
     }
     
-    # Check database connection
     try:
+        # Test database connection with text() wrapper
         with engine.connect() as connection:
-            connection.execute("SELECT 1")
-        health_status["database"] = "connected"
+            connection.execute(text("SELECT 1"))
+            health_status["database"] = "connected"
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
         health_status["database"] = "disconnected"
         health_status["status"] = "unhealthy"
+        health_status["error"] = str(e)
     
     return health_status
 
