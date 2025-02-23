@@ -6,6 +6,7 @@ import logging
 import time
 import sys
 import os
+from sqlalchemy import text
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
