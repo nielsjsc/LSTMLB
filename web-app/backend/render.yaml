@@ -2,12 +2,12 @@ services:
   - type: web
     name: longball-api
     runtime: python
-    buildCommand: cd web-app/backend && pip install -r requirements.txt
-    startCommand: cd web-app/backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r requirements.txt
+    startCommand: PYTHONPATH=/opt/render/project/src/web-app/backend uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHONPATH
+        value: /opt/render/project/src/web-app/backend
       - key: DATABASE_URL
         sync: false
       - key: ENVIRONMENT
         value: production
-      - key: CORS_ORIGINS
-        value: https://longball-analytics.vercel.app
