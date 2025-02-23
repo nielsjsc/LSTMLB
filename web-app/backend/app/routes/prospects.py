@@ -25,7 +25,7 @@ def position_in_string(position: str, position_string: str) -> bool:
     """Check if position exists as a distinct position in a position string (separated by /)"""
     positions = position_string.split('/')
     return position in positions
-@router.get("/prospects")
+@router.get("/")
 async def get_prospects(
     player_type: str = Query(..., description="Either 'hitter' or 'pitcher'"),
     year: int = Query(2025, ge=2022, le=2025),
