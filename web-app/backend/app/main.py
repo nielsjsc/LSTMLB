@@ -2,16 +2,24 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from .routes import players, trades, projections, prospects
-from .database import SessionLocal, engine
 import logging
 import time
+import sys
 import os
+from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+# Add backend to path
+backend_dir = Path(__file__).resolve().parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.append(str(backend_dir))
+
+# Change relative imports to absolute
+from app.routes import players, trades, projections, prospects
+from app.database import SessionLocal, engine
 # Add security headers middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -50,6 +58,7 @@ origins = [
     FRONTEND_URL,
     "https://longball-production.up.railway.app",
     "https://longball-analytics.com",
+    "https://longball-api.onrender.com"  # Add Render URL
 ]
 
 if RAILWAY_STATIC_URL:

@@ -1,10 +1,19 @@
+import sys
+from pathlib import Path
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, nullslast, case, or_
-from ..database import get_db
-from ..models.prospect import Prospect
-from typing import Optional, List
 import logging
+
+# Add backend to path
+backend_dir = Path(__file__).resolve().parent.parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.append(str(backend_dir))
+
+# Change to absolute imports
+from app.database import get_db
+from app.models.prospect import Prospect
+from typing import Optional, List
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

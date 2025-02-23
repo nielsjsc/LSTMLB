@@ -1,13 +1,23 @@
+import sys
 from math import isnan
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc  # Add these imports
+from sqlalchemy import desc, asc
 from typing import List, Optional
 from pydantic import BaseModel
-from ..database import get_db
-from ..models.player import Player
-from ..models.prospect import Prospect
 import logging
+
+# Add backend to path
+backend_dir = Path(__file__).resolve().parent.parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.append(str(backend_dir))
+
+# Change relative imports to absolute
+from app.database import get_db
+from app.models.player import Player
+from app.models.prospect import Prospect
+
 # Initialize router and logger
 router = APIRouter(prefix="/trades", tags=["trades"])
 logger = logging.getLogger(__name__)

@@ -1,12 +1,21 @@
+import sys
+from pathlib import Path
 from sqlalchemy.orm import Session
-from ..models.player import Player
-from ..models.prospect import Prospect
 import pandas as pd
 import logging
 from typing import Dict, Any
-from pathlib import Path
-from ..database import SessionLocal, engine, Base
 import os
+
+# Add backend to path
+backend_dir = Path(__file__).resolve().parent.parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.append(str(backend_dir))
+
+# Change relative imports to absolute
+from app.models.player import Player
+from app.models.prospect import Prospect
+from app.database import SessionLocal, engine, Base
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
