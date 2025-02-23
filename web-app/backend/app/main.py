@@ -166,18 +166,18 @@ async def health_check():
     return health_status
 
 
-    if __name__ == "__main__":
-        import uvicorn
-        
-        logger.info(f"Starting server in {ENVIRONMENT} mode")
-        logger.info(f"CORS origins: {origins}")
-        
-        uvicorn.run(
-            "app.main:app",
-            host="0.0.0.0",
-            port=PORT,
-            workers=WORKERS,
-            proxy_headers=True,
-            forwarded_allow_ips="*",
-            log_level="info"
-        )
+if __name__ == "__main__":
+    import uvicorn
+    
+    logger.info(f"Starting server in {ENVIRONMENT} mode")
+    logger.info(f"CORS origins: {origins}")
+    
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=PORT,
+        workers=WORKERS,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+        log_level="info"
+    )
