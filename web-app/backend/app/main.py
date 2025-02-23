@@ -42,8 +42,9 @@ app = FastAPI(
     title="LongBall API",
     description="API for baseball projections and trade analysis",
     version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc"
+    # Remove docs_url prefix
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
 # Environment variables
@@ -98,29 +99,11 @@ async def performance_middleware(request: Request, call_next):
             detail=f"Internal server error: {str(e)}"
         )
 
-app.include_router(
-    players.router,
-    prefix="/api",
-    tags=["players"]
-)
+app.include_router(players.router, prefix="/players", tags=["players"])
+app.include_router(prospects.router, prefix="/prospects", tags=["prospects"])
+app.include_router(trades.router, prefix="/trades", tags=["trades"])
+app.include_router(projections.router, prefix="/projections", tags=["projections"])
 
-app.include_router(
-    trades.router,
-    prefix="/api",
-    tags=["trades"]
-)
-
-app.include_router(
-    projections.router,
-    prefix="/api",
-    tags=["projections"]
-)
-
-app.include_router(
-    prospects.router,
-    prefix="/api",
-    tags=["prospects"]
-)
 
 @app.get("/")
 async def root():
