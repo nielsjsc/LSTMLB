@@ -1,3 +1,5 @@
+const API_BASE = 'https://longball-api.onrender.com';
+
 export interface Player {
     id: number;
     name: string;
@@ -145,7 +147,8 @@ export interface TradeAssetRequest {
       throw error;
     }
   };
-const API_BASE = 'http://localhost:8000/api';
+
+
 
 export const getPlayers = async (year: number = 2024): Promise<Player[]> => {
     try {
@@ -511,11 +514,25 @@ export const getTradeValueRankings = async (
     ...(team && { team })
   });
 
-  const response = await fetch(`${API_BASE}/trades/trade-val-rank?${queryParams}`);
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch trade value rankings');
-  }
+  // Add debug logging
+  const url = `${API_BASE}/trades/trade-val-rank?${queryParams}`;
+  console.log('Fetching trade values from:', url);
 
-  return response.json();
+  try {
+    const response = await fetch(url);
+    console.log('Response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Trade values API error:', response.status, errorText);
+      throw new Error(`Failed to fetch trade value rankings: ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('Trade values data:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in getTradeValueRankings:', error);
+    throw error;
+  }
 };
