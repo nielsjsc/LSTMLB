@@ -18,7 +18,7 @@ from app.models.player import Player
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-@router.get("/players")
+@router.get("/")
 async def get_players(
     year: int = 2025,
     team: Optional[str] = None,
