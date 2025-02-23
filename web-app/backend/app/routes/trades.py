@@ -179,13 +179,20 @@ def get_trade_value_rankings(
     sort_direction: str = Query("desc", regex="^(asc|desc)$")
 ):
     try:
+        # Start with 2025 players
         query = db.query(Player).filter(Player.year == 2025)
         
+        # Add filter for non-NaN trade values
+        query = query.filter(Player.trade_value.isnot(None))  # Filter out NULL values
+        query = query.filter(Player.trade_value != float('nan'))  # Filter out NaN values
+        
+        # Add team filter if specified
         if team:
             if team.lower() == 'fa':
                 query = query.filter(Player.team == 'FA')
             else:
                 query = query.filter(Player.team == team.lower())
+        
         
         sort_column = getattr(Player, sort_by)
         query = query.order_by(desc(sort_column) if sort_direction == "desc" else asc(sort_column))
