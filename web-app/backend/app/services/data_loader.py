@@ -1,9 +1,11 @@
 import sys
 from pathlib import Path
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 import pandas as pd
 import logging
 from typing import Dict, Any
+from dotenv import load_dotenv
 import os
 
 # Add backend to path
@@ -11,7 +13,7 @@ backend_dir = Path(__file__).resolve().parent.parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.append(str(backend_dir))
 
-# Change relative imports to absolute
+load_dotenv(backend_dir / '.env')
 from app.models.player import Player
 from app.models.prospect import Prospect
 from app.database import SessionLocal, engine, Base
@@ -150,6 +152,24 @@ class DataLoader:
         }
         
 
+    def load_player_data(self, players_csv: str) -> None:
+        try:
+            df = pd.read_csv(players_csv)
+            logger.info(f"Loading {len(df)} players from {players_csv}")
+            
+            for _, row in df.iterrows():
+                data = self.transform_player_data(row.to_dict())
+                player = Player(**data)
+                self.db.add(player)
+                    
+            self.db.commit()
+            logger.info("Player data loading completed successfully")
+                
+        except Exception as e:
+            logger.error(f"Error loading player data: {str(e)}")
+            self.db.rollback()
+            raise
+
     def load_prospect_data(self, prospects_csv: str) -> None:
         try:
             df = pd.read_csv(prospects_csv)
@@ -168,30 +188,26 @@ class DataLoader:
             self.db.rollback()
             raise
 
-
-
-    def load_data(self, csv_path: str) -> None:
+    def reset_and_load_data(self, players_csv: str, prospects_csv: str = None):
         try:
-            df = pd.read_csv(csv_path)
-            logger.info(f"Loading {len(df)} players from {csv_path}")
-            
-            # Change real_ID to IDfg to match CSV column name
-            for _, group in df.groupby('IDfg'):
-                for _, row in group.iterrows():
-                    data = self.transform_player_data(row.to_dict())
-                    if self.validate_player_data(data):
-                        player = Player(**data)
-                        self.db.add(player)
-                    else:
-                        logger.warning(f"Skipping invalid player data: {row['Player_Name']}")
-
+            # Clear existing data
+            logger.info("Clearing existing data...")
+            self.db.execute(text("TRUNCATE TABLE players CASCADE;"))
+            self.db.execute(text("TRUNCATE TABLE prospects CASCADE;"))
             self.db.commit()
-            logger.info("Data loading completed successfully")
+            logger.info("Tables cleared successfully")
+
+            # Load fresh data
+            logger.info("Loading fresh data...")
+            self.load_player_data(players_csv)
+            if prospects_csv:
+                self.load_prospect_data(prospects_csv)
+            logger.info("Data reload complete")
+
         except Exception as e:
-            logger.error(f"Error loading data: {str(e)}")
+            logger.error(f"Error during data reset and load: {e}")
             self.db.rollback()
             raise
-
 
 def init_db():
     """Initialize database with player and prospect data"""
@@ -218,15 +234,7 @@ def init_db():
         db = SessionLocal()
         try:
             loader = DataLoader(db)
-            
-            # Load player data
-            logger.info("Loading player data...")
-            loader.load_data(str(player_data))
-            
-            # Load prospect data
-            logger.info("Loading prospect data...")
-            loader.load_prospect_data(str(prospects_data))
-            
+            loader.reset_and_load_data(str(player_data), str(prospects_data))
             logger.info("Data loading completed successfully!")
             
         finally:
