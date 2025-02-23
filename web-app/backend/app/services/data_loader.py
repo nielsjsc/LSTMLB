@@ -5,7 +5,8 @@ import pandas as pd
 import logging
 from typing import Dict, Any
 from pathlib import Path
-from ..database import SessionLocal, engine
+from ..database import SessionLocal, engine, Base
+import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -18,120 +19,127 @@ class DataLoader:
         return all(field in data for field in required_fields)
 
     def transform_player_data(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform CSV row data into correct types for database model"""
         return {
-            'real_id': row['IDfg'],
-            'name': row['Player_Name'],
-            'team': row['Team'],
-            'position': row['Position'], 
-            'status': row.get('Status'),
-            'age': row['Age'],
-            'year': row['Year'],
-            # Hitting stats - match CSV case
-            'war_bat': row.get('WAR_batter'),  # Changed from war_bat
-            'bb_pct_bat': row.get('BB%_bat'),  # Changed from bb_pct_bat
-            'k_pct_bat': row.get('K%_bat'),    # Changed from k_pct_bat
-            'g_bat': row['G_bat'],      # Changed from G_bat
-            'avg': row.get('AVG'),             # Changed from avg
-            'obp': row.get('OBP'),             # Changed from obp
-            'slg': row.get('SLG'),             # Changed from slg
-            'ops': row.get('OPS'),             # Changed from ops
-            'woba': row.get('wOBA'),           # Changed from woba
-            'wrc_plus': row.get('wRC+'),       # Changed from wrc_plus
-            'ev': row.get('EV'),               # Changed from ev
-            'off': row.get('Off'),             # Changed from off
-            'bsr': row.get('BsR'),             # Changed from bsr
-            'def_value': row.get('Def'),         # Changed from def_val
-
-            # Value metrics
+            # Integer fields
+            'real_id': int(row['IDfg']) if pd.notna(row['IDfg']) else None,
+            'age': int(row['Age']) if pd.notna(row['Age']) else None,
+            'year': int(row['Year']) if pd.notna(row['Year']) else None,
+            'years_control': int(row.get('years_control')) if pd.notna(row.get('years_control')) else None,
+            'fa_year': int(row.get('FA_Year')) if pd.notna(row.get('FA_Year')) else None,
+            'probable_fa_year': int(row.get('probable_fa_year')) if pd.notna(row.get('probable_fa_year')) else None,
+            'earliest_fa_year': int(row.get('earliest_fa_year')) if pd.notna(row.get('earliest_fa_year')) else None,
+            'control_through': int(row.get('control_through')) if pd.notna(row.get('control_through')) else None,
             
-            # Pitching stats - match CSV case
-            'war_pit': row.get('WAR_pitcher'),  # Changed from war_pit
-            'g_pit': row['G_pit'],      # Changed from G_pit
-            'gs': row['GS'],        # Changed from GS
-            'era': row.get('ERA'),              # Changed from era
-            'fip': row.get('FIP'),              # Changed from fip
-            'siera': row.get('SIERA'),          # Changed from siera
-            'k_pct_pit': row.get('K%_pit'),     # Changed from k_pct_pit
-            'bb_pct_pit': row.get('BB%_pit'),   # Changed from bb_pct_pit
+            # Integer stats
+            'g_bat': int(row['G_bat']) if pd.notna(row['G_bat']) else None,
+            'g_pit': int(row['G_pit']) if pd.notna(row['G_pit']) else None,
+            'gs': int(row['GS']) if pd.notna(row['GS']) else None,
+            'hr': int(row.get('HR')) if pd.notna(row.get('HR')) else None,
+            'doubles': int(row.get('2B')) if pd.notna(row.get('2B')) else None,
+            'triples': int(row.get('3B')) if pd.notna(row.get('3B')) else None,
+            'r': int(row.get('R')) if pd.notna(row.get('R')) else None,
+            'rbi': int(row.get('RBI')) if pd.notna(row.get('RBI')) else None,
+            'sb': int(row.get('SB')) if pd.notna(row.get('SB')) else None,
+            'cs': int(row.get('CS')) if pd.notna(row.get('CS')) else None,
 
-            # Value metrics
-            'base_value': row.get('Base_Value'),
-            'contract_value': row.get('contract_value'),
-            'surplus_value': row.get('surplus_value'),
-            'trade_value': row.get('trade_value'),
-            'fa_year': row.get('FA_Year'),
-            'probable_fa_year': row.get('probable_fa_year'),
-            'earliest_fa_year': row.get('earliest_fa_year'),
-            'contract_war': row.get('contract_war'),
-            'avg_war': row.get('avg_war'),
-            'avg_contract': row.get('avg_contract'),
-            'years_control': row.get('years_control'),
-            'control_through': row.get('control_through'),
-            'total_future_war': row.get('total_future_war'),
-            'total_future_value': row.get('total_future_value'),
-            'total_value': row.get('total_value'),
-            'total_war': row.get('total_war'),
-            'historical_value': row.get('historical_value'),
-            'historical_war': row.get('historical_war'),
-            'total_contract': row.get('total_contract'),
-            'contract_base_value': row.get('contract_base_value'),
+            # String fields
+            'name': str(row['Player_Name']) if pd.notna(row['Player_Name']) else None,
+            'team': str(row['Team']) if pd.notna(row['Team']) else None,
+            'position': str(row['Position']) if pd.notna(row['Position']) else None,
+            'status': str(row.get('Status')) if pd.notna(row.get('Status')) else None,
 
+            # Float fields - Hitting stats
+            'war_bat': float(row.get('WAR_batter')) if pd.notna(row.get('WAR_batter')) else None,
+            'bb_pct_bat': float(row.get('BB%_bat')) if pd.notna(row.get('BB%_bat')) else None,
+            'k_pct_bat': float(row.get('K%_bat')) if pd.notna(row.get('K%_bat')) else None,
+            'avg': float(row.get('AVG')) if pd.notna(row.get('AVG')) else None,
+            'obp': float(row.get('OBP')) if pd.notna(row.get('OBP')) else None,
+            'slg': float(row.get('SLG')) if pd.notna(row.get('SLG')) else None,
+            'ops': float(row.get('OPS')) if pd.notna(row.get('OPS')) else None,
+            'woba': float(row.get('wOBA')) if pd.notna(row.get('wOBA')) else None,
+            'wrc_plus': float(row.get('wRC+')) if pd.notna(row.get('wRC+')) else None,
+            'ev': float(row.get('EV')) if pd.notna(row.get('EV')) else None,
+            'off': float(row.get('Off')) if pd.notna(row.get('Off')) else None,
+            'bsr': float(row.get('BsR')) if pd.notna(row.get('BsR')) else None,
+            'def_value': float(row.get('Def')) if pd.notna(row.get('Def')) else None,
 
-            # Additional stats
-            'hr': row.get('HR'),
-            'doubles': row.get('2B'),
-            'triples': row.get('3B'),
-            'r': row.get('R'),
-            'rbi': row.get('RBI'),
-            'sb': row.get('SB'),
-            'cs': row.get('CS'),
+            # Float fields - Pitching stats
+            'war_pit': float(row.get('WAR_pitcher')) if pd.notna(row.get('WAR_pitcher')) else None,
+            'era': float(row.get('ERA')) if pd.notna(row.get('ERA')) else None,
+            'fip': float(row.get('FIP')) if pd.notna(row.get('FIP')) else None,
+            'siera': float(row.get('SIERA')) if pd.notna(row.get('SIERA')) else None,
+            'k_pct_pit': float(row.get('K%_pit')) if pd.notna(row.get('K%_pit')) else None,
+            'bb_pct_pit': float(row.get('BB%_pit')) if pd.notna(row.get('BB%_pit')) else None,
+
+            # Float fields - Value metrics
+            'base_value': float(row.get('Base_Value')) if pd.notna(row.get('Base_Value')) else None,
+            'contract_value': float(row.get('contract_value')) if pd.notna(row.get('contract_value')) else None,
+            'surplus_value': float(row.get('surplus_value')) if pd.notna(row.get('surplus_value')) else None,
+            'trade_value': float(row.get('trade_value')) if pd.notna(row.get('trade_value')) else None,
+            'contract_war': float(row.get('contract_war')) if pd.notna(row.get('contract_war')) else None,
+            'avg_war': float(row.get('avg_war')) if pd.notna(row.get('avg_war')) else None,
+            'total_contract': float(row.get('total_contract')) if pd.notna(row.get('total_contract')) else None,
+            'avg_contract': float(row.get('avg_contract')) if pd.notna(row.get('avg_contract')) else None,
+            'total_future_war': float(row.get('total_future_war')) if pd.notna(row.get('total_future_war')) else None,
+            'total_future_value': float(row.get('total_future_value')) if pd.notna(row.get('total_future_value')) else None,
+            'total_value': float(row.get('total_value')) if pd.notna(row.get('total_value')) else None,
+            'total_war': float(row.get('total_war')) if pd.notna(row.get('total_war')) else None,
+            'historical_value': float(row.get('historical_value')) if pd.notna(row.get('historical_value')) else None,
+            'historical_war': float(row.get('historical_war')) if pd.notna(row.get('historical_war')) else None,
+            'contract_base_value': float(row.get('contract_base_value')) if pd.notna(row.get('contract_base_value')) else None,
         }
     def transform_prospect_data(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        # Determine if pitcher based on position
-        is_pitcher = 'p' in str(row['Position']).lower() if row['Position'] else False
-        
-        # Only include IDfg if it's a valid integer
+        """Transform CSV row data into correct types for Prospect model"""
+        # Handle IDfg as Integer
         id_fg = None
         if pd.notna(row['IDfg']):
             try:
                 id_fg = int(row['IDfg'])
             except ValueError:
                 id_fg = None
-        
-        base_data = {
-            'IDfg': id_fg,  # Will be None for string IDs or NaN values
-            'name': row['Name'],
-            'org': row['Team'],
-            'position': row['Position'],
-            'year': row['Year'],
-            'age': row['Age'],
-            'fv': row['FV'],
-            'has_mlb': row['has_mlb'],
+                
+        return {
+            # Integer fields
+            'IDfg': id_fg,
+            'year': int(row['Year']) if pd.notna(row['Year']) else None,
             
-            # Values and composites for all years
-            'value_2022': row.get('2022_Value'),
-            'value_2023': row.get('2023_Value'),
-            'value_2024': row.get('2024_Value'),
-            'value_2025': row.get('2025_Value'),
+            # String fields
+            'name': str(row['Name']) if pd.notna(row['Name']) else None,
+            'org': str(row['Team']) if pd.notna(row['Team']) else None,
+            'position': str(row['Position']) if pd.notna(row['Position']) else None,
+            'fv': str(row['FV']) if pd.notna(row['FV']) else None,
             
-            'composite_2022': row.get('2022_Composite'),
-            'composite_2023': row.get('2023_Composite'),
-            'composite_2024': row.get('2024_Composite'),
-            'composite_2025': row.get('2025_Composite'),
-
-            # Tool grades based on player type
-            'hit': None if is_pitcher else row.get('Hit'),
-            'game_power': None if is_pitcher else row.get('Game'),
-            'raw_power': None if is_pitcher else row.get('Raw'),
-            'speed': None if is_pitcher else row.get('Spd'),
-            'fastball': row.get('FB') if is_pitcher else None,
-            'slider': row.get('SL') if is_pitcher else None,
-            'curve': row.get('CB') if is_pitcher else None,
-            'changeup': row.get('CH') if is_pitcher else None,
-            'command': row.get('CMD') if is_pitcher else None
+            # Boolean fields
+            'has_mlb': bool(row['has_mlb']) if pd.notna(row['has_mlb']) else False,
+            
+            # Float fields
+            'age': float(row['Age']) if pd.notna(row['Age']) else None,
+            
+            # Value metrics (Float)
+            'value_2022': float(row.get('2022_Value')) if pd.notna(row.get('2022_Value')) else None,
+            'value_2023': float(row.get('2023_Value')) if pd.notna(row.get('2023_Value')) else None,
+            'value_2024': float(row.get('2024_Value')) if pd.notna(row.get('2024_Value')) else None,
+            'value_2025': float(row.get('2025_Value')) if pd.notna(row.get('2025_Value')) else None,
+            
+            # Composite metrics (Float)
+            'composite_2022': float(row.get('2022_Composite')) if pd.notna(row.get('2022_Composite')) else None,
+            'composite_2023': float(row.get('2023_Composite')) if pd.notna(row.get('2023_Composite')) else None,
+            'composite_2024': float(row.get('2024_Composite')) if pd.notna(row.get('2024_Composite')) else None,
+            'composite_2025': float(row.get('2025_Composite')) if pd.notna(row.get('2025_Composite')) else None,
+            
+            # Tool grades (String)
+            'hit': str(row.get('Hit')) if pd.notna(row.get('Hit')) else None,
+            'game_power': str(row.get('Game')) if pd.notna(row.get('Game')) else None,
+            'raw_power': str(row.get('Raw')) if pd.notna(row.get('Raw')) else None,
+            'speed': str(row.get('Spd')) if pd.notna(row.get('Spd')) else None,
+            'fastball': str(row.get('FB')) if pd.notna(row.get('FB')) else None,
+            'slider': str(row.get('SL')) if pd.notna(row.get('SL')) else None,
+            'curve': str(row.get('CB')) if pd.notna(row.get('CB')) else None,
+            'changeup': str(row.get('CH')) if pd.notna(row.get('CH')) else None,
+            'command': str(row.get('CMD')) if pd.notna(row.get('CMD')) else None
         }
         
-        return base_data
 
     def load_prospect_data(self, prospects_csv: str) -> None:
         try:
@@ -178,24 +186,46 @@ class DataLoader:
 
 def init_db():
     """Initialize database with player and prospect data"""
-    Player.__table__.create(bind=engine, checkfirst=True)
-    Prospect.__table__.create(bind=engine, checkfirst=True)
-    
-    current_dir = Path(__file__).resolve().parent.parent.parent.parent.parent
-    player_data = current_dir / "data" / "generated" / "value_by_year" / "player_values_complete.csv"
-    prospects_data = current_dir / "data" / "generated" / "MiLB" / "player_histories.csv"
-    
-    db = SessionLocal()
     try:
-        loader = DataLoader(db)
-        loader.load_data(str(player_data))
-        loader.load_prospect_data(str(prospects_data))
-        print("Data loading completed successfully")
+        logger.info("Starting database initialization...")
+        
+        # Create tables using SQLAlchemy
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created successfully")
+        
+        # Get the base path for data files
+        base_path = Path(__file__).resolve().parent.parent.parent.parent.parent
+        
+        # Define paths to data files
+        player_data = base_path / "data" / "generated" / "value_by_year" / "player_values_complete.csv"
+        prospects_data = base_path / "data" / "generated" / "MiLB" / "player_histories.csv"
+        
+        logger.info(f"Looking for data files in: {base_path}")
+        
+        if not player_data.exists() or not prospects_data.exists():
+            logger.error(f"Data files not found! Checked path: {base_path}")
+            return
+        
+        db = SessionLocal()
+        try:
+            loader = DataLoader(db)
+            
+            # Load player data
+            logger.info("Loading player data...")
+            loader.load_data(str(player_data))
+            
+            # Load prospect data
+            logger.info("Loading prospect data...")
+            loader.load_prospect_data(str(prospects_data))
+            
+            logger.info("Data loading completed successfully!")
+            
+        finally:
+            db.close()
+            
     except Exception as e:
-        print(f"Error loading data: {e}")
+        logger.error(f"Error during database initialization: {e}")
         raise
-    finally:
-        db.close()
 
 if __name__ == "__main__":
     init_db()

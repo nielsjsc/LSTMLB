@@ -1,8 +1,9 @@
-# filename: requirements.txt
-fastapi
-uvicorn
-sqlalchemy
-pandas
-numpy
-torch
-python-dotenv
+fastapi==0.115.6
+uvicorn==0.34.0
+sqlalchemy==2.0.37
+psycopg2-binary==2.0.37
+python-dotenv==1.0.1
+pydantic==2.10.5
+numpy==2.2.2
+pandas==2.2.3
+starlette==0.41.3

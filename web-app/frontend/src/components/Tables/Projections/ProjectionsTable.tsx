@@ -13,7 +13,42 @@ interface ProjectionsTableProps {
   sortDirection: 'asc' | 'desc';
 }
 
-
+interface FormattedPlayerRow extends Record<string, any> {
+  id: number;
+  name: { id: number; name: string };
+  team: string;
+  position: string;
+  age: number;
+  status: string;
+  base_value: number;
+  contract_value: number;
+  surplus_value: number;
+  // Hitting stats
+  g_bat?: number;
+  war_bat?: number;
+  wrc_plus?: number;
+  woba?: number;
+  avg?: number;
+  obp?: number;
+  slg?: number;
+  ops?: number;
+  bb_pct_bat?: number;
+  k_pct_bat?: number;
+  hr?: number;
+  sb?: number;
+  off?: number;
+  def_value?: number;
+  bsr?: number;
+  // Pitching stats
+  g_pit?: number;
+  gs?: number;
+  war_pit?: number;
+  era?: number;
+  fip?: number;
+  siera?: number;
+  k_pct_pit?: number;
+  bb_pct_pit?: number;
+}
 const ProjectionsTable: React.FC<ProjectionsTableProps> = ({ 
   data, 
   playerType,
@@ -130,7 +165,7 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
     }
   };
 
-  const formattedData = data.players.map(player => ({
+  const formattedData: FormattedPlayerRow[] = data.players.map(player => ({
     id: player.real_id,
     name: { id: player.real_id, name: player.name },
     team: player.team,

@@ -1,39 +1,72 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from .routes import players, trades, projections, prospects
+from .database import SessionLocal, engine
 import logging
 import time
+import os
 from datetime import datetime
+from typing import Dict, Any
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
-# Configure logging
+# Add security headers middleware
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+# Configure logging with more detailed formatting
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(pathname)s:%(lineno)d'
 )
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="LongBall API",
     description="API for baseball projections and trade analysis",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
 )
 
-# Update CORS for Railway deployment
+# Environment variables
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+PORT = int(os.getenv("PORT", 8000))
+WORKERS = int(os.getenv("WEB_CONCURRENCY", 4))
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+RAILWAY_STATIC_URL = os.getenv("RAILWAY_STATIC_URL", "")
+RAILWAY_URL = os.getenv("RAILWAY_URL", "")
+
+# CORS configuration
+origins = [
+    FRONTEND_URL,
+    "https://longball-production.up.railway.app",
+    "https://longball-analytics.com",
+]
+
+if RAILWAY_STATIC_URL:
+    origins.append(f"https://{RAILWAY_STATIC_URL}")
+
+# Add middlewares
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Local development
-        "https://*.railway.app",   # Railway domains
-        "https://longball-production.up.railway.app"  # Your Railway frontend app
-    ],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
-
-# Add compression
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
 
 @app.middleware("http")
 async def performance_middleware(request: Request, call_next):
@@ -82,33 +115,60 @@ app.include_router(
 @app.get("/")
 async def root():
     return {
-        "message": "MLB Player Evaluation API",
+        "message": "LongBall API",
         "version": "1.0.0",
         "status": "active",
         "timestamp": datetime.now().isoformat()
     }
 
+# Enhanced error handling
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Global error: {exc}", exc_info=True)
+    return {
+        "detail": "Internal server error",
+        "path": request.url.path,
+        "method": request.method,
+        "timestamp": datetime.now().isoformat()
+    }
+
+# Enhanced health check
 @app.get("/health")
 async def health_check():
-    return {
+    """Enhanced health check endpoint for Railway monitoring"""
+    health_status = {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "version": "1.0.0",
-        "environment": "production" if "RAILWAY_STATIC_URL" in os.environ else "development"
+        "environment": ENVIRONMENT,
+        "cors_origins": origins,
     }
+    
+    # Check database connection
+    try:
+        with engine.connect() as connection:
+            connection.execute("SELECT 1")
+        health_status["database"] = "connected"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        health_status["database"] = "disconnected"
+        health_status["status"] = "unhealthy"
+    
+    return health_status
 
-# Update main entry point for Railway
-if __name__ == "__main__":
-    import uvicorn
-    import os
-    
-    port = int(os.getenv("PORT", 8000))
-    
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=port,
-        reload=False,  # Disable reload in production
-        workers=4,     # Number of worker processes
-        log_level="info"
-    )
+
+    if __name__ == "__main__":
+        import uvicorn
+        
+        logger.info(f"Starting server in {ENVIRONMENT} mode")
+        logger.info(f"CORS origins: {origins}")
+        
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=PORT,
+            workers=WORKERS,
+            proxy_headers=True,
+            forwarded_allow_ips="*",
+            log_level="info"
+        )

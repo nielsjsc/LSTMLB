@@ -11,7 +11,17 @@ interface TradeValuesTableProps {
   sortBy: string;
   sortDirection: 'asc' | 'desc';
 }
-
+interface FormattedTradeValueRow extends Record<string, any> {
+  real_id: number;
+  name: { id: string; name: string };
+  team: string;
+  position: string;
+  contract_war: number;
+  contract_base_value: number;
+  total_contract: number;
+  trade_value: number;
+  control_through: number;
+}
 const TradeValuesTable: React.FC<TradeValuesTableProps> = ({
   data,
   currentPage,
@@ -42,13 +52,13 @@ const TradeValuesTable: React.FC<TradeValuesTableProps> = ({
     return value.toFixed(digits);
   };
 
-  const formatCell = (key: string, value: any, row?: any) => {
+  const formatCell = (key: string, value: any, row: FormattedTradeValueRow) => {
     if (value === undefined || value === null) return '-';
     
     if (key === 'name') {
       return (
         <Link to={`/players/${row.real_id}`} className="text-blue-400 hover:text-blue-300">
-          {value}
+          {value.name}
         </Link>
       );
     }
@@ -68,9 +78,12 @@ const TradeValuesTable: React.FC<TradeValuesTableProps> = ({
         return value.toString();
     }
   };
-  const formattedData = data.players.map(player => ({
+  const formattedData: FormattedTradeValueRow[] = data.players.map(player => ({
     ...player,
-    name: { id: player.name.replace(/\s+/g, '-').toLowerCase(), name: player.name }
+    name: { 
+      id: player.name.replace(/\s+/g, '-').toLowerCase(), 
+      name: player.name 
+    }
   }));
   return (
     <div>
@@ -95,7 +108,7 @@ const TradeValuesTable: React.FC<TradeValuesTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/50">
-            {data.players.map((row, i) => (
+            {formattedData.map((row, i) => (
               <tr key={i} className="hover:bg-slate-700/30 text-xs">
                 {headers.map((header) => (
                   <td key={header.key} className="px-2 py-1 whitespace-nowrap text-gray-300">
