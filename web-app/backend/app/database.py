@@ -1,41 +1,38 @@
-from sqlalchemy import create_engine
+import os
+import sys
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
-import os
 import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
-
 # Get DATABASE_URL from environment variable
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./longball.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Fix Railway's postgres:// to postgresql://
-if DATABASE_URL.startswith("postgres://"):
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Log which database we're connecting to (without sensitive info)
-logger.info(f"Connecting to database at: {DATABASE_URL.split('@')[-1]}")
-
-# Create engine with production-ready settings
+# Create engine with retry logic and pooling
 engine = create_engine(
     DATABASE_URL,
     pool_size=5,
     max_overflow=10,
     pool_timeout=30,
     pool_pre_ping=True,
-    pool_recycle=300  # Recycle connections every 5 minutes
+    pool_recycle=300
 )
 
-# Create session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+try:
+    # Test connection with text() wrapper
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+        logger.info("Successfully connected to Railway PostgreSQL database")
+except Exception as e:
+    logger.error(f"Failed to connect to database: {e}")
+    raise
 
-# Create base class for declarative models
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
