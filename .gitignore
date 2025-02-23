@@ -20,7 +20,7 @@ build/
 
 # Project specific
 web-app/backend/venv/
-models/
+models/ml/  # Changed this line to only ignore ML models
 checkpoints/
 datasets/
 *.pkl
