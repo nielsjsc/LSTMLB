@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_player_values(player_name: str, db: Session):
-    # First get the 2025 player entry for basic info
+    # Get only the 2025 player entry since it has all the values we need
     base_player = (
         db.query(Player)
         .filter(Player.name == player_name)
@@ -36,29 +36,15 @@ def get_player_values(player_name: str, db: Session):
     if not base_player:
         raise HTTPException(status_code=404, detail=f"Player {player_name} not found")
     
-    # Get all years from 2025 to FA year
-    all_years = (
-        db.query(Player)
-        .filter(Player.name == player_name)
-        .filter(Player.year >= 2025)
-        .filter(Player.year <= base_player.fa_year)
-        .all()
-    )
-    
-    # Sum up the values across all applicable years
-    total_contract = sum(year.contract_value or 0 for year in all_years)
-    total_production = sum(year.base_value or 0 for year in all_years)
-    war= sum(year.war_bat or 0 + year.war_pit or 0 for year in all_years)
-    
     return {
         "name": base_player.name,
         "team": base_player.team,
         "position": base_player.position,
-        "war": war,
-        "total_surplus": base_player.trade_value or 0,  # Use trade_value from 2025
-        "total_contract": total_contract,
-        "total_production": total_production,
-        "years": [year.year for year in all_years]  # Optional: for debugging
+        "war": base_player.contract_war or 0,  # Changed from calculated war
+        "total_surplus": base_player.trade_value or 0,  # Already correct
+        "total_contract": base_player.total_contract or 0,  # Changed from calculated total_contract
+        "total_production": base_player.contract_base_value or 0,  # Changed from base_value
+        "years": [year for year in range(2025, (base_player.control_through or 2025) + 1)]  # Using control_through
     }
 
 
