@@ -5,13 +5,11 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir: 'dist',
-    sourcemap: true,
+    outDir: 'dist'
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-      'src': path.resolve(__dirname, './src')
+      '@': path.resolve(__dirname, './src')
     }
   }
 })
