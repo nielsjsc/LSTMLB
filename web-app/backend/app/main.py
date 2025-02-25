@@ -60,14 +60,15 @@ origins = [
     FRONTEND_URL,
     "https://longball-production.up.railway.app",
     "https://longball-analytics.com",
-    "https://longball-api.onrender.com"  # Add Render URL
+    "https://longball-api.onrender.com",  # Render URL
+    "https://longball-nielsjsc.netlify.app",  # Add your Netlify URL
+    "https://longball-b2w263412-niels-christoffersens-projects.vercel.app"  # Optional: Keep Vercel URL
 ]
 
 if RAILWAY_STATIC_URL:
     origins.append(f"https://{RAILWAY_STATIC_URL}")
 
 # Add middlewares
-app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
