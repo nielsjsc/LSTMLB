@@ -80,10 +80,12 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
           {/* Update team labels */}
           <g className="team-labels">
             <text 
-              x="5" 
+              x="20" 
               y="50" 
-              fill="#9ca3af"
-              style={{ fontSize: '0.65em' }}
+              fill="#ffffff"
+              style={{ fontSize: '0.5em' }}
+              textAnchor="start"
+              dominantBaseline="middle"
             >
               {team1Name}
             </text>
@@ -91,8 +93,10 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
             <text 
               x="80" 
               y="50" 
-              fill="#9ca3af"
-              style={{ fontSize: '0.65em' }}
+              fill="#ffffff"
+              style={{ fontSize: '0.5em' }}
+              textAnchor="end"
+              dominantBaseline="middle"
             >
               {team2Name}
             </text>
