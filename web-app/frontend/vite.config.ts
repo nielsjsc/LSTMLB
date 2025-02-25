@@ -2,37 +2,32 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+// Detect Vercel environment
+const isVercel = process.env.VERCEL === '1'
+
 export default defineConfig({
   plugins: [
     react(),
     {
-      name: 'log-build',
+      name: 'vercel-path-resolution',
       configResolved(config) {
-        console.log('Build Config:', {
+        console.log('Build environment:', {
+          isVercel,
           root: config.root,
-          base: config.base,
-          publicDir: config.publicDir,
-          build: {
-            outDir: config.build.outDir,
-            assetsDir: config.build.assetsDir,
-            rollupOptions: config.build.rollupOptions
-          }
+          base: config.base
         })
-      },
-      buildStart() {
-        console.log('Build starting, entry point resolution...')
-      },
-      resolveId(source) {
-        if (source.includes('main.tsx')) {
-          console.log('Resolving main.tsx from:', source)
-        }
-        return null
       }
     }
   ],
+  base: isVercel ? '/' : './',
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html')
+      }
+    }
   },
   resolve: {
     alias: {
