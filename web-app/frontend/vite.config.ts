@@ -10,5 +10,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true
-  }
+  },
+  // Add base URL for production
+  base: '/'
 })
