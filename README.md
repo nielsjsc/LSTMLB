@@ -1,39 +1,82 @@
-Overview:
+# LongBall Analytics - MLB Trade Value Calculator
 
-This project aims to develop machine learning models to predict the future value of MLB/MiLB players in terms of Wins Above Replacement (WAR). We will then combine these predictions with real salary data to produce a player value statistic.
+This project started as my attempt to create a trade value metric for MLB players - something I've always been curious about but isn't publicly available. What do we need for trade value? Pretty simple really: projected future WAR and salary data. Basically, how much on-field value will you produce, and how much are you getting paid to do it.
 
-Features:
-- Data Collection:
-  - Comprehensive scraping of MLB player statistics and salary data.
-  - Inclusion of minor league performance data and prospect rankings.
+## The Challenge
 
-- Data Processing: 
-  - Cleaning and merging of datasets to ensure high-quality input for modeling.
-  - Feature engineering to capture relevant player metrics over time.
-  - Handling of unique cases such as players with the same name and tracking player debuts accurately.
+While we have great projection systems like ZiPS and Steamer that give us 1-3 year forecasts on FanGraphs, they don't tell us how much value Juan Soto will produce in 2035. That's where this project comes in.
 
-- Model Development:
-  - Implementation of machine learning models (LSTM, Linear Regression) for predicting future WAR values.
-  - Separate modeling for hitters and pitchers to improve accuracy.
+## The Solution
 
-- Evaluation:
-  - Use of metrics like Mean Squared Error (MSE) and R² for model performance assessment.
+I decided to build my own projection models using LSTMs (Long Short-Term Memory networks). Yeah, it's pretty unorthodox in baseball projections, but with the AI boom happening everywhere else, why not give it a shot? Baseball stats are naturally sequential data anyway.
 
+### What It Does
 
-Prerequisites:
+- Projects player performance 15 years into the future
+- Calculates trade values based on projected WAR and salary
+- Provides a fun trade simulator to test different deals
+- Visualizes projections and values through an interactive web interface
 
-- Python 3.7+
-- Required libraries: `pandas`, `numpy`, `scikit-learn`, `torch`, `beautifulsoup4`, `selenium`, `pybaseball`
+## Important Disclaimers
 
-Installation
-1. Clone the repository:
-   git clone https://github.com/Nielsjsc/MLBTradeSim.git
-   cd MLBTradeSim
-2. Install the required packages:
-   bash
-   pip install -r requirements.txt
-   
+Look, I'm going to be straight up here:
 
-Contributions are welcome! Please fork the repository and submit a pull request with your proposed changes.
+- The hitting projections seem pretty solid
+- The pitching projections... not so much (probably due to smaller sample sizes)
+- Players with limited MLB experience get wonky projections
+- Take everything with a very large, very flaky grain of salt
 
-This project is licensed under the MIT License
+## Methodology Notes
+
+I made some choices you should know about:
+
+### Playing Time Normalization
+- Hitters: 150 games
+- Catchers: 135 games
+- Starters: 32 games
+- Relievers: 65 innings
+
+### WAR to Dollar Calculations
+I tweaked the standard linear WAR-to-dollar relationship because I don't think two 2 WAR players equal one 4 WAR player (you get that extra roster spot with the 4 WAR guy).
+
+## Tech Stack
+
+- Backend: Python (FastAPI)
+- Frontend: React/TypeScript
+- ML: PyTorch (LSTM models)
+- Deployment: Render (API) & Netlify (Frontend)
+
+## Local Development
+
+```bash
+# Clone the repo
+git clone https://github.com/yourusername/longball-analytics.git
+
+# Backend setup
+cd web-app/backend
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+
+# Frontend setup
+cd ../frontend
+npm install
+npm run dev
+```
+
+## Want to Help?
+
+All the code is here and the models aren't super computationally expensive to train. Feel free to clone the repo and experiment! I'd love to see some improvements to the models.
+
+## Live Demo
+
+Check it out: [LongBall Analytics](https://longball-analytics.netlify.app)
+
+## License
+
+MIT - Go wild with it
+
+---
+
+Remember: Don't take the projections too seriously. If you see it saying "Jackson Chourio will put up 7.1 WAR in 2029", that's just the model doing its best to minimize loss. It's a fun tool for exploring possibilities, not a crystal ball!
