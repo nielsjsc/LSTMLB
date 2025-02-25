@@ -1,6 +1,6 @@
 import React from 'react'
-import { FaBalanceScale,FaStar, FaInfoCircle, FaDatabase, FaExchangeAlt, FaCode, FaCalculator, FaRunning, FaGithub, FaDollarSign, FaBaseballBall, FaChalkboardTeacher, FaExternalLinkAlt } from 'react-icons/fa'
-import { BsArrowRight, BsListStars } from 'react-icons/bs'
+import { FaBalanceScale,FaStar, FaDatabase, FaExchangeAlt, FaCode, FaCalculator, FaRunning, FaGithub, FaDollarSign, FaBaseballBall, FaChalkboardTeacher } from 'react-icons/fa'
+import {BsListStars } from 'react-icons/bs'
 import CollapsibleSection from './CollapsibleSection'
 
 
@@ -29,86 +29,6 @@ const TechnicalOverview = () => {
                       dark:from-slate-900 dark:to-slate-800 -z-10" />
       
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-      <CollapsibleSection
-          title="Limitations and Future Improvements"
-          subtitle="Understanding the system's strengths and weaknesses"
-          icon={FaInfoCircle}
-          defaultOpen={false}
-        >
-          <div className="space-y-8">
-            <Card>
-              <div className="space-y-8">
-                {/* System Strengths */}
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-6">
-                  <h4 className="font-semibold text-lg text-slate-900 dark:text-white mb-4">
-                    Works Well For
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 mt-2" />
-                      <p className="text-slate-600 dark:text-slate-300">
-                        <span className="font-medium">Prospects:</span> Clear valuation through FV grades 
-                        and consensus rankings
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 mt-2" />
-                      <p className="text-slate-600 dark:text-slate-300">
-                        <span className="font-medium">Established MLB Players:</span> 400+ games of historical 
-                        data provides reliable projection basis
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* System Limitations */}
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-6">
-                  <h4 className="font-semibold text-lg text-slate-900 dark:text-white mb-4">
-                    Current Limitations
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0 mt-2" />
-                      <p className="text-slate-600 dark:text-slate-300">
-                        <span className="font-medium">Limited Sample Players:</span> Can produce unreliable 
-                        projections for players with minimal MLB experience
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0 mt-2" />
-                      <p className="text-slate-600 dark:text-slate-300">
-                        <span className="font-medium">Playing Time Assumptions:</span> Standard 150-game 
-                        projection may overvalue players unlikely to receive full-time roles
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Philosophy Note */}
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6">
-                  <h4 className="font-semibold text-lg text-slate-900 dark:text-white mb-4">
-                    Playing Time Philosophy
-                  </h4>
-                  <p className="text-slate-600 dark:text-slate-300">
-                    We project all players to 150 games to evaluate their potential value in a full-time 
-                    role. While this may overstate current value for bench players, it better reflects 
-                    their potential value to acquiring teams who may plan to use them differently.
-                  </p>
-                </div>
-
-                {/* Future Improvements */}
-                <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4">
-                  <p className="text-sm text-slate-600 dark:text-slate-300">
-                    This system is an elementary approach compared to sophisticated projection systems 
-                    like ZiPS, Steamer, and The BAT. Future improvements could include role-based 
-                    playing time projections, confidence intervals for limited-sample players, and 
-                    more nuanced handling of player development patterns.
-                  </p>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </CollapsibleSection>
         {/* Data Collection Section */}
         <CollapsibleSection
           title="Data Collection & Processing"
