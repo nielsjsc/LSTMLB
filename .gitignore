@@ -77,3 +77,6 @@ scrapers/fangraphs_MiLB_scraper.py
 *.db
 web-app/backend/mlb_player_eval.db
 web-app/backend/Procfile
+
+# Local Netlify folder
+.netlify
