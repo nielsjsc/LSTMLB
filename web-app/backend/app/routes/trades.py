@@ -174,7 +174,7 @@ def get_trade_value_rankings(
     page_size: int = Query(50, ge=1, le=100),
     sort_by: str = Query(
         "trade_value",
-        regex="^(trade_value|contract_war|avg_war|total_contract|avg_contract|control_through|years_control|total_future_war|total_future_value|historical_war|historical_value)$"
+        regex="^(trade_value|contract_war|avg_war|total_contract|avg_contract|control_through|years_control|total_future_war|total_future_value|historical_war|historical_value|contract_base_value)$"
     ),
     sort_direction: str = Query("desc", regex="^(asc|desc)$")
 ):

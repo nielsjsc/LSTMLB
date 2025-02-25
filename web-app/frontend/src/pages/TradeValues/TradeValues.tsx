@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { getTradeValueRankings, TradeValueRankingsResponse } from '../../services/api';
 import TradeValuesTable from '../../components/Tables/TradeValues/TradeValuesTable';
 
