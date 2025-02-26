@@ -3,7 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-
+#scrapers
+/scrapers
 # Virtual Environment
 venv/
 env/
