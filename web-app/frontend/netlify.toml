@@ -1,7 +1,7 @@
 [build]
-  base = "web-app/frontend"  # Change this line
-  command = "npm ci && npm run build"
-  publish = "web-app/frontend/dist"  # Update this too
+  base = "web-app/frontend"
+  command = "npm install && npm run build"
+  publish = "dist"
 
 [build.environment]
   VITE_API_URL = "https://43f4-71-212-206-128.ngrok-free.app"
