@@ -184,7 +184,6 @@ def get_trade_value_rankings(
         
         # Add filter for non-NaN trade values
         query = query.filter(Player.trade_value.isnot(None))  # Filter out NULL values
-        query = query.filter(Player.trade_value != float('nan'))  # Filter out NaN values
         
         # Add team filter if specified
         if team:
