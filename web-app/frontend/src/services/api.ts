@@ -1,4 +1,12 @@
 const API_BASE = 'https://43f4-71-212-206-128.ngrok-free.app';
+
+const createApiHeaders = () => ({
+  'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true',
+  'User-Agent': 'LongballAnalytics/1.0'
+});
+
+
 export interface Player {
     id: number;
     name: string;
@@ -50,7 +58,9 @@ export const getAllProspects = async (
   year: number = 2025
 ): Promise<Prospect[]> => {
   try {
-    const response = await fetch(`${API_BASE}/trades/prospects?player_type=${playerType}&year=${year}`);
+    const response = await fetch(`${API_BASE}/trades/prospects?player_type=${playerType}&year=${year}`, {
+      headers: createApiHeaders()  // Add this line
+    });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(`Failed to fetch all prospects: ${JSON.stringify(errorData.detail)}`);
@@ -108,50 +118,49 @@ export interface TradeAssetRequest {
   type?: 'player' | 'prospect';  // Add optional type field
 }
   
-  export interface TradeRequest {
-    team1_assets: TradeAssetRequest[];
-    team2_assets: TradeAssetRequest[];
-  }
-  
-  export const analyzeTrade = async (
-    team1Assets: TradeAssetRequest[],
-    team2Assets: TradeAssetRequest[]
-  ): Promise<TradeAnalysis> => {
-    try {
-      const response = await fetch(`${API_BASE}/trades/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          team1_assets: team1Assets,
-          team2_assets: team2Assets
-        })
-      });
-  
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Trade Analysis Error:', errorData);
-        const errorMessage = typeof errorData.detail === 'object' 
-          ? JSON.stringify(errorData.detail) 
-          : errorData.detail || 'Unknown error';
-        throw new Error(`Failed to analyze trade: ${errorMessage}`);
-      }
-  
-      const data = await response.json();
-      console.log('Trade Analysis Response:', data);
-      return data;
-    } catch (error) {
-      console.error('Trade analysis error details:', error);
-      throw error;
-    }
-  };
+export interface TradeRequest {
+  team1_assets: TradeAssetRequest[];
+  team2_assets: TradeAssetRequest[];
+}
 
+export const analyzeTrade = async (
+team1Assets: TradeAssetRequest[],
+team2Assets: TradeAssetRequest[]
+): Promise<TradeAnalysis> => {
+  try {
+    const response = await fetch(`${API_BASE}/trades/analyze`, {
+      method: 'POST',
+      headers: createApiHeaders(),  // Replace the existing headers
+      body: JSON.stringify({
+        team1_assets: team1Assets,
+        team2_assets: team2Assets
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Trade Analysis Error:', errorData);
+      const errorMessage = typeof errorData.detail === 'object' 
+        ? JSON.stringify(errorData.detail) 
+        : errorData.detail || 'Unknown error';
+      throw new Error(`Failed to analyze trade: ${errorMessage}`);
+    }
+
+    const data = await response.json();
+    console.log('Trade Analysis Response:', data);
+    return data;
+  } catch (error) {
+    console.error('Trade analysis error details:', error);
+    throw error;
+  }
+};
 
 
 export const getPlayers = async (year: number = 2024): Promise<Player[]> => {
     try {
-        const response = await fetch(`${API_BASE}/players?year=${year}`);
+        const response = await fetch(`${API_BASE}/players?year=${year}`, {
+          headers: createApiHeaders()  // Add this line
+        });
         if (!response.ok) throw new Error('Failed to fetch players');
         const data = await response.json();
         return data.players; // Return just the players array for Trade Analyzer
@@ -177,7 +186,9 @@ export const filterPlayers = async (filters: PlayerFilter): Promise<PlayerRespon
   console.log('Fetching players with URL:', url); // Debug log
 
   try {
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: createApiHeaders()  // Add this line
+      });
       
       if (!response.ok) {
           const errorText = await response.text();
@@ -268,7 +279,9 @@ export const getPlayerDetails = async (real_id: number): Promise<PlayerStats> =>
   console.log('Full URL:', url);  // Debug log
   
   try {
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: createApiHeaders()  // Add this line
+      });
       if (!response.ok) {
           const errorText = await response.text();  // Get error details
           console.error(`API Error ${response.status}:`, errorText);
@@ -391,74 +404,77 @@ export interface Prospect {
   }
   
   export const getProspects = async (
-    playerType: 'hitter' | 'pitcher',
-    team?: string,
-    position?: string,
-    year: number = 2025,
-    page: number = 1,
-    pageSize: number = 25,
-    sortBy?: string,
-    sortDirection: 'asc' | 'desc' = 'asc'
-  ): Promise<ProspectResponse> => {
-    const params = new URLSearchParams();
-    params.append('player_type', playerType);
-    params.append('year', year.toString());
-    params.append('page', page.toString());
-    params.append('page_size', pageSize.toString());
-    if (team) params.append('team', team);
-    if (position) params.append('position', position);
-    if (sortBy) params.append('sort_by', sortBy);
-    params.append('sort_direction', sortDirection);
-    
-    try {
-      const response = await fetch(`${API_BASE}/prospects?${params}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Prospect API Error:', errorData);
-        throw new Error(`Failed to fetch prospects: ${errorData.detail || 'Unknown error'}`);
-      }
-      return response.json();
-    } catch (error) {
-      console.error('Error fetching prospects:', error);
-      throw error;
-    }
-  };
-
-  export const getProjections = async (
-    year: number,
-    playerType: 'hitter' | 'pitcher',
-    team?: string,
-    position?: string,
-    page: number = 1,
-    pageSize: number = 50,
-    sortBy?: string,
-    sortDirection: 'asc' | 'desc' = 'desc'
-): Promise<ProjectionResponse> => {
-    const params = new URLSearchParams({
-        year: year.toString(),
-        player_type: playerType,
-        page: page.toString(),
-        page_size: pageSize.toString()
+  playerType: 'hitter' | 'pitcher',
+  team?: string,
+  position?: string,
+  year: number = 2025,
+  page: number = 1,
+  pageSize: number = 25,
+  sortBy?: string,
+  sortDirection: 'asc' | 'desc' = 'asc'
+): Promise<ProspectResponse> => {
+  const params = new URLSearchParams();
+  params.append('player_type', playerType);
+  params.append('year', year.toString());
+  params.append('page', page.toString());
+  params.append('page_size', pageSize.toString());
+  if (team) params.append('team', team);
+  if (position) params.append('position', position);
+  if (sortBy) params.append('sort_by', sortBy);
+  params.append('sort_direction', sortDirection);
+  
+  try {
+    const response = await fetch(`${API_BASE}/prospects?${params}`, {
+      headers: createApiHeaders()  // Add this line
     });
-
-    if (team) params.append('team', team);
-    if (position) params.append('position', position);
-    if (sortBy) params.append('sort_by', sortBy);
-    if (sortDirection) params.append('sort_direction', sortDirection);
-
-    console.log('Fetching projections with params:', params.toString());  // Debug log
-
-    const response = await fetch(`${API_BASE}/projections?${params}`);
     if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Projections API Error ${response.status}:`, errorText);
-        throw new Error('Failed to fetch projections');
+      const errorData = await response.json();
+      console.error('Prospect API Error:', errorData);
+      throw new Error(`Failed to fetch prospects: ${errorData.detail || 'Unknown error'}`);
     }
-    const data = await response.json();
-    console.log('Projections API Response:', data);  // Debug log
-    return data;
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching prospects:', error);
+    throw error;
+  }
 };
 
+  export const getProjections = async (
+  year: number,
+  playerType: 'hitter' | 'pitcher',
+  team?: string,
+  position?: string,
+  page: number = 1,
+  pageSize: number = 50,
+  sortBy?: string,
+  sortDirection: 'asc' | 'desc' = 'desc'
+): Promise<ProjectionResponse> => {
+  const params = new URLSearchParams({
+      year: year.toString(),
+      player_type: playerType,
+      page: page.toString(),
+      page_size: pageSize.toString()
+  });
+
+  if (team) params.append('team', team);
+  if (position) params.append('position', position);
+  if (sortBy) params.append('sort_by', sortBy);
+  if (sortDirection) params.append('sort_direction', sortDirection);
+
+  console.log('Fetching projections with params:', params.toString());  // Debug log
+
+  const response = await fetch(`${API_BASE}/projections?${params}`, {
+    headers: createApiHeaders()  // Add this line
+  });
+  if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Projections API Error ${response.status}:`, errorText);
+      throw new Error('Failed to fetch projections');
+  }
+  const data = await response.json();
+  console.log('Projections API Response:', data);  // Debug log
+  return data;
+};
 
 // TRADE VALUE RANKING
 
@@ -513,12 +529,13 @@ export const getTradeValueRankings = async (
     ...(team && { team })
   });
 
-  // Add debug logging
   const url = `${API_BASE}/trades/trade-val-rank?${queryParams}`;
   console.log('Fetching trade values from:', url);
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: createApiHeaders()  // Add this line
+    });
     console.log('Response status:', response.status);
     
     if (!response.ok) {
