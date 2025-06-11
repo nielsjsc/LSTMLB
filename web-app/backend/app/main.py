@@ -62,7 +62,9 @@ origins = [
     "https://longball-analytics.com",
     "https://longball-api.onrender.com",  # Render URL
     "https://longball-analytics.netlify.app",  # Add your Netlify URL
-    "https://longball-b2w263412-niels-christoffersens-projects.vercel.app"  # Optional: Keep Vercel URL
+    "https://longball-b2w263412-niels-christoffersens-projects.vercel.app",  # Optional: Keep Vercel URL
+    "https://43f4-71-212-206-128.ngrok-free.app",  # Your ngrok URL
+    "https://*.ngrok-free.app",  # Allow any ngrok subdomain
 ]
 
 if RAILWAY_STATIC_URL:

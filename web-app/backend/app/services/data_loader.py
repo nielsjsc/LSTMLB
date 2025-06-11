@@ -190,10 +190,20 @@ class DataLoader:
 
     def reset_and_load_data(self, players_csv: str, prospects_csv: str = None):
         try:
-            # Clear existing data
+            # Clear existing data - different syntax for SQLite vs PostgreSQL
             logger.info("Clearing existing data...")
-            self.db.execute(text("TRUNCATE TABLE players CASCADE;"))
-            self.db.execute(text("TRUNCATE TABLE prospects CASCADE;"))
+            
+            # Check if we're using SQLite or PostgreSQL
+            db_url = os.getenv("DATABASE_URL", "")
+            if db_url.startswith("sqlite"):
+                # SQLite syntax
+                self.db.execute(text("DELETE FROM players;"))
+                self.db.execute(text("DELETE FROM prospects;"))
+            else:
+                # PostgreSQL syntax
+                self.db.execute(text("TRUNCATE TABLE players CASCADE;"))
+                self.db.execute(text("TRUNCATE TABLE prospects CASCADE;"))
+                
             self.db.commit()
             logger.info("Tables cleared successfully")
 
