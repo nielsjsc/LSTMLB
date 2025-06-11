@@ -1,5 +1,4 @@
-const API_BASE = 'https://longball-api.onrender.com';
-
+const API_BASE = 'https://43f4-71-212-206-128.ngrok-free.app';
 export interface Player {
     id: number;
     name: string;
