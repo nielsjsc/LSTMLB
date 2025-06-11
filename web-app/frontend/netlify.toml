@@ -1,12 +1,11 @@
 [build]
-  command = "npm install && npm run build"
+  command = "npm run build"
   publish = "dist"
-
-[build.environment]
-  VITE_API_URL = "https://43f4-71-212-206-128.ngrok-free.app"
-  VITE_ENV = "production"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[dev]
+  framework = "vite"
