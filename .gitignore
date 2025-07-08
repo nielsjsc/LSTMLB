@@ -35,8 +35,10 @@ datasets/
 *.h5
 *.model
 *.csv
-*.json
-*.npz 
+# *.json  # Commented out - was blocking package.json
+data/**/*.json  # Only ignore JSON files in data directories
+models/**/*.json  # Only ignore JSON files in models directories
+*.npz
 *.npy
 *.pt
 
