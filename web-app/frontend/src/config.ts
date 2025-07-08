@@ -5,7 +5,7 @@ const getApiUrl = (): string => {
   }
   
   // In production, use ngrok or environment variable
-  const apiUrl = import.meta.env.VITE_API_URL || 'https://43f4-71-212-206-128.ngrok-free.app';
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://1cf3eb518c91.ngrok-free.app';
   return apiUrl;
 };
 
