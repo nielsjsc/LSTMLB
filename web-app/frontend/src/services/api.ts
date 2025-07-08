@@ -1,4 +1,4 @@
-const API_BASE = 'https://43f4-71-212-206-128.ngrok-free.app';
+const API_BASE = 'https://1cf3eb518c91.ngrok-free.app';
 
 const createApiHeaders = () => ({
   'Content-Type': 'application/json',
