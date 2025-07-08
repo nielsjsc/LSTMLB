@@ -59,7 +59,7 @@ RAILWAY_URL = os.getenv("RAILWAY_URL", "")
 origins = [
     FRONTEND_URL,
     "https://longball-production.up.railway.app",
-    "https://longball-analytics.com",
+    "https://longballhq.xyz",
     "https://longball-api.onrender.com",  # Render URL
     "https://longball-analytics.netlify.app",  # Add your Netlify URL
     "https://longball-b2w263412-niels-christoffersens-projects.vercel.app",  # Optional: Keep Vercel URL
