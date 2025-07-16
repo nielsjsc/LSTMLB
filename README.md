@@ -50,7 +50,7 @@ I tweaked the standard linear WAR-to-dollar relationship because I don't think t
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/longball-analytics.git
+git clone https://github.com/nielsjsc/LSTMLB.git
 
 # Backend setup
 cd web-app/backend
@@ -71,11 +71,11 @@ All the code is here and the models aren't super computationally expensive to tr
 
 ## Live Demo
 
-Check it out: [LongBall Analytics](https://longball-analytics.netlify.app)
+Check it out: [LongBall Analytics](https://longballhq.xyz)
 
 ## License
 
-MIT - Go wild with it
+MIT
 
 ---
 
