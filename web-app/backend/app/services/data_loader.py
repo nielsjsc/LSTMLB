@@ -1,3 +1,9 @@
+#######
+#To reload data to local db and then server, run this script, 
+#ensure db is present in /backend, then ctrl+c in backend cmd, and run:
+#python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+#######
+
 import sys
 from pathlib import Path
 from sqlalchemy.orm import Session
