@@ -3,11 +3,17 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-#scrapers
+
+# Scrapers
 scrapers/**
+
+# Web app (not needed publicly)
+web-app/
+
 # Virtual Environment
 venv/
 env/
+
 # Environment files
 .env
 .env.local
@@ -27,22 +33,18 @@ build/
 .idea/
 
 # Project specific
-web-app/backend/venv/
-models/ml/  # Changed this line to only ignore ML models
+models/ml/
 checkpoints/
 datasets/
 *.pkl
 *.h5
 *.model
-*.csv
-# *.json  # Commented out - was blocking package.json
-data/**/*.json  # Only ignore JSON files in data directories
-models/**/*.json  # Only ignore JSON files in models directories
+
+# Model weights (large files)
 *.npz
 *.npy
 *.pt
-
-
+*.pth
 
 # Logs and local files
 logs/
@@ -57,14 +59,6 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# React/Frontend
-web-app/frontend/build/
-web-app/frontend/coverage/
-web-app/frontend/.env.local
-web-app/frontend/.env.development.local
-web-app/frontend/.env.test.local
-web-app/frontend/.env.production.local
-
 # Cache
 .cache/
 .npm/
@@ -73,13 +67,8 @@ web-app/frontend/.env.production.local
 # Testing
 coverage/
 
-# Production
-build/
-scrapers/extractTables.py
-scrapers/fangraphs_MiLB_scraper.py
+# Database files
 *.db
-web-app/backend/mlb_player_eval.db
-web-app/backend/Procfile
 
 # Local Netlify folder
 .netlify
