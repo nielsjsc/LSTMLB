@@ -13,6 +13,15 @@ This project uses Long Short-Term Memory (LSTM) neural networks to project playe
 - Combines offensive, baserunning, and defensive components
 - Supports both classical stats (2000+) and Statcast-enhanced predictions (2015+)
 
+## Live Web Application
+
+The projection system powers [LongBall HQ](https://longballhq.xyz), featuring:
+
+- **Trade Simulator** - Evaluate trades using projected WAR and surplus value calculations
+- **Player Projections** - Browse 15-year projections for all MLB players
+- **Trade Value Rankings** - Compare players by projected contract value and WAR
+- **Prospect Valuations** - Prospect grades converted to trade value metrics
+
 ## Project Structure
 
 ```
