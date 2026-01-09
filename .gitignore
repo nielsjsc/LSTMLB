@@ -8,7 +8,10 @@ __pycache__/
 scrapers/**
 
 # Web app (not needed publicly)
-web-app/
+web-app/**
+
+models/MiLB
+
 
 # Virtual Environment
 venv/
