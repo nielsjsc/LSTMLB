@@ -21,7 +21,7 @@ env/
 .env
 .env.local
 .env.*.local
-
+.netlify.toml
 # Keep these files
 !.env.production
 !.env.d.ts
