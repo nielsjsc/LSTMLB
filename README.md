@@ -68,11 +68,11 @@ Predictions are saved to `data/generated/pipeline/`:
 
 | Model | Description | Training Data |
 |-------|-------------|---------------|
-| Batter (Pretrained) | Classical stats only | 2000-2024 |
-| Batter (Finetuned) | Classical + Statcast | 2015-2024 |
-| Pitcher SP/RP | Starting/Relief pitchers | 2000-2024 |
-| Baserunning | BsR, stolen base value | 2015-2024 |
-| Fielding | Position-specific defense | 2015-2024 |
+| Batter (Pretrained) | Classical stats only | 1950-2025 |
+| Batter (Finetuned) | Classical + Statcast | 2016-2025 |
+| Pitcher SP/RP | Starting/Relief pitchers | 2000-2025 |
+| Baserunning | BsR, stolen base value | 2016-2025 |
+| Fielding | Position-specific defense | 2016-2025 |
 
 ## WAR Calculation
 
@@ -108,4 +108,3 @@ MIT
 
 ---
 
-*"If you see Jackson Chourio projected for 7.1 WAR in 2029, that's the model doing its best. It's a tool for exploring possibilities, not a crystal ball."*
