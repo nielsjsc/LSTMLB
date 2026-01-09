@@ -1,0 +1,459 @@
+2026-01-03 12:14:30,870 | INFO     | scrape_all_teams:779 | Starting scrape of 1 teams
+2026-01-03 12:14:33,165 | DEBUG    | create_driver:269 | WebDriver initialized successfully
+2026-01-03 12:14:33,165 | INFO     | scrape_all_teams:787 | 
+[Team 1/1]
+2026-01-03 12:14:33,166 | INFO     | scrape_team:701 | ============================================================
+2026-01-03 12:14:33,167 | INFO     | scrape_team:702 | Scraping Oakland Athletics (athletics)
+2026-01-03 12:14:33,167 | INFO     | scrape_team:703 | ============================================================
+2026-01-03 12:15:00,882 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:15:02,912 | INFO     | _extract_prospect_rows:542 | Found 30 prospect rows
+2026-01-03 12:17:36,437 | INFO     | scrape_team:739 |   [1/30] Leo De Vries (SS, AA)
+2026-01-03 12:17:36,437 | WARNING  | scrape_team:760 | No URL found for Leo De Vries
+2026-01-03 12:17:36,947 | INFO     | scrape_team:739 |   [2/30] Jamie Arnold (LHP, ROK)
+2026-01-03 12:17:36,947 | WARNING  | scrape_team:760 | No URL found for Jamie Arnold
+2026-01-03 12:17:37,452 | INFO     | scrape_team:739 |   [3/30] Gage Jump (LHP, AA)
+2026-01-03 12:17:37,452 | WARNING  | scrape_team:760 | No URL found for Gage Jump
+2026-01-03 12:17:37,967 | INFO     | scrape_team:739 |   [4/30] Braden Nett (RHP, MLB)
+2026-01-03 12:17:37,967 | WARNING  | scrape_team:760 | No URL found for Braden Nett
+2026-01-03 12:17:38,472 | INFO     | scrape_team:739 |   [5/30] Henry Bolte (OF, AAA)
+2026-01-03 12:17:38,473 | WARNING  | scrape_team:760 | No URL found for Henry Bolte
+2026-01-03 12:17:38,978 | INFO     | scrape_team:739 |   [6/30] Devin Taylor (OF, A)
+2026-01-03 12:17:38,979 | WARNING  | scrape_team:760 | No URL found for Devin Taylor
+2026-01-03 12:17:39,482 | INFO     | scrape_team:739 |   [7/30] Tommy White (3B, AA)
+2026-01-03 12:17:39,483 | WARNING  | scrape_team:760 | No URL found for Tommy White
+2026-01-03 12:17:39,987 | INFO     | scrape_team:739 |   [8/30] Henry Baez (RHP, MLB)
+2026-01-03 12:17:39,987 | WARNING  | scrape_team:760 | No URL found for Henry Baez
+2026-01-03 12:17:40,491 | INFO     | scrape_team:739 |   [9/30] Mason Barnett (RHP, MLB)
+2026-01-03 12:17:40,491 | WARNING  | scrape_team:760 | No URL found for Mason Barnett
+2026-01-03 12:17:40,995 | INFO     | scrape_team:739 |   [10/30] Joshua Kuroda-Grauer (SS, AA)
+2026-01-03 12:17:40,995 | WARNING  | scrape_team:760 | No URL found for Joshua Kuroda-Grauer
+2026-01-03 12:17:41,498 | INFO     | scrape_team:739 |   [11/30] Gavin Turley (OF, A)
+2026-01-03 12:17:41,498 | WARNING  | scrape_team:760 | No URL found for Gavin Turley
+2026-01-03 12:17:42,005 | INFO     | scrape_team:739 |   [12/30] Steven Echavarria (RHP, A+)
+2026-01-03 12:17:42,005 | WARNING  | scrape_team:760 | No URL found for Steven Echavarria
+2026-01-03 12:17:42,506 | INFO     | scrape_team:739 |   [13/30] Gunnar Hoglund (RHP, MLB)
+2026-01-03 12:17:42,506 | WARNING  | scrape_team:760 | No URL found for Gunnar Hoglund
+2026-01-03 12:17:43,009 | INFO     | scrape_team:739 |   [14/30] Kade Morris (RHP, AAA)
+2026-01-03 12:17:43,009 | WARNING  | scrape_team:760 | No URL found for Kade Morris
+2026-01-03 12:17:43,513 | INFO     | scrape_team:739 |   [15/30] Eduarniel Núñez (RHP, MLB)
+2026-01-03 12:17:43,513 | WARNING  | scrape_team:760 | No URL found for Eduarniel Núñez
+2026-01-03 12:17:44,018 | INFO     | scrape_team:739 |   [16/30] Ryan Lasko (OF, AAA)
+2026-01-03 12:17:44,018 | WARNING  | scrape_team:760 | No URL found for Ryan Lasko
+2026-01-03 12:17:44,522 | INFO     | scrape_team:739 |   [17/30] Will Johnston (LHP, AA)
+2026-01-03 12:17:44,522 | WARNING  | scrape_team:760 | No URL found for Will Johnston
+2026-01-03 12:17:45,028 | INFO     | scrape_team:739 |   [18/30] Nate Nankil (OF, AA)
+2026-01-03 12:17:45,028 | WARNING  | scrape_team:760 | No URL found for Nate Nankil
+2026-01-03 12:17:45,537 | INFO     | scrape_team:739 |   [19/30] Wei-En Lin (LHP, AA)
+2026-01-03 12:17:45,537 | WARNING  | scrape_team:760 | No URL found for Wei-En Lin
+2026-01-03 12:17:46,042 | INFO     | scrape_team:739 |   [20/30] Carlos Pacheco (OF, A+)
+2026-01-03 12:17:46,042 | WARNING  | scrape_team:760 | No URL found for Carlos Pacheco
+2026-01-03 12:17:46,546 | INFO     | scrape_team:739 |   [21/30] Shotaro Morii (SS/RHP, ROK)
+2026-01-03 12:17:46,547 | WARNING  | scrape_team:760 | No URL found for Shotaro Morii
+2026-01-03 12:17:47,052 | INFO     | scrape_team:739 |   [22/30] Kenya Huggins (RHP, A+)
+2026-01-03 12:17:47,052 | WARNING  | scrape_team:760 | No URL found for Kenya Huggins
+2026-01-03 12:17:47,555 | INFO     | scrape_team:739 |   [23/30] Edgar Montero (SS, ROK)
+2026-01-03 12:17:47,555 | WARNING  | scrape_team:760 | No URL found for Edgar Montero
+2026-01-03 12:17:48,059 | INFO     | scrape_team:739 |   [24/30] Cole Miller (RHP, A)
+2026-01-03 12:17:48,059 | WARNING  | scrape_team:760 | No URL found for Cole Miller
+2026-01-03 12:17:48,561 | INFO     | scrape_team:739 |   [25/30] Brennan Milone (1B, AA)
+2026-01-03 12:17:48,562 | WARNING  | scrape_team:760 | No URL found for Brennan Milone
+2026-01-03 12:17:49,070 | INFO     | scrape_team:739 |   [26/30] Zane Taylor (RHP, AAA)
+2026-01-03 12:17:49,070 | WARNING  | scrape_team:760 | No URL found for Zane Taylor
+2026-01-03 12:17:49,572 | INFO     | scrape_team:739 |   [27/30] Bobby Boser (3B/2B/SS, A)
+2026-01-03 12:17:49,572 | WARNING  | scrape_team:760 | No URL found for Bobby Boser
+2026-01-03 12:17:50,075 | INFO     | scrape_team:739 |   [28/30] Chen Zhong-Ao Zhuang (RHP, MLB)
+2026-01-03 12:17:50,075 | WARNING  | scrape_team:760 | No URL found for Chen Zhong-Ao Zhuang
+2026-01-03 12:17:50,583 | INFO     | scrape_team:739 |   [29/30] Tzu-Chen Sha (RHP, A+)
+2026-01-03 12:17:50,583 | WARNING  | scrape_team:760 | No URL found for Tzu-Chen Sha
+2026-01-03 12:17:51,089 | INFO     | scrape_team:739 |   [30/30] Darwing Ozuna (OF, ROK)
+2026-01-03 12:17:51,089 | WARNING  | scrape_team:760 | No URL found for Darwing Ozuna
+2026-01-03 12:17:51,593 | INFO     | scrape_team:767 | Successfully scraped 30 prospects for athletics
+2026-01-03 12:17:53,907 | DEBUG    | quit:283 | WebDriver closed successfully
+2026-01-03 12:17:53,907 | INFO     | scrape_all_teams:803 | 
+============================================================
+2026-01-03 12:17:53,908 | INFO     | scrape_all_teams:804 | Scraping complete!
+2026-01-03 12:17:53,908 | INFO     | scrape_all_teams:805 | Total prospects: 30
+2026-01-03 12:17:53,908 | INFO     | scrape_all_teams:806 | Failed teams: 0
+2026-01-03 12:17:53,909 | INFO     | scrape_all_teams:807 | Failed prospects: 0
+2026-01-03 12:17:53,909 | INFO     | scrape_all_teams:808 | Elapsed time: 203.0 seconds
+2026-01-03 12:17:53,910 | INFO     | scrape_all_teams:809 | ============================================================
+2026-01-03 12:17:53,914 | INFO     | save_to_csv:864 | Saved 30 prospects to ..\data\mlb_prospects_test.csv
+2026-01-03 12:19:12,452 | INFO     | scrape_all_teams:832 | Starting scrape of 1 teams
+2026-01-03 12:19:13,958 | DEBUG    | create_driver:269 | WebDriver initialized successfully
+2026-01-03 12:19:13,958 | INFO     | scrape_all_teams:840 | 
+[Team 1/1]
+2026-01-03 12:19:13,959 | INFO     | scrape_team:741 | ============================================================
+2026-01-03 12:19:13,959 | INFO     | scrape_team:742 | Scraping Oakland Athletics (athletics)
+2026-01-03 12:19:13,959 | INFO     | scrape_team:743 | ============================================================
+2026-01-03 12:19:42,328 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:19:44,352 | INFO     | _extract_prospect_rows:542 | Found 30 prospect rows
+2026-01-03 12:19:46,041 | INFO     | scrape_team:779 |   [1/30] Leo De Vries (SS, AA)
+2026-01-03 12:20:09,169 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 60, 'power': 55, 'run': 55, 'arm': 55, 'field': 55, 'overall': 60}
+2026-01-03 12:20:09,169 | DEBUG    | scrape_team:802 | Successfully scraped Leo De Vries
+2026-01-03 12:20:09,481 | INFO     | scrape_team:779 |   [2/30] Jamie Arnold (LHP, ROK)
+2026-01-03 12:20:39,540 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:21:10,575 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 65, 'changeup': 50, 'control': 55, 'overall': 55}
+2026-01-03 12:21:10,575 | DEBUG    | scrape_team:802 | Successfully scraped Jamie Arnold
+2026-01-03 12:21:10,883 | INFO     | scrape_team:779 |   [3/30] Gage Jump (LHP, AA)
+2026-01-03 12:21:40,591 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:22:11,634 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 60, 'curveball': 55, 'changeup': 50, 'control': 55, 'overall': 55}
+2026-01-03 12:22:11,634 | DEBUG    | scrape_team:802 | Successfully scraped Gage Jump
+2026-01-03 12:22:11,936 | INFO     | scrape_team:779 |   [4/30] Braden Nett (RHP, MLB)
+2026-01-03 12:22:41,688 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:23:12,750 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 55, 'curveball': 50, 'changeup': 55, 'cutter': 50, 'control': 45, 'overall': 50}
+2026-01-03 12:23:12,750 | DEBUG    | scrape_team:802 | Successfully scraped Braden Nett
+2026-01-03 12:23:13,063 | INFO     | scrape_team:779 |   [5/30] Henry Bolte (OF, AAA)
+2026-01-03 12:23:42,781 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:24:13,913 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 55, 'run': 65, 'arm': 50, 'field': 50, 'overall': 45}
+2026-01-03 12:24:13,913 | DEBUG    | scrape_team:802 | Successfully scraped Henry Bolte
+2026-01-03 12:24:14,224 | INFO     | scrape_team:779 |   [6/30] Devin Taylor (OF, A)
+2026-01-03 12:24:43,973 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:25:14,910 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 55, 'power': 60, 'run': 45, 'arm': 45, 'field': 45, 'overall': 45}
+2026-01-03 12:25:14,910 | DEBUG    | scrape_team:802 | Successfully scraped Devin Taylor
+2026-01-03 12:25:15,223 | INFO     | scrape_team:779 |   [7/30] Tommy White (3B, AA)
+2026-01-03 12:25:44,910 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:26:16,009 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 60, 'run': 30, 'arm': 50, 'field': 40, 'overall': 45}
+2026-01-03 12:26:16,009 | DEBUG    | scrape_team:802 | Successfully scraped Tommy White
+2026-01-03 12:26:16,314 | INFO     | scrape_team:779 |   [8/30] Henry Baez (RHP, MLB)
+2026-01-03 12:26:46,069 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:27:17,209 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'curveball': 55, 'changeup': 45, 'control': 50, 'overall': 45}
+2026-01-03 12:27:17,210 | DEBUG    | scrape_team:802 | Successfully scraped Henry Baez
+2026-01-03 12:27:17,515 | INFO     | scrape_team:779 |   [9/30] Mason Barnett (RHP, MLB)
+2026-01-03 12:27:47,196 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:28:18,302 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 55, 'curveball': 50, 'changeup': 55, 'control': 50, 'overall': 45}
+2026-01-03 12:28:18,302 | DEBUG    | scrape_team:802 | Successfully scraped Mason Barnett
+2026-01-03 12:28:18,614 | INFO     | scrape_team:779 |   [10/30] Joshua Kuroda-Grauer (SS, AA)
+2026-01-03 12:28:48,302 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:29:19,354 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 55, 'power': 40, 'run': 60, 'arm': 50, 'field': 50, 'overall': 45}
+2026-01-03 12:29:19,354 | DEBUG    | scrape_team:802 | Successfully scraped Joshua Kuroda-Grauer
+2026-01-03 12:29:19,660 | INFO     | scrape_team:779 |   [11/30] Gavin Turley (OF, A)
+2026-01-03 12:29:49,294 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:30:20,581 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 60, 'run': 55, 'arm': 60, 'field': 50, 'overall': 45}
+2026-01-03 12:30:20,581 | DEBUG    | scrape_team:802 | Successfully scraped Gavin Turley
+2026-01-03 12:30:20,893 | INFO     | scrape_team:779 |   [12/30] Steven Echavarria (RHP, A+)
+2026-01-03 12:30:50,801 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:31:21,861 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 55, 'changeup': 50, 'control': 50, 'overall': 45}
+2026-01-03 12:31:21,861 | DEBUG    | scrape_team:802 | Successfully scraped Steven Echavarria
+2026-01-03 12:31:22,172 | INFO     | scrape_team:779 |   [13/30] Gunnar Hoglund (RHP, MLB)
+2026-01-03 12:31:52,583 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:32:23,711 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 45, 'slider': 55, 'changeup': 50, 'control': 60, 'overall': 45}
+2026-01-03 12:32:23,711 | DEBUG    | scrape_team:802 | Successfully scraped Gunnar Hoglund
+2026-01-03 12:32:24,011 | INFO     | scrape_team:779 |   [14/30] Kade Morris (RHP, AAA)
+2026-01-03 12:32:53,626 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:33:24,745 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 50, 'slider': 55, 'curveball': 45, 'changeup': 50, 'control': 50, 'overall': 40}
+2026-01-03 12:33:24,745 | DEBUG    | scrape_team:802 | Successfully scraped Kade Morris
+2026-01-03 12:33:25,059 | INFO     | scrape_team:779 |   [15/30] Eduarniel Núñez (RHP, MLB)
+2026-01-03 12:33:54,768 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:34:25,878 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 70, 'control': 40, 'overall': 40}
+2026-01-03 12:34:25,878 | DEBUG    | scrape_team:802 | Successfully scraped Eduarniel Núñez
+2026-01-03 12:34:26,179 | INFO     | scrape_team:779 |   [16/30] Ryan Lasko (OF, AAA)
+2026-01-03 12:34:55,838 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:35:26,960 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 45, 'run': 55, 'arm': 60, 'field': 60, 'overall': 40}
+2026-01-03 12:35:26,960 | DEBUG    | scrape_team:802 | Successfully scraped Ryan Lasko
+2026-01-03 12:35:27,262 | INFO     | scrape_team:779 |   [17/30] Will Johnston (LHP, AA)
+2026-01-03 12:35:57,168 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:36:28,220 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 50, 'slider': 45, 'changeup': 55, 'control': 45, 'overall': 40}
+2026-01-03 12:36:28,221 | DEBUG    | scrape_team:802 | Successfully scraped Will Johnston
+2026-01-03 12:36:28,527 | INFO     | scrape_team:779 |   [18/30] Nate Nankil (OF, AA)
+2026-01-03 12:36:58,358 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:37:29,363 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 50, 'run': 40, 'arm': 55, 'field': 50, 'overall': 40}
+2026-01-03 12:37:29,363 | DEBUG    | scrape_team:802 | Successfully scraped Nate Nankil
+2026-01-03 12:37:29,675 | INFO     | scrape_team:779 |   [19/30] Wei-En Lin (LHP, AA)
+2026-01-03 12:37:59,457 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:38:30,456 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 50, 'slider': 45, 'curveball': 50, 'changeup': 50, 'splitter': 45, 'control': 55, 'overall': 40}
+2026-01-03 12:38:30,456 | DEBUG    | scrape_team:802 | Successfully scraped Wei-En Lin
+2026-01-03 12:38:30,770 | INFO     | scrape_team:779 |   [20/30] Carlos Pacheco (OF, A+)
+2026-01-03 12:39:00,381 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:39:31,495 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 40, 'run': 60, 'arm': 50, 'field': 50, 'overall': 40}
+2026-01-03 12:39:31,496 | DEBUG    | scrape_team:802 | Successfully scraped Carlos Pacheco
+2026-01-03 12:39:31,810 | INFO     | scrape_team:779 |   [21/30] Shotaro Morii (SS/RHP, ROK)
+2026-01-03 12:40:01,973 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:40:33,007 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 50, 'run': 55, 'arm': 60, 'field': 50, 'fastball': 55, 'slider': 40, 'curveball': 45, 'splitter': 50, 'control': 45, 'overall': 40}
+2026-01-03 12:40:33,007 | DEBUG    | scrape_team:802 | Successfully scraped Shotaro Morii
+2026-01-03 12:40:33,313 | INFO     | scrape_team:779 |   [22/30] Kenya Huggins (RHP, A+)
+2026-01-03 12:41:03,207 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:41:34,378 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 50, 'changeup': 50, 'control': 45, 'overall': 40}
+2026-01-03 12:41:34,378 | DEBUG    | scrape_team:802 | Successfully scraped Kenya Huggins
+2026-01-03 12:41:34,685 | INFO     | scrape_team:779 |   [23/30] Edgar Montero (SS, ROK)
+2026-01-03 12:42:04,353 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:42:35,581 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 50, 'run': 50, 'arm': 50, 'field': 50, 'overall': 40}
+2026-01-03 12:42:35,582 | DEBUG    | scrape_team:802 | Successfully scraped Edgar Montero
+2026-01-03 12:42:35,896 | INFO     | scrape_team:779 |   [24/30] Cole Miller (RHP, A)
+2026-01-03 12:43:05,496 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:43:36,645 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 50, 'changeup': 50, 'control': 45, 'overall': 40}
+2026-01-03 12:43:36,645 | DEBUG    | scrape_team:802 | Successfully scraped Cole Miller
+2026-01-03 12:43:36,946 | INFO     | scrape_team:779 |   [25/30] Brennan Milone (1B, AA)
+2026-01-03 12:44:06,571 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:44:37,726 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 45, 'run': 40, 'arm': 45, 'field': 40, 'overall': 40}
+2026-01-03 12:44:37,726 | DEBUG    | scrape_team:802 | Successfully scraped Brennan Milone
+2026-01-03 12:44:38,027 | INFO     | scrape_team:779 |   [26/30] Zane Taylor (RHP, AAA)
+2026-01-03 12:45:07,592 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:45:38,645 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 50, 'curveball': 50, 'changeup': 55, 'control': 55, 'overall': 40}
+2026-01-03 12:45:38,645 | DEBUG    | scrape_team:802 | Successfully scraped Zane Taylor
+2026-01-03 12:45:38,946 | INFO     | scrape_team:779 |   [27/30] Bobby Boser (3B/2B/SS, A)
+2026-01-03 12:46:08,560 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:46:39,606 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 50, 'run': 50, 'arm': 50, 'field': 50, 'overall': 40}
+2026-01-03 12:46:39,606 | DEBUG    | scrape_team:802 | Successfully scraped Bobby Boser
+2026-01-03 12:46:39,914 | INFO     | scrape_team:779 |   [28/30] Chen Zhong-Ao Zhuang (RHP, MLB)
+2026-01-03 12:47:09,468 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:47:40,546 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 45, 'slider': 50, 'curveball': 45, 'changeup': 55, 'control': 55, 'overall': 40}
+2026-01-03 12:47:40,546 | DEBUG    | scrape_team:802 | Successfully scraped Chen Zhong-Ao Zhuang
+2026-01-03 12:47:40,855 | INFO     | scrape_team:779 |   [29/30] Tzu-Chen Sha (RHP, A+)
+2026-01-03 12:48:10,778 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:48:41,986 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 50, 'slider': 50, 'changeup': 45, 'control': 50, 'overall': 40}
+2026-01-03 12:48:41,987 | DEBUG    | scrape_team:802 | Successfully scraped Tzu-Chen Sha
+2026-01-03 12:48:42,288 | INFO     | scrape_team:779 |   [30/30] Darwing Ozuna (OF, ROK)
+2026-01-03 12:49:12,799 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:49:44,044 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 50, 'run': 45, 'arm': 65, 'field': 45, 'overall': 40}
+2026-01-03 12:49:44,044 | DEBUG    | scrape_team:802 | Successfully scraped Darwing Ozuna
+2026-01-03 12:49:44,351 | INFO     | scrape_team:820 | Successfully scraped 30 prospects for athletics
+2026-01-03 12:49:46,884 | DEBUG    | quit:283 | WebDriver closed successfully
+2026-01-03 12:49:46,884 | INFO     | scrape_all_teams:856 | 
+============================================================
+2026-01-03 12:49:46,888 | INFO     | scrape_all_teams:857 | Scraping complete!
+2026-01-03 12:49:46,890 | INFO     | scrape_all_teams:858 | Total prospects: 30
+2026-01-03 12:49:46,891 | INFO     | scrape_all_teams:859 | Failed teams: 0
+2026-01-03 12:49:46,893 | INFO     | scrape_all_teams:860 | Failed prospects: 0
+2026-01-03 12:49:46,896 | INFO     | scrape_all_teams:861 | Elapsed time: 1834.4 seconds
+2026-01-03 12:49:46,896 | INFO     | scrape_all_teams:862 | ============================================================
+2026-01-03 12:49:46,901 | INFO     | save_to_csv:917 | Saved 30 prospects to ..\data\mlb_prospects_test.csv
+2026-01-03 12:52:12,908 | INFO     | scrape_all_teams:840 | Starting scrape of 1 teams
+2026-01-03 12:52:14,496 | DEBUG    | create_driver:269 | WebDriver initialized successfully
+2026-01-03 12:52:14,497 | INFO     | scrape_all_teams:848 | 
+[Team 1/1]
+2026-01-03 12:52:14,498 | INFO     | scrape_team:741 | ============================================================
+2026-01-03 12:52:14,500 | INFO     | scrape_team:742 | Scraping San Diego Padres (padres)
+2026-01-03 12:52:14,500 | INFO     | scrape_team:743 | ============================================================
+2026-01-03 12:52:43,297 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-03 12:52:45,328 | INFO     | _extract_prospect_rows:542 | Found 30 prospect rows
+2026-01-03 12:52:47,829 | INFO     | scrape_team:779 |   [1/30] Ethan Salas (C, AA)
+2026-01-03 12:53:10,405 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 50, 'run': 45, 'arm': 60, 'field': 70, 'overall': 55}
+2026-01-03 12:53:10,405 | DEBUG    | scrape_team:813 | Successfully scraped Ethan Salas
+2026-01-03 12:53:10,405 | INFO     | scrape_team:779 |   [2/30] Kruz Schoolcraft (LHP, A)
+2026-01-03 12:53:33,915 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 55, 'changeup': 55, 'control': 50, 'overall': 55}
+2026-01-03 12:53:33,915 | DEBUG    | scrape_team:813 | Successfully scraped Kruz Schoolcraft
+2026-01-03 12:53:33,915 | INFO     | scrape_team:779 |   [3/30] Humberto Cruz (RHP, A)
+2026-01-03 12:53:57,369 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 50, 'changeup': 55, 'control': 55, 'overall': 50}
+2026-01-03 12:53:57,369 | DEBUG    | scrape_team:813 | Successfully scraped Humberto Cruz
+2026-01-03 12:53:57,369 | INFO     | scrape_team:779 |   [4/30] Kash Mayfield (LHP, A)
+2026-01-03 12:54:20,840 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 50, 'changeup': 60, 'control': 50, 'overall': 50}
+2026-01-03 12:54:20,841 | DEBUG    | scrape_team:813 | Successfully scraped Kash Mayfield
+2026-01-03 12:54:20,841 | INFO     | scrape_team:779 |   [5/30] Miguel Mendez (RHP, MLB)
+2026-01-03 12:54:44,229 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 65, 'slider': 60, 'changeup': 40, 'control': 45, 'overall': 50}
+2026-01-03 12:54:44,229 | DEBUG    | scrape_team:813 | Successfully scraped Miguel Mendez
+2026-01-03 12:54:44,229 | INFO     | scrape_team:779 |   [6/30] Bradgley Rodriguez (RHP, MLB)
+2026-01-03 12:55:07,797 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 65, 'slider': 50, 'changeup': 65, 'control': 40, 'overall': 45}
+2026-01-03 12:55:07,797 | DEBUG    | scrape_team:813 | Successfully scraped Bradgley Rodriguez
+2026-01-03 12:55:07,797 | INFO     | scrape_team:779 |   [7/30] Jorge Quintana (SS/3B, A)
+2026-01-03 12:55:31,305 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 50, 'run': 50, 'arm': 50, 'field': 50, 'overall': 45}
+2026-01-03 12:55:31,305 | DEBUG    | scrape_team:813 | Successfully scraped Jorge Quintana
+2026-01-03 12:55:31,305 | INFO     | scrape_team:779 |   [8/30] Kale Fountain (1B/3B, A)
+2026-01-03 12:55:54,769 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 40, 'power': 60, 'run': 45, 'arm': 55, 'field': 45, 'overall': 45}
+2026-01-03 12:55:54,769 | DEBUG    | scrape_team:813 | Successfully scraped Kale Fountain
+2026-01-03 12:55:54,769 | INFO     | scrape_team:779 |   [9/30] Deivid Coronil (3B/SS, ROK)
+2026-01-03 12:56:18,164 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 40, 'run': 55, 'arm': 55, 'field': 60, 'overall': 45}
+2026-01-03 12:56:18,164 | DEBUG    | scrape_team:813 | Successfully scraped Deivid Coronil
+2026-01-03 12:56:18,164 | INFO     | scrape_team:779 |   [10/30] Jagger Haynes (LHP, AA)
+2026-01-03 12:56:41,653 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 50, 'slider': 60, 'changeup': 50, 'control': 40, 'overall': 40}
+2026-01-03 12:56:41,653 | DEBUG    | scrape_team:813 | Successfully scraped Jagger Haynes
+2026-01-03 12:56:41,653 | INFO     | scrape_team:779 |   [11/30] Tirso Ornelas (OF, MLB)
+2026-01-03 12:57:05,049 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 50, 'run': 45, 'arm': 50, 'field': 45, 'overall': 40}
+2026-01-03 12:57:05,049 | DEBUG    | scrape_team:813 | Successfully scraped Tirso Ornelas
+2026-01-03 12:57:05,049 | INFO     | scrape_team:779 |   [12/30] Ty Harvey (C, A)
+2026-01-03 12:57:28,545 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 55, 'run': 40, 'arm': 50, 'field': 50, 'overall': 40}
+2026-01-03 12:57:28,545 | DEBUG    | scrape_team:813 | Successfully scraped Ty Harvey
+2026-01-03 12:57:28,545 | INFO     | scrape_team:779 |   [13/30] Ryan Wideman (OF, A)
+2026-01-03 12:57:52,226 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 50, 'run': 70, 'arm': 50, 'field': 55, 'overall': 40}
+2026-01-03 12:57:52,227 | DEBUG    | scrape_team:813 | Successfully scraped Ryan Wideman
+2026-01-03 12:57:52,227 | INFO     | scrape_team:779 |   [14/30] Lamar King Jr. (C/1B, A+)
+2026-01-03 12:58:15,921 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 50, 'run': 40, 'arm': 50, 'field': 50, 'overall': 40}
+2026-01-03 12:58:15,921 | DEBUG    | scrape_team:813 | Successfully scraped Lamar King Jr.
+2026-01-03 12:58:15,921 | INFO     | scrape_team:779 |   [15/30] Lan-Hong Su (RHP, ROK)
+2026-01-03 12:58:39,344 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 50, 'slider': 55, 'curveball': 55, 'changeup': 45, 'control': 50, 'overall': 40}
+2026-01-03 12:58:39,344 | DEBUG    | scrape_team:813 | Successfully scraped Lan-Hong Su
+2026-01-03 12:58:39,344 | INFO     | scrape_team:779 |   [16/30] Bryan Balzer (RHP, A)
+2026-01-03 12:59:02,863 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 55, 'splitter': 45, 'control': 50, 'overall': 40}
+2026-01-03 12:59:02,864 | DEBUG    | scrape_team:813 | Successfully scraped Bryan Balzer
+2026-01-03 12:59:02,864 | INFO     | scrape_team:779 |   [17/30] Jhoan De La Cruz (SS/2B, ROK)
+2026-01-03 12:59:26,288 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 45, 'run': 50, 'arm': 50, 'field': 50, 'overall': 40}
+2026-01-03 12:59:26,288 | DEBUG    | scrape_team:813 | Successfully scraped Jhoan De La Cruz
+2026-01-03 12:59:26,288 | INFO     | scrape_team:779 |   [18/30] Kavares Tears (OF, A)
+2026-01-03 12:59:49,699 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 40, 'power': 55, 'run': 55, 'arm': 60, 'field': 55, 'overall': 40}
+2026-01-03 12:59:49,699 | DEBUG    | scrape_team:813 | Successfully scraped Kavares Tears
+2026-01-03 12:59:49,699 | INFO     | scrape_team:779 |   [19/30] Garrett Hawkins (RHP, MLB)
+2026-01-03 13:00:13,195 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 55, 'curveball': 45, 'changeup': 40, 'control': 50, 'overall': 40}
+2026-01-03 13:00:13,195 | DEBUG    | scrape_team:813 | Successfully scraped Garrett Hawkins
+2026-01-03 13:00:13,195 | INFO     | scrape_team:779 |   [20/30] Francis Pena (RHP, AAA)
+2026-01-03 13:00:37,031 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 60, 'control': 40, 'overall': 40}
+2026-01-03 13:00:37,032 | DEBUG    | scrape_team:813 | Successfully scraped Francis Pena
+2026-01-03 13:00:37,032 | INFO     | scrape_team:779 |   [21/30] Romeo Sanabria (1B, AA)
+2026-01-03 13:01:00,499 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 45, 'run': 30, 'arm': 50, 'field': 45, 'overall': 40}
+2026-01-03 13:01:00,499 | DEBUG    | scrape_team:813 | Successfully scraped Romeo Sanabria
+2026-01-03 13:01:00,499 | INFO     | scrape_team:779 |   [22/30] Michael Salina (RHP, ROK)
+2026-01-03 13:01:23,975 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 55, 'changeup': 45, 'control': 45, 'overall': 40}
+2026-01-03 13:01:23,975 | DEBUG    | scrape_team:813 | Successfully scraped Michael Salina
+2026-01-03 13:01:23,975 | INFO     | scrape_team:779 |   [23/30] Eric Yost (RHP, AA)
+2026-01-03 13:01:47,402 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 45, 'slider': 60, 'curveball': 55, 'changeup': 45, 'control': 50, 'overall': 40}
+2026-01-03 13:01:47,402 | DEBUG    | scrape_team:813 | Successfully scraped Eric Yost
+2026-01-03 13:01:47,402 | INFO     | scrape_team:779 |   [24/30] Tucker Musgrove (RHP, A)
+2026-01-03 13:02:10,748 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 70, 'slider': 55, 'curveball': 50, 'cutter': 55, 'control': 40, 'overall': 40}
+2026-01-03 13:02:10,748 | DEBUG    | scrape_team:813 | Successfully scraped Tucker Musgrove
+2026-01-03 13:02:10,748 | INFO     | scrape_team:779 |   [25/30] Rosman Verdugo (3B/2B, A+)
+2026-01-03 13:02:34,177 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 40, 'power': 45, 'run': 40, 'arm': 50, 'field': 50, 'overall': 40}
+2026-01-03 13:02:34,177 | DEBUG    | scrape_team:813 | Successfully scraped Rosman Verdugo
+2026-01-03 13:02:34,177 | INFO     | scrape_team:779 |   [26/30] Truitt Madonna (C, A)
+2026-01-03 13:02:57,749 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 40, 'power': 50, 'run': 40, 'arm': 50, 'field': 45, 'overall': 40}
+2026-01-03 13:02:57,749 | DEBUG    | scrape_team:813 | Successfully scraped Truitt Madonna
+2026-01-03 13:02:57,750 | INFO     | scrape_team:779 |   [27/30] Isaiah Lowe (RHP, A+)
+2026-01-03 13:03:21,279 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 50, 'slider': 50, 'changeup': 45, 'control': 45, 'overall': 40}
+2026-01-03 13:03:21,280 | DEBUG    | scrape_team:813 | Successfully scraped Isaiah Lowe
+2026-01-03 13:03:21,280 | INFO     | scrape_team:779 |   [28/30] Victor Lizarraga (RHP, AAA)
+2026-01-03 13:03:44,748 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 45, 'slider': 50, 'curveball': 50, 'changeup': 40, 'control': 45, 'overall': 40}
+2026-01-03 13:03:44,748 | DEBUG    | scrape_team:813 | Successfully scraped Victor Lizarraga
+2026-01-03 13:03:44,748 | INFO     | scrape_team:779 |   [29/30] Kannon Kemp (RHP, A)
+2026-01-03 13:04:08,185 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 50, 'changeup': 45, 'control': 50, 'overall': 40}
+2026-01-03 13:04:08,185 | DEBUG    | scrape_team:813 | Successfully scraped Kannon Kemp
+2026-01-03 13:04:08,185 | INFO     | scrape_team:779 |   [30/30] Braedon Karpathios (OF, AA)
+2026-01-03 13:04:31,743 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 40, 'power': 50, 'run': 45, 'arm': 60, 'field': 50, 'overall': 40}
+2026-01-03 13:04:31,743 | DEBUG    | scrape_team:813 | Successfully scraped Braedon Karpathios
+2026-01-03 13:04:31,743 | INFO     | scrape_team:828 | Successfully scraped 30 prospects for padres
+2026-01-03 13:04:34,097 | DEBUG    | quit:283 | WebDriver closed successfully
+2026-01-03 13:04:34,097 | INFO     | scrape_all_teams:864 | 
+============================================================
+2026-01-03 13:04:34,097 | INFO     | scrape_all_teams:865 | Scraping complete!
+2026-01-03 13:04:34,098 | INFO     | scrape_all_teams:866 | Total prospects: 30
+2026-01-03 13:04:34,098 | INFO     | scrape_all_teams:867 | Failed teams: 0
+2026-01-03 13:04:34,099 | INFO     | scrape_all_teams:868 | Failed prospects: 0
+2026-01-03 13:04:34,099 | INFO     | scrape_all_teams:869 | Elapsed time: 741.2 seconds
+2026-01-03 13:04:34,099 | INFO     | scrape_all_teams:870 | ============================================================
+2026-01-03 13:04:34,104 | INFO     | save_to_csv:925 | Saved 30 prospects to ..\data\mlb_prospects_padres.csv
+2026-01-04 12:08:42,058 | INFO     | scrape_all_teams:840 | Starting scrape of 1 teams
+2026-01-04 12:08:43,364 | DEBUG    | create_driver:269 | WebDriver initialized successfully
+2026-01-04 12:08:43,364 | INFO     | scrape_all_teams:848 | 
+[Team 1/1]
+2026-01-04 12:08:43,364 | INFO     | scrape_team:741 | ============================================================
+2026-01-04 12:08:43,368 | INFO     | scrape_team:742 | Scraping Arizona Diamondbacks (diamondbacks)
+2026-01-04 12:08:43,368 | INFO     | scrape_team:743 | ============================================================
+2026-01-04 12:09:03,807 | DEBUG    | _click_show_full_list:504 | No 'Show Full List' button found - list may already be expanded
+2026-01-04 12:09:05,838 | ERROR    | _extract_prospect_rows:583 | Timeout waiting for prospect rows
+2026-01-04 12:09:05,838 | WARNING  | scrape_team:760 | No prospects found for diamondbacks
+2026-01-04 12:09:08,093 | DEBUG    | quit:283 | WebDriver closed successfully
+2026-01-04 12:09:08,093 | INFO     | scrape_all_teams:864 | 
+============================================================
+2026-01-04 12:09:08,093 | INFO     | scrape_all_teams:865 | Scraping complete!
+2026-01-04 12:09:08,096 | INFO     | scrape_all_teams:866 | Total prospects: 0
+2026-01-04 12:09:08,097 | INFO     | scrape_all_teams:867 | Failed teams: 0
+2026-01-04 12:09:08,098 | INFO     | scrape_all_teams:868 | Failed prospects: 0
+2026-01-04 12:09:08,099 | INFO     | scrape_all_teams:869 | Elapsed time: 26.0 seconds
+2026-01-04 12:09:08,099 | INFO     | scrape_all_teams:870 | ============================================================
+2026-01-04 12:09:08,100 | WARNING  | save_to_csv:890 | No prospects to save
+2026-01-04 12:11:03,160 | INFO     | scrape_all_teams:840 | Starting scrape of 1 teams
+2026-01-04 12:11:04,567 | DEBUG    | create_driver:269 | WebDriver initialized successfully
+2026-01-04 12:11:04,567 | INFO     | scrape_all_teams:848 | 
+[Team 1/1]
+2026-01-04 12:11:04,568 | INFO     | scrape_team:741 | ============================================================
+2026-01-04 12:11:04,572 | INFO     | scrape_team:742 | Scraping Arizona Diamondbacks (dbacks)
+2026-01-04 12:11:04,573 | INFO     | scrape_team:743 | ============================================================
+2026-01-04 12:11:20,309 | DEBUG    | _click_show_full_list:495 | Clicked 'Show Full List' button
+2026-01-04 12:11:22,337 | INFO     | _extract_prospect_rows:542 | Found 30 prospect rows
+2026-01-04 12:11:24,325 | INFO     | scrape_team:779 |   [1/30] Ryan Waldschmidt (OF, AA)
+2026-01-04 12:11:34,516 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 55, 'run': 55, 'arm': 40, 'field': 45, 'overall': 55}
+2026-01-04 12:11:34,516 | DEBUG    | scrape_team:813 | Successfully scraped Ryan Waldschmidt
+2026-01-04 12:11:34,516 | INFO     | scrape_team:779 |   [2/30] Slade Caldwell (OF, A+)
+2026-01-04 12:11:45,223 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 45, 'run': 70, 'arm': 45, 'field': 60, 'overall': 50}
+2026-01-04 12:11:45,223 | DEBUG    | scrape_team:813 | Successfully scraped Slade Caldwell
+2026-01-04 12:11:45,223 | INFO     | scrape_team:779 |   [3/30] Kayson Cunningham (SS, A)
+2026-01-04 12:11:55,915 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 60, 'power': 45, 'run': 60, 'arm': 55, 'field': 50, 'overall': 50}
+2026-01-04 12:11:55,915 | DEBUG    | scrape_team:813 | Successfully scraped Kayson Cunningham
+2026-01-04 12:11:55,915 | INFO     | scrape_team:779 |   [4/30] Demetrio Crisantes (INF, A+)
+2026-01-04 12:12:06,472 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 60, 'power': 50, 'run': 50, 'arm': 45, 'field': 45, 'overall': 50}
+2026-01-04 12:12:06,472 | DEBUG    | scrape_team:813 | Successfully scraped Demetrio Crisantes
+2026-01-04 12:12:06,472 | INFO     | scrape_team:779 |   [5/30] Tommy Troy (2B, AAA)
+2026-01-04 12:12:17,081 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 50, 'run': 55, 'arm': 50, 'field': 50, 'overall': 50}
+2026-01-04 12:12:17,081 | DEBUG    | scrape_team:813 | Successfully scraped Tommy Troy
+2026-01-04 12:12:17,081 | INFO     | scrape_team:779 |   [6/30] Kohl Drake (LHP, MLB)
+2026-01-04 12:12:27,623 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 50, 'curveball': 55, 'changeup': 50, 'control': 55, 'overall': 50}
+2026-01-04 12:12:27,623 | DEBUG    | scrape_team:813 | Successfully scraped Kohl Drake
+2026-01-04 12:12:27,623 | INFO     | scrape_team:779 |   [7/30] JD Dix (2B, A)
+2026-01-04 12:12:38,606 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 45, 'run': 55, 'arm': 45, 'field': 55, 'overall': 50}
+2026-01-04 12:12:38,606 | DEBUG    | scrape_team:813 | Successfully scraped JD Dix
+2026-01-04 12:12:38,606 | INFO     | scrape_team:779 |   [8/30] Patrick Forbes (RHP, ROK)
+2026-01-04 12:12:49,229 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 55, 'changeup': 45, 'control': 45, 'overall': 45}
+2026-01-04 12:12:49,229 | DEBUG    | scrape_team:813 | Successfully scraped Patrick Forbes
+2026-01-04 12:12:49,229 | INFO     | scrape_team:779 |   [9/30] Mitch Bratt (LHP, MLB)
+2026-01-04 12:12:59,872 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 50, 'slider': 50, 'changeup': 50, 'control': 60, 'overall': 45}
+2026-01-04 12:12:59,872 | DEBUG    | scrape_team:813 | Successfully scraped Mitch Bratt
+2026-01-04 12:12:59,872 | INFO     | scrape_team:779 |   [10/30] LuJames Groover (INF, AA)
+2026-01-04 12:13:10,682 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 55, 'power': 45, 'run': 40, 'arm': 45, 'field': 45, 'overall': 45}
+2026-01-04 12:13:10,683 | DEBUG    | scrape_team:813 | Successfully scraped LuJames Groover
+2026-01-04 12:13:10,683 | INFO     | scrape_team:779 |   [11/30] Cristian Mena (RHP, MLB)
+2026-01-04 12:13:21,276 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 45, 'slider': 55, 'curveball': 60, 'changeup': 45, 'control': 45, 'overall': 45}
+2026-01-04 12:13:21,276 | DEBUG    | scrape_team:813 | Successfully scraped Cristian Mena
+2026-01-04 12:13:21,276 | INFO     | scrape_team:779 |   [12/30] Jansel Luis (INF, A+)
+2026-01-04 12:13:31,830 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 45, 'run': 55, 'arm': 50, 'field': 50, 'overall': 45}
+2026-01-04 12:13:31,830 | DEBUG    | scrape_team:813 | Successfully scraped Jansel Luis
+2026-01-04 12:13:31,830 | INFO     | scrape_team:779 |   [13/30] Daniel Eagen (RHP, AA)
+2026-01-04 12:13:42,500 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 55, 'curveball': 60, 'changeup': 40, 'control': 50, 'overall': 45}
+2026-01-04 12:13:42,500 | DEBUG    | scrape_team:813 | Successfully scraped Daniel Eagen
+2026-01-04 12:13:42,501 | INFO     | scrape_team:779 |   [14/30] Druw Jones (OF, A+)
+2026-01-04 12:13:53,092 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 40, 'power': 45, 'run': 70, 'arm': 60, 'field': 70, 'overall': 45}
+2026-01-04 12:13:53,092 | DEBUG    | scrape_team:813 | Successfully scraped Druw Jones
+2026-01-04 12:13:53,092 | INFO     | scrape_team:779 |   [15/30] David Hagaman (RHP, A+)
+2026-01-04 12:14:03,730 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 55, 'changeup': 55, 'control': 40, 'overall': 45}
+2026-01-04 12:14:03,731 | DEBUG    | scrape_team:813 | Successfully scraped David Hagaman
+2026-01-04 12:14:03,731 | INFO     | scrape_team:779 |   [16/30] Dean Livingston (RHP, ROK)
+2026-01-04 12:14:14,311 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 45, 'curveball': 45, 'changeup': 50, 'control': 50, 'overall': 45}
+2026-01-04 12:14:14,311 | DEBUG    | scrape_team:813 | Successfully scraped Dean Livingston
+2026-01-04 12:14:14,312 | INFO     | scrape_team:779 |   [17/30] Brian Curley (RHP, ROK)
+2026-01-04 12:14:25,034 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 65, 'slider': 60, 'curveball': 50, 'cutter': 55, 'control': 45, 'overall': 45}
+2026-01-04 12:14:25,034 | DEBUG    | scrape_team:813 | Successfully scraped Brian Curley
+2026-01-04 12:14:25,034 | INFO     | scrape_team:779 |   [18/30] Ashton Izzi (RHP, A+)
+2026-01-04 12:14:35,816 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 55, 'slider': 50, 'changeup': 45, 'control': 45, 'overall': 45}
+2026-01-04 12:14:35,816 | DEBUG    | scrape_team:813 | Successfully scraped Ashton Izzi
+2026-01-04 12:14:35,817 | INFO     | scrape_team:779 |   [19/30] Cristofer Torin (SS/2B, AA)
+2026-01-04 12:14:46,412 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 55, 'power': 30, 'run': 45, 'arm': 55, 'field': 55, 'overall': 45}
+2026-01-04 12:14:46,412 | DEBUG    | scrape_team:813 | Successfully scraped Cristofer Torin
+2026-01-04 12:14:46,413 | INFO     | scrape_team:779 |   [20/30] Yu-Min Lin (LHP, AAA)
+2026-01-04 12:14:57,026 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 40, 'slider': 55, 'curveball': 60, 'changeup': 60, 'cutter': 45, 'control': 45, 'overall': 40}
+2026-01-04 12:14:57,026 | DEBUG    | scrape_team:813 | Successfully scraped Yu-Min Lin
+2026-01-04 12:14:57,026 | INFO     | scrape_team:779 |   [21/30] Yordin Chalas (RHP, AA)
+2026-01-04 12:15:07,695 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 70, 'slider': 55, 'control': 45, 'overall': 40}
+2026-01-04 12:15:07,695 | DEBUG    | scrape_team:813 | Successfully scraped Yordin Chalas
+2026-01-04 12:15:07,695 | INFO     | scrape_team:779 |   [22/30] Brandyn Garcia (LHP, MLB)
+2026-01-04 12:15:18,306 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 60, 'changeup': 40, 'cutter': 50, 'control': 45, 'overall': 40}
+2026-01-04 12:15:18,306 | DEBUG    | scrape_team:813 | Successfully scraped Brandyn Garcia
+2026-01-04 12:15:18,306 | INFO     | scrape_team:779 |   [23/30] Yassel Soler (3B, A)
+2026-01-04 12:15:28,912 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 50, 'run': 40, 'arm': 55, 'field': 55, 'overall': 40}
+2026-01-04 12:15:28,912 | DEBUG    | scrape_team:813 | Successfully scraped Yassel Soler
+2026-01-04 12:15:28,912 | INFO     | scrape_team:779 |   [24/30] Carlos Virahonda (C, A)
+2026-01-04 12:15:39,394 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 40, 'run': 40, 'arm': 60, 'field': 55, 'overall': 40}
+2026-01-04 12:15:39,394 | DEBUG    | scrape_team:813 | Successfully scraped Carlos Virahonda
+2026-01-04 12:15:39,394 | INFO     | scrape_team:779 |   [25/30] Daury Vasquez (RHP, A)
+2026-01-04 12:15:49,951 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 60, 'slider': 45, 'changeup': 50, 'control': 40, 'overall': 40}
+2026-01-04 12:15:49,951 | DEBUG    | scrape_team:813 | Successfully scraped Daury Vasquez
+2026-01-04 12:15:49,951 | INFO     | scrape_team:779 |   [26/30] Gavin Conticello (OF, AA)
+2026-01-04 12:16:00,795 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 45, 'power': 55, 'run': 50, 'arm': 60, 'field': 45, 'overall': 40}
+2026-01-04 12:16:00,795 | DEBUG    | scrape_team:813 | Successfully scraped Gavin Conticello
+2026-01-04 12:16:00,795 | INFO     | scrape_team:779 |   [27/30] Avery Owusu-Asiedu (OF, A+)
+2026-01-04 12:16:11,378 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 40, 'power': 50, 'run': 70, 'arm': 55, 'field': 55, 'overall': 40}
+2026-01-04 12:16:11,378 | DEBUG    | scrape_team:813 | Successfully scraped Avery Owusu-Asiedu
+2026-01-04 12:16:11,378 | INFO     | scrape_team:779 |   [28/30] Hunter Cranton (RHP, AA)
+2026-01-04 12:16:21,954 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 70, 'slider': 55, 'control': 45, 'overall': 40}
+2026-01-04 12:16:21,955 | DEBUG    | scrape_team:813 | Successfully scraped Hunter Cranton
+2026-01-04 12:16:21,955 | INFO     | scrape_team:779 |   [29/30] Ivan Luciano (C, A)
+2026-01-04 12:16:32,537 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'hit': 50, 'power': 40, 'run': 40, 'arm': 55, 'field': 50, 'overall': 40}
+2026-01-04 12:16:32,537 | DEBUG    | scrape_team:813 | Successfully scraped Ivan Luciano
+2026-01-04 12:16:32,537 | INFO     | scrape_team:779 |   [30/30] Chung-Hsiang Huang (RHP, A)
+2026-01-04 12:16:43,410 | DEBUG    | _extract_bio_info:709 | Parsed grades: {'fastball': 45, 'slider': 55, 'curveball': 40, 'changeup': 60, 'control': 55, 'overall': 40}
+2026-01-04 12:16:43,410 | DEBUG    | scrape_team:813 | Successfully scraped Chung-Hsiang Huang
+2026-01-04 12:16:43,410 | INFO     | scrape_team:828 | Successfully scraped 30 prospects for dbacks
+2026-01-04 12:16:45,829 | DEBUG    | quit:283 | WebDriver closed successfully
+2026-01-04 12:16:45,829 | INFO     | scrape_all_teams:864 | 
+============================================================
+2026-01-04 12:16:45,829 | INFO     | scrape_all_teams:865 | Scraping complete!
+2026-01-04 12:16:45,835 | INFO     | scrape_all_teams:866 | Total prospects: 30
+2026-01-04 12:16:45,836 | INFO     | scrape_all_teams:867 | Failed teams: 0
+2026-01-04 12:16:45,837 | INFO     | scrape_all_teams:868 | Failed prospects: 0
+2026-01-04 12:16:45,838 | INFO     | scrape_all_teams:869 | Elapsed time: 342.7 seconds
+2026-01-04 12:16:45,839 | INFO     | scrape_all_teams:870 | ============================================================
+2026-01-04 12:16:45,845 | INFO     | save_to_csv:925 | Saved 30 prospects to ..\data\mlb_prospects_scraped.csv
