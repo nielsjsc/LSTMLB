@@ -1,224 +1,87 @@
-# Contributing to LongBall Analytics
+# Contributing to LSTMLB
 
-Thank you for your interest in contributing to LongBall Analytics! This document provides guidelines for contributing to the project.
+Contributions focused on improving model configurations and training parameters are welcome.
 
-## Development Roadmap
+## Testing Model Configurations
 
-We have organized our development priorities into comprehensive GitHub issues. Please check our [issue templates](.github/ISSUE_TEMPLATE/) for detailed improvement plans in the following areas:
+The primary area for experimentation is model hyperparameters in `auto_train_models/configs/`.
 
-### Model Performance Issues
-- **Improve Pitching Projection Accuracy** - Address known issues with pitcher projections
-- **Handle Limited MLB Experience Players Better** - Integrate minor league data for better rookie projections
+### Configuration Files
 
-### Feature Enhancements  
-- **Add Confidence Intervals to Projections** - Implement uncertainty quantification
-- **Implement Model Validation Framework** - Create backtesting system for model evaluation
+Each model has a dedicated config file:
+- `batter_config.py` - Batter projections (classical and Statcast features)
+- `pitcher_sp_config.py` / `pitcher_rp_config.py` - Starting and relief pitcher models
+- `baserunning_config.py` - Baserunning value predictions
+- `defense_infield_config.py` / `defense_outfield_config.py` / `defense_catcher_config.py` - Defensive metrics by position
 
-### Technical Improvements
-- **Migrate from Jupyter Notebooks to Production Pipeline** - Refactor to proper ML pipeline
-- **Integrate Better Data Sources** - Research and implement improved data sources
+### Testing Procedure
 
-### UI/UX Improvements
-- **Modernize UI Design** - Overhaul interface with professional design principles
-- **Enhance Trade Simulator Interface** - Add clickable player links and better navigation
-- **Add Dynamic Player Statistics Visualization** - Implement interactive charts and visualizations
-
-## Getting Started
-
-### Prerequisites
-- Python 3.8+
-- Node.js 16+
-- Git
-
-### Local Development Setup
-
-#### Backend Setup
-```bash
-cd web-app/backend
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-#### Frontend Setup
-```bash
-cd web-app/frontend
-npm install
-npm run dev
-```
-
-#### Model Development
-```bash
-# Install model dependencies
-pip install -r requirements.txt
-
-# Navigate to models directory
-cd models
-
-# Open Jupyter notebooks for exploration
-jupyter lab
-```
-
-## How to Contribute
-
-### 1. Choose an Issue
-- Look at our [comprehensive issue templates](.github/ISSUE_TEMPLATE/)
-- Comment on issues you'd like to work on
-- Start with issues labeled `good first issue` for easier entry points
-
-### 2. Fork and Clone
+1. Fork and clone the repository
 ```bash
 git clone https://github.com/your-username/LSTMLB.git
 cd LSTMLB
-git checkout -b feature/your-feature-name
+pip install -r requirements.txt
 ```
 
-### 3. Development Workflow
-- Make your changes following the issue's acceptance criteria
-- Test your changes thoroughly
-- Follow existing code style and conventions
-- Update documentation as needed
-
-### 4. Submit a Pull Request
-- Push your changes to your fork
-- Create a pull request with a clear description
-- Reference the related issue in your PR description
-- Ensure all tests pass (if applicable)
-
-## Code Style Guidelines
-
-### Python Code
-- Follow PEP 8 style guidelines
-- Use type hints where appropriate
-- Include docstrings for functions and classes
-- Keep notebook outputs clean (clear before committing)
-
-### TypeScript/React Code
-- Follow existing ESLint configuration
-- Use TypeScript interfaces for props and data structures
-- Maintain component modularity
-- Follow React best practices
-
-### Documentation
-- Update README.md if adding new features
-- Document new APIs and data formats
-- Include comments for complex algorithms
-- Update issue templates if adding new categories
-
-## Project Structure
-
-```
-LSTMLB/
-├── .github/
-│   └── ISSUE_TEMPLATE/        # Comprehensive issue templates
-├── models/                    # ML models and notebooks
-│   ├── *.ipynb               # Jupyter notebooks (current)
-│   ├── MiLB/                 # Minor league related models
-│   └── *.pkl                 # Trained model artifacts
-├── web-app/
-│   ├── frontend/             # React TypeScript frontend
-│   └── backend/              # FastAPI Python backend
-├── data/                     # Data storage
-└── requirements.txt          # Python dependencies
+2. Modify hyperparameters in a config file:
+```python
+# Example: auto_train_models/configs/batter_config.py
+HIDDEN_SIZE = 128  # Try 64, 256
+NUM_LAYERS = 2     # Try 3, 4
+DROPOUT = 0.2      # Try 0.1, 0.3
+LEARNING_RATE = 0.001
+EPOCHS = 50
+BATCH_SIZE = 32
 ```
 
-## Issue Labels
+3. Train the model:
+```bash
+cd auto_train_models
+python scripts/train_models.py --model batter
+```
 
-We use the following labels to organize issues:
+4. Generate predictions and evaluate:
+```bash
+python scripts/predict_models.py --model-type batter
+python evaluation/calculate_war.py
+```
 
-### Type Labels
-- `bug` - Something isn't working
-- `enhancement` - New feature or improvement
-- `feature` - New functionality
-- `technical-debt` - Code refactoring and improvements
+5. Compare results using the comparison tool:
+```bash
+python comparison_tools/compare_projections.py
+```
 
-### Priority Labels
-- `high-priority` - Critical issues affecting core functionality
-- `medium-priority` - Important improvements
-- `low-priority` - Nice to have features
+### Evaluation Metrics
 
-### Component Labels
-- `model-performance` - ML model accuracy and training
-- `ui/ux` - User interface and experience
-- `data-sources` - Data integration and processing
-- `infrastructure` - Development and deployment infrastructure
-- `validation` - Testing and model validation
-- `visualization` - Charts and data visualization
+Document performance changes:
+- Training/validation loss curves
+- Comparison to baseline predictions (notebook vs. pipeline)
+- Historical accuracy on validation data (2020-2024)
+- WAR projection distributions
 
-### Experience Labels
-- `good first issue` - Good for newcomers
-- `help wanted` - Extra attention is needed
+## Submitting Changes
 
-## Model Development Guidelines
+1. Create a feature branch:
+```bash
+git checkout -b config/model-improvements
+```
 
-### Current Model Architecture
-- LSTM-based projections for 15-year forecasts
-- Separate models for batters, pitchers, fielding, and baserunning
-- Current limitations acknowledged in README
+2. Document your changes:
+- Configuration parameters modified
+- Performance improvements observed
+- Training time and resource usage
 
-### Improvement Areas
-1. **Pitching Models**: Known accuracy issues need investigation
-2. **Data Integration**: Minor league data for limited-experience players
-3. **Validation**: Backtesting framework for model evaluation
-4. **Pipeline**: Migration from notebooks to production code
+3. Submit a pull request with:
+- Clear description of changes
+- Performance comparison data
+- Justification for parameter choices
 
-### Data Considerations
-- Playing time normalization (150 games hitters, 135 catchers, 32 starts, 65 innings relievers)
-- WAR-to-dollar calculations with non-linear adjustments
-- Sequence length of 5 years for LSTM training
+## Code Standards
 
-## UI/UX Development Guidelines
+- Follow existing code structure and naming conventions
+- Include docstrings for any new functions
+- Test changes on multiple model types if modifying core training logic
 
-### Current Tech Stack
-- **Frontend**: React with TypeScript, Tailwind CSS, Vite
-- **Backend**: FastAPI with Python
-- **Deployment**: Netlify (frontend), Render (backend)
+## Questions
 
-### Design Principles
-- Professional appearance suitable for sports analytics
-- Mobile-first responsive design
-- Clear data visualization and statistics presentation
-- Intuitive navigation and user workflows
-
-## Testing Guidelines
-
-### Model Testing
-- Validate model performance on historical data
-- Compare against existing projection systems where possible
-- Test edge cases (rookies, injured players, etc.)
-
-### Frontend Testing
-- Test responsive design on multiple devices
-- Validate user workflows and navigation
-- Ensure accessibility compliance
-
-### Backend Testing
-- API endpoint testing
-- Database integration testing
-- Performance testing for model inference
-
-## Community Guidelines
-
-### Communication
-- Be respectful and constructive in discussions
-- Ask questions if you're unsure about implementation approaches
-- Share your expertise and help others learn
-
-### Collaboration
-- Coordinate with others working on related issues
-- Share progress updates in issue comments
-- Provide feedback on pull requests
-
-## Getting Help
-
-- **Questions**: Use GitHub Discussions for general questions
-- **Issues**: Create specific issues for bugs or feature requests
-- **Documentation**: Check README.md and issue templates for guidance
-- **Live Demo**: Try the application at https://longball-analytics.netlify.app
-
-## Recognition
-
-Contributors will be recognized in the project README and release notes. Significant contributions may result in collaborator access to the repository.
-
-Thank you for helping make LongBall Analytics better! 🚀
+Open an issue for questions about model architecture or training procedures.
