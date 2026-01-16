@@ -78,3 +78,5 @@ coverage/
 
 # Local Netlify folder
 .netlify
+/data/generated/MiLB
+*.log
