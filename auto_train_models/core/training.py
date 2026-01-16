@@ -216,8 +216,19 @@ def train_model(
     logger.info(f"Checkpoint filename: {checkpoint_filename}")
     model = model.to(config.device)
     
+    # Log device information
+    logger.info("="*60)
+    logger.info(f"Training device: {config.device}")
+    logger.info(f"Model device: {next(model.parameters()).device}")
+    logger.info(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        logger.info(f"CUDA device: {torch.cuda.get_device_name(0)}")
+        logger.info(f"CUDA memory allocated: {torch.cuda.memory_allocated(0) / 1024**2:.2f} MB")
+    logger.info(f"Mixed precision training: {config.mixed_precision}")
+    logger.info("="*60)
+    
     # Mixed precision training
-    scaler = torch.cuda.amp.GradScaler(enabled=config.mixed_precision)
+    scaler = torch.cuda.amp.GradScaler(enabled=config.mixed_precision and torch.cuda.is_available())
     
     # Training state tracking
     best_val_loss = float('inf')
@@ -262,6 +273,9 @@ def train_model(
                         weight_info = f", Weights: {weights.shape}" if weights is not None else ""
                         logger.info(f"Batch shapes - Data: {data.shape}, Masks: {masks.shape}, "
                                   f"Targets: {targets.shape}, Lengths: {lengths.shape}{weight_info}")
+                        logger.info(f"Data device: {data.device}, Model device: {next(model.parameters()).device}")
+                        if torch.cuda.is_available():
+                            logger.info(f"CUDA memory allocated: {torch.cuda.memory_allocated(0) / 1024**2:.2f} MB")
                     
                     # Check for problematic input data BEFORE forward pass
                     if torch.isnan(data).any():
@@ -284,7 +298,8 @@ def train_model(
                         logger.warning(f"  Data range: [{data.min():.2e}, {data.max():.2e}]")
                     
                     # Forward pass with mixed precision
-                    with torch.amp.autocast('cuda', enabled=config.mixed_precision):
+                    device_type = 'cuda' if config.device.type == 'cuda' else 'cpu'
+                    with torch.amp.autocast(device_type, enabled=config.mixed_precision):
                         outputs = model(data, lengths)
                         if batch_idx == 0 and epoch == 0:
                             logger.info(f"Output shape: {outputs.shape}")

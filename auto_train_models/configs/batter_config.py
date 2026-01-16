@@ -46,7 +46,7 @@ class BatterConfig:
     OUTPUT_FILE = '../data/generated/pipeline/batter_predictions.csv'
     
     # Batter-specific configuration
-    MIN_PA = 100
+    MIN_PA = 80
     
     # ============================================================================
     # TRANSFER LEARNING FEATURE SETS
@@ -121,12 +121,19 @@ class BatterConfig:
     
     # Model architecture (direct attributes for factory compatibility)
     # These are the ACTUAL values the model will use after removing hardcoded modifications
-    HIDDEN_SIZE = 128  # Actual internal LSTM hidden size
-    NUM_LAYERS = 2     # Actual number of LSTM layers
-    NUM_HEADS = 4    # Actual number of attention heads
+    HIDDEN_SIZE = 256  # Actual internal LSTM hidden size
+    NUM_LAYERS = 4    # Actual number of LSTM layers
+    NUM_HEADS = 8    # Actual number of attention heads
     BIDIRECTIONAL = True
     DROPOUT = 0.15     # Actual dropout rate used throughout model
+    
+    # Training parameters
+    BATCH_SIZE = 16
     LEARNING_RATE = 1e-3  # Notebook's higher LR (10x from 1e-4)
+    WEIGHT_DECAY = 1e-5
+    GRADIENT_CLIP = 1.0
+    NUM_EPOCHS = 50
+    EARLY_STOPPING_PATIENCE = 10
     
     # Data preprocessing config
     @staticmethod
@@ -164,81 +171,4 @@ class BatterConfig:
                 random_seed=42
             )
     
-    # Model architecture config
-    @staticmethod
-    def get_model_config():
-        return {
-            'input_size': len(BatterConfig.INPUT_FEATURES),
-            'output_size': len(BatterConfig.INPUT_FEATURES),
-            'hidden_size': 512,  # Will become 256 internally (512 // 2)
-            'num_layers': 2,     # Hardcoded to 2 in notebook
-            'num_heads': 4,      # Hardcoded to 4 in notebook
-            'bidirectional': True,
-            'attention_dropout': 0.1,  # This becomes 0.05 internally (0.1 / 2)
-            'residual_dropout': 0.2,
-            'layer_norm_eps': 1e-5,
-            'dropout': 0.3       # OPTIMIZED: Validated optimal (becomes 0.15 internally)
-        }
-    
-    # Training configuration
-    @staticmethod
-    def get_training_config(mode='pretrain'):
-        """
-        Get training config for pre-training or fine-tuning
-        
-        VALIDATED OPTIMAL HYPERPARAMETERS (Dec 2025, 96 configs tested):
-        ================================================================
-        
-        CRITICAL PARAMETERS (changing these significantly affects performance):
-        - learning_rate=1e-3: VALIDATED as optimal (10x better than 1e-4)
-        - batch_size=16: VALIDATED as optimal (better than 8, 32, 64)
-        - gradient_clip=1.0: VALIDATED as optimal (better than 0.5, 2.0)
-        
-        IMPORTANT PARAMETERS (moderate impact):
-        - early_stopping_patience=10: Prevents overfitting
-        - num_epochs=50: Sufficient with early stopping
-        
-        TUNED PARAMETERS (minimal impact, but optimized):
-        - weight_decay=1e-5: Standard regularization
-        - warmup_epochs=5: 10% of total epochs
-        
-        PERFORMANCE WITH THESE SETTINGS:
-        - R² Score: 0.6585 (explains 65.85% of variance)
-        - MAE: 3.0475 (average prediction error)
-        - RMSE: 15.8211 (penalized error)
-        
-        Args:
-            mode: 'pretrain' or 'finetune'
-        
-        Returns:
-            Dictionary of training hyperparameters
-        """
-        # OPTIMIZED: Updated to match notebook's superior performance
-        base_config = {
-            'batch_size': 16,  # Notebook uses 16 (better generalization)
-            'num_epochs': 50,
-            'weight_decay': 1e-5,
-            'gradient_clip': 1.0,  # Notebook uses 1.0
-            'warmup_epochs': 5,
-            'lr_schedule': 'cosine',
-            'min_lr': 1e-6,
-            'lr_decay_rate': 0.1,
-            'lr_patience': 5,
-            'early_stopping_patience': 10,  # Notebook uses 10
-            'early_stopping_min_delta': 0.0001,
-            'diversity_alpha': 0.1,
-            'consistency_beta': 0.05,
-            'mixed_precision': True,
-            'num_workers': 0,
-            'pin_memory': True,
-            'log_interval': 100,
-            'checkpoint_interval': 1
-        }
-        
-        if mode == 'finetune':
-            base_config['learning_rate'] = BatterConfig.FINETUNE_LEARNING_RATE
-            base_config['num_epochs'] = 20  # Fewer epochs for fine-tuning
-        else:  # pretrain
-            base_config['learning_rate'] = BatterConfig.LEARNING_RATE
-        
-        return base_config
+

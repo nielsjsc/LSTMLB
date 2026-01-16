@@ -12,6 +12,7 @@ from core.data_processing import preprocess_data
 from core.training import create_data_loaders, Config, train_model, load_checkpoint_for_finetuning
 from core.losses import WeightedPlayerDifferentiationLoss, PlayerDifferentiationLoss, InningsWeightedLoss, WeightedMSELoss
 from models.model_registry import ModelFactory
+import torch
 import torch.optim as optim
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -59,14 +60,15 @@ def main():
     # Get configuration and data file for the model
     config_class = ModelFactory.get_config(args.model)
     
-    # Get mode-specific configurations (only for batter model with transfer learning)
-    if args.model == 'batter' and hasattr(config_class, 'get_data_config'):
-        data_config = config_class.get_data_config(mode=training_mode)
-        training_config_dict = config_class.get_training_config(mode=training_mode)
+    # Get data configuration
+    if hasattr(config_class, 'get_data_config'):
+        # Use mode-specific data config for batter model with transfer learning
+        if args.model == 'batter':
+            data_config = config_class.get_data_config(mode=training_mode)
+        else:
+            data_config = config_class.get_data_config()
     else:
-        # Non-transfer learning models use default configs
-        data_config = config_class.get_data_config() if hasattr(config_class, 'get_data_config') else config_class.DATA_CONFIG
-        training_config_dict = config_class.get_training_config() if hasattr(config_class, 'get_training_config') else {}
+        data_config = config_class.DATA_CONFIG
     
     # Get appropriate data file
     if training_mode == 'finetune' and hasattr(config_class, 'FINETUNE_DATA_FILE'):
@@ -85,6 +87,11 @@ def main():
     
     logger.info(f"Training {args.model} model in {training_mode} mode")
     logger.info(f"Device: {device}")
+    logger.info(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        logger.info(f"CUDA device count: {torch.cuda.device_count()}")
+        logger.info(f"CUDA device name: {torch.cuda.get_device_name(0)}")
+        logger.info(f"CUDA current device: {torch.cuda.current_device()}")
     logger.info(f"Data file: {data_file}")
     logger.info(f"Features: {len(data_config.input_features)}")
     

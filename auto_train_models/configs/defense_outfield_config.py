@@ -48,6 +48,7 @@ class DefenseOutfieldConfig:
     BATCH_SIZE = 16
     LEARNING_RATE = 1e-3
     WEIGHT_DECAY = 1e-5
+    GRADIENT_CLIP = 1.0
     NUM_EPOCHS = 50
     EARLY_STOPPING_PATIENCE = 10
     
