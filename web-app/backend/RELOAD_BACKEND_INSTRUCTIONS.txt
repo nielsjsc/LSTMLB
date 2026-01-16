@@ -1,0 +1,10 @@
+INSTRUCTIONS FOR RELOADING LOCAL HOST AND NGROK:
+
+1. navigate to web-app\backend
+2. activate venv: venv\Scripts\activate
+3. launch backend: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+4. (in new cmd) launch ngrok: ngrok http 8000
+5. get new ngrok url (should look like: https://8304133ee795.ngrok-free.app)
+   and replace all instances of old url in codebase
+6. push changes to github
+7. verify on netlify that the build succeeded
