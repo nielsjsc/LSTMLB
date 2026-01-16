@@ -1,0 +1,477 @@
+"""
+WAR value and contract value calculations.
+"""
+
+import pandas as pd
+import numpy as np
+
+from .constants import (
+    logger, WAR_VALUE_TIERS, INFLATION_RATE, BASE_YEAR,
+    MIN_SALARY, ARB_PERCENT, HISTORICAL_WAR_VALUE, WAR_VALUE,
+    HITTER_COLUMNS, PITCHER_COLUMNS, get_war_value
+)
+
+
+def calculate_inflation_multiplier(year: int) -> float:
+    """Calculate inflation multiplier from base year."""
+    return (1 + INFLATION_RATE) ** (year - BASE_YEAR)
+
+
+def calculate_war_value(war: float, year: int) -> float:
+    """
+    Calculate WAR value using tiered system and inflation.
+    
+    Args:
+        war: WAR value
+        year: Year for inflation adjustment
+    
+    Returns:
+        Dollar value of WAR
+    """
+    if pd.isna(war) or war <= 0:
+        return 0.0
+    
+    value = 0.0
+    remaining_war = war
+    
+    # Tier 1: 0-2 WAR
+    tier1_war = min(remaining_war, WAR_VALUE_TIERS['tier1']['max'])
+    value += tier1_war * WAR_VALUE_TIERS['tier1']['value']
+    remaining_war -= tier1_war
+    
+    if remaining_war <= 0:
+        return value * calculate_inflation_multiplier(year)
+    
+    # Tier 2: 2-4 WAR
+    tier2_war = min(remaining_war, WAR_VALUE_TIERS['tier2']['max'] - WAR_VALUE_TIERS['tier1']['max'])
+    value += tier2_war * WAR_VALUE_TIERS['tier2']['value']
+    remaining_war -= tier2_war
+    
+    if remaining_war <= 0:
+        return value * calculate_inflation_multiplier(year)
+    
+    # Tier 3: 4+ WAR
+    value += remaining_war * WAR_VALUE_TIERS['tier3']['value']
+    
+    return value * calculate_inflation_multiplier(year)
+
+
+def join_predictions_with_timeline(extended_timeline: pd.DataFrame,
+                                   player_predictions: pd.DataFrame) -> pd.DataFrame:
+    """
+    Join predictions with timeline and calculate WAR values.
+    
+    Args:
+        extended_timeline: Extended contract timeline
+        player_predictions: Player prediction data
+        
+    Returns:
+        Timeline with WAR values calculated
+    """
+    # Join predictions with timeline
+    timeline_with_war = extended_timeline.merge(
+        player_predictions[['IDfg', 'prediction_year', 'WAR']],
+        left_on=['IDfg', 'Year'],
+        right_on=['IDfg', 'prediction_year'],
+        how='left'
+    )
+    
+    # Calculate WAR values
+    timeline_with_war['Base_Value'] = timeline_with_war.apply(
+        lambda x: calculate_war_value(x['WAR'], x['Year']),
+        axis=1
+    )
+    
+    # Clean up and validate
+    if 'prediction_year' in timeline_with_war.columns:
+        timeline_with_war = timeline_with_war.drop('prediction_year', axis=1)
+    
+    logger.info(f"Processed {len(timeline_with_war)} rows")
+    logger.info(f"Average WAR value: ${timeline_with_war['Base_Value'].mean():,.2f}")
+    
+    return timeline_with_war
+
+
+def calculate_contract_value(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate contract values comparing current and previous arb percentages.
+    
+    Args:
+        df: DataFrame with Base_Value and Normalized_Status columns
+        
+    Returns:
+        DataFrame with contract_value column added
+    """
+    result = df.copy()
+    result = result.sort_values(['IDfg', 'Year'])
+    result['contract_value'] = np.nan
+    
+    for player_id in result['IDfg'].unique():
+        player_mask = result['IDfg'] == player_id
+        player_data = result[player_mask].copy()
+        
+        prev_value = 0
+        prev_arb_pct = 1  # Start with 1 for first arb year
+        
+        for idx, row in player_data.iterrows():
+            current_value = row['Base_Value']
+            status = row['Normalized_Status']
+            
+            if pd.notna(row['Payroll']):
+                contract_value = float(row['Payroll'])
+            
+            elif status == 'Pre-Arb':
+                contract_value = max(MIN_SALARY['Pre-Arb'], prev_value)
+                prev_arb_pct = 1
+            
+            elif status in ARB_PERCENT:
+                min_salary = MIN_SALARY.get(status, MIN_SALARY['Arb-1'])
+                arb_pct = ARB_PERCENT[status]
+                
+                if current_value >= 0:
+                    # Calculate value based on current production vs previous salary adjusted
+                    current_level_value = max(
+                        current_value * arb_pct,
+                        prev_value * (arb_pct / prev_arb_pct) * 1.1
+                    )
+                    
+                    contract_value = max(
+                        min_salary,
+                        current_level_value
+                    )
+                else:
+                    # For negative production, allow decrease but not below minimum
+                    contract_value = max(
+                        min_salary,
+                        current_value * arb_pct
+                    )
+                
+                prev_arb_pct = arb_pct
+            
+            else:
+                contract_value = None
+            
+            result.loc[idx, 'contract_value'] = contract_value
+            
+            if pd.notna(contract_value):
+                prev_value = contract_value
+    
+    # Validate results
+    valid_contracts = result['contract_value'].notna().sum()
+    logger.info(f"Processed {len(result)} rows")
+    logger.info(f"Contract values calculated: {valid_contracts}")
+    
+    return result
+
+
+def calculate_surplus_value(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate surplus value.
+    Surplus = Base Value - Contract Value
+    Only calculated for rows with existing contract values.
+    
+    Args:
+        df: DataFrame with Base_Value and contract_value columns
+        
+    Returns:
+        DataFrame with surplus_value column added
+    """
+    result = df.copy()
+    
+    # Verify contract_value exists
+    if 'contract_value' not in result.columns:
+        raise ValueError("contract_value column not found in dataframe")
+    
+    # Calculate surplus value only where contract_value exists
+    result['surplus_value'] = np.where(
+        result['contract_value'].notna(),
+        result['Base_Value'] - result['contract_value'],
+        np.nan
+    )
+    
+    # Validate results
+    valid_surplus = result['surplus_value'].notna().sum()
+    avg_surplus = result['surplus_value'].mean()
+    
+    logger.info(f"Calculated {valid_surplus} surplus values")
+    logger.info(f"Average surplus value: ${avg_surplus:,.2f}")
+    
+    return result
+
+
+def integrate_historical_stats(timeline_df: pd.DataFrame,
+                               batting_history: pd.DataFrame,
+                               pitching_history: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add historical stats (2002-2024) for prediction players.
+    
+    Args:
+        timeline_df: Current timeline with predictions
+        batting_history: Historical batting data
+        pitching_history: Historical pitching data
+        
+    Returns:
+        Combined timeline with historical data
+    """
+    # Get current players info
+    current_players = (timeline_df[['IDfg', 'Name', 'position_group']]
+                      .drop_duplicates(subset=['IDfg']))
+    
+    # Format batting data
+    batter_cols = ['IDfg', 'Season', 'Name', 'Team', 'G', 'WAR', 'BB%', 'K%', 'AVG',
+                   'OBP', 'SLG', 'OPS', 'wOBA', 'wRC+', 'Off', 'BsR', 'Def', 'Age', 
+                   'HR', '2B', '3B', 'R', 'RBI', 'SB', 'CS']
+    
+    # Filter to columns that exist
+    available_batter_cols = [c for c in batter_cols if c in batting_history.columns]
+    
+    batting_filtered = (batting_history[batting_history['IDfg'].isin(current_players['IDfg'])]
+                       [available_batter_cols]
+                       .rename(columns={'Season': 'Year', 'WAR': 'WAR_batter',
+                                       'BB%': 'BB%_bat', 'K%': 'K%_bat', 'G': 'G_bat'}))
+    
+    # Format pitching data
+    pitcher_cols = ['IDfg', 'GS', 'Season', 'Name', 'Team', 'G', 'WAR', 'ERA', 'FIP', 'SIERA',
+                    'K%', 'BB%', 'Age']
+    
+    # Filter to columns that exist
+    available_pitcher_cols = [c for c in pitcher_cols if c in pitching_history.columns]
+    
+    pitching_filtered = (pitching_history[pitching_history['IDfg'].isin(current_players['IDfg'])]
+                        [available_pitcher_cols]
+                        .rename(columns={'Season': 'Year', 'WAR': 'WAR_pitcher',
+                                        'K%': 'K%_pit', 'BB%': 'BB%_pit', 'G': 'G_pit'}))
+    
+    # Merge batting and pitching data
+    historical = batting_filtered.merge(
+        pitching_filtered,
+        on=['IDfg', 'Year', 'Name', 'Team', 'Age'],
+        how='outer'
+    )
+    
+    # Add position info from current data
+    historical = historical.merge(current_players[['IDfg', 'position_group']], on='IDfg')
+    
+    # Fill NaN WAR values with 0
+    historical['WAR_batter'] = historical['WAR_batter'].fillna(0)
+    historical['WAR_pitcher'] = historical['WAR_pitcher'].fillna(0)
+    
+    # Calculate total WAR
+    historical['WAR'] = historical['WAR_batter'] + historical['WAR_pitcher']
+    
+    # Add status columns
+    historical['Status'] = 'NA'
+    historical['Normalized_Status'] = 'NA'
+    historical['Payroll'] = np.nan
+    
+    # Calculate base value
+    historical['Base_Value'] = historical.apply(
+        lambda x: x['WAR'] * get_war_value(int(x['Year'])), axis=1
+    )
+    historical['Contract_Value'] = np.nan
+    historical['surplus_value'] = np.nan
+    
+    # Combine with timeline
+    complete_timeline = pd.concat([timeline_df, historical])
+    
+    # Sort and remove duplicates
+    complete_timeline = (complete_timeline
+                        .sort_values(['IDfg', 'Year'])
+                        .drop_duplicates(subset=['IDfg', 'Year']))
+    
+    logger.info(f"Added historical records. New shape: {complete_timeline.shape}")
+    
+    return complete_timeline
+
+
+def integrate_player_statistics(value_data: pd.DataFrame,
+                                batter_data: pd.DataFrame,
+                                sp_data: pd.DataFrame,
+                                rp_data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Integrate stats with combined positions for two-way players.
+    
+    Args:
+        value_data: Timeline with value calculations
+        batter_data: Batter prediction data
+        sp_data: Starting pitcher data
+        rp_data: Relief pitcher data
+        
+    Returns:
+        Combined data with integrated statistics
+    """
+    # Split data
+    historical_data = value_data[value_data['Year'] < 2025].copy()
+    prediction_data = value_data[value_data['Year'] >= 2025].copy()
+    
+    # Clean prediction data - keep only essential columns
+    essential_cols = ['Name', 'IDfg', 'position_group', 'Year', 'Team',
+                     'Payroll', 'Status', 'Normalized_Status', 'WAR', 'Base_Value',
+                     'contract_value', 'surplus_value']
+    available_essential = [c for c in essential_cols if c in prediction_data.columns]
+    prediction_data = prediction_data[available_essential].copy()
+    
+    # Find two-way players
+    batter_ids = set(batter_data['IDfg'].unique())
+    pitcher_ids = set(sp_data['IDfg'].unique()) | set(rp_data['IDfg'].unique())
+    two_way_players = batter_ids.intersection(pitcher_ids)
+    print(f"Found {len(two_way_players)} two-way players")
+    
+    # Add two-way flag
+    prediction_data['Two_Way'] = prediction_data['IDfg'].isin(two_way_players)
+    
+    # Prepare batter stats for merging
+    batter_stat_cols = ['IDfg', 'prediction_year', 'WAR', 'Position'] + \
+                       [col for col in HITTER_COLUMNS if col not in ['Name', 'IDfg', 'WAR', 'Position']]
+    available_batter_cols = [c for c in batter_stat_cols if c in batter_data.columns]
+    
+    batter_stats = (batter_data[available_batter_cols]
+                   .rename(columns={
+                       'prediction_year': 'Year',
+                       'BB%': 'BB%_bat',
+                       'K%': 'K%_bat',
+                       'G': 'G_bat',
+                       'Age': 'Age_bat',
+                       'WAR': 'WAR_batter',
+                       'Position': 'Position_batter'
+                   }))
+    
+    # Prepare pitcher stats for merging
+    pitcher_stat_cols = ['IDfg', 'prediction_year', 'WAR', 'Position'] + \
+                        [col for col in PITCHER_COLUMNS if col not in ['Name', 'IDfg', 'WAR', 'Position']]
+    
+    sp_available = [c for c in pitcher_stat_cols if c in sp_data.columns]
+    rp_available = [c for c in pitcher_stat_cols if c in rp_data.columns]
+    
+    pitcher_stats = (pd.concat([
+        sp_data[sp_available],
+        rp_data[rp_available]
+    ])
+    .rename(columns={
+        'prediction_year': 'Year',
+        'BB%': 'BB%_pit',
+        'K%': 'K%_pit',
+        'Age': 'Age_pit',
+        'G': 'G_pit',
+        'WAR': 'WAR_pitcher',
+        'Position': 'Position_pitcher'
+    })
+    .drop_duplicates(subset=['IDfg', 'Year']))
+    
+    # Merge stats
+    prediction_data = prediction_data.merge(batter_stats, on=['IDfg', 'Year'], how='left')
+    prediction_data = prediction_data.merge(pitcher_stats, on=['IDfg', 'Year'], how='left')
+    
+    # Handle positions and WAR for two-way players
+    mask = prediction_data['Two_Way']
+    
+    # Combine positions - check if columns exist first
+    if 'Position_batter' in prediction_data.columns and 'Position_pitcher' in prediction_data.columns:
+        prediction_data.loc[mask, 'Position'] = prediction_data.loc[mask].apply(
+            lambda x: f"{x['Position_pitcher']}/{x['Position_batter']}" if pd.notna(x['Position_pitcher']) else x['Position_batter'],
+            axis=1
+        )
+        
+        # Single position for non-two-way players
+        prediction_data.loc[~mask, 'Position'] = prediction_data.loc[~mask, 'Position_batter'].fillna(
+            prediction_data.loc[~mask, 'Position_pitcher']
+        )
+        
+        # Clean up position columns
+        prediction_data = prediction_data.drop(['Position_batter', 'Position_pitcher'], axis=1, errors='ignore')
+    elif 'Position_batter' in prediction_data.columns:
+        prediction_data['Position'] = prediction_data['Position_batter']
+        prediction_data = prediction_data.drop('Position_batter', axis=1, errors='ignore')
+    elif 'Position_pitcher' in prediction_data.columns:
+        prediction_data['Position'] = prediction_data['Position_pitcher']
+        prediction_data = prediction_data.drop('Position_pitcher', axis=1, errors='ignore')
+    
+    # Handle WAR
+    if 'WAR_batter' in prediction_data.columns and 'WAR_pitcher' in prediction_data.columns:
+        prediction_data.loc[mask, 'WAR'] = (
+            prediction_data.loc[mask, 'WAR_batter'].fillna(0) +
+            prediction_data.loc[mask, 'WAR_pitcher'].fillna(0)
+        )
+        prediction_data.loc[~mask, 'WAR'] = prediction_data.loc[~mask, 'WAR_batter'].fillna(
+            prediction_data.loc[~mask, 'WAR_pitcher']
+        )
+    elif 'WAR_batter' in prediction_data.columns:
+        prediction_data['WAR'] = prediction_data['WAR_batter']
+    elif 'WAR_pitcher' in prediction_data.columns:
+        prediction_data['WAR'] = prediction_data['WAR_pitcher']
+    
+    # Handle Age
+    if 'Age_bat' in prediction_data.columns and 'Age_pit' in prediction_data.columns:
+        prediction_data['Age'] = prediction_data['Age_bat'].fillna(prediction_data['Age_pit'])
+        prediction_data = prediction_data.drop(['Age_bat', 'Age_pit'], axis=1, errors='ignore')
+    elif 'Age_bat' in prediction_data.columns:
+        prediction_data['Age'] = prediction_data['Age_bat']
+        prediction_data = prediction_data.drop('Age_bat', axis=1, errors='ignore')
+    elif 'Age_pit' in prediction_data.columns:
+        prediction_data['Age'] = prediction_data['Age_pit']
+        prediction_data = prediction_data.drop('Age_pit', axis=1, errors='ignore')
+    
+    # Combine and sort
+    result = pd.concat([historical_data, prediction_data])
+    return result.sort_values(['IDfg', 'Year'])
+
+
+def post_process_export_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Post-process export data:
+    - Replace status with normalized status
+    - Drop unnecessary columns
+    - Calculate OPS
+    - Handle two-way player values
+    - Round and handle negative values
+    - Fill team NA values
+    
+    Args:
+        df: Export data DataFrame
+        
+    Returns:
+        Processed DataFrame
+    """
+    export_data = df.copy()
+    
+    # Replace status with normalized status
+    if 'Normalized_Status' in export_data.columns:
+        export_data['Status'] = export_data['Normalized_Status']
+        export_data = export_data.drop('Normalized_Status', axis=1, errors='ignore')
+    
+    # Drop unnecessary columns
+    export_data = export_data.drop('Contract_Value', axis=1, errors='ignore')
+    export_data = export_data.drop('Payroll', axis=1, errors='ignore')
+    
+    # Calculate combined WAR value for two-way players
+    if 'Two_Way' in export_data.columns:
+        two_way_mask = export_data['Two_Way'] == True
+        if two_way_mask.any():
+            total_war = (export_data.loc[two_way_mask, 'WAR_batter'].fillna(0) + 
+                        export_data.loc[two_way_mask, 'WAR_pitcher'].fillna(0))
+            export_data.loc[two_way_mask, 'Base_Value'] = total_war * 10_000_000
+            export_data.loc[two_way_mask, 'surplus_value'] = (
+                export_data.loc[two_way_mask, 'Base_Value'] - 
+                export_data.loc[two_way_mask, 'contract_value']
+            )
+    
+    # Round and handle negative values, preserving NaN
+    columns_to_process = ['HR', '2B', '3B', 'RBI', 'R', 'SB', 'CS']
+    for col in columns_to_process:
+        if col in export_data.columns:
+            export_data[col] = export_data[col].apply(lambda x: max(x, 0) if pd.notna(x) else x)
+            export_data[col] = export_data[col].apply(lambda x: round(x) if pd.notna(x) else x)
+    
+    # Add OPS
+    if 'OBP' in export_data.columns and 'SLG' in export_data.columns:
+        export_data['OPS'] = np.where(
+            export_data['OBP'].notna() & export_data['SLG'].notna(),
+            export_data['OBP'] + export_data['SLG'],
+            np.nan
+        )
+    
+    # If team value is nan fill with "FA"
+    if 'Team' in export_data.columns:
+        export_data['Team'] = np.where(export_data['Team'].isna(), 'FA', export_data['Team'])
+    
+    return export_data
