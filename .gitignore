@@ -7,9 +7,7 @@ __pycache__/
 # Scrapers
 scrapers/**
 
-# Web app (not needed publicly)
-web-app/**
-
+# Models storage (large files)
 models/MiLB
 
 
@@ -21,7 +19,12 @@ env/
 .env
 .env.local
 .env.*.local
-.netlify.toml
+web-app/backend/.env
+web-app/frontend/.env.local
+
+# Netlify
+.netlify/
+netlify.toml
 # Keep these files
 !.env.production
 !.env.d.ts
