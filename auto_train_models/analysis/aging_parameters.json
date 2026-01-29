@@ -1,0 +1,3096 @@
+{
+  "metadata": {
+    "min_year": 2000,
+    "generated": "2026-01-26T12:43:35.242536",
+    "age_bands": {
+      "21-25": {
+        "min": 21,
+        "max": 25
+      },
+      "26-30": {
+        "min": 26,
+        "max": 30
+      },
+      "31-35": {
+        "min": 31,
+        "max": 35
+      },
+      "36-40": {
+        "min": 36,
+        "max": 40
+      },
+      "41-45": {
+        "min": 41,
+        "max": 45
+      }
+    },
+    "note": "decline_per_year is the observed average annual performance loss (positive = getting worse). decline_per_year_corrected adjusts for survivorship bias - poor performers exit at higher rates, so observed decline underestimates true decline. Use the corrected value for projections. Age bands 36-40 and 41-45 are extrapolated from younger bands due to insufficient data."
+  },
+  "batter": {
+    "wRC+": {
+      "stat_name": "wRC+",
+      "description": "Weighted Runs Created Plus",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.6483027267668336,
+          "decline_per_year_corrected": 3.487714477337751,
+          "survivorship_correction": 4.136017204104585,
+          "std": 27.651946363825097,
+          "n_transitions": 1797,
+          "avg_starting_value": 100.70061213132999
+        },
+        "26-30": {
+          "decline_per_year": 3.6606060606060606,
+          "decline_per_year_corrected": 8.013886701674293,
+          "survivorship_correction": 4.353280641068232,
+          "std": 26.37775670349541,
+          "n_transitions": 3465,
+          "avg_starting_value": 104.17546897546897
+        },
+        "31-35": {
+          "decline_per_year": 4.98012147984539,
+          "decline_per_year_corrected": 9.836640276248431,
+          "survivorship_correction": 4.856518796403041,
+          "std": 26.605209521574753,
+          "n_transitions": 1811,
+          "avg_starting_value": 102.60298177802319
+        },
+        "36-40": {
+          "decline_per_year": 9.450310559006212,
+          "decline_per_year_corrected": 15.434411747411453,
+          "survivorship_correction": 5.9841011884052415,
+          "std": 27.01088421260708,
+          "n_transitions": 322,
+          "avg_starting_value": 105.61180124223603
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 11.65939385082257,
+          "survivorship_correction": null,
+          "std": 29.26573047373223,
+          "n_transitions": 16,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.9344919786096256,
+          "avg_performers_continue_rate": 0.8577127659574468,
+          "poor_performers_continue_rate": 0.635343618513324,
+          "n_good": 748,
+          "n_avg": 752,
+          "n_poor": 713
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.9353535353535354,
+          "avg_performers_continue_rate": 0.8379694019471489,
+          "poor_performers_continue_rate": 0.6052814454482279,
+          "n_good": 1485,
+          "n_avg": 1438,
+          "n_poor": 1439
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.8980815347721822,
+          "avg_performers_continue_rate": 0.7432590855803048,
+          "poor_performers_continue_rate": 0.5330012453300125,
+          "n_good": 834,
+          "n_avg": 853,
+          "n_poor": 803
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.7801047120418848,
+          "avg_performers_continue_rate": 0.5894736842105263,
+          "poor_performers_continue_rate": 0.3370165745856354,
+          "n_good": 191,
+          "n_avg": 190,
+          "n_poor": 181
+        }
+      },
+      "total_transitions": 7441
+    },
+    "AVG": {
+      "stat_name": "AVG",
+      "description": "Batting Average",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.0013038397328881469,
+          "decline_per_year_corrected": 0.006440995226535591,
+          "survivorship_correction": 0.005137155493647444,
+          "std": 0.03588887283669936,
+          "n_transitions": 1797,
+          "avg_starting_value": 0.26181135225375624
+        },
+        "26-30": {
+          "decline_per_year": 0.005736507936507937,
+          "decline_per_year_corrected": 0.010993935556772715,
+          "survivorship_correction": 0.005257427620264778,
+          "std": 0.03443303753417183,
+          "n_transitions": 3465,
+          "avg_starting_value": 0.2643056277056277
+        },
+        "31-35": {
+          "decline_per_year": 0.006526780784097184,
+          "decline_per_year_corrected": 0.011731878196469913,
+          "survivorship_correction": 0.0052050974123727285,
+          "std": 0.03424674401696488,
+          "n_transitions": 1811,
+          "avg_starting_value": 0.26348426283821097
+        },
+        "36-40": {
+          "decline_per_year": 0.011596273291925465,
+          "decline_per_year_corrected": 0.01893012749007703,
+          "survivorship_correction": 0.0073338541981515645,
+          "std": 0.034948003901833745,
+          "n_transitions": 322,
+          "avg_starting_value": 0.2665590062111801
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.01246982083616711,
+          "survivorship_correction": null,
+          "std": 0.037671418418661375,
+          "n_transitions": 16,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.933422103861518,
+          "avg_performers_continue_rate": 0.8483221476510067,
+          "poor_performers_continue_rate": 0.6471408647140865,
+          "n_good": 751,
+          "n_avg": 745,
+          "n_poor": 717
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.9271255060728745,
+          "avg_performers_continue_rate": 0.8281786941580757,
+          "poor_performers_continue_rate": 0.6217543859649123,
+          "n_good": 1482,
+          "n_avg": 1455,
+          "n_poor": 1425
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.8617401668653158,
+          "avg_performers_continue_rate": 0.7553191489361702,
+          "poor_performers_continue_rate": 0.5577639751552795,
+          "n_good": 839,
+          "n_avg": 846,
+          "n_poor": 805
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.7421052631578947,
+          "avg_performers_continue_rate": 0.6455026455026455,
+          "poor_performers_continue_rate": 0.3224043715846995,
+          "n_good": 190,
+          "n_avg": 189,
+          "n_poor": 183
+        }
+      },
+      "total_transitions": 7441
+    },
+    "OBP": {
+      "stat_name": "OBP",
+      "description": "On-Base Percentage",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.00022148024485253235,
+          "decline_per_year_corrected": 0.0046803649461432464,
+          "survivorship_correction": 0.004901845190995778,
+          "std": 0.03744279862178719,
+          "n_transitions": 1797,
+          "avg_starting_value": 0.32679298831385645
+        },
+        "26-30": {
+          "decline_per_year": 0.00535930735930736,
+          "decline_per_year_corrected": 0.010838737231058285,
+          "survivorship_correction": 0.005479429871750924,
+          "std": 0.036638840551162434,
+          "n_transitions": 3465,
+          "avg_starting_value": 0.3333598845598845
+        },
+        "31-35": {
+          "decline_per_year": 0.007319712865819989,
+          "decline_per_year_corrected": 0.013275362908381619,
+          "survivorship_correction": 0.0059556500425616285,
+          "std": 0.03694031236314291,
+          "n_transitions": 1811,
+          "avg_starting_value": 0.3357415792379901
+        },
+        "36-40": {
+          "decline_per_year": 0.013562111801242234,
+          "decline_per_year_corrected": 0.020623372023833852,
+          "survivorship_correction": 0.00706126022259162,
+          "std": 0.03889923309929539,
+          "n_transitions": 322,
+          "avg_starting_value": 0.3430745341614907
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.015711988585704953,
+          "survivorship_correction": null,
+          "std": 0.0406343435994572,
+          "n_transitions": 16,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.9194630872483222,
+          "avg_performers_continue_rate": 0.848761408083442,
+          "poor_performers_continue_rate": 0.6576319543509273,
+          "n_good": 745,
+          "n_avg": 767,
+          "n_poor": 701
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.9236588720770289,
+          "avg_performers_continue_rate": 0.827471798274718,
+          "poor_performers_continue_rate": 0.6245538900785154,
+          "n_good": 1454,
+          "n_avg": 1507,
+          "n_poor": 1401
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.8763505402160864,
+          "avg_performers_continue_rate": 0.7458823529411764,
+          "poor_performers_continue_rate": 0.5539033457249071,
+          "n_good": 833,
+          "n_avg": 850,
+          "n_poor": 807
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.7553191489361702,
+          "avg_performers_continue_rate": 0.5647668393782384,
+          "poor_performers_continue_rate": 0.39226519337016574,
+          "n_good": 188,
+          "n_avg": 193,
+          "n_poor": 181
+        }
+      },
+      "total_transitions": 7441
+    },
+    "SLG": {
+      "stat_name": "SLG",
+      "description": "Slugging Percentage",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.0001758486366165838,
+          "decline_per_year_corrected": 0.009903525883533782,
+          "survivorship_correction": 0.010079374520150366,
+          "std": 0.07599232331346643,
+          "n_transitions": 1797,
+          "avg_starting_value": 0.4249955481357819
+        },
+        "26-30": {
+          "decline_per_year": 0.011822510822510823,
+          "decline_per_year_corrected": 0.022877806831613355,
+          "survivorship_correction": 0.011055296009102534,
+          "std": 0.07234765758323976,
+          "n_transitions": 3465,
+          "avg_starting_value": 0.43221096681096677
+        },
+        "31-35": {
+          "decline_per_year": 0.014587520706791828,
+          "decline_per_year_corrected": 0.026491171333549515,
+          "survivorship_correction": 0.01190365062675769,
+          "std": 0.07396466558961387,
+          "n_transitions": 1811,
+          "avg_starting_value": 0.42516675869685255
+        },
+        "36-40": {
+          "decline_per_year": 0.026034161490683227,
+          "decline_per_year_corrected": 0.041104627742709725,
+          "survivorship_correction": 0.0150704662520265,
+          "std": 0.07225591901340873,
+          "n_transitions": 322,
+          "avg_starting_value": 0.43474534161490686
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.030104535835485675,
+          "survivorship_correction": null,
+          "std": 0.08136113214857527,
+          "n_transitions": 16,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.9264305177111717,
+          "avg_performers_continue_rate": 0.8459495351925631,
+          "poor_performers_continue_rate": 0.6611570247933884,
+          "n_good": 734,
+          "n_avg": 753,
+          "n_poor": 726
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.9235537190082644,
+          "avg_performers_continue_rate": 0.8360107095046854,
+          "poor_performers_continue_rate": 0.6179378531073446,
+          "n_good": 1452,
+          "n_avg": 1494,
+          "n_poor": 1416
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.8839177750906893,
+          "avg_performers_continue_rate": 0.7348394768133175,
+          "poor_performers_continue_rate": 0.5620437956204379,
+          "n_good": 827,
+          "n_avg": 841,
+          "n_poor": 822
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.7486631016042781,
+          "avg_performers_continue_rate": 0.6335078534031413,
+          "poor_performers_continue_rate": 0.33152173913043476,
+          "n_good": 187,
+          "n_avg": 191,
+          "n_poor": 184
+        }
+      },
+      "total_transitions": 7441
+    },
+    "BB%": {
+      "stat_name": "BB%",
+      "description": "Walk Rate",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.0016911519198664455,
+          "decline_per_year_corrected": -0.0009751142649473358,
+          "survivorship_correction": 0.0007160376549191097,
+          "std": 0.02422051613040779,
+          "n_transitions": 1797,
+          "avg_starting_value": 0.08053088480801336
+        },
+        "26-30": {
+          "decline_per_year": 3.9538239538239795e-05,
+          "decline_per_year_corrected": 0.0012173170264072756,
+          "survivorship_correction": 0.0011777787868690358,
+          "std": 0.024666140170654095,
+          "n_transitions": 3465,
+          "avg_starting_value": 0.08565454545454546
+        },
+        "31-35": {
+          "decline_per_year": 0.0017840971838763108,
+          "decline_per_year_corrected": 0.0031524750523947596,
+          "survivorship_correction": 0.001368377868518449,
+          "std": 0.024792716159893112,
+          "n_transitions": 1811,
+          "avg_starting_value": 0.09031971286581998
+        },
+        "36-40": {
+          "decline_per_year": 0.0037111801242236055,
+          "decline_per_year_corrected": 0.005063396511295592,
+          "survivorship_correction": 0.0013522163870719867,
+          "std": 0.026106070464814723,
+          "n_transitions": 322,
+          "avg_starting_value": 0.09798447204968944
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.005087633078382244,
+          "survivorship_correction": null,
+          "std": 0.027271987775882425,
+          "n_transitions": 16,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8421052631578947,
+          "avg_performers_continue_rate": 0.8096479791395046,
+          "poor_performers_continue_rate": 0.7829787234042553,
+          "n_good": 741,
+          "n_avg": 767,
+          "n_poor": 705
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8367911479944675,
+          "avg_performers_continue_rate": 0.8031809145129225,
+          "poor_performers_continue_rate": 0.7412935323383084,
+          "n_good": 1446,
+          "n_avg": 1509,
+          "n_poor": 1407
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.78031212484994,
+          "avg_performers_continue_rate": 0.7306317044100119,
+          "poor_performers_continue_rate": 0.6699266503667481,
+          "n_good": 833,
+          "n_avg": 839,
+          "n_poor": 818
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.6117021276595744,
+          "avg_performers_continue_rate": 0.5978835978835979,
+          "poor_performers_continue_rate": 0.5081081081081081,
+          "n_good": 188,
+          "n_avg": 189,
+          "n_poor": 185
+        }
+      },
+      "total_transitions": 7441
+    },
+    "K%": {
+      "stat_name": "K%",
+      "description": "Strikeout Rate (higher=worse)",
+      "is_inverted": true,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.0024084585420144694,
+          "decline_per_year_corrected": 0.0004647142704561633,
+          "survivorship_correction": 0.0028731728124706327,
+          "std": 0.0369093890752731,
+          "n_transitions": 1797,
+          "avg_starting_value": 0.20239343350027822
+        },
+        "26-30": {
+          "decline_per_year": 0.0015711399711399708,
+          "decline_per_year_corrected": 0.004477821255371958,
+          "survivorship_correction": 0.0029066812842319873,
+          "std": 0.03519314372818387,
+          "n_transitions": 3465,
+          "avg_starting_value": 0.18899826839826836
+        },
+        "31-35": {
+          "decline_per_year": 0.0050292655991165105,
+          "decline_per_year_corrected": 0.008172796583152274,
+          "survivorship_correction": 0.003143530984035764,
+          "std": 0.03368044048447575,
+          "n_transitions": 1811,
+          "avg_starting_value": 0.17508503589177246
+        },
+        "36-40": {
+          "decline_per_year": 0.005993788819875776,
+          "decline_per_year_corrected": 0.00866271199035796,
+          "survivorship_correction": 0.0026689231704821854,
+          "std": 0.034527157020133564,
+          "n_transitions": 322,
+          "avg_starting_value": 0.16142857142857142
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.01186777191093259,
+          "survivorship_correction": null,
+          "std": 0.03704848453292333,
+          "n_transitions": 16,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8913043478260869,
+          "avg_performers_continue_rate": 0.8085676037483266,
+          "poor_performers_continue_rate": 0.7356164383561644,
+          "n_good": 736,
+          "n_avg": 747,
+          "n_poor": 730
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8654646324549237,
+          "avg_performers_continue_rate": 0.8156836461126006,
+          "poor_performers_continue_rate": 0.7002801120448179,
+          "n_good": 1442,
+          "n_avg": 1492,
+          "n_poor": 1428
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.8220338983050848,
+          "avg_performers_continue_rate": 0.7239336492890995,
+          "poor_performers_continue_rate": 0.6353658536585366,
+          "n_good": 826,
+          "n_avg": 844,
+          "n_poor": 820
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.6223404255319149,
+          "avg_performers_continue_rate": 0.6276595744680851,
+          "poor_performers_continue_rate": 0.46774193548387094,
+          "n_good": 188,
+          "n_avg": 188,
+          "n_poor": 186
+        }
+      },
+      "total_transitions": 7441
+    },
+    "ISO": {
+      "stat_name": "ISO",
+      "description": "Isolated Power",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.001466332776850306,
+          "decline_per_year_corrected": 0.0031703504498678467,
+          "survivorship_correction": 0.004636683226718153,
+          "std": 0.05238143475167714,
+          "n_transitions": 1797,
+          "avg_starting_value": 0.16319755147468
+        },
+        "26-30": {
+          "decline_per_year": 0.006077633477633477,
+          "decline_per_year_corrected": 0.011229396792091742,
+          "survivorship_correction": 0.005151763314458265,
+          "std": 0.05015394924512868,
+          "n_transitions": 3465,
+          "avg_starting_value": 0.16789898989898988
+        },
+        "31-35": {
+          "decline_per_year": 0.008057979017117614,
+          "decline_per_year_corrected": 0.013790879665604742,
+          "survivorship_correction": 0.005732900648487128,
+          "std": 0.05188242611269047,
+          "n_transitions": 1811,
+          "avg_starting_value": 0.16168525676421866
+        },
+        "36-40": {
+          "decline_per_year": 0.01446583850931677,
+          "decline_per_year_corrected": 0.0215284655998055,
+          "survivorship_correction": 0.0070626270904887295,
+          "std": 0.05136237771884535,
+          "n_transitions": 322,
+          "avg_starting_value": 0.1682142857142857
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.016352362539117742,
+          "survivorship_correction": null,
+          "std": 0.05707066872395952,
+          "n_transitions": 16,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8975409836065574,
+          "avg_performers_continue_rate": 0.8153446033810143,
+          "poor_performers_continue_rate": 0.7205056179775281,
+          "n_good": 732,
+          "n_avg": 769,
+          "n_poor": 712
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8905712319339298,
+          "avg_performers_continue_rate": 0.8051247471341875,
+          "poor_performers_continue_rate": 0.685133239831697,
+          "n_good": 1453,
+          "n_avg": 1483,
+          "n_poor": 1426
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.8353510895883777,
+          "avg_performers_continue_rate": 0.7315914489311164,
+          "poor_performers_continue_rate": 0.6143552311435523,
+          "n_good": 826,
+          "n_avg": 842,
+          "n_poor": 822
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.6989247311827957,
+          "avg_performers_continue_rate": 0.59375,
+          "poor_performers_continue_rate": 0.42391304347826086,
+          "n_good": 186,
+          "n_avg": 192,
+          "n_poor": 184
+        }
+      },
+      "total_transitions": 7441
+    },
+    "wOBA": {
+      "stat_name": "wOBA",
+      "description": "Weighted On-Base Average",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.00014023372287145212,
+          "decline_per_year_corrected": 0.006042205365698907,
+          "survivorship_correction": 0.005901971642827455,
+          "std": 0.04145673316174623,
+          "n_transitions": 1797,
+          "avg_starting_value": 0.3257451307735114
+        },
+        "26-30": {
+          "decline_per_year": 0.006836940836940837,
+          "decline_per_year_corrected": 0.013475182765589481,
+          "survivorship_correction": 0.0066382419286486445,
+          "std": 0.03958258997890229,
+          "n_transitions": 3465,
+          "avg_starting_value": 0.3315044733044733
+        },
+        "31-35": {
+          "decline_per_year": 0.008815571507454446,
+          "decline_per_year_corrected": 0.016370482808319185,
+          "survivorship_correction": 0.007554911300864738,
+          "std": 0.03999351052940985,
+          "n_transitions": 1811,
+          "avg_starting_value": 0.33047487575924905
+        },
+        "36-40": {
+          "decline_per_year": 0.015838509316770184,
+          "decline_per_year_corrected": 0.02411893165765449,
+          "survivorship_correction": 0.008280422340884304,
+          "std": 0.04026615511338496,
+          "n_transitions": 322,
+          "avg_starting_value": 0.3369285714285714
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.019265782851048886,
+          "survivorship_correction": null,
+          "std": 0.04399286158235084,
+          "n_transitions": 16,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.9315436241610738,
+          "avg_performers_continue_rate": 0.8525469168900804,
+          "poor_performers_continue_rate": 0.646814404432133,
+          "n_good": 745,
+          "n_avg": 746,
+          "n_poor": 722
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.9340136054421768,
+          "avg_performers_continue_rate": 0.8454172366621067,
+          "poor_performers_continue_rate": 0.5986013986013986,
+          "n_good": 1470,
+          "n_avg": 1462,
+          "n_poor": 1430
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.8953068592057761,
+          "avg_performers_continue_rate": 0.760186263096624,
+          "poor_performers_continue_rate": 0.5175,
+          "n_good": 831,
+          "n_avg": 859,
+          "n_poor": 800
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.7680412371134021,
+          "avg_performers_continue_rate": 0.5846994535519126,
+          "poor_performers_continue_rate": 0.3567567567567568,
+          "n_good": 194,
+          "n_avg": 183,
+          "n_poor": 185
+        }
+      },
+      "total_transitions": 7441
+    }
+  },
+  "pitcher": {
+    "ERA": {
+      "stat_name": "ERA",
+      "description": "Earned Run Average (higher=worse)",
+      "is_inverted": true,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.005615577889447226,
+          "decline_per_year_corrected": 0.14211508457604555,
+          "survivorship_correction": 0.14773066246549277,
+          "std": 1.481641350529468,
+          "n_transitions": 1592,
+          "avg_starting_value": 4.141074120603015
+        },
+        "26-30": {
+          "decline_per_year": 0.1505574673090158,
+          "decline_per_year_corrected": 0.3059418693187367,
+          "survivorship_correction": 0.15538440200972084,
+          "std": 1.4043790742288307,
+          "n_transitions": 2906,
+          "avg_starting_value": 3.8796180316586373
+        },
+        "31-35": {
+          "decline_per_year": 0.2040264511388685,
+          "decline_per_year_corrected": 0.37217162130742365,
+          "survivorship_correction": 0.16814517016855512,
+          "std": 1.3984262517747457,
+          "n_transitions": 1361,
+          "avg_starting_value": 3.837362233651727
+        },
+        "36-40": {
+          "decline_per_year": 0.3246056782334385,
+          "decline_per_year_corrected": 0.5522175428163094,
+          "survivorship_correction": 0.22761186458287097,
+          "std": 1.3691791356176495,
+          "n_transitions": 317,
+          "avg_starting_value": 3.6232492113564674
+        },
+        "41-45": {
+          "decline_per_year": 0.5539473684210526,
+          "decline_per_year_corrected": 0.8265372227102464,
+          "survivorship_correction": 0.2725898542891938,
+          "std": 1.3326615098582808,
+          "n_transitions": 38,
+          "avg_starting_value": 4.046842105263159
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.803840877914952,
+          "avg_performers_continue_rate": 0.7546419098143236,
+          "poor_performers_continue_rate": 0.6044260027662517,
+          "n_good": 729,
+          "n_avg": 754,
+          "n_poor": 723
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7764456981664316,
+          "avg_performers_continue_rate": 0.6977535738597685,
+          "poor_performers_continue_rate": 0.5551601423487544,
+          "n_good": 1418,
+          "n_avg": 1469,
+          "n_poor": 1405
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7492753623188406,
+          "avg_performers_continue_rate": 0.6941340782122905,
+          "poor_performers_continue_rate": 0.5087976539589443,
+          "n_good": 690,
+          "n_avg": 716,
+          "n_poor": 682
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.7627118644067796,
+          "avg_performers_continue_rate": 0.6067415730337079,
+          "poor_performers_continue_rate": 0.43023255813953487,
+          "n_good": 177,
+          "n_avg": 178,
+          "n_poor": 172
+        },
+        "41-45": {
+          "good_performers_continue_rate": 0.7727272727272727,
+          "avg_performers_continue_rate": 0.5652173913043478,
+          "poor_performers_continue_rate": 0.36363636363636365,
+          "n_good": 22,
+          "n_avg": 23,
+          "n_poor": 22
+        }
+      },
+      "total_transitions": 6230
+    },
+    "FIP": {
+      "stat_name": "FIP",
+      "description": "Fielding Independent Pitching",
+      "is_inverted": true,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.06604899497487436,
+          "decline_per_year_corrected": 0.03701352729732327,
+          "survivorship_correction": 0.10306252227219763,
+          "std": 0.9811282926810224,
+          "n_transitions": 1592,
+          "avg_starting_value": 4.1573806532663315
+        },
+        "26-30": {
+          "decline_per_year": 0.09866483138334481,
+          "decline_per_year_corrected": 0.2099628791636156,
+          "survivorship_correction": 0.11129804778027079,
+          "std": 0.9612751892754827,
+          "n_transitions": 2906,
+          "avg_starting_value": 3.954456297315898
+        },
+        "31-35": {
+          "decline_per_year": 0.14910360029390154,
+          "decline_per_year_corrected": 0.2657372122898314,
+          "survivorship_correction": 0.11663361199592981,
+          "std": 0.9503286994788722,
+          "n_transitions": 1361,
+          "avg_starting_value": 3.989595885378398
+        },
+        "36-40": {
+          "decline_per_year": 0.2415141955835962,
+          "decline_per_year_corrected": 0.40435887025498696,
+          "survivorship_correction": 0.16284467467139074,
+          "std": 0.9674265634415246,
+          "n_transitions": 317,
+          "avg_starting_value": 3.8474132492113555
+        },
+        "41-45": {
+          "decline_per_year": 0.29631578947368425,
+          "decline_per_year_corrected": 0.38029931088902136,
+          "survivorship_correction": 0.0839835214153371,
+          "std": 0.7390549884549664,
+          "n_transitions": 38,
+          "avg_starting_value": 4.169210526315789
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.810368349249659,
+          "avg_performers_continue_rate": 0.7509933774834437,
+          "poor_performers_continue_rate": 0.6002785515320335,
+          "n_good": 733,
+          "n_avg": 755,
+          "n_poor": 718
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7763713080168776,
+          "avg_performers_continue_rate": 0.7076502732240437,
+          "poor_performers_continue_rate": 0.5448079658605974,
+          "n_good": 1422,
+          "n_avg": 1464,
+          "n_poor": 1406
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7622478386167147,
+          "avg_performers_continue_rate": 0.6741889985895627,
+          "poor_performers_continue_rate": 0.5167883211678832,
+          "n_good": 694,
+          "n_avg": 709,
+          "n_poor": 685
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.7586206896551724,
+          "avg_performers_continue_rate": 0.6222222222222222,
+          "poor_performers_continue_rate": 0.42196531791907516,
+          "n_good": 174,
+          "n_avg": 180,
+          "n_poor": 173
+        },
+        "41-45": {
+          "good_performers_continue_rate": 0.5909090909090909,
+          "avg_performers_continue_rate": 0.7391304347826086,
+          "poor_performers_continue_rate": 0.36363636363636365,
+          "n_good": 22,
+          "n_avg": 23,
+          "n_poor": 22
+        }
+      },
+      "total_transitions": 6230
+    },
+    "K%": {
+      "stat_name": "K%",
+      "description": "Strikeout Rate",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.003315326633165828,
+          "decline_per_year_corrected": -0.0015973303325474448,
+          "survivorship_correction": 0.0017179963006183831,
+          "std": 0.041997543446986155,
+          "n_transitions": 1592,
+          "avg_starting_value": 0.2004120603015075
+        },
+        "26-30": {
+          "decline_per_year": 0.001990020646937371,
+          "decline_per_year_corrected": 0.004544806928876751,
+          "survivorship_correction": 0.0025547862819393797,
+          "std": 0.04345381828776555,
+          "n_transitions": 2906,
+          "avg_starting_value": 0.21043186510667583
+        },
+        "31-35": {
+          "decline_per_year": 0.0071748714180749455,
+          "decline_per_year_corrected": 0.009820515414943049,
+          "survivorship_correction": 0.002645643996868103,
+          "std": 0.039333176953642364,
+          "n_transitions": 1361,
+          "avg_starting_value": 0.20605657604702424
+        },
+        "36-40": {
+          "decline_per_year": 0.009388012618296533,
+          "decline_per_year_corrected": 0.01218142440065828,
+          "survivorship_correction": 0.002793411782361748,
+          "std": 0.0409308336952374,
+          "n_transitions": 317,
+          "avg_starting_value": 0.20040378548895896
+        },
+        "41-45": {
+          "decline_per_year": 0.010894736842105257,
+          "decline_per_year_corrected": 0.010894736842105257,
+          "survivorship_correction": 0.0,
+          "std": 0.03423589824011128,
+          "n_transitions": 38,
+          "avg_starting_value": 0.17460526315789474
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.7628726287262872,
+          "avg_performers_continue_rate": 0.72,
+          "poor_performers_continue_rate": 0.6810584958217271,
+          "n_good": 738,
+          "n_avg": 750,
+          "n_poor": 718
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7239692522711391,
+          "avg_performers_continue_rate": 0.6995175740868367,
+          "poor_performers_continue_rate": 0.6063829787234043,
+          "n_good": 1431,
+          "n_avg": 1451,
+          "n_poor": 1410
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7126269956458636,
+          "avg_performers_continue_rate": 0.6638655462184874,
+          "poor_performers_continue_rate": 0.5781021897810219,
+          "n_good": 689,
+          "n_avg": 714,
+          "n_poor": 685
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.6781609195402298,
+          "avg_performers_continue_rate": 0.5837837837837838,
+          "poor_performers_continue_rate": 0.5416666666666666,
+          "n_good": 174,
+          "n_avg": 185,
+          "n_poor": 168
+        },
+        "41-45": {
+          "good_performers_continue_rate": 0.5909090909090909,
+          "avg_performers_continue_rate": 0.5217391304347826,
+          "poor_performers_continue_rate": 0.5909090909090909,
+          "n_good": 22,
+          "n_avg": 23,
+          "n_poor": 22
+        }
+      },
+      "total_transitions": 6230
+    },
+    "BB%": {
+      "stat_name": "BB%",
+      "description": "Walk Rate (higher=worse)",
+      "is_inverted": true,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.002496231155778895,
+          "decline_per_year_corrected": -0.0009004805013338563,
+          "survivorship_correction": 0.0015957506544450385,
+          "std": 0.023855657201326208,
+          "n_transitions": 1592,
+          "avg_starting_value": 0.08651884422110553
+        },
+        "26-30": {
+          "decline_per_year": -7.570543702683917e-06,
+          "decline_per_year_corrected": 0.002037241798208706,
+          "survivorship_correction": 0.00204481234191139,
+          "std": 0.02419641254079661,
+          "n_transitions": 2906,
+          "avg_starting_value": 0.08239091534755676
+        },
+        "31-35": {
+          "decline_per_year": 0.0003085966201322548,
+          "decline_per_year_corrected": 0.002056017430846241,
+          "survivorship_correction": 0.0017474208107139861,
+          "std": 0.023450517199544565,
+          "n_transitions": 1361,
+          "avg_starting_value": 0.07850477590007346
+        },
+        "36-40": {
+          "decline_per_year": 0.0007318611987381688,
+          "decline_per_year_corrected": 0.0020091066541068803,
+          "survivorship_correction": 0.0012772454553687115,
+          "std": 0.023907933128183328,
+          "n_transitions": 317,
+          "avg_starting_value": 0.07539116719242903
+        },
+        "41-45": {
+          "decline_per_year": 0.005552631578947371,
+          "decline_per_year_corrected": 0.007808696893668844,
+          "survivorship_correction": 0.002256065314721473,
+          "std": 0.015745779989642283,
+          "n_transitions": 38,
+          "avg_starting_value": 0.06523684210526316
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.7816711590296496,
+          "avg_performers_continue_rate": 0.7320954907161804,
+          "poor_performers_continue_rate": 0.647887323943662,
+          "n_good": 742,
+          "n_avg": 754,
+          "n_poor": 710
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7533286615276804,
+          "avg_performers_continue_rate": 0.6888740839440373,
+          "poor_performers_continue_rate": 0.5843108504398827,
+          "n_good": 1427,
+          "n_avg": 1501,
+          "n_poor": 1364
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7174515235457064,
+          "avg_performers_continue_rate": 0.6633380884450785,
+          "poor_performers_continue_rate": 0.5684210526315789,
+          "n_good": 722,
+          "n_avg": 701,
+          "n_poor": 665
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.6571428571428571,
+          "avg_performers_continue_rate": 0.5956284153005464,
+          "poor_performers_continue_rate": 0.5502958579881657,
+          "n_good": 175,
+          "n_avg": 183,
+          "n_poor": 169
+        },
+        "41-45": {
+          "good_performers_continue_rate": 0.6956521739130435,
+          "avg_performers_continue_rate": 0.5909090909090909,
+          "poor_performers_continue_rate": 0.4090909090909091,
+          "n_good": 23,
+          "n_avg": 22,
+          "n_poor": 22
+        }
+      },
+      "total_transitions": 6230
+    },
+    "WHIP": {
+      "stat_name": "WHIP",
+      "description": "Walks+Hits per IP",
+      "is_inverted": true,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.010037688442211057,
+          "decline_per_year_corrected": 0.013803922627947092,
+          "survivorship_correction": 0.02384161107015815,
+          "std": 0.24412570272205475,
+          "n_transitions": 1592,
+          "avg_starting_value": 1.3380276381909546
+        },
+        "26-30": {
+          "decline_per_year": 0.01976600137646249,
+          "decline_per_year_corrected": 0.04653520474751199,
+          "survivorship_correction": 0.0267692033710495,
+          "std": 0.23313846201758065,
+          "n_transitions": 2906,
+          "avg_starting_value": 1.2893943565037853
+        },
+        "31-35": {
+          "decline_per_year": 0.029911829537105077,
+          "decline_per_year_corrected": 0.05762359856734542,
+          "survivorship_correction": 0.027711769030240346,
+          "std": 0.2302367538176487,
+          "n_transitions": 1361,
+          "avg_starting_value": 1.2784570168993388
+        },
+        "36-40": {
+          "decline_per_year": 0.04813880126182965,
+          "decline_per_year_corrected": 0.07932084272691417,
+          "survivorship_correction": 0.031182041465084524,
+          "std": 0.2282570301490899,
+          "n_transitions": 317,
+          "avg_starting_value": 1.255615141955836
+        },
+        "41-45": {
+          "decline_per_year": 0.08894736842105265,
+          "decline_per_year_corrected": 0.12142160297575506,
+          "survivorship_correction": 0.032474234554702414,
+          "std": 0.1905155093875875,
+          "n_transitions": 38,
+          "avg_starting_value": 1.2807894736842105
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.7969821673525377,
+          "avg_performers_continue_rate": 0.7639257294429708,
+          "poor_performers_continue_rate": 0.6016597510373444,
+          "n_good": 729,
+          "n_avg": 754,
+          "n_poor": 723
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7741027445460943,
+          "avg_performers_continue_rate": 0.7064709806537692,
+          "poor_performers_continue_rate": 0.5444606413994169,
+          "n_good": 1421,
+          "n_avg": 1499,
+          "n_poor": 1372
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7661971830985915,
+          "avg_performers_continue_rate": 0.6599131693198264,
+          "poor_performers_continue_rate": 0.5254730713245997,
+          "n_good": 710,
+          "n_avg": 691,
+          "n_poor": 687
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.745945945945946,
+          "avg_performers_continue_rate": 0.5706214689265536,
+          "poor_performers_continue_rate": 0.4727272727272727,
+          "n_good": 185,
+          "n_avg": 177,
+          "n_poor": 165
+        },
+        "41-45": {
+          "good_performers_continue_rate": 0.75,
+          "avg_performers_continue_rate": 0.5238095238095238,
+          "poor_performers_continue_rate": 0.4090909090909091,
+          "n_good": 24,
+          "n_avg": 21,
+          "n_poor": 22
+        }
+      },
+      "total_transitions": 6230
+    },
+    "K/9": {
+      "stat_name": "K/9",
+      "description": "Strikeouts per 9 IP",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.11125,
+          "decline_per_year_corrected": -0.062255017498828884,
+          "survivorship_correction": 0.04899498250117112,
+          "std": 1.4828599637925122,
+          "n_transitions": 1592,
+          "avg_starting_value": 7.664516331658291
+        },
+        "26-30": {
+          "decline_per_year": 0.04412594631796285,
+          "decline_per_year_corrected": 0.10369933005515233,
+          "survivorship_correction": 0.05957338373718948,
+          "std": 1.5058369314087003,
+          "n_transitions": 2906,
+          "avg_starting_value": 7.969865794907089
+        },
+        "31-35": {
+          "decline_per_year": 0.2248126377663483,
+          "decline_per_year_corrected": 0.3033369336541484,
+          "survivorship_correction": 0.07852429588780008,
+          "std": 1.3799339757283973,
+          "n_transitions": 1361,
+          "avg_starting_value": 7.785569434239529
+        },
+        "36-40": {
+          "decline_per_year": 0.27132492113564666,
+          "decline_per_year_corrected": 0.3410029809386307,
+          "survivorship_correction": 0.06967805980298405,
+          "std": 1.406174723479597,
+          "n_transitions": 317,
+          "avg_starting_value": 7.526372239747633
+        },
+        "41-45": {
+          "decline_per_year": 0.28263157894736857,
+          "decline_per_year_corrected": 0.3093255655268721,
+          "survivorship_correction": 0.026693986579503576,
+          "std": 1.1745354094981584,
+          "n_transitions": 38,
+          "avg_starting_value": 6.592105263157893
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.7561643835616438,
+          "avg_performers_continue_rate": 0.7186666666666667,
+          "poor_performers_continue_rate": 0.6900826446280992,
+          "n_good": 730,
+          "n_avg": 750,
+          "n_poor": 726
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.706338028169014,
+          "avg_performers_continue_rate": 0.6967830253251198,
+          "poor_performers_continue_rate": 0.6272147413182141,
+          "n_good": 1420,
+          "n_avg": 1461,
+          "n_poor": 1411
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.6995645863570392,
+          "avg_performers_continue_rate": 0.6694796061884669,
+          "poor_performers_continue_rate": 0.5857558139534884,
+          "n_good": 689,
+          "n_avg": 711,
+          "n_poor": 688
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.6514285714285715,
+          "avg_performers_continue_rate": 0.6,
+          "poor_performers_continue_rate": 0.5523255813953488,
+          "n_good": 175,
+          "n_avg": 180,
+          "n_poor": 172
+        },
+        "41-45": {
+          "good_performers_continue_rate": 0.6363636363636364,
+          "avg_performers_continue_rate": 0.4782608695652174,
+          "poor_performers_continue_rate": 0.5909090909090909,
+          "n_good": 22,
+          "n_avg": 23,
+          "n_poor": 22
+        }
+      },
+      "total_transitions": 6230
+    },
+    "xFIP": {
+      "stat_name": "xFIP",
+      "description": "Expected FIP",
+      "is_inverted": true,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.043750000000000004,
+          "decline_per_year_corrected": 0.03313922710981892,
+          "survivorship_correction": 0.07688922710981892,
+          "std": 0.6584661573781686,
+          "n_transitions": 1456,
+          "avg_starting_value": 4.134134615384616
+        },
+        "26-30": {
+          "decline_per_year": 0.07544341372912801,
+          "decline_per_year_corrected": 0.1649042578383414,
+          "survivorship_correction": 0.08946084410921337,
+          "std": 0.6852170186900802,
+          "n_transitions": 2695,
+          "avg_starting_value": 3.996682745825603
+        },
+        "31-35": {
+          "decline_per_year": 0.1491393442622951,
+          "decline_per_year_corrected": 0.24407298971163793,
+          "survivorship_correction": 0.09493364544934284,
+          "std": 0.6325980625207969,
+          "n_transitions": 1220,
+          "avg_starting_value": 4.020860655737705
+        },
+        "36-40": {
+          "decline_per_year": 0.19972222222222222,
+          "decline_per_year_corrected": 0.30868675614907565,
+          "survivorship_correction": 0.10896453392685343,
+          "std": 0.6746628472161927,
+          "n_transitions": 288,
+          "avg_starting_value": 3.9709722222222217
+        },
+        "41-45": {
+          "decline_per_year": 0.12631578947368421,
+          "decline_per_year_corrected": 0.1508551965575848,
+          "survivorship_correction": 0.024539407083900584,
+          "std": 0.5398669558458127,
+          "n_transitions": 38,
+          "avg_starting_value": 4.283157894736841
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8176382660687593,
+          "avg_performers_continue_rate": 0.7560975609756098,
+          "poor_performers_continue_rate": 0.5840978593272171,
+          "n_good": 669,
+          "n_avg": 697,
+          "n_poor": 654
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7912005965697241,
+          "avg_performers_continue_rate": 0.6984363365599404,
+          "poor_performers_continue_rate": 0.5300837776085301,
+          "n_good": 1341,
+          "n_avg": 1343,
+          "n_poor": 1313
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7712,
+          "avg_performers_continue_rate": 0.6909937888198758,
+          "poor_performers_continue_rate": 0.47106109324758844,
+          "n_good": 625,
+          "n_avg": 644,
+          "n_poor": 622
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.7407407407407407,
+          "avg_performers_continue_rate": 0.6296296296296297,
+          "poor_performers_continue_rate": 0.4177215189873418,
+          "n_good": 162,
+          "n_avg": 162,
+          "n_poor": 158
+        },
+        "41-45": {
+          "good_performers_continue_rate": 0.5909090909090909,
+          "avg_performers_continue_rate": 0.6363636363636364,
+          "poor_performers_continue_rate": 0.5,
+          "n_good": 22,
+          "n_avg": 22,
+          "n_poor": 22
+        }
+      },
+      "total_transitions": 5711
+    }
+  },
+  "baserunning": {
+    "BsR": {
+      "stat_name": "BsR",
+      "description": "Baserunning Runs",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.1108695652173913,
+          "decline_per_year_corrected": 0.20527751318578255,
+          "survivorship_correction": 0.09440794796839125,
+          "std": 2.3447649507757142,
+          "n_transitions": 782,
+          "avg_starting_value": 0.7558823529411764
+        },
+        "26-30": {
+          "decline_per_year": 0.2237989652623799,
+          "decline_per_year_corrected": 0.23285822561992386,
+          "survivorship_correction": 0.00905926035754394,
+          "std": 2.153405462010231,
+          "n_transitions": 1353,
+          "avg_starting_value": 0.15676274944567628
+        },
+        "31-35": {
+          "decline_per_year": 0.03754098360655736,
+          "decline_per_year_corrected": 0.03754098360655736,
+          "survivorship_correction": 0.0,
+          "std": 2.1529718687841033,
+          "n_transitions": 610,
+          "avg_starting_value": -0.7091803278688525
+        },
+        "36-40": {
+          "decline_per_year": 0.024,
+          "decline_per_year_corrected": 0.024,
+          "survivorship_correction": 0.0,
+          "std": 2.1744113835392014,
+          "n_transitions": 75,
+          "avg_starting_value": -1.7973333333333334
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 2.368269055662514,
+          "n_transitions": 4,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8575757575757575,
+          "avg_performers_continue_rate": 0.7485714285714286,
+          "poor_performers_continue_rate": 0.7770491803278688,
+          "n_good": 330,
+          "n_avg": 350,
+          "n_poor": 305
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8026315789473685,
+          "avg_performers_continue_rate": 0.6815068493150684,
+          "poor_performers_continue_rate": 0.79421768707483,
+          "n_good": 608,
+          "n_avg": 584,
+          "n_poor": 588
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.6710097719869706,
+          "avg_performers_continue_rate": 0.6233766233766234,
+          "poor_performers_continue_rate": 0.7361111111111112,
+          "n_good": 307,
+          "n_avg": 308,
+          "n_poor": 288
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.4222222222222222,
+          "avg_performers_continue_rate": 0.5555555555555556,
+          "poor_performers_continue_rate": 0.6888888888888889,
+          "n_good": 45,
+          "n_avg": 45,
+          "n_poor": 45
+        }
+      },
+      "total_transitions": 2836
+    },
+    "Spd": {
+      "stat_name": "Spd",
+      "description": "Speed Score",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.10025575447570333,
+          "decline_per_year_corrected": 0.14313955224409441,
+          "survivorship_correction": 0.042883797768391074,
+          "std": 1.3591346708784973,
+          "n_transitions": 782,
+          "avg_starting_value": 4.454731457800512
+        },
+        "26-30": {
+          "decline_per_year": 0.14545454545454548,
+          "decline_per_year_corrected": 0.1865608284756522,
+          "survivorship_correction": 0.04110628302110671,
+          "std": 1.3448275184313732,
+          "n_transitions": 1353,
+          "avg_starting_value": 4.048854397634885
+        },
+        "31-35": {
+          "decline_per_year": 0.12295081967213115,
+          "decline_per_year_corrected": 0.17072556946058282,
+          "survivorship_correction": 0.04777474978845166,
+          "std": 1.346953436758567,
+          "n_transitions": 610,
+          "avg_starting_value": 3.3911475409836065
+        },
+        "36-40": {
+          "decline_per_year": 0.05066666666666668,
+          "decline_per_year_corrected": 0.05066666666666668,
+          "survivorship_correction": 0.0,
+          "std": 1.11940782285719,
+          "n_transitions": 75,
+          "avg_starting_value": 2.582666666666667
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.15489031044551343,
+          "survivorship_correction": null,
+          "std": 1.4816487804344238,
+          "n_transitions": 4,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8323353293413174,
+          "avg_performers_continue_rate": 0.7791411042944786,
+          "poor_performers_continue_rate": 0.7692307692307693,
+          "n_good": 334,
+          "n_avg": 326,
+          "n_poor": 325
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7875816993464052,
+          "avg_performers_continue_rate": 0.762987012987013,
+          "poor_performers_continue_rate": 0.7264492753623188,
+          "n_good": 612,
+          "n_avg": 616,
+          "n_poor": 552
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.6946308724832215,
+          "avg_performers_continue_rate": 0.7044025157232704,
+          "poor_performers_continue_rate": 0.6236933797909407,
+          "n_good": 298,
+          "n_avg": 318,
+          "n_poor": 287
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.5652173913043478,
+          "avg_performers_continue_rate": 0.5227272727272727,
+          "poor_performers_continue_rate": 0.5777777777777777,
+          "n_good": 46,
+          "n_avg": 44,
+          "n_poor": 45
+        }
+      },
+      "total_transitions": 2836
+    },
+    "wSB": {
+      "stat_name": "wSB",
+      "description": "Weighted Stolen Base Runs",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.027109974424552437,
+          "decline_per_year_corrected": 0.06902046053458047,
+          "survivorship_correction": 0.04191048611002804,
+          "std": 1.4261887772490316,
+          "n_transitions": 782,
+          "avg_starting_value": 0.16841432225063938
+        },
+        "26-30": {
+          "decline_per_year": 0.053362897265336294,
+          "decline_per_year_corrected": 0.053362897265336294,
+          "survivorship_correction": 0.0,
+          "std": 1.211247583768281,
+          "n_transitions": 1353,
+          "avg_starting_value": 0.01404286770140428
+        },
+        "31-35": {
+          "decline_per_year": 0.011803278688524578,
+          "decline_per_year_corrected": 0.011803278688524578,
+          "survivorship_correction": 0.0,
+          "std": 1.1504943011310595,
+          "n_transitions": 610,
+          "avg_starting_value": -0.09377049180327868
+        },
+        "36-40": {
+          "decline_per_year": 0.012000000000000005,
+          "decline_per_year_corrected": 0.012000000000000005,
+          "survivorship_correction": 0.0,
+          "std": 0.7252138547595014,
+          "n_transitions": 75,
+          "avg_starting_value": -0.21466666666666667
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 1.2655437312441655,
+          "n_transitions": 4,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8457142857142858,
+          "avg_performers_continue_rate": 0.747093023255814,
+          "poor_performers_continue_rate": 0.7869415807560137,
+          "n_good": 350,
+          "n_avg": 344,
+          "n_poor": 291
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7725903614457831,
+          "avg_performers_continue_rate": 0.6972972972972973,
+          "poor_performers_continue_rate": 0.8074866310160428,
+          "n_good": 664,
+          "n_avg": 555,
+          "n_poor": 561
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.6873065015479877,
+          "avg_performers_continue_rate": 0.6133333333333333,
+          "poor_performers_continue_rate": 0.7285714285714285,
+          "n_good": 323,
+          "n_avg": 300,
+          "n_poor": 280
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.4888888888888889,
+          "avg_performers_continue_rate": 0.5777777777777777,
+          "poor_performers_continue_rate": 0.6,
+          "n_good": 45,
+          "n_avg": 45,
+          "n_poor": 45
+        }
+      },
+      "total_transitions": 2836
+    },
+    "sc_sprint_speed": {
+      "stat_name": "sc_sprint_speed",
+      "description": "Sprint Speed (ft/sec)",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.15675324675324673,
+          "decline_per_year_corrected": 0.16304722620423998,
+          "survivorship_correction": 0.006293979450993237,
+          "std": 0.4507036589472118,
+          "n_transitions": 770,
+          "avg_starting_value": 27.802337662337667
+        },
+        "26-30": {
+          "decline_per_year": 0.15114729829755738,
+          "decline_per_year_corrected": 0.1569473015029756,
+          "survivorship_correction": 0.005800003205418201,
+          "std": 0.4551399635664704,
+          "n_transitions": 1351,
+          "avg_starting_value": 27.222945965951144
+        },
+        "31-35": {
+          "decline_per_year": 0.1267213114754098,
+          "decline_per_year_corrected": 0.1267213114754098,
+          "survivorship_correction": 0.0,
+          "std": 0.47147611303314074,
+          "n_transitions": 610,
+          "avg_starting_value": 26.367213114754097
+        },
+        "36-40": {
+          "decline_per_year": 0.11733333333333329,
+          "decline_per_year_corrected": 0.11733333333333329,
+          "survivorship_correction": 0.0,
+          "std": 0.5001008907219631,
+          "n_transitions": 75,
+          "avg_starting_value": 25.322666666666667
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.096495321447844,
+          "survivorship_correction": null,
+          "std": 0.5186237243364549,
+          "n_transitions": 4,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8148148148148148,
+          "avg_performers_continue_rate": 0.7800586510263929,
+          "poor_performers_continue_rate": 0.7868852459016393,
+          "n_good": 324,
+          "n_avg": 341,
+          "n_poor": 305
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7604690117252931,
+          "avg_performers_continue_rate": 0.7821138211382114,
+          "poor_performers_continue_rate": 0.734982332155477,
+          "n_good": 597,
+          "n_avg": 615,
+          "n_poor": 566
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.6739130434782609,
+          "avg_performers_continue_rate": 0.6735395189003437,
+          "poor_performers_continue_rate": 0.6793103448275862,
+          "n_good": 322,
+          "n_avg": 291,
+          "n_poor": 290
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.5319148936170213,
+          "avg_performers_continue_rate": 0.6046511627906976,
+          "poor_performers_continue_rate": 0.5333333333333333,
+          "n_good": 47,
+          "n_avg": 43,
+          "n_poor": 45
+        }
+      },
+      "total_transitions": 2821
+    },
+    "sc_baserunning_runner_runs_tot": {
+      "stat_name": "sc_baserunning_runner_runs_tot",
+      "description": "Total Baserunning Runs (Statcast)",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.047358099012996015,
+          "decline_per_year_corrected": 0.1056758584533016,
+          "survivorship_correction": 0.05831775944030558,
+          "std": 2.2316262612490263,
+          "n_transitions": 680,
+          "avg_starting_value": 0.6909269424796278
+        },
+        "26-30": {
+          "decline_per_year": 0.2068022821959293,
+          "decline_per_year_corrected": 0.23154757987123462,
+          "survivorship_correction": 0.024745297675305318,
+          "std": 2.029114409375034,
+          "n_transitions": 1223,
+          "avg_starting_value": 0.15541812202526123
+        },
+        "31-35": {
+          "decline_per_year": 0.06461027473360498,
+          "decline_per_year_corrected": 0.06461027473360498,
+          "survivorship_correction": 0.0,
+          "std": 1.9583806394113197,
+          "n_transitions": 533,
+          "avg_starting_value": -0.5600041973753581
+        },
+        "36-40": {
+          "decline_per_year": -0.22857472792292616,
+          "decline_per_year_corrected": -0.22857472792292616,
+          "survivorship_correction": 0.0,
+          "std": 1.8832547289120731,
+          "n_transitions": 63,
+          "avg_starting_value": -1.7704086451737997
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 2.154218703352452,
+          "n_transitions": 3,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8257839721254355,
+          "avg_performers_continue_rate": 0.7517006802721088,
+          "poor_performers_continue_rate": 0.7735191637630662,
+          "n_good": 287,
+          "n_avg": 294,
+          "n_poor": 287
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8086303939962477,
+          "avg_performers_continue_rate": 0.68,
+          "poor_performers_continue_rate": 0.7842401500938087,
+          "n_good": 533,
+          "n_avg": 550,
+          "n_poor": 533
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.6615969581749049,
+          "avg_performers_continue_rate": 0.6420664206642066,
+          "poor_performers_continue_rate": 0.7034220532319392,
+          "n_good": 263,
+          "n_avg": 271,
+          "n_poor": 263
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.4358974358974359,
+          "avg_performers_continue_rate": 0.475,
+          "poor_performers_continue_rate": 0.6923076923076923,
+          "n_good": 39,
+          "n_avg": 40,
+          "n_poor": 39
+        }
+      },
+      "total_transitions": 2512
+    },
+    "sc_baserunning_runner_runs_XB": {
+      "stat_name": "sc_baserunning_runner_runs_XB",
+      "description": "Extra Base Taking Runs",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.061586114162014434,
+          "decline_per_year_corrected": 0.09566682769235466,
+          "survivorship_correction": 0.03408071353034023,
+          "std": 1.6301941305346082,
+          "n_transitions": 680,
+          "avg_starting_value": 0.5535917506488036
+        },
+        "26-30": {
+          "decline_per_year": 0.15596756990426003,
+          "decline_per_year_corrected": 0.1871968071715273,
+          "survivorship_correction": 0.031229237267267278,
+          "std": 1.6645183463453481,
+          "n_transitions": 1223,
+          "avg_starting_value": 0.12318311805646537
+        },
+        "31-35": {
+          "decline_per_year": 0.09914218247986946,
+          "decline_per_year_corrected": 0.09914218247986946,
+          "survivorship_correction": 0.0,
+          "std": 1.600249510336697,
+          "n_transitions": 533,
+          "avg_starting_value": -0.5341026086800181
+        },
+        "36-40": {
+          "decline_per_year": -0.23877311752738634,
+          "decline_per_year_corrected": -0.23877311752738634,
+          "survivorship_correction": 0.0,
+          "std": 1.6341765759422564,
+          "n_transitions": 63,
+          "avg_starting_value": -1.705354303769245
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.011087557788211605,
+          "survivorship_correction": null,
+          "std": 1.7602744613703667,
+          "n_transitions": 3,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8362369337979094,
+          "avg_performers_continue_rate": 0.7210884353741497,
+          "poor_performers_continue_rate": 0.794425087108014,
+          "n_good": 287,
+          "n_avg": 294,
+          "n_poor": 287
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8142589118198874,
+          "avg_performers_continue_rate": 0.6818181818181818,
+          "poor_performers_continue_rate": 0.776735459662289,
+          "n_good": 533,
+          "n_avg": 550,
+          "n_poor": 533
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.6577946768060836,
+          "avg_performers_continue_rate": 0.6568265682656826,
+          "poor_performers_continue_rate": 0.6920152091254753,
+          "n_good": 263,
+          "n_avg": 271,
+          "n_poor": 263
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.38461538461538464,
+          "avg_performers_continue_rate": 0.475,
+          "poor_performers_continue_rate": 0.7435897435897436,
+          "n_good": 39,
+          "n_avg": 40,
+          "n_poor": 39
+        }
+      },
+      "total_transitions": 2512
+    },
+    "sc_baserunning_runner_runs_SBX": {
+      "stat_name": "sc_baserunning_runner_runs_SBX",
+      "description": "Stolen Base Runs (Statcast)",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.014228015149018426,
+          "decline_per_year_corrected": 0.02163032273546494,
+          "survivorship_correction": 0.035858337884483366,
+          "std": 1.3721790630462298,
+          "n_transitions": 680,
+          "avg_starting_value": 0.13733519183082418
+        },
+        "26-30": {
+          "decline_per_year": 0.05083471229166928,
+          "decline_per_year_corrected": 0.05395872068150259,
+          "survivorship_correction": 0.00312400838983331,
+          "std": 1.11006431452076,
+          "n_transitions": 1223,
+          "avg_starting_value": 0.03223500396879586
+        },
+        "31-35": {
+          "decline_per_year": -0.03453190774626449,
+          "decline_per_year_corrected": -0.03453190774626449,
+          "survivorship_correction": 0.0,
+          "std": 1.010393720003937,
+          "n_transitions": 533,
+          "avg_starting_value": -0.025901588695339796
+        },
+        "36-40": {
+          "decline_per_year": 0.01019838960446021,
+          "decline_per_year_corrected": 0.03684919789540616,
+          "survivorship_correction": 0.02665080829094595,
+          "std": 0.6929210155645942,
+          "n_transitions": 63,
+          "avg_starting_value": -0.06505434140455438
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 1.1114330920043307,
+          "n_transitions": 3,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8327526132404182,
+          "avg_performers_continue_rate": 0.7380952380952381,
+          "poor_performers_continue_rate": 0.7804878048780488,
+          "n_good": 287,
+          "n_avg": 294,
+          "n_poor": 287
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7954971857410882,
+          "avg_performers_continue_rate": 0.6872727272727273,
+          "poor_performers_continue_rate": 0.7898686679174484,
+          "n_good": 533,
+          "n_avg": 550,
+          "n_poor": 533
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.688212927756654,
+          "avg_performers_continue_rate": 0.6051660516605166,
+          "poor_performers_continue_rate": 0.714828897338403,
+          "n_good": 263,
+          "n_avg": 271,
+          "n_poor": 263
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.5897435897435898,
+          "avg_performers_continue_rate": 0.5,
+          "poor_performers_continue_rate": 0.5128205128205128,
+          "n_good": 39,
+          "n_avg": 40,
+          "n_poor": 39
+        }
+      },
+      "total_transitions": 2512
+    }
+  },
+  "fielding_infield": {
+    "OAA/150": {
+      "stat_name": "OAA/150",
+      "description": "Outs Above Average per 150 games",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.18903004856913475,
+          "decline_per_year_corrected": 0.3010679332943265,
+          "survivorship_correction": 0.49009798186346126,
+          "std": 13.495349327681172,
+          "n_transitions": 334,
+          "avg_starting_value": -0.14614948884378576
+        },
+        "26-30": {
+          "decline_per_year": 1.6818028322995768,
+          "decline_per_year_corrected": 2.2047309239006356,
+          "survivorship_correction": 0.522928091601059,
+          "std": 12.472803370040076,
+          "n_transitions": 525,
+          "avg_starting_value": 1.6882318140248114
+        },
+        "31-35": {
+          "decline_per_year": 0.6648815025945667,
+          "decline_per_year_corrected": 1.5259368799594113,
+          "survivorship_correction": 0.8610553773648446,
+          "std": 11.90160151839235,
+          "n_transitions": 218,
+          "avg_starting_value": 1.132038488821961
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.847142836018187,
+          "survivorship_correction": null,
+          "std": 13.091761670231588,
+          "n_transitions": 26,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 13.091761670231588,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8367346938775511,
+          "avg_performers_continue_rate": 0.7939698492462312,
+          "poor_performers_continue_rate": 0.764102564102564,
+          "n_good": 196,
+          "n_avg": 199,
+          "n_poor": 195
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8074534161490683,
+          "avg_performers_continue_rate": 0.8,
+          "poor_performers_continue_rate": 0.7236024844720497,
+          "n_good": 322,
+          "n_avg": 330,
+          "n_poor": 322
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7297297297297297,
+          "avg_performers_continue_rate": 0.6907894736842105,
+          "poor_performers_continue_rate": 0.5850340136054422,
+          "n_good": 148,
+          "n_avg": 152,
+          "n_poor": 147
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.3888888888888889,
+          "avg_performers_continue_rate": 0.6666666666666666,
+          "poor_performers_continue_rate": 0.5,
+          "n_good": 18,
+          "n_avg": 18,
+          "n_poor": 18
+        }
+      },
+      "total_transitions": 1110
+    },
+    "DRS/150": {
+      "stat_name": "DRS/150",
+      "description": "Defensive Runs Saved per 150 games",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.8331283989242974,
+          "decline_per_year_corrected": 1.520071176494982,
+          "survivorship_correction": 0.6869427775706846,
+          "std": 14.100404381714053,
+          "n_transitions": 334,
+          "avg_starting_value": 1.5350518473014676
+        },
+        "26-30": {
+          "decline_per_year": 1.286786201417101,
+          "decline_per_year_corrected": 1.8144645778760147,
+          "survivorship_correction": 0.5276783764589137,
+          "std": 13.070187478443874,
+          "n_transitions": 525,
+          "avg_starting_value": 1.5981479364537976
+        },
+        "31-35": {
+          "decline_per_year": 2.0843095049951907,
+          "decline_per_year_corrected": 3.270102202328901,
+          "survivorship_correction": 1.18579269733371,
+          "std": 12.999801422621413,
+          "n_transitions": 218,
+          "avg_starting_value": 0.5060930689710603
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 4.725739826781787,
+          "survivorship_correction": null,
+          "std": 14.299781564883556,
+          "n_transitions": 26,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 6.761999562770599,
+          "survivorship_correction": null,
+          "std": 14.299781564883556,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8461538461538461,
+          "avg_performers_continue_rate": 0.8,
+          "poor_performers_continue_rate": 0.7487179487179487,
+          "n_good": 195,
+          "n_avg": 200,
+          "n_poor": 195
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7857142857142857,
+          "avg_performers_continue_rate": 0.8393939393939394,
+          "poor_performers_continue_rate": 0.7049689440993789,
+          "n_good": 322,
+          "n_avg": 330,
+          "n_poor": 322
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7635135135135135,
+          "avg_performers_continue_rate": 0.6622516556291391,
+          "poor_performers_continue_rate": 0.581081081081081,
+          "n_good": 148,
+          "n_avg": 151,
+          "n_poor": 148
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.7222222222222222,
+          "avg_performers_continue_rate": 0.6666666666666666,
+          "poor_performers_continue_rate": 0.16666666666666666,
+          "n_good": 18,
+          "n_avg": 18,
+          "n_poor": 18
+        }
+      },
+      "total_transitions": 1110
+    },
+    "sc_total_runs/150": {
+      "stat_name": "sc_total_runs/150",
+      "description": "Total Fielding Runs (Statcast) per 150",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.18803723836795153,
+          "decline_per_year_corrected": 0.4274647625019383,
+          "survivorship_correction": 0.6155020008698898,
+          "std": 10.787324851937885,
+          "n_transitions": 334,
+          "avg_starting_value": 0.015773828263154134
+        },
+        "26-30": {
+          "decline_per_year": 1.3376588652461712,
+          "decline_per_year_corrected": 1.6471970129866595,
+          "survivorship_correction": 0.30953814774048827,
+          "std": 9.967128357243721,
+          "n_transitions": 525,
+          "avg_starting_value": 1.5337657553197581
+        },
+        "31-35": {
+          "decline_per_year": 0.5985853379320804,
+          "decline_per_year_corrected": 1.3704762963503,
+          "survivorship_correction": 0.7718909584182198,
+          "std": 8.992374667387839,
+          "n_transitions": 218,
+          "avg_starting_value": 1.1268588068693013
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 1.0937555797139407,
+          "survivorship_correction": null,
+          "std": 9.891612134126623,
+          "n_transitions": 26,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.06880837951704089,
+          "survivorship_correction": null,
+          "std": 9.891612134126623,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8615384615384616,
+          "avg_performers_continue_rate": 0.7860696517412935,
+          "poor_performers_continue_rate": 0.7474226804123711,
+          "n_good": 195,
+          "n_avg": 201,
+          "n_poor": 194
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8012422360248447,
+          "avg_performers_continue_rate": 0.7909090909090909,
+          "poor_performers_continue_rate": 0.7391304347826086,
+          "n_good": 322,
+          "n_avg": 330,
+          "n_poor": 322
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7635135135135135,
+          "avg_performers_continue_rate": 0.6513157894736842,
+          "poor_performers_continue_rate": 0.5918367346938775,
+          "n_good": 148,
+          "n_avg": 152,
+          "n_poor": 147
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.4444444444444444,
+          "avg_performers_continue_rate": 0.6111111111111112,
+          "poor_performers_continue_rate": 0.5,
+          "n_good": 18,
+          "n_avg": 18,
+          "n_poor": 18
+        }
+      },
+      "total_transitions": 1110
+    },
+    "sc_range_runs/150": {
+      "stat_name": "sc_range_runs/150",
+      "description": "Range Runs per 150",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.17981339155656276,
+          "decline_per_year_corrected": 0.18178387552301908,
+          "survivorship_correction": 0.36159726707958184,
+          "std": 10.07306672578834,
+          "n_transitions": 334,
+          "avg_starting_value": -0.12083662984772307
+        },
+        "26-30": {
+          "decline_per_year": 1.2346684421886736,
+          "decline_per_year_corrected": 1.5527995186243282,
+          "survivorship_correction": 0.31813107643565475,
+          "std": 9.200521634734793,
+          "n_transitions": 525,
+          "avg_starting_value": 1.2961620500485203
+        },
+        "31-35": {
+          "decline_per_year": 0.4724563916116663,
+          "decline_per_year_corrected": 1.180565300405814,
+          "survivorship_correction": 0.7081089087941478,
+          "std": 8.733343208461156,
+          "n_transitions": 218,
+          "avg_starting_value": 0.8784613933409453
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.8083310821873,
+          "survivorship_correction": null,
+          "std": 9.606677529307271,
+          "n_transitions": 26,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 9.606677529307271,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8358974358974359,
+          "avg_performers_continue_rate": 0.795,
+          "poor_performers_continue_rate": 0.764102564102564,
+          "n_good": 195,
+          "n_avg": 200,
+          "n_poor": 195
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8012422360248447,
+          "avg_performers_continue_rate": 0.797583081570997,
+          "poor_performers_continue_rate": 0.7320872274143302,
+          "n_good": 322,
+          "n_avg": 331,
+          "n_poor": 321
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7567567567567568,
+          "avg_performers_continue_rate": 0.6556291390728477,
+          "poor_performers_continue_rate": 0.5945945945945946,
+          "n_good": 148,
+          "n_avg": 151,
+          "n_poor": 148
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.4444444444444444,
+          "avg_performers_continue_rate": 0.5555555555555556,
+          "poor_performers_continue_rate": 0.5555555555555556,
+          "n_good": 18,
+          "n_avg": 18,
+          "n_poor": 18
+        }
+      },
+      "total_transitions": 1110
+    },
+    "sc_arm_runs/150": {
+      "stat_name": "sc_arm_runs/150",
+      "description": "Arm Runs per 150",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.02062192342484183,
+          "decline_per_year_corrected": 0.02062192342484183,
+          "survivorship_correction": 0.0,
+          "std": 0.7281561079432403,
+          "n_transitions": 138,
+          "avg_starting_value": 0.16925038213819885
+        },
+        "26-30": {
+          "decline_per_year": 0.04416383944933038,
+          "decline_per_year_corrected": 0.04416383944933038,
+          "survivorship_correction": 0.0,
+          "std": 0.7075253378674842,
+          "n_transitions": 198,
+          "avg_starting_value": 0.21318356477690437
+        },
+        "31-35": {
+          "decline_per_year": -0.033634161118870576,
+          "decline_per_year_corrected": -0.02761278591946962,
+          "survivorship_correction": 0.006021375199400956,
+          "std": 0.6382657711365014,
+          "n_transitions": 54,
+          "avg_starting_value": 0.21410305605213223
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 0.7020923482501517,
+          "n_transitions": 3,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 0.7020923482501517,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8018867924528302,
+          "avg_performers_continue_rate": 0.8727272727272727,
+          "poor_performers_continue_rate": 0.8476190476190476,
+          "n_good": 106,
+          "n_avg": 110,
+          "n_poor": 105
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.79375,
+          "avg_performers_continue_rate": 0.8545454545454545,
+          "poor_performers_continue_rate": 0.81875,
+          "n_good": 160,
+          "n_avg": 165,
+          "n_poor": 160
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7735849056603774,
+          "avg_performers_continue_rate": 0.6666666666666666,
+          "poor_performers_continue_rate": 0.7547169811320755,
+          "n_good": 53,
+          "n_avg": 54,
+          "n_poor": 53
+        }
+      },
+      "total_transitions": 397
+    },
+    "sc_dp_runs/150": {
+      "stat_name": "sc_dp_runs/150",
+      "description": "Double Play Runs per 150",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.04068275564010193,
+          "decline_per_year_corrected": 0.0006638960559479379,
+          "survivorship_correction": 0.04134665169604987,
+          "std": 2.599126690498394,
+          "n_transitions": 334,
+          "avg_starting_value": 0.025478342522407358
+        },
+        "26-30": {
+          "decline_per_year": 0.10042358324838667,
+          "decline_per_year_corrected": 0.12559905171384186,
+          "survivorship_correction": 0.025175468465455205,
+          "std": 2.3161430988218803,
+          "n_transitions": 525,
+          "avg_starting_value": 0.12511852583780766
+        },
+        "31-35": {
+          "decline_per_year": 0.1342271553974596,
+          "decline_per_year_corrected": 0.2919323371961561,
+          "survivorship_correction": 0.1577051817986965,
+          "std": 2.2228920863054364,
+          "n_transitions": 218,
+          "avg_starting_value": 0.17955817320299677
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.45826562267847026,
+          "survivorship_correction": null,
+          "std": 2.4451812949359804,
+          "n_transitions": 26,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.6452979730729946,
+          "survivorship_correction": null,
+          "std": 2.4451812949359804,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.7959183673469388,
+          "avg_performers_continue_rate": 0.8341708542713567,
+          "poor_performers_continue_rate": 0.764102564102564,
+          "n_good": 196,
+          "n_avg": 199,
+          "n_poor": 195
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7701863354037267,
+          "avg_performers_continue_rate": 0.8121212121212121,
+          "poor_performers_continue_rate": 0.7484472049689441,
+          "n_good": 322,
+          "n_avg": 330,
+          "n_poor": 322
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7094594594594594,
+          "avg_performers_continue_rate": 0.7284768211920529,
+          "poor_performers_continue_rate": 0.5675675675675675,
+          "n_good": 148,
+          "n_avg": 151,
+          "n_poor": 148
+        },
+        "36-40": {
+          "good_performers_continue_rate": 0.6111111111111112,
+          "avg_performers_continue_rate": 0.6111111111111112,
+          "poor_performers_continue_rate": 0.3333333333333333,
+          "n_good": 18,
+          "n_avg": 18,
+          "n_poor": 18
+        }
+      },
+      "total_transitions": 1110
+    }
+  },
+  "fielding_outfield": {
+    "OAA/150": {
+      "stat_name": "OAA/150",
+      "description": "Outs Above Average per 150 games",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.9223527805417764,
+          "decline_per_year_corrected": 1.3867949195902225,
+          "survivorship_correction": 0.4644421390484461,
+          "std": 9.78060504584374,
+          "n_transitions": 250,
+          "avg_starting_value": 2.7387902496559335
+        },
+        "26-30": {
+          "decline_per_year": 1.4131331704012207,
+          "decline_per_year_corrected": 1.5791482532033958,
+          "survivorship_correction": 0.1660150828021751,
+          "std": 9.52926575284487,
+          "n_transitions": 407,
+          "avg_starting_value": 1.8576222978358978
+        },
+        "31-35": {
+          "decline_per_year": 1.510689878463503,
+          "decline_per_year_corrected": 2.0604961819501506,
+          "survivorship_correction": 0.5498063034866474,
+          "std": 9.17756315197043,
+          "n_transitions": 141,
+          "avg_starting_value": -1.8496310210495532
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 2.541844110696905,
+          "survivorship_correction": null,
+          "std": 10.095319467167474,
+          "n_transitions": 9,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 3.167689337010451,
+          "survivorship_correction": null,
+          "std": 10.095319467167474,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8156424581005587,
+          "avg_performers_continue_rate": 0.7759562841530054,
+          "poor_performers_continue_rate": 0.7206703910614525,
+          "n_good": 179,
+          "n_avg": 183,
+          "n_poor": 179
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7212543554006968,
+          "avg_performers_continue_rate": 0.752542372881356,
+          "poor_performers_continue_rate": 0.686411149825784,
+          "n_good": 287,
+          "n_avg": 295,
+          "n_poor": 287
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7304347826086957,
+          "avg_performers_continue_rate": 0.6324786324786325,
+          "poor_performers_continue_rate": 0.6106194690265486,
+          "n_good": 115,
+          "n_avg": 117,
+          "n_poor": 113
+        }
+      },
+      "total_transitions": 811
+    },
+    "DRS/150": {
+      "stat_name": "DRS/150",
+      "description": "Defensive Runs Saved per 150 games",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 1.3350259585832154,
+          "decline_per_year_corrected": 2.6908924320964456,
+          "survivorship_correction": 1.3558664735132302,
+          "std": 18.434229818254117,
+          "n_transitions": 250,
+          "avg_starting_value": 3.584549412587952
+        },
+        "26-30": {
+          "decline_per_year": 3.399126761745099,
+          "decline_per_year_corrected": 4.57764894624826,
+          "survivorship_correction": 1.178522184503161,
+          "std": 15.731900788484058,
+          "n_transitions": 407,
+          "avg_starting_value": 3.576746841387921
+        },
+        "31-35": {
+          "decline_per_year": 2.013871399239275,
+          "decline_per_year_corrected": 3.2441468789720167,
+          "survivorship_correction": 1.2302754797327415,
+          "std": 17.531425586191567,
+          "n_transitions": 141,
+          "avg_starting_value": -0.9712952652630246
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 1.9106448116957733,
+          "survivorship_correction": null,
+          "std": 19.284568144810724,
+          "n_transitions": 9,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 19.284568144810724,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8156424581005587,
+          "avg_performers_continue_rate": 0.8260869565217391,
+          "poor_performers_continue_rate": 0.6685393258426966,
+          "n_good": 179,
+          "n_avg": 184,
+          "n_poor": 178
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7526132404181185,
+          "avg_performers_continue_rate": 0.8033898305084746,
+          "poor_performers_continue_rate": 0.6027874564459931,
+          "n_good": 287,
+          "n_avg": 295,
+          "n_poor": 287
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7543859649122807,
+          "avg_performers_continue_rate": 0.6068376068376068,
+          "poor_performers_continue_rate": 0.6140350877192983,
+          "n_good": 114,
+          "n_avg": 117,
+          "n_poor": 114
+        }
+      },
+      "total_transitions": 811
+    },
+    "sc_total_runs/150": {
+      "stat_name": "sc_total_runs/150",
+      "description": "Total Fielding Runs (Statcast) per 150",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 1.4396598837009695,
+          "decline_per_year_corrected": 2.152266202138085,
+          "survivorship_correction": 0.7126063184371152,
+          "std": 11.091872260890748,
+          "n_transitions": 250,
+          "avg_starting_value": 3.380399327558028
+        },
+        "26-30": {
+          "decline_per_year": 2.0276720242943767,
+          "decline_per_year_corrected": 2.469386685904023,
+          "survivorship_correction": 0.44171466160964645,
+          "std": 9.055150562997744,
+          "n_transitions": 407,
+          "avg_starting_value": 2.1062827508494726
+        },
+        "31-35": {
+          "decline_per_year": 1.452721986576465,
+          "decline_per_year_corrected": 2.002093365223012,
+          "survivorship_correction": 0.5493713786465475,
+          "std": 9.35492676764682,
+          "n_transitions": 141,
+          "avg_starting_value": -2.8744941869138536
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 1.5348000445420014,
+          "survivorship_correction": null,
+          "std": 10.290419444411503,
+          "n_transitions": 9,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.6752998216375161,
+          "survivorship_correction": null,
+          "std": 10.290419444411503,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8100558659217877,
+          "avg_performers_continue_rate": 0.819672131147541,
+          "poor_performers_continue_rate": 0.6815642458100558,
+          "n_good": 179,
+          "n_avg": 183,
+          "n_poor": 179
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7386759581881533,
+          "avg_performers_continue_rate": 0.7796610169491526,
+          "poor_performers_continue_rate": 0.6411149825783972,
+          "n_good": 287,
+          "n_avg": 295,
+          "n_poor": 287
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7280701754385965,
+          "avg_performers_continue_rate": 0.635593220338983,
+          "poor_performers_continue_rate": 0.6106194690265486,
+          "n_good": 114,
+          "n_avg": 118,
+          "n_poor": 113
+        }
+      },
+      "total_transitions": 811
+    },
+    "sc_range_runs/150": {
+      "stat_name": "sc_range_runs/150",
+      "description": "Range Runs per 150",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.8926135664284517,
+          "decline_per_year_corrected": 1.388872548600695,
+          "survivorship_correction": 0.49625898217224335,
+          "std": 8.883035780883157,
+          "n_transitions": 250,
+          "avg_starting_value": 2.458529471716069
+        },
+        "26-30": {
+          "decline_per_year": 1.2325655386376175,
+          "decline_per_year_corrected": 1.306048889060384,
+          "survivorship_correction": 0.07348335042276657,
+          "std": 8.435888628533618,
+          "n_transitions": 407,
+          "avg_starting_value": 1.6475146439187502
+        },
+        "31-35": {
+          "decline_per_year": 1.4392800988723997,
+          "decline_per_year_corrected": 1.9091413010329064,
+          "survivorship_correction": 0.4698612021605066,
+          "std": 8.06267062869665,
+          "n_transitions": 141,
+          "avg_starting_value": -1.657117360210255
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 2.5122337130054286,
+          "survivorship_correction": null,
+          "std": 8.868937691566314,
+          "n_transitions": 9,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 3.4582841607343675,
+          "survivorship_correction": null,
+          "std": 8.868937691566314,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8379888268156425,
+          "avg_performers_continue_rate": 0.7486338797814208,
+          "poor_performers_continue_rate": 0.7262569832402235,
+          "n_good": 179,
+          "n_avg": 183,
+          "n_poor": 179
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7073170731707317,
+          "avg_performers_continue_rate": 0.7627118644067796,
+          "poor_performers_continue_rate": 0.6898954703832753,
+          "n_good": 287,
+          "n_avg": 295,
+          "n_poor": 287
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7130434782608696,
+          "avg_performers_continue_rate": 0.6637931034482759,
+          "poor_performers_continue_rate": 0.5964912280701754,
+          "n_good": 115,
+          "n_avg": 116,
+          "n_poor": 114
+        }
+      },
+      "total_transitions": 811
+    },
+    "sc_arm_runs/150": {
+      "stat_name": "sc_arm_runs/150",
+      "description": "Arm Runs per 150",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.5470463172725176,
+          "decline_per_year_corrected": 0.8193882328849689,
+          "survivorship_correction": 0.2723419156124513,
+          "std": 5.735200340544565,
+          "n_transitions": 250,
+          "avg_starting_value": 0.9218698558419579
+        },
+        "26-30": {
+          "decline_per_year": 0.7951064856567591,
+          "decline_per_year_corrected": 1.0566376444496677,
+          "survivorship_correction": 0.26153115879290845,
+          "std": 4.945174055756627,
+          "n_transitions": 407,
+          "avg_starting_value": 0.45876810693072095
+        },
+        "31-35": {
+          "decline_per_year": 0.013441887704065104,
+          "decline_per_year_corrected": 0.05461159329810169,
+          "survivorship_correction": 0.041169705594036585,
+          "std": 4.693346437720156,
+          "n_transitions": 141,
+          "avg_starting_value": -1.2173768267035998
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 5.162681081492172,
+          "n_transitions": 9,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 5.162681081492172,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.7988826815642458,
+          "avg_performers_continue_rate": 0.8087431693989071,
+          "poor_performers_continue_rate": 0.7039106145251397,
+          "n_good": 179,
+          "n_avg": 183,
+          "n_poor": 179
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.7491289198606271,
+          "avg_performers_continue_rate": 0.7668918918918919,
+          "poor_performers_continue_rate": 0.6433566433566433,
+          "n_good": 287,
+          "n_avg": 296,
+          "n_poor": 286
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.6491228070175439,
+          "avg_performers_continue_rate": 0.6923076923076923,
+          "poor_performers_continue_rate": 0.631578947368421,
+          "n_good": 114,
+          "n_avg": 117,
+          "n_poor": 114
+        }
+      },
+      "total_transitions": 811
+    }
+  },
+  "fielding_catcher": {
+    "sc_total_runs/150": {
+      "stat_name": "sc_total_runs/150",
+      "description": "Total Catching Runs (Statcast) per 150",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.2703185245079964,
+          "decline_per_year_corrected": 1.5918669113717463,
+          "survivorship_correction": 1.3215483868637499,
+          "std": 15.41806451341042,
+          "n_transitions": 82,
+          "avg_starting_value": 0.21528358715276205
+        },
+        "26-30": {
+          "decline_per_year": 0.682040687249495,
+          "decline_per_year_corrected": 2.3344678141629442,
+          "survivorship_correction": 1.6524271269134492,
+          "std": 15.654572781285314,
+          "n_transitions": 205,
+          "avg_starting_value": 3.1961195639564504
+        },
+        "31-35": {
+          "decline_per_year": 3.7977700017282214,
+          "decline_per_year_corrected": 5.4439570840039835,
+          "survivorship_correction": 1.6461870822757625,
+          "std": 15.195573067160884,
+          "n_transitions": 118,
+          "avg_starting_value": 0.41395504326114935
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 8.553446353845022,
+          "survivorship_correction": null,
+          "std": 16.715130373876974,
+          "n_transitions": 9,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 12.846379807210981,
+          "survivorship_correction": null,
+          "std": 16.715130373876974,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8571428571428571,
+          "avg_performers_continue_rate": 0.7567567567567568,
+          "poor_performers_continue_rate": 0.6857142857142857,
+          "n_good": 35,
+          "n_avg": 37,
+          "n_poor": 35
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8555555555555555,
+          "avg_performers_continue_rate": 0.7608695652173914,
+          "poor_performers_continue_rate": 0.6444444444444445,
+          "n_good": 90,
+          "n_avg": 92,
+          "n_poor": 90
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.7166666666666667,
+          "avg_performers_continue_rate": 0.75,
+          "poor_performers_continue_rate": 0.5,
+          "n_good": 60,
+          "n_avg": 60,
+          "n_poor": 60
+        }
+      },
+      "total_transitions": 414
+    },
+    "sc_framing_runs/150": {
+      "stat_name": "sc_framing_runs/150",
+      "description": "Framing Runs per 150",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.49287167645862273,
+          "decline_per_year_corrected": 1.028655654203574,
+          "survivorship_correction": 0.5357839777449515,
+          "std": 12.501626147382197,
+          "n_transitions": 82,
+          "avg_starting_value": 0.9135791589993898
+        },
+        "26-30": {
+          "decline_per_year": 0.1475286187383818,
+          "decline_per_year_corrected": 1.1920045750701291,
+          "survivorship_correction": 1.0444759563317474,
+          "std": 13.42897658140818,
+          "n_transitions": 205,
+          "avg_starting_value": 1.9394459527861714
+        },
+        "31-35": {
+          "decline_per_year": 2.801874260875615,
+          "decline_per_year_corrected": 3.578804100803832,
+          "survivorship_correction": 0.7769298399282167,
+          "std": 13.318797255912296,
+          "n_transitions": 118,
+          "avg_starting_value": 1.0008378281621493
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 5.9656036265375345,
+          "survivorship_correction": null,
+          "std": 14.650676981503526,
+          "n_transitions": 9,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 9.464128454704811,
+          "survivorship_correction": null,
+          "std": 14.650676981503526,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8,
+          "avg_performers_continue_rate": 0.7837837837837838,
+          "poor_performers_continue_rate": 0.7142857142857143,
+          "n_good": 35,
+          "n_avg": 37,
+          "n_poor": 35
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8222222222222222,
+          "avg_performers_continue_rate": 0.7717391304347826,
+          "poor_performers_continue_rate": 0.6666666666666666,
+          "n_good": 90,
+          "n_avg": 92,
+          "n_poor": 90
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.6666666666666666,
+          "avg_performers_continue_rate": 0.75,
+          "poor_performers_continue_rate": 0.55,
+          "n_good": 60,
+          "n_avg": 60,
+          "n_poor": 60
+        }
+      },
+      "total_transitions": 414
+    },
+    "sc_throwing_runs/150": {
+      "stat_name": "sc_throwing_runs/150",
+      "description": "Throwing Runs per 150",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": -0.7969119170094696,
+          "decline_per_year_corrected": -0.7969119170094696,
+          "survivorship_correction": 0.0,
+          "std": 5.304100458507464,
+          "n_transitions": 82,
+          "avg_starting_value": -0.36429165386227186
+        },
+        "26-30": {
+          "decline_per_year": 0.8508322090772883,
+          "decline_per_year_corrected": 1.4686452575259723,
+          "survivorship_correction": 0.617813048448684,
+          "std": 5.85296572214543,
+          "n_transitions": 205,
+          "avg_starting_value": 1.044471469032322
+        },
+        "31-35": {
+          "decline_per_year": 0.5500644946307593,
+          "decline_per_year_corrected": 0.745831370682908,
+          "survivorship_correction": 0.19576687605214857,
+          "std": 5.873006281564458,
+          "n_transitions": 118,
+          "avg_starting_value": -0.7267856215303553
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.02301748383984359,
+          "survivorship_correction": null,
+          "std": 6.460306909720904,
+          "n_transitions": 9,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 0.0,
+          "survivorship_correction": null,
+          "std": 6.460306909720904,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.7428571428571429,
+          "avg_performers_continue_rate": 0.7027027027027027,
+          "poor_performers_continue_rate": 0.8571428571428571,
+          "n_good": 35,
+          "n_avg": 37,
+          "n_poor": 35
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8555555555555555,
+          "avg_performers_continue_rate": 0.7608695652173914,
+          "poor_performers_continue_rate": 0.6444444444444445,
+          "n_good": 90,
+          "n_avg": 92,
+          "n_poor": 90
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.6833333333333333,
+          "avg_performers_continue_rate": 0.6666666666666666,
+          "poor_performers_continue_rate": 0.6166666666666667,
+          "n_good": 60,
+          "n_avg": 60,
+          "n_poor": 60
+        }
+      },
+      "total_transitions": 414
+    },
+    "sc_blocking_runs/150": {
+      "stat_name": "sc_blocking_runs/150",
+      "description": "Blocking Runs per 150",
+      "is_inverted": false,
+      "decline_by_age_band": {
+        "21-25": {
+          "decline_per_year": 0.19166768745718582,
+          "decline_per_year_corrected": 0.5816133395061224,
+          "survivorship_correction": 0.38994565204893655,
+          "std": 4.367391302948091,
+          "n_transitions": 64,
+          "avg_starting_value": -0.4286619383796716
+        },
+        "26-30": {
+          "decline_per_year": -0.1883249995448232,
+          "decline_per_year_corrected": 0.09118087158862401,
+          "survivorship_correction": 0.2795058711334472,
+          "std": 4.223644274905426,
+          "n_transitions": 156,
+          "avg_starting_value": 0.2788553790915458
+        },
+        "31-35": {
+          "decline_per_year": 0.5794626206273286,
+          "decline_per_year_corrected": 0.8907033161708775,
+          "survivorship_correction": 0.3112406955435489,
+          "std": 3.5792679987508125,
+          "n_transitions": 86,
+          "avg_starting_value": 0.19195970607283613
+        },
+        "36-40": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 1.690225760753131,
+          "survivorship_correction": null,
+          "std": 3.937194798625894,
+          "n_transitions": 7,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        },
+        "41-45": {
+          "decline_per_year": null,
+          "decline_per_year_corrected": 3.134725661585261,
+          "survivorship_correction": null,
+          "std": 3.937194798625894,
+          "n_transitions": 0,
+          "note": "extrapolated from younger age bands",
+          "extrapolated": true
+        }
+      },
+      "retirement_bias": {
+        "21-25": {
+          "good_performers_continue_rate": 0.8571428571428571,
+          "avg_performers_continue_rate": 0.75,
+          "poor_performers_continue_rate": 0.6785714285714286,
+          "n_good": 28,
+          "n_avg": 28,
+          "n_poor": 28
+        },
+        "26-30": {
+          "good_performers_continue_rate": 0.8529411764705882,
+          "avg_performers_continue_rate": 0.7,
+          "poor_performers_continue_rate": 0.7205882352941176,
+          "n_good": 68,
+          "n_avg": 70,
+          "n_poor": 68
+        },
+        "31-35": {
+          "good_performers_continue_rate": 0.6739130434782609,
+          "avg_performers_continue_rate": 0.6956521739130435,
+          "poor_performers_continue_rate": 0.5,
+          "n_good": 46,
+          "n_avg": 46,
+          "n_poor": 46
+        }
+      },
+      "total_transitions": 313
+    }
+  }
+}
