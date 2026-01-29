@@ -4,8 +4,12 @@ const getApiUrl = (): string => {
     return 'http://localhost:8000';
   }
   
-  // In production, use ngrok or environment variable
-  const apiUrl = import.meta.env.VITE_API_URL || 'https://311c88478e95.ngrok-free.app';
+  // In production, use environment variable (required)
+  const apiUrl = import.meta.env.VITE_API_URL;
+  if (!apiUrl) {
+    console.error('VITE_API_URL not set in environment!');
+    return '';
+  }
   return apiUrl;
 };
 
