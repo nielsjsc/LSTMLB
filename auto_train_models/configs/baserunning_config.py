@@ -51,3 +51,21 @@ class BaserunningConfig:
     GRADIENT_CLIP = 1.0
     NUM_EPOCHS = 50
     EARLY_STOPPING_PATIENCE = 10
+    
+    # ============================================================================
+    # DOMAIN CONSTRAINT CONFIGURATION
+    # ============================================================================
+    # Speed/baserunning is the fastest-declining tool in baseball.
+    # Peak around age 24-25, with consistent decline thereafter.
+    # Sprint speed is very stable year-to-year (high skill component).
+    
+    CONSTRAINT_STRENGTH = 'medium'
+    
+    DOMAIN_CONSTRAINTS = {
+        'mse_weight': 1.0,
+        'aging_weight': 0.22,        # Very strong aging (speed declines fast)
+        'smoothness_weight': 0.12,   # More smoothness (speed is consistent)
+        'bounds_hard_weight': 0.50,
+        'bounds_soft_weight': 0.05,
+        'peak_weight': 0.06,
+    }

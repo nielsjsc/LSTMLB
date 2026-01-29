@@ -2,6 +2,8 @@
 #
 # VALIDATED OPTIMAL CONFIGURATION
 # ================================
+# Now includes domain-constrained loss function support.
+# See core/domain_losses.py for details on aging curves and physical bounds.
 # This configuration has been validated through comprehensive hyperparameter tuning
 # (96 configurations tested on 2015-2024 validation data, December 2025)
 #
@@ -46,7 +48,9 @@ class BatterConfig:
     OUTPUT_FILE = '../data/generated/pipeline/batter_predictions.csv'
     
     # Batter-specific configuration
-    MIN_PA = 80
+    SEQ_LEN = 3
+    MIN_PA = 80  # Minimum PA per season for training sequences
+    MIN_PA_CURRENT = 70  # Minimum PA in current year to generate predictions
     
     # ============================================================================
     # TRANSFER LEARNING FEATURE SETS
@@ -105,7 +109,7 @@ class BatterConfig:
     PRETRAIN_SCALER_FILE = 'data/batter_pretrain_scaler.pkl'
     PRETRAIN_CHECKPOINT_FILE = 'batter_pretrained.pth'
     PRETRAIN_START_SEASON = 1950  # Validated optimal (more historical data)
-    PRETRAIN_MIN_PA = 100        # Validated optimal
+    PRETRAIN_MIN_PA = 75        # Validated optimal
     
     # ============================================================================
     # FINE-TUNING CONFIGURATION (2015+, Classical + Statcast)
@@ -121,19 +125,42 @@ class BatterConfig:
     
     # Model architecture (direct attributes for factory compatibility)
     # These are the ACTUAL values the model will use after removing hardcoded modifications
-    HIDDEN_SIZE = 256  # Actual internal LSTM hidden size
-    NUM_LAYERS = 4    # Actual number of LSTM layers
-    NUM_HEADS = 8    # Actual number of attention heads
+    HIDDEN_SIZE = 128  # Actual internal LSTM hidden size
+    NUM_LAYERS = 2    # Actual number of LSTM layers
+    NUM_HEADS = 2    # Actual number of attention heads
     BIDIRECTIONAL = True
-    DROPOUT = 0.15     # Actual dropout rate used throughout model
+    DROPOUT = 0.17577347970566656     # Actual dropout rate used throughout model
     
     # Training parameters
-    BATCH_SIZE = 16
-    LEARNING_RATE = 1e-3  # Notebook's higher LR (10x from 1e-4)
-    WEIGHT_DECAY = 1e-5
+    BATCH_SIZE = 128
+    LEARNING_RATE = 0.00013755179474215398  # Notebook's higher LR (10x from 1e-4)
+    WEIGHT_DECAY = 3.3647184860467874e-05
     GRADIENT_CLIP = 1.0
     NUM_EPOCHS = 50
     EARLY_STOPPING_PATIENCE = 10
+    
+    # ============================================================================
+    # DOMAIN CONSTRAINT CONFIGURATION
+    # ============================================================================
+    # These weights control how strongly domain knowledge is enforced.
+    # See core/constraint_config.py for presets and tuning guide.
+    # 
+    # Higher weights = more biologically plausible projections but potentially
+    # higher MSE. Lower weights = better MSE but possible unrealistic projections.
+    #
+    # RECOMMENDED: Start with 'medium' constraints and adjust based on validation.
+    
+    CONSTRAINT_STRENGTH = 'medium'  # 'minimal', 'low', 'medium', 'high', 'maximum'
+    
+    # Or override individual weights:
+    DOMAIN_CONSTRAINTS = {
+        'mse_weight': 1.0,           # Base reconstruction loss
+        'aging_weight': 0.15,        # Penalize late-career improvements
+        'smoothness_weight': 0.10,   # Penalize year-to-year volatility
+        'bounds_hard_weight': 0.50,  # Enforce physical limits (e.g., AVG <= 1.0)
+        'bounds_soft_weight': 0.05,  # Discourage extreme but possible values
+        'peak_weight': 0.05,         # Encourage realistic peak ages
+    }
     
     # Data preprocessing config
     @staticmethod
@@ -153,7 +180,7 @@ class BatterConfig:
             return DataConfig(
                 input_features=BatterConfig.FINETUNE_FEATURES,  # 28 features (13 classical + 15 Statcast)
                 output_features=BatterConfig.FINETUNE_FEATURES,  # 28 features - predict Statcast too for sliding window
-                seq_length=5,  # VALIDATED: Optimal sequence length (5 > 6)
+                seq_length=BatterConfig.SEQ_LEN, 
                 start_season=BatterConfig.FINETUNE_START_SEASON,
                 min_pa=BatterConfig.FINETUNE_MIN_PA,
                 train_ratio=0.75,
@@ -163,7 +190,7 @@ class BatterConfig:
         else:  # pretrain
             return DataConfig(
                 input_features=BatterConfig.CLASSICAL_FEATURES,
-                seq_length=5,  # VALIDATED: Optimal sequence length
+                seq_length=BatterConfig.SEQ_LEN,  # VALIDATED: Optimal sequence length
                 start_season=BatterConfig.PRETRAIN_START_SEASON,  # VALIDATED: 1950 optimal
                 min_pa=BatterConfig.PRETRAIN_MIN_PA,  # VALIDATED: 75 optimal
                 train_ratio=0.75,

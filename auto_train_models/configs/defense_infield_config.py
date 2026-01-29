@@ -35,8 +35,7 @@ class DefenseInfieldConfig:
             random_seed=42
         )
     
-    # Model hyperparameters (actual values used internally by notebook's ImprovedLSTM)
-    # NOTE: Notebook Config shows 512/6/8 but ImprovedLSTM internally divides by 2 and hardcodes layers
+    
     HIDDEN_SIZE = 128 
     NUM_LAYERS = 2  # Notebook hardcodes this in ImprovedLSTM.__init__
     NUM_HEADS = 4  # Notebook hardcodes this in attention layer
@@ -62,4 +61,21 @@ class DefenseInfieldConfig:
         'sc_range_runs/150': 1.5,
         'sc_arm_runs/150': 1.0,
         'sc_dp_runs/150': 1.0
+    }
+    
+    # ============================================================================
+    # DOMAIN CONSTRAINT CONFIGURATION
+    # ============================================================================
+    # Infielders decline more gradually than catchers/outfielders.
+    # Range declines fastest, positioning/DP ability more stable.
+    
+    CONSTRAINT_STRENGTH = 'medium'
+    
+    DOMAIN_CONSTRAINTS = {
+        'mse_weight': 1.0,
+        'aging_weight': 0.20,        # Strong aging but less than catcher/OF
+        'smoothness_weight': 0.07,   # Defensive metrics are noisy
+        'bounds_hard_weight': 0.60,
+        'bounds_soft_weight': 0.08,
+        'peak_weight': 0.05,
     }

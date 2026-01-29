@@ -62,3 +62,20 @@ class DefenseOutfieldConfig:
         'sc_range_runs/150': 1.5,
         'sc_arm_runs/150': 1.0
     }
+    
+    # ============================================================================
+    # DOMAIN CONSTRAINT CONFIGURATION
+    # ============================================================================
+    # Outfield defense relies heavily on speed/athleticism.
+    # Range declines faster than arm strength.
+    
+    CONSTRAINT_STRENGTH = 'medium'
+    
+    DOMAIN_CONSTRAINTS = {
+        'mse_weight': 1.0,
+        'aging_weight': 0.22,        # Strong aging (OF relies on speed)
+        'smoothness_weight': 0.07,   # Defensive metrics are noisy
+        'bounds_hard_weight': 0.60,
+        'bounds_soft_weight': 0.08,
+        'peak_weight': 0.05,
+    }

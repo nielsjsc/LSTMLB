@@ -63,3 +63,20 @@ class DefenseCatcherConfig:
         'sc_throwing_runs/150': 1.0,
         'sc_blocking_runs/150': 1.0
     }
+    
+    # ============================================================================
+    # DOMAIN CONSTRAINT CONFIGURATION
+    # ============================================================================
+    # Catchers have the fastest defensive decline due to physical demands.
+    # Framing may be more stable (skill-based), but athleticism drops fast.
+    
+    CONSTRAINT_STRENGTH = 'medium'
+    
+    DOMAIN_CONSTRAINTS = {
+        'mse_weight': 1.0,
+        'aging_weight': 0.25,        # Strongest aging (catchers decline fastest)
+        'smoothness_weight': 0.07,   # Defensive metrics are noisy
+        'bounds_hard_weight': 0.60,
+        'bounds_soft_weight': 0.08,
+        'peak_weight': 0.05,
+    }
