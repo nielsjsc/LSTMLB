@@ -1,4 +1,6 @@
-const API_BASE = 'https://311c88478e95.ngrok-free.app';
+import { API_BASE as CONFIG_API_BASE } from '../config';
+
+const API_BASE = CONFIG_API_BASE;
 
 const createApiHeaders = () => ({
   'Content-Type': 'application/json',
