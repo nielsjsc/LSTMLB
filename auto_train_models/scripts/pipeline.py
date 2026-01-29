@@ -6,7 +6,7 @@ MLB Prediction Pipeline - Unified Interface
 Single script to handle all pipeline operations:
 - Train models (with optional hyperparameter customization)
 - Generate predictions
-- Combine predictions into final WAR calculations
+- Run projection engine (playing time + WAR calculation)
 - Run full end-to-end pipeline
 
 Author: Niels Christoffersen
@@ -35,6 +35,9 @@ DATA_DIR = AUTO_TRAIN_DIR.parent / 'data'  # LSTMLB/data/
 GENERATED_DIR = DATA_DIR / 'generated'
 PIPELINE_DIR = GENERATED_DIR / 'pipeline'
 
+# Python executable - use the same interpreter running this script
+PYTHON_EXE = sys.executable
+
 # Ensure directories exist
 PIPELINE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -44,7 +47,7 @@ MODEL_TYPES = {
         'training_command': 'python scripts/train_models.py --model batter',
         'prediction_command': 'python scripts/predict_models.py --model-type batter --use-pretrained',
         'output_file': 'batter_predictions.csv',
-        'description': 'Batter PRE-TRAINING (classical features, 2000-2024)'
+        'description': 'Batter PRE-TRAINING (classical features, 1950-2024)'
     },
     'batter_finetune': {
         'training_command': 'python scripts/train_models.py --model batter --finetune --from-checkpoint checkpoints/batter_pretrained.pth',
@@ -52,17 +55,39 @@ MODEL_TYPES = {
         'output_file': 'batter_predictions.csv',
         'description': 'Batter FINE-TUNING (adds Statcast features, 2015+) - Requires pre-trained checkpoint'
     },
-    'pitcher_sp': {
-        'training_command': 'python scripts/train_models.py --model pitcher_sp',
+    # =========================================================================
+    # STARTING PITCHER MODELS
+    # =========================================================================
+    'pitcher_sp_pretrain': {
+        'training_command': 'python scripts/train_models.py --model pitcher_sp --pretrain',
+        'prediction_command': 'python scripts/predict_models.py --model-type pitcher --use-pretrained',
+        'output_file': 'pitcher_predictions.csv',
+        'description': 'SP PRE-TRAINING (classical features: K%, BB%, FIP, ERA, 1950-2024)'
+    },
+    'pitcher_sp_finetune': {
+        # NOTE: --freeze-attention is critical - only ~360 training sequences vs 5M+ params
+        # With --freeze-attention: ~1.08M trainable params (input_proj + output_proj only)
+        # Without: ~5.3M trainable params (causes severe overfitting)
+        'training_command': 'python scripts/train_models.py --model pitcher_sp --finetune --from-checkpoint checkpoints/sp/pitcher_sp_pretrained.pth --freeze-lstm --freeze-attention',
         'prediction_command': 'python scripts/predict_models.py --model-type pitcher',
         'output_file': 'pitcher_predictions.csv',
-        'description': 'Starting Pitcher stats'
+        'description': 'SP FINE-TUNING (adds Stuff+, Location+, Pitching+, xERA, 2020+) - Requires pre-trained checkpoint'
     },
-    'pitcher_rp': {
-        'training_command': 'python scripts/train_models.py --model pitcher_rp',
+    # =========================================================================
+    # RELIEF PITCHER MODELS
+    # =========================================================================
+    'pitcher_rp_pretrain': {
+        'training_command': 'python scripts/train_models.py --model pitcher_rp --pretrain',
         'prediction_command': None,  # Handled by pitcher_sp prediction
         'output_file': None,
-        'description': 'Relief Pitcher stats'
+        'description': 'RP PRE-TRAINING (classical features: K%, BB%, FIP, ERA, 1950-2024)'
+    },
+    'pitcher_rp_finetune': {
+        # NOTE: Same rationale as SP - limited data requires aggressive freezing
+        'training_command': 'python scripts/train_models.py --model pitcher_rp --finetune --from-checkpoint checkpoints/rp/pitcher_rp_pretrained.pth --freeze-lstm --freeze-attention',
+        'prediction_command': None,  # Handled by pitcher_sp prediction
+        'output_file': None,
+        'description': 'RP FINE-TUNING (adds Stuff+, Location+, Pitching+, xERA, 2020+) - Requires pre-trained checkpoint'
     },
     'baserunning': {
         'training_command': 'python scripts/train_models.py --model baserunning',
@@ -87,6 +112,12 @@ MODEL_TYPES = {
         'prediction_command': 'python scripts/predict_models.py --model-type fielding',
         'output_file': 'fielding_predictions.csv',
         'description': 'Catcher defense metrics'
+    },
+    'playing_time': {
+        'training_command': None,  # No training required
+        'prediction_command': 'python -m playing_time.main',
+        'output_file': 'playing_time_2026.csv',
+        'description': 'Playing time allocation based on WAR projections and injuries'
     }
 }
 
@@ -104,10 +135,12 @@ def print_menu():
     print("\nMAIN MENU:")
     print("1. Train Models")
     print("2. Generate Predictions")
-    print("3. Combine Predictions (Calculate WAR)")
-    print("4. Run Full Pipeline (Train → Predict → Combine)")
-    print("5. Exit")
+    print("3. Run Projection Engine (Playing Time + WAR)")
+    print("4. Calculate Trade Values (Surplus Value)")
+    print("5. Run Full Pipeline (Train → Predict → Project → Values)")
+    print("6. Exit")
     print()
+
 
 
 def get_user_choice(prompt: str, valid_choices: List[str]) -> str:
@@ -119,58 +152,129 @@ def get_user_choice(prompt: str, valid_choices: List[str]) -> str:
         print(f"Invalid choice. Please enter one of: {', '.join(valid_choices)}")
 
 
+def get_projection_year() -> int:
+    """Get projection year from user"""
+    print("\nEnter projection year (default: 2026):")
+    year_input = input("> ").strip()
+    if year_input and year_input.isdigit():
+        return int(year_input)
+    return 2026
+
+
 def select_models_for_training() -> List[str]:
     """Let user select which models to train"""
-    print(f"\nSelect models to train:")
-    print("0. All models")
+    selected_models = []
     
-    model_list = list(MODEL_TYPES.keys())
-    for i, (model_key, info) in enumerate(MODEL_TYPES.items(), 1):
-        print(f"{i}. {model_key}: {info['description']}")
+    # Category menu
+    print(f"\nSelect model categories to train:")
+    print("1. Batting")
+    print("2. Pitching")
+    print("3. Baserunning")
+    print("4. Fielding")
+    print("0. All models")
     
     print("\nEnter numbers separated by commas (e.g., 1,2,3) or 0 for all:")
     choice = input("> ").strip()
     
     if choice == '0':
-        return model_list
+        # All models - use pretrain + finetune for batting/pitching
+        return ['batter_pretrain', 'batter_finetune', 
+                'pitcher_sp_pretrain', 'pitcher_sp_finetune',
+                'pitcher_rp_pretrain', 'pitcher_rp_finetune',
+                'baserunning', 'defense_infield', 'defense_outfield', 'defense_catcher']
     
-    try:
-        indices = [int(x.strip()) - 1 for x in choice.split(',')]
-        selected = [model_list[i] for i in indices if 0 <= i < len(model_list)]
-        if selected:
-            return selected
-    except (ValueError, IndexError):
-        pass
+    categories = [x.strip() for x in choice.split(',')]
     
-    print("Invalid selection, using all models")
-    return model_list
+    for cat in categories:
+        if cat == '1':  # Batting
+            print("\nBatting model options:")
+            print("1. Pre-train (classical features, 1950-2024)")
+            print("2. Fine-tune (adds Statcast features, 2015+)")
+            print("3. Both (pre-train then fine-tune)")
+            bat_choice = input("> ").strip()
+            if bat_choice == '1':
+                selected_models.append('batter_pretrain')
+            elif bat_choice == '2':
+                selected_models.append('batter_finetune')
+            elif bat_choice == '3':
+                selected_models.extend(['batter_pretrain', 'batter_finetune'])
+            else:
+                print("Invalid choice, skipping batting")
+                
+        elif cat == '2':  # Pitching
+            print("\nPitching model options:")
+            print("1. Pre-train (classical features, 1950-2024)")
+            print("2. Fine-tune (adds Stuff+, Location+, Pitching+, 2020+)")
+            print("3. Both (pre-train then fine-tune)")
+            pitch_choice = input("> ").strip()
+            if pitch_choice == '1':
+                selected_models.extend(['pitcher_sp_pretrain', 'pitcher_rp_pretrain'])
+            elif pitch_choice == '2':
+                selected_models.extend(['pitcher_sp_finetune', 'pitcher_rp_finetune'])
+            elif pitch_choice == '3':
+                selected_models.extend(['pitcher_sp_pretrain', 'pitcher_sp_finetune',
+                                       'pitcher_rp_pretrain', 'pitcher_rp_finetune'])
+            else:
+                print("Invalid choice, skipping pitching")
+                
+        elif cat == '3':  # Baserunning
+            selected_models.append('baserunning')
+            
+        elif cat == '4':  # Fielding
+            print("\nFielding position options:")
+            print("1. Infield")
+            print("2. Outfield")
+            print("3. Catcher")
+            print("4. All positions")
+            field_choice = input("> ").strip()
+            if field_choice == '1':
+                selected_models.append('defense_infield')
+            elif field_choice == '2':
+                selected_models.append('defense_outfield')
+            elif field_choice == '3':
+                selected_models.append('defense_catcher')
+            elif field_choice == '4':
+                selected_models.extend(['defense_infield', 'defense_outfield', 'defense_catcher'])
+            else:
+                print("Invalid choice, skipping fielding")
+    
+    if not selected_models:
+        print("No valid models selected, using all models")
+        return ['batter_pretrain', 'batter_finetune', 
+                'pitcher_sp_pretrain', 'pitcher_sp_finetune',
+                'pitcher_rp_pretrain', 'pitcher_rp_finetune',
+                'baserunning', 'defense_infield', 'defense_outfield', 'defense_catcher']
+    
+    return selected_models
 
 
 def select_models_for_prediction() -> List[str]:
     """Let user select which prediction groups to generate"""
     print(f"\nSelect predictions to generate:")
-    print("0. All predictions")
+    print("0. All predictions (finetuned models)")
     print("1. Batter predictions (Finetuned - Classical + Statcast)")
     print("2. Batter predictions (Pretrained - Classical only)")
-    print("3. Pitcher predictions (SP + RP combined)")
-    print("4. Baserunning predictions")
-    print("5. Fielding predictions (All positions)")
+    print("3. Pitcher predictions (Finetuned SP + RP - Stuff+, Location+, Pitching+)")
+    print("4. Pitcher predictions (Pretrained SP + RP - Classical only)")
+    print("5. Baserunning predictions")
+    print("6. Fielding predictions (All positions)")
     
-    print("\nEnter numbers separated by commas (e.g., 1,3,4) or 0 for all:")
+    print("\nEnter numbers separated by commas (e.g., 1,3,5) or 0 for all:")
     choice = input("> ").strip()
     
     # Map user choices to model keys
     prediction_groups = {
         '1': ['batter_finetune'],  # Finetuned model (recommended)
         '2': ['batter_pretrain'],  # Pretrained model (classical only)
-        '3': ['pitcher_sp'],  # Running pitcher_sp generates both SP and RP predictions
-        '4': ['baserunning'],
-        '5': ['defense_infield']  # Running any defense generates all 3 positions
+        '3': ['pitcher_sp_finetune'],  # Finetuned pitcher model with Statcast
+        '4': ['pitcher_sp_pretrain'],  # Pretrained pitcher model (classical only)
+        '5': ['baserunning'],
+        '6': ['defense_infield']  # Running any defense generates all 3 positions
     }
     
     if choice == '0':
         # All predictions - use finetuned by default
-        return ['batter_finetune', 'pitcher_sp', 'baserunning', 'defense_infield']
+        return ['batter_finetune', 'pitcher_sp_finetune', 'baserunning', 'defense_infield']
     
     try:
         selections = [x.strip() for x in choice.split(',')]
@@ -186,7 +290,7 @@ def select_models_for_prediction() -> List[str]:
         pass
     
     print("Invalid selection, using all predictions")
-    return ['batter_finetune', 'pitcher_sp', 'baserunning', 'defense_infield']
+    return ['batter_finetune', 'pitcher_sp_finetune', 'baserunning', 'defense_infield']
 
 
 def get_hyperparameter_overrides() -> Dict[str, Any]:
@@ -197,21 +301,71 @@ def get_hyperparameter_overrides() -> Dict[str, Any]:
     
     overrides = {}
     
-    print("\nAvailable hyperparameter overrides:")
-    print("- epochs: Number of training epochs (default: 50)")
-    print("Enter 'done' when finished, or press Enter to skip")
+    print("\n" + "=" * 60)
+    print("HYPERPARAMETER CUSTOMIZATION")
+    print("=" * 60)
     
     # Epochs
-    print("\nEpochs (default: 50, press Enter to skip):")
-    epochs = input("> ").strip()
+    print("\n1. EPOCHS")
+    print("   Number of training epochs (default: 50)")
+    print("   Press Enter to skip:")
+    epochs = input("   > ").strip()
     if epochs and epochs.isdigit():
         overrides['epochs'] = int(epochs)
+        print(f"   ✓ Set epochs to {overrides['epochs']}")
     
+    # Loss function selection
+    print("\n2. LOSS FUNCTION")
+    print("   Choose a loss function for training:")
+    print("   ")
+    print("   [1] Default loss (model-specific, no aging constraint)")
+    print("   [2] Empirical aging loss (RECOMMENDED)")
+    print("       → Uses data-derived aging parameters from MLB history")
+    print("       → Penalizes unrealistic late-career improvements")
+    print("       → Addresses survivorship bias in training data")
+    print("   ")
+    print("   Enter choice (1/2, default: 1):")
+    loss_choice = input("   > ").strip()
+    
+    if loss_choice == '2':
+        overrides['empirical_loss'] = True
+        
+        # Empirical loss strength
+        print("\n   EMPIRICAL LOSS STRENGTH:")
+        print("   ┌─────────────┬─────────────┬──────────────────────────────────────┐")
+        print("   │ Choice      │ Aging Weight│ Description                          │")
+        print("   ├─────────────┼─────────────┼──────────────────────────────────────┤")
+        print("   │ none        │ 0.00        │ Pure MSE (no aging constraint)       │")
+        print("   │ light       │ 0.05        │ Light constraint, mostly MSE         │")
+        print("   │ moderate    │ 0.15        │ Balanced (RECOMMENDED)               │")
+        print("   │ strong      │ 0.30        │ Prioritize aging plausibility        │")
+        print("   │ aggressive  │ 0.50        │ Very strict (for fielding/baserun)   │")
+        print("   └─────────────┴─────────────┴──────────────────────────────────────┘")
+        print("   Enter choice (default: moderate):")
+        strength = input("   > ").strip().lower()
+        if strength in ['none', 'light', 'moderate', 'strong', 'aggressive']:
+            overrides['empirical_strength'] = strength
+        else:
+            overrides['empirical_strength'] = 'moderate'
+        print(f"   ✓ Using '{overrides['empirical_strength']}' empirical aging constraint")
+    
+    else:
+        print("   ✓ Using default model-specific loss")
+    
+    print("\n" + "=" * 60)
     return overrides
 
 
 def run_command(command: str, description: str, timeout: int = 7200) -> bool:
-    """Execute a command with progress tracking"""
+    """Execute a command with progress tracking.
+    
+    Uses the same Python interpreter that's running this script to ensure
+    subprocesses use the correct virtual environment.
+    """
+    # Replace 'python' with the actual interpreter path
+    if command.startswith('python '):
+        command = f'"{PYTHON_EXE}" ' + command[7:]
+    
     logger.info(f"▶ {description}")
     logger.info(f"Command: {command}")
     
@@ -257,6 +411,12 @@ def train_models(selected_models: List[str], hyperparameter_overrides: Dict[str,
     """Train selected models"""
     print(f"\n🏋️ Training {len(selected_models)} model(s)...")
     
+    # Show loss function info
+    if hyperparameter_overrides.get('empirical_loss'):
+        strength = hyperparameter_overrides.get('empirical_strength', 'moderate')
+        print(f"📊 Using EMPIRICAL AGING LOSS with '{strength}' strength")
+        print("   (Data-derived aging parameters from aging_parameters_v2.json)")
+    
     success_count = 0
     failed_models = []
     
@@ -267,6 +427,12 @@ def train_models(selected_models: List[str], hyperparameter_overrides: Dict[str,
         # Apply hyperparameter overrides
         if 'epochs' in hyperparameter_overrides:
             command += f" --epochs {hyperparameter_overrides['epochs']}"
+        
+        # Apply empirical loss settings
+        if hyperparameter_overrides.get('empirical_loss'):
+            command += " --empirical-loss"
+            if 'empirical_strength' in hyperparameter_overrides:
+                command += f" --empirical-strength {hyperparameter_overrides['empirical_strength']}"
         
         description = f"Training {model_key}"
         
@@ -285,7 +451,11 @@ def train_models(selected_models: List[str], hyperparameter_overrides: Dict[str,
 
 
 def generate_predictions(selected_models: List[str]) -> bool:
-    """Generate predictions for selected models"""
+    """Generate predictions for selected models
+    
+    Args:
+        selected_models: List of model keys to generate predictions for
+    """
     print(f"\n🔮 Generating predictions for {len(selected_models)} model(s)...")
     
     # Group models by prediction command
@@ -293,8 +463,9 @@ def generate_predictions(selected_models: List[str]) -> bool:
     for model_key in selected_models:
         info = MODEL_TYPES[model_key]
         cmd = info['prediction_command']
-        if cmd and cmd not in prediction_commands:
-            prediction_commands[cmd] = model_key
+        if cmd:
+            if cmd not in prediction_commands:
+                prediction_commands[cmd] = model_key
     
     success_count = 0
     failed_predictions = []
@@ -320,6 +491,7 @@ def check_prediction_files() -> bool:
     """Check if all required prediction files exist"""
     required_files = [
         'batter_predictions.csv',
+        'pitcher_predictions.csv',
         'baserunning_predictions.csv',
         'fielding_predictions.csv'
     ]
@@ -338,23 +510,78 @@ def check_prediction_files() -> bool:
     return True
 
 
-def combine_predictions() -> bool:
-    """Combine predictions and calculate WAR"""
-    print("\n🔗 Combining predictions and calculating WAR...")
+def run_projection_engine(projection_year: int = 2026) -> bool:
+    """
+    Run the projection engine: allocate playing time and calculate WAR.
+    
+    This unified step:
+    1. Allocates playing time based on rate stats (wOBA/FIP) and injuries
+    2. Calculates WAR based on allocated playing time
+    3. Exports final projections with all components
+    
+    Args:
+        projection_year: Year to project
+        
+    Returns:
+        True if successful
+    """
+    print(f"\n⚙️ Running Projection Engine for {projection_year}...")
+    print("   → Allocating playing time based on wOBA/FIP rankings")
+    print("   → Calculating WAR based on allocated games/IP")
+    print("   → Incorporating injury adjustments")
     
     # Check if prediction files exist
     if not check_prediction_files():
         return False
     
-    command = "python evaluation/calculate_war.py"
-    description = "Combining predictions and calculating WAR"
+    command = f"python -m playing_time.main --year {projection_year}"
+    description = f"Running projection engine for {projection_year}"
     
     success = run_command(command, description, timeout=600)
     
     if success:
-        output_file = PIPELINE_DIR / "batter_predictions_with_war.csv"
+        output_file = DATA_DIR / 'generated' / 'playing_time' / f'projections_{projection_year}.csv'
         if output_file.exists():
-            logger.info(f"✅ Final predictions saved to: {output_file}")
+            logger.info(f"✅ Final projections saved to: {output_file}")
+        else:
+            logger.warning("⚠️ Output file not found at expected location")
+    
+    return success
+
+
+def calculate_trade_values() -> bool:
+    """
+    Calculate trade values for all players.
+    
+    This runs the value determination pipeline:
+    1. Loads predictions (must already exist)
+    2. Loads salary/contract data
+    3. Calculates WAR with proper park factors
+    4. Calculates surplus value (projected WAR value - contract cost)
+    5. Exports trade value rankings
+    
+    Returns:
+        True if successful
+    """
+    print("\n💰 Calculating Trade Values...")
+    print("   → Loading predictions and salary data")
+    print("   → Calculating WAR with park factors")
+    print("   → Computing surplus value (WAR value - salary cost)")
+    print("   → Generating trade rankings")
+    
+    # Check if prediction files exist
+    if not check_prediction_files():
+        return False
+    
+    command = "python -m value_determination.main"
+    description = "Calculating trade values"
+    
+    success = run_command(command, description, timeout=600)
+    
+    if success:
+        output_file = DATA_DIR / 'generated' / 'value_by_year' / 'player_values_complete.csv'
+        if output_file.exists():
+            logger.info(f"✅ Trade values saved to: {output_file}")
         else:
             logger.warning("⚠️ Output file not found at expected location")
     
@@ -362,9 +589,16 @@ def combine_predictions() -> bool:
 
 
 def run_full_pipeline() -> bool:
-    """Run complete pipeline: train → predict → combine"""
+    """Run complete pipeline: train → predict → project (playing time + WAR) → trade values"""
     print("\n🚀 Starting Full Pipeline...")
-    print("This will: Train all models → Generate predictions → Calculate WAR")
+    print("This will: Train all models → Generate predictions → Run Projection Engine → Calculate Trade Values")
+    print("\nPipeline stages:")
+    print("  1. Pre-train batter, pitcher_sp, pitcher_rp on classical features")
+    print("  2. Fine-tune batter, pitcher_sp, pitcher_rp with Statcast features")
+    print("  3. Train baserunning and defense models")
+    print("  4. Generate rate stat predictions")
+    print("  5. Allocate playing time & calculate WAR (Projection Engine)")
+    print("  6. Calculate trade values (surplus value analysis)")
     print("\nContinue? (y/n)")
     
     if input("> ").strip().lower() != 'y':
@@ -373,23 +607,54 @@ def run_full_pipeline() -> bool:
     
     start_time = datetime.now()
     
+    # Get projection year
+    projection_year = get_projection_year()
+    
     # Get hyperparameter overrides
     overrides = get_hyperparameter_overrides()
     
-    # Step 1: Train all models
-    all_models = list(MODEL_TYPES.keys())
-    if not train_models(all_models, overrides):
-        logger.error("❌ Training phase failed")
+    # Step 1: Train models in correct order for transfer learning
+    # Pre-training phase (must happen first)
+    pretrain_models = ['batter_pretrain', 'pitcher_sp_pretrain', 'pitcher_rp_pretrain']
+    print("\n" + "="*60)
+    print("PHASE 1: PRE-TRAINING (Classical features)")
+    print("="*60)
+    if not train_models(pretrain_models, overrides):
+        logger.error("❌ Pre-training phase failed")
         return False
     
-    # Step 2: Generate predictions
-    if not generate_predictions(all_models):
+    # Fine-tuning phase (requires pre-trained checkpoints)
+    finetune_models = ['batter_finetune', 'pitcher_sp_finetune', 'pitcher_rp_finetune']
+    print("\n" + "="*60)
+    print("PHASE 2: FINE-TUNING (Statcast features)")
+    print("="*60)
+    if not train_models(finetune_models, overrides):
+        logger.error("❌ Fine-tuning phase failed")
+        return False
+    
+    # Other models (no transfer learning)
+    other_models = ['baserunning', 'defense_infield', 'defense_outfield', 'defense_catcher']
+    print("\n" + "="*60)
+    print("PHASE 3: OTHER MODELS (Baserunning, Defense)")
+    print("="*60)
+    if not train_models(other_models, overrides):
+        logger.error("❌ Other models training failed")
+        return False
+    
+    # Step 2: Generate predictions (use finetuned models)
+    prediction_models = ['batter_finetune', 'pitcher_sp_finetune', 'baserunning', 'defense_infield']
+    if not generate_predictions(prediction_models):
         logger.error("❌ Prediction phase failed")
         return False
     
-    # Step 3: Combine predictions
-    if not combine_predictions():
-        logger.error("❌ Combination phase failed")
+    # Step 3: Run Projection Engine (playing time + WAR)
+    if not run_projection_engine(projection_year):
+        logger.error("❌ Projection engine failed")
+        return False
+    
+    # Step 4: Calculate Trade Values
+    if not calculate_trade_values():
+        logger.error("❌ Trade value calculation failed")
         return False
     
     duration = datetime.now() - start_time
@@ -397,6 +662,7 @@ def run_full_pipeline() -> bool:
     print(f"\n{'='*70}")
     print("🎉 FULL PIPELINE COMPLETED SUCCESSFULLY!")
     print(f"Total duration: {duration}")
+    print(f"Projection year: {projection_year}")
     print(f"{'='*70}\n")
     
     return True
@@ -406,15 +672,23 @@ def display_output_files():
     """Display information about generated files"""
     print("\n📁 Generated Files:")
     
+    playing_time_dir = DATA_DIR / 'generated' / 'playing_time'
+    
+    value_dir = DATA_DIR / 'generated' / 'value_by_year'
+    
     output_files = {
-        'Raw Predictions': [
+        'Raw Predictions (Rate Stats)': [
             PIPELINE_DIR / 'batter_predictions.csv',
             PIPELINE_DIR / 'pitcher_predictions.csv',
             PIPELINE_DIR / 'baserunning_predictions.csv',
             PIPELINE_DIR / 'fielding_predictions.csv'
         ],
-        'Final Output': [
-            PIPELINE_DIR / 'batter_predictions_with_war.csv'
+        'Final Projections (with WAR)': [
+            playing_time_dir / 'projections_2026.csv',
+            playing_time_dir / 'team_summary_2026.csv'
+        ],
+        'Trade Values (Surplus Value)': [
+            value_dir / 'player_values_complete.csv'
         ]
     }
     
@@ -437,7 +711,7 @@ def main():
     
     while True:
         print_menu()
-        choice = get_user_choice("Select option (1-5): ", ['1', '2', '3', '4', '5'])
+        choice = get_user_choice("Select option (1-6): ", ['1', '2', '3', '4', '5', '6'])
         
         if choice == '1':
             # Train Models
@@ -451,14 +725,19 @@ def main():
             generate_predictions(selected)
             
         elif choice == '3':
-            # Combine Predictions
-            combine_predictions()
+            # Run Projection Engine
+            projection_year = get_projection_year()
+            run_projection_engine(projection_year)
             
         elif choice == '4':
+            # Calculate Trade Values
+            calculate_trade_values()
+            
+        elif choice == '5':
             # Run Full Pipeline
             run_full_pipeline()
             
-        elif choice == '5':
+        elif choice == '6':
             # Exit
             print("\n👋 Exiting pipeline. Goodbye!")
             display_output_files()

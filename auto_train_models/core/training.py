@@ -80,7 +80,8 @@ class Config:
     def __init__(self, X_train: torch.Tensor, y_train: torch.Tensor, 
                  hidden_size: int = None, num_layers: int = None, num_heads: int = None,
                  learning_rate: float = None, dropout: float = None, 
-                 bidirectional: bool = None, gradient_clip: float = None):
+                 bidirectional: bool = None, gradient_clip: float = None,
+                 batch_size: int = None):
         """Initialize config with data shapes and optional model-specific overrides"""
         self.input_size = X_train.shape[2]
         self.output_size = y_train.shape[1]
@@ -98,6 +99,8 @@ class Config:
             self.dropout = dropout
         if bidirectional is not None:
             self.bidirectional = bidirectional
+        if batch_size is not None:
+            self.batch_size = batch_size
         if gradient_clip is not None:
             self.gradient_clip = gradient_clip
             
@@ -339,9 +342,15 @@ def train_model(
                         # Check if loss function accepts 3 parameters (pred, target, weights)
                         import inspect
                         sig = inspect.signature(criterion.forward)
-                        accepts_weights = len(sig.parameters) >= 3  # self not in signature, 3 = pred, target, weights
+                        param_names = list(sig.parameters.keys())
+                        accepts_input_sequence = 'input_sequence' in param_names
+                        # Check for various weight parameter names used across loss functions
+                        accepts_weights = any(p in param_names for p in ['weights', 'games_weights', 'innings']) or len(sig.parameters) >= 3
                         
-                        if weights is not None and accepts_weights:
+                        if accepts_input_sequence:
+                            # New API: criterion(predictions, targets, input_sequence)
+                            loss = criterion(outputs, targets, input_sequence=data)
+                        elif weights is not None and accepts_weights:
                             loss = criterion(outputs, targets, weights)
                         else:
                             loss = criterion(outputs, targets)
@@ -379,6 +388,7 @@ def train_model(
                     
                     # Update metrics
                     loss_value = loss.item()
+                    current_lr = scheduler.get_last_lr()[0]
                     
                     # Check for NaN loss - skip batch instead of crashing
                     if torch.isnan(loss) or torch.isinf(loss) or not torch.isfinite(loss):
@@ -390,7 +400,6 @@ def train_model(
                         continue
                     
                     epoch_loss += loss_value
-                    current_lr = scheduler.get_last_lr()[0]
                     
                     # Update progress bar
                     pbar.set_postfix({
@@ -457,9 +466,15 @@ def train_model(
                         # Use weighted loss if weights available and criterion supports it
                         import inspect
                         sig = inspect.signature(criterion.forward)
-                        accepts_weights = len(sig.parameters) >= 3
+                        param_names = list(sig.parameters.keys())
+                        accepts_input_sequence = 'input_sequence' in param_names
+                        # Check for various weight parameter names used across loss functions
+                        accepts_weights = any(p in param_names for p in ['weights', 'games_weights', 'innings']) or len(sig.parameters) >= 3
                         
-                        if weights is not None and accepts_weights:
+                        if accepts_input_sequence:
+                            # New API: criterion(predictions, targets, input_sequence)
+                            loss = criterion(outputs, targets, input_sequence=data)
+                        elif weights is not None and accepts_weights:
                             loss = criterion(outputs, targets, weights)
                         else:
                             loss = criterion(outputs, targets)
@@ -674,7 +689,7 @@ def load_checkpoint_for_finetuning(
     if freeze_lstm:
         model.freeze_lstm_layers()
         model.unfreeze_attention_and_output()
-        logger.info("Applied layer freezing for fine-tuning")
+        logger.info("Applied layer freezing for fine-tuning (LSTM frozen, attention+output trainable)")
     
     # Print trainable parameters
     model.print_trainable_params()

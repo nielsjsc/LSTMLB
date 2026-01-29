@@ -336,31 +336,26 @@ def load_and_extend_scaler(
     
     # Get dimensions
     n_classical = len(classical_features)
-    n_classical_with_career = n_classical * 2  # Classical + vs_career
     n_statcast = len(statcast_features)
     n_total = n_classical + n_statcast
-    n_total_with_career = n_total * 2  # All features + vs_career
     
     logger.info(f"Extending scaler: {n_classical} → {n_total} base features")
-    logger.info(f"Total with career features: {n_classical_with_career} → {n_total_with_career}")
     
     # Create new scaler with extended dimensions
     extended_scaler = MinMaxScaler(feature_range=(-1, 1))
     
     # Initialize with dummy data to set up the scaler structure
-    # We'll copy the actual parameters below
-    dummy_data = np.zeros((1, n_total_with_career))
+    dummy_data = np.zeros((1, n_total))
     extended_scaler.fit(dummy_data)
     
     # Copy classical feature parameters from pre-trained scaler
-    extended_scaler.data_min_[:n_classical_with_career] = pretrain_scaler.data_min_
-    extended_scaler.data_max_[:n_classical_with_career] = pretrain_scaler.data_max_
-    extended_scaler.data_range_[:n_classical_with_career] = pretrain_scaler.data_range_
-    extended_scaler.scale_[:n_classical_with_career] = pretrain_scaler.scale_
-    extended_scaler.min_[:n_classical_with_career] = pretrain_scaler.min_
+    extended_scaler.data_min_[:n_classical] = pretrain_scaler.data_min_
+    extended_scaler.data_max_[:n_classical] = pretrain_scaler.data_max_
+    extended_scaler.data_range_[:n_classical] = pretrain_scaler.data_range_
+    extended_scaler.scale_[:n_classical] = pretrain_scaler.scale_
+    extended_scaler.min_[:n_classical] = pretrain_scaler.min_
     
     # Initialize Statcast feature parameters (will be updated during fine-tuning)
-    # Place Statcast features after classical features but before vs_career features
     statcast_start_idx = n_classical
     statcast_end_idx = n_classical + n_statcast
     
@@ -370,15 +365,6 @@ def load_and_extend_scaler(
     extended_scaler.data_range_[statcast_start_idx:statcast_end_idx] = 1
     extended_scaler.scale_[statcast_start_idx:statcast_end_idx] = 2  # For (-1, 1) range
     extended_scaler.min_[statcast_start_idx:statcast_end_idx] = -1
-    
-    # Set defaults for Statcast vs_career features
-    statcast_career_start = n_total + n_classical
-    statcast_career_end = n_total + n_classical + n_statcast
-    extended_scaler.data_min_[statcast_career_start:statcast_career_end] = -1
-    extended_scaler.data_max_[statcast_career_start:statcast_career_end] = 1
-    extended_scaler.data_range_[statcast_career_start:statcast_career_end] = 2
-    extended_scaler.scale_[statcast_career_start:statcast_career_end] = 1
-    extended_scaler.min_[statcast_career_start:statcast_career_end] = -0.5
     
     logger.info("Scaler extended successfully - Statcast features initialized")
     
@@ -405,22 +391,7 @@ def scale_features(df: pd.DataFrame,
         Scaled DataFrame and scaler
     """
     
-    # Calculate career averages - position-specific for defense models
-    if model_type.startswith('defense'):
-        # Defense models: position-specific career averages (like notebook)
-        player_stats = df.groupby(['IDfg', 'Pos'])[features].transform('mean')
-        logger.info(f"Using position-specific career averages for {model_type}")
-    else:
-        # Other models: player career averages
-        player_stats = df.groupby('IDfg')[features].transform('mean')
-        logger.info(f"Using player career averages for {model_type}")
-    
-    # Create deviation from career average features (like notebook)
-    for feature in features:
-        df[f'{feature}_vs_career'] = df[feature] - player_stats[feature]
-    
-    # CRITICAL FIX: Like notebook, create vs_career features but only scale/train on base features
-    all_features = features + [f'{feature}_vs_career' for feature in features]
+    all_features = features
     
     # Handle scaler based on mode
     if scaler is None:
@@ -448,10 +419,15 @@ def scale_features(df: pd.DataFrame,
         data_dir = os.path.join(models_dir, 'data')
         os.makedirs(data_dir, exist_ok=True)
         
+        # Build scaler filename
         if mode == 'finetune':
-            scaler_filename = os.path.join(data_dir, f'{model_type}_finetune_scaler.pkl')
+            base_name = f'{model_type}_finetune_scaler.pkl'
+        elif mode == 'pretrain':
+            base_name = f'{model_type}_pretrain_scaler.pkl'
         else:
-            scaler_filename = os.path.join(data_dir, f'{model_type}_scaler.pkl')
+            base_name = f'{model_type}_scaler.pkl'
+        
+        scaler_filename = os.path.join(data_dir, base_name)
         
         joblib.dump(scaler, scaler_filename)
         logger.info(f"Saved scaler to {scaler_filename}")
@@ -468,6 +444,8 @@ def scale_features(df: pd.DataFrame,
     # Update DataFrame with scaled values
     scaled_df = pd.DataFrame(scaled_data, columns=all_features, index=df.index)
     df[all_features] = scaled_df
+    
+    logger.info(f"Scaled {len(all_features)} features")
     
     return df, scaler
 
@@ -513,21 +491,30 @@ def prepare_sequences(df: pd.DataFrame,
                 skipped_sequences += 1
                 continue
 
-            # Calculate game weights for the sequence
-            games_played = history['G'].values if 'G' in history.columns else np.ones(len(history))
+            # Calculate sample weights for the sequence
+            # For pitchers: use IP (innings pitched) - more IP = more reliable sample
+            # For batters: use PA (plate appearances) - more PA = more reliable sample
+            # Fallback to G (games) if neither available
+            if 'IP' in history.columns:
+                volume_stat = history['IP'].values
+            elif 'PA' in history.columns:
+                volume_stat = history['PA'].values
+            elif 'G' in history.columns:
+                volume_stat = history['G'].values
+            else:
+                volume_stat = np.ones(len(history))
             
-            # Take only the last seq_length games if we have more
-            if len(games_played) > seq_length:
-                games_played = games_played[-seq_length:]
+            # Take only the last seq_length values if we have more
+            if len(volume_stat) > seq_length:
+                volume_stat = volume_stat[-seq_length:]
             
             # Pad with zeros to match sequence length
-            padded_games = np.zeros(seq_length)
-            padded_games[-len(games_played):] = games_played
+            padded_volume = np.zeros(seq_length)
+            padded_volume[-len(volume_stat):] = volume_stat
             
-            # Optional: Apply sqrt transformation to reduce extreme differences
-            weights = np.sqrt(padded_games)
-            # Normalize weights to prevent affecting overall loss magnitude
-            weights = weights / np.mean(weights[weights > 0]) if np.any(weights > 0) else weights
+            # Store RAW volume stats - let the loss function handle normalization
+            # This allows IPWeightedMSELoss to properly weight by actual IP
+            weights = padded_volume
 
             sequences.append((sequence, target))
             masks.append(mask)
@@ -620,8 +607,6 @@ def preprocess_data(
             pretrain_scaler_path=pretrain_scaler_path
         )
         
-        # CRITICAL FIX: Like notebook, create vs_career features but only use base features for training
-        # This matches the notebook behavior exactly
         training_features = config.input_features  # Input features (may include Statcast)
         output_features = config.output_features  # Output features (classical only for finetuning)
         

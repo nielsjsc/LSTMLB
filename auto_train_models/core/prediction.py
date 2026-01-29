@@ -1,16 +1,166 @@
 import pandas as pd
 import numpy as np
 import torch
-import joblib
-from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List
 import logging
 from tqdm import tqdm
+from pathlib import Path
+import json
 
 from .data_processing import DataConfig
 from .model_architecture import ImprovedLSTM
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# AGING CONSTRAINT ENFORCEMENT (POST-PREDICTION)
+# =============================================================================
+
+class AgingEnforcer:
+    """
+    Enforces aging constraints on predictions to prevent unrealistic improvements.
+    
+    This is applied AFTER model prediction to ensure older players don't improve
+    on metrics where decline is expected.
+    """
+    
+    # Defensive stats where higher = better (should decline with age)
+    DEFENSE_METRICS = [
+        'OAA/150', 'DRS/150', 'sc_total_runs/150', 'sc_range_runs/150', 
+        'sc_arm_runs/150', 'sc_dp_runs/150', 'sc_framing_runs/150',
+        'sc_throwing_runs/150', 'sc_blocking_runs/150'
+    ]
+    
+    def __init__(self, params_path: Optional[Path] = None):
+        """Load aging parameters."""
+        if params_path is None:
+            params_path = Path(__file__).parent.parent / "analysis" / "aging_parameters.json"
+        
+        self.params = {}
+        if params_path.exists():
+            with open(params_path) as f:
+                self.params = json.load(f)
+            logger.info(f"Loaded aging parameters for prediction enforcement")
+        else:
+            logger.warning(f"Aging parameters not found at {params_path}")
+    
+    def get_decline_rate(self, category: str, stat: str, age: int) -> float:
+        """Get expected decline rate for a stat at given age."""
+        # Map category to aging params key
+        cat_key = category
+        if category in ['fielding_infield', 'fielding_outfield', 'fielding_catcher']:
+            cat_key = category
+        elif category == 'defense':
+            # Try to determine from stat
+            if 'framing' in stat.lower() or 'throwing' in stat.lower() or 'blocking' in stat.lower():
+                cat_key = 'fielding_catcher'
+            elif 'dp_runs' in stat.lower():
+                cat_key = 'fielding_infield'
+            else:
+                cat_key = 'fielding_outfield'  # Default
+        
+        cat_data = self.params.get(cat_key, {})
+        stat_data = cat_data.get(stat, {})
+        decline_by_band = stat_data.get('decline_by_age_band', {})
+        
+        # Find age band
+        if 21 <= age <= 25:
+            band = '21-25'
+        elif 26 <= age <= 30:
+            band = '26-30'
+        elif 31 <= age <= 35:
+            band = '31-35'
+        elif 36 <= age <= 40:
+            band = '36-40'
+        elif 41 <= age <= 45:
+            band = '41-45'
+        else:
+            band = '41-45'  # Use oldest band for very old players
+        
+        band_data = decline_by_band.get(band, {})
+        # Use corrected value
+        decline = band_data.get('decline_per_year_corrected')
+        if decline is None:
+            decline = band_data.get('decline_per_year', 0.0)
+        
+        return decline if decline is not None else 0.0
+    
+    def enforce_aging(
+        self, 
+        predictions: List[Dict], 
+        category: str,
+        metrics: Optional[List[str]] = None
+    ) -> List[Dict]:
+        """
+        Enforce aging constraints on a list of predictions.
+        
+        For players 30+, prevents improvement on defensive metrics.
+        Instead applies expected decline based on empirical aging curves.
+        
+        Args:
+            predictions: List of prediction dicts (must be sorted by year)
+            category: 'fielding_infield', 'fielding_outfield', 'fielding_catcher', etc.
+            metrics: List of metrics to enforce (defaults to DEFENSE_METRICS)
+            
+        Returns:
+            Adjusted predictions list
+        """
+        if not predictions or len(predictions) < 2:
+            return predictions
+        
+        if metrics is None:
+            metrics = self.DEFENSE_METRICS
+        
+        # Work on a copy
+        adjusted = [p.copy() for p in predictions]
+        
+        for i in range(1, len(adjusted)):
+            prev = adjusted[i - 1]
+            curr = adjusted[i]
+            age = curr.get('Age', 0)
+            
+            # Only enforce for players 30+
+            if age < 30:
+                continue
+            
+            for metric in metrics:
+                if metric not in curr or metric not in prev:
+                    continue
+                
+                prev_val = prev[metric]
+                curr_val = curr[metric]
+                
+                # For defense metrics (higher = better), improvement = increase
+                improvement = curr_val - prev_val
+                
+                if improvement > 0:
+                    # Get expected decline
+                    expected_decline = self.get_decline_rate(category, metric, age)
+                    
+                    if expected_decline > 0:
+                        # Should be declining, not improving
+                        # Apply decline from previous value
+                        curr[metric] = prev_val - expected_decline
+                    else:
+                        # No decline expected (rare), cap improvement at 0
+                        curr[metric] = prev_val
+                    
+                    # Update adjusted
+                    adjusted[i] = curr
+        
+        return adjusted
+
+
+# Global enforcer instance
+_aging_enforcer = None
+
+def get_aging_enforcer() -> AgingEnforcer:
+    """Get or create the global aging enforcer."""
+    global _aging_enforcer
+    if _aging_enforcer is None:
+        _aging_enforcer = AgingEnforcer()
+    return _aging_enforcer
 
 
 def generate_batter_names(raw_df: pd.DataFrame) -> pd.DataFrame:
@@ -64,36 +214,329 @@ def load_model_from_checkpoint(checkpoint_path: str, data_config: DataConfig, de
     return model
 
 
-def is_valid_season(season_data, pitcher_type):
-    """Check if season meets IP threshold"""
-    ip_threshold = 30 if pitcher_type == 'SP' else 15
-    return season_data['IP'] >= ip_threshold
+# =============================================================================
+# UNIFIED PREDICTION ENGINE
+# =============================================================================
 
-def find_nearest_valid_season(player_data, current_idx, pitcher_type):
-    """Find nearest valid season for padding"""
-    seasons = player_data.sort_values('Season')
-    current_season = seasons.iloc[current_idx]
+def _prepare_player_sequence(
+    player_id: str,
+    raw_df: pd.DataFrame,
+    player_names: pd.DataFrame,
+    input_features: List[str],
+    seq_length: int
+) -> Optional[Dict]:
+    """
+    Prepare player data and sequence for prediction.
     
-    # Search forward
-    for idx in range(current_idx + 1, len(seasons)):
-        if is_valid_season(seasons.iloc[idx], pitcher_type):
-            return seasons.iloc[idx]
-            
-    # Search backward
-    for idx in range(current_idx - 1, -1, -1):
-        if is_valid_season(seasons.iloc[idx], pitcher_type):
-            return seasons.iloc[idx]
-            
-    return current_season  # If no valid season found
+    This is the shared preprocessing logic for batter, fielding, and baserunning predictions.
+    
+    Args:
+        player_id: FanGraphs player ID
+        raw_df: Historical player data (already filtered to this player if needed)
+        player_names: DataFrame mapping IDfg to Name
+        input_features: List of feature names for the model
+        seq_length: Number of historical seasons to use
+        
+    Returns:
+        Dict with 'player_name', 'sequence', 'latest_age', 'latest_season', 'n_features'
+        or None if player data is invalid
+    """
+    # Get player data
+    player_data = raw_df[raw_df['IDfg'] == player_id].copy()
+    if len(player_data) == 0:
+        return None
+    
+    # Get player name
+    try:
+        player_name = player_names[player_names['IDfg'] == player_id]['Name'].iloc[0]
+    except IndexError:
+        logger.warning(f"Player name not found for ID {player_id}")
+        return None
+    
+    # Sort by season
+    player_data = player_data.sort_values('Season')
+    
+    # Handle players with fewer seasons than seq_length by padding
+    num_seasons = len(player_data)
+    if num_seasons < seq_length:
+        recent_data = player_data[input_features].copy()
+        while len(recent_data) < seq_length:
+            recent_data = pd.concat([recent_data, recent_data.iloc[-1:]], ignore_index=True)
+    else:
+        recent_data = player_data[input_features].iloc[-seq_length:].copy().reset_index(drop=True)
+    
+    # Check for valid data (no NaN)
+    if recent_data.isna().any().any():
+        return None
+    
+    sequence = recent_data.values.astype(np.float64)
+    latest_age = recent_data['Age'].iloc[-1] if 'Age' in recent_data.columns else player_data['Age'].iloc[-1]
+    latest_season = player_data['Season'].max()
+    
+    return {
+        'player_name': player_name,
+        'sequence': sequence,
+        'latest_age': latest_age,
+        'latest_season': latest_season,
+        'n_features': len(input_features)
+    }
 
-def predict_future_stats_pitcher(player_id: str, input_features: List[str], model: ImprovedLSTM, 
-                                scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                                role: str, future_years: int = 16, seq_length: int = 4) -> List[Dict]:
-    """Predict future stats for a pitcher - matches notebook functionality with vs_career features"""
+
+def _run_prediction_loop(
+    model: ImprovedLSTM,
+    scaler: Any,
+    sequence: np.ndarray,
+    input_features: List[str],
+    seq_length: int,
+    future_years: int,
+    latest_age: float,
+    latest_season: int,
+    player_name: str,
+    player_id: str,
+    extra_fields: Optional[Dict] = None,
+    non_negative_features: Optional[List[str]] = None
+) -> List[Dict]:
+    """
+    Run the prediction loop for multiple future years.
+    
+    This is the shared prediction logic for batter, fielding, and baserunning.
+    
+    Args:
+        model: Trained LSTM model
+        scaler: Fitted scaler for features
+        sequence: Initial sequence array (unscaled)
+        input_features: List of feature names
+        seq_length: Sequence length
+        future_years: Number of years to project
+        latest_age: Player's age in their last season
+        latest_season: Player's last season year
+        player_name: Player's name for output
+        player_id: Player's IDfg for output
+        extra_fields: Additional fields to add to each prediction dict (e.g., Position_Group)
+        non_negative_features: Features that should be clipped to >= 0
+        
+    Returns:
+        List of prediction dictionaries
+    """
+    # Scale the sequence
+    try:
+        sequence_scaled = scaler.transform(sequence)
+    except Exception as e:
+        logger.error(f"Scaling error for player {player_id}: {e}")
+        return []
+    
+    n_features = len(input_features)
+    predictions = []
+    device = next(model.parameters()).device
+    
+    for year_offset in range(1, future_years + 1):
+        year = latest_season + year_offset
+        age = latest_age + year_offset
+        
+        # Run model prediction
+        with torch.no_grad():
+            seq_tensor = torch.FloatTensor(sequence_scaled).unsqueeze(0).to(device)
+            lengths = torch.tensor([seq_length], dtype=torch.int64).to(device)
+            output = model(seq_tensor, lengths)
+            pred_numpy = output.cpu().numpy()[0]
+        
+        # Inverse transform to get actual values
+        try:
+            unscaled_pred = scaler.inverse_transform(pred_numpy.reshape(1, -1))[0]
+            
+            # Build prediction dictionary
+            prediction_dict = {
+                'Name': player_name,
+                'IDfg': player_id,
+                'Year': year,
+                'Age': age,
+            }
+            
+            # Add extra fields if provided (e.g., Position_Group, Role)
+            if extra_fields:
+                prediction_dict.update(extra_fields)
+            
+            # Add all input features to prediction
+            for i, feature in enumerate(input_features):
+                if feature == 'Age':
+                    prediction_dict[feature] = age
+                else:
+                    value = unscaled_pred[i]
+                    # Apply non-negative constraint if specified
+                    if non_negative_features and feature in non_negative_features:
+                        value = max(0, value)
+                    prediction_dict[feature] = value
+            
+            predictions.append(prediction_dict)
+            
+            # Update sequence for next prediction
+            # NOTE: pred_numpy is already in scaled space (direct model output)
+            # Only the age component needs to be updated with the scaled next year's age
+            age_index = input_features.index('Age')
+            age_update = np.zeros(n_features)
+            age_update[age_index] = age + 1  # Next year's age (unscaled)
+            
+            # Update just the age in the already-scaled prediction
+            pred_numpy[age_index] = scaler.transform(age_update.reshape(1, -1))[0][age_index]
+            
+            # Slide the sequence window
+            sequence_scaled = np.vstack([sequence_scaled[1:], pred_numpy])
+            
+        except Exception as e:
+            logger.error(f"Prediction error for player {player_id}, year {year}: {e}")
+            break
+    
+    return predictions
+
+
+def predict_future_stats(
+    player_id: str,
+    input_features: List[str],
+    model: ImprovedLSTM,
+    scaler: Any,
+    raw_df: pd.DataFrame,
+    player_names: pd.DataFrame,
+    seq_length: int,
+    future_years: int = 16,
+    extra_fields: Optional[Dict] = None,
+    non_negative_features: Optional[List[str]] = None
+) -> List[Dict]:
+    """
+    Unified prediction function for batters, fielders, and baserunners.
+    
+    This replaces the separate predict_future_stats_batter, predict_future_stats_fielding,
+    and predict_future_stats_baserunning functions with a single, maintainable implementation.
+    
+    Args:
+        player_id: FanGraphs player ID
+        input_features: List of feature names for the model
+        model: Trained LSTM model
+        scaler: Fitted scaler for features
+        raw_df: Historical player data
+        player_names: DataFrame mapping IDfg to Name
+        seq_length: Number of historical seasons to use (from config)
+        future_years: Number of years to project
+        extra_fields: Additional fields to add to each prediction (e.g., {'Position_Group': 'infield'})
+        non_negative_features: Features that should be clipped to >= 0 (e.g., ['SB_rate', 'CS_rate'])
+        
+    Returns:
+        List of prediction dictionaries
+    """
+    # Prepare player data and sequence
+    prep = _prepare_player_sequence(player_id, raw_df, player_names, input_features, seq_length)
+    if prep is None:
+        return []
+    
+    # Run prediction loop
+    return _run_prediction_loop(
+        model=model,
+        scaler=scaler,
+        sequence=prep['sequence'],
+        input_features=input_features,
+        seq_length=seq_length,
+        future_years=future_years,
+        latest_age=prep['latest_age'],
+        latest_season=prep['latest_season'],
+        player_name=prep['player_name'],
+        player_id=player_id,
+        extra_fields=extra_fields,
+        non_negative_features=non_negative_features
+    )
+
+
+# =============================================================================
+# BACKWARD COMPATIBILITY WRAPPERS
+# =============================================================================
+# These maintain the old function signatures for existing code
+
+def predict_future_stats_batter(player_id: str, input_features: List[str], model: ImprovedLSTM,
+                               scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
+                               seq_length: int = 5, future_years: int = 16) -> List[Dict]:
+    """Predict future stats for a batter. Wrapper around unified predict_future_stats."""
+    return predict_future_stats(
+        player_id=player_id,
+        input_features=input_features,
+        model=model,
+        scaler=scaler,
+        raw_df=raw_df,
+        player_names=player_names,
+        seq_length=seq_length,
+        future_years=future_years
+    )
+
+
+def predict_future_stats_fielding(player_id: str, input_features: List[str], model: ImprovedLSTM,
+                                 scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
+                                 position_group: str, seq_length: int = 5, future_years: int = 16) -> List[Dict]:
+    """Predict future fielding stats. Wrapper around unified predict_future_stats."""
+    return predict_future_stats(
+        player_id=player_id,
+        input_features=input_features,
+        model=model,
+        scaler=scaler,
+        raw_df=raw_df,
+        player_names=player_names,
+        seq_length=seq_length,
+        future_years=future_years,
+        extra_fields={'Position_Group': position_group}
+    )
+
+
+def predict_future_stats_baserunning(player_id: str, input_features: List[str], model: ImprovedLSTM,
+                                    scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
+                                    seq_length: int = 4, future_years: int = 16) -> List[Dict]:
+    """Predict future baserunning stats. Wrapper around unified predict_future_stats."""
+    return predict_future_stats(
+        player_id=player_id,
+        input_features=input_features,
+        model=model,
+        scaler=scaler,
+        raw_df=raw_df,
+        player_names=player_names,
+        seq_length=seq_length,
+        future_years=future_years,
+        non_negative_features=['SB_rate', 'CS_rate']
+    )
+
+
+# =============================================================================
+# PITCHER PREDICTION (kept separate due to additional complexity)
+# =============================================================================
+
+def predict_future_stats_pitcher(player_id: str, input_features: List[str], model, 
+                                scaler, raw_df: pd.DataFrame, player_names: pd.DataFrame,
+                                role: str, future_years: int = 16, seq_length: int = 4,
+                                target_year: int = None) -> List[Dict]:
+    """
+    Predict future stats for a pitcher with improved injury handling.
+    
+    Key improvements over original:
+    1. Recency-weighted career averages with IP weighting (prevents peak and small-sample inflation)
+    2. Most-recent valid season substitution (not oldest peak year)
+    3. Stores player context for post-processing constraints
+    4. target_year parameter ensures projections start from correct year
+    
+    Args:
+        model: Trained ImprovedLSTM model
+        scaler: Fitted scaler
+        target_year: The year projections should start from (e.g., 2026). 
+                     If player's last season is before this, projections still start at target_year.
+    """
     
     # Get initial player data
     player_data = raw_df[raw_df['IDfg'] == player_id].sort_values('Season')
     if len(player_data) < 1:
+        return []
+    
+    # Check for required features - skip players with too many NaN values
+    required_features = [f for f in input_features if f != 'Age']
+    last_valid_season = player_data[player_data['IP'] >= 15].tail(1)
+    if last_valid_season.empty:
+        last_valid_season = player_data.tail(1)
+    
+    nan_count = last_valid_season[required_features].isna().sum().sum()
+    if nan_count > len(required_features) * 0.3:  # More than 30% NaN
+        logger.debug(f"Skipping player {player_id} - too many NaN features ({nan_count}/{len(required_features)})")
         return []
         
     # Get player info
@@ -105,67 +548,105 @@ def predict_future_stats_pitcher(player_id: str, input_features: List[str], mode
     last_season = player_data['Season'].max()
     last_age = player_data[player_data['Season'] == last_season]['Age'].iloc[0]
     
-    # Calculate career averages from all player data (matching training approach)
-    career_stats = player_data[input_features].mean()
+    # Determine the projection start year
+    # If target_year is set, ensure projections start from there even if player missed time
+    if target_year is not None and last_season < target_year:
+        # Player didn't play in target_year-1 season, adjust age accordingly
+        years_missed = target_year - 1 - last_season
+        last_age = last_age + years_missed
+        last_season = target_year - 1  # So first projection is target_year
     
-    # Define IP threshold
-    ip_threshold = 30 if role == 'SP' else 15
+    # Store player context for post-processing (IP history, velocity history, etc.)
+    player_context = {
+        'career_high_ip': player_data['IP'].max(),
+        'recent_ip': player_data.tail(3)['IP'].mean(),  # Average of last 3 seasons
+        'last_fbv': None,  # For velocity constraints
+        'last_age': last_age,
+        'role': role,
+        'recent_surgery': False,  # Will be detected below
+        'recent_performance': {},  # Will store ERA/FIP/K% for post-surgery constraints
+    }
     
-    # Build sequence checking IP thresholds
+    # Detect recent surgery/injury by checking for large IP drop in last 1-2 seasons
+    recent_surgery_detected = False
+    if len(player_data) >= 2:
+        recent_ip = player_data.tail(2)['IP'].values
+        prior_avg = player_data.iloc[:-2]['IP'].mean() if len(player_data) > 2 else player_data.iloc[0]['IP']
+        # Check if there was a major injury (< 50 IP) followed by return
+        if len(recent_ip) >= 2:
+            if (recent_ip[-2] < 50 and prior_avg > 100) or (recent_ip[-1] >= 80 and prior_avg > 130):
+                recent_surgery_detected = True
+        elif len(recent_ip) > 0 and recent_ip[-1] < 50 and prior_avg > 100:
+            recent_surgery_detected = True
+    
+    player_context['recent_surgery'] = recent_surgery_detected
+    
+    # If surgery detected, store most recent VALID season's performance for constraints
+    if recent_surgery_detected:
+        valid_seasons = player_data[player_data['IP'] >= 30]
+        if not valid_seasons.empty:
+            most_recent_valid = valid_seasons.iloc[-1]
+            player_context['recent_performance'] = {
+                'recent_era': most_recent_valid.get('ERA', 4.5),
+                'recent_fip': most_recent_valid.get('FIP', 4.5),
+                'recent_k_pct': most_recent_valid.get('K%', 0.22),
+                'recent_bb_pct': most_recent_valid.get('BB%', 0.09),
+            }
+    
+    # Extract velocity from most recent VALID season for constraints
+    if 'FBv' in player_data.columns:
+        valid_seasons = player_data[player_data['IP'] >= 30]
+        if not valid_seasons.empty:
+            player_context['last_fbv'] = valid_seasons.iloc[-1]['FBv']
+    if 'Stuff+' in player_data.columns:
+        valid_seasons = player_data[player_data['IP'] >= 30]
+        if not valid_seasons.empty:
+            player_context['last_stuff'] = valid_seasons.iloc[-1]['Stuff+']
+    
+    # Define IP thresholds
+    # SEQUENCE_THRESHOLD: Minimum IP for a season to be included in the input sequence
+    # This prevents tiny samples (2-10 IP) from polluting predictions
+    # QUALIFICATION_THRESHOLD: Minimum recent IP to generate predictions for this player
+    sequence_ip_threshold = 50 if role == 'SP' else 30
+    qualification_ip_threshold = 45 if role == 'SP' else 15
+    
+    # Check if player qualifies for predictions (has recent meaningful playing time)
+    recent_ip = player_data.tail(2)['IP'].max()  # Best of last 2 seasons
+    if recent_ip < qualification_ip_threshold:
+        logger.debug(f"Skipping {player_name} - insufficient recent IP ({recent_ip:.1f} < {qualification_ip_threshold})")
+        return []
+    
+    # Build sequence using only seasons that meet sequence threshold
     recent_seasons = player_data.tail(seq_length)
     sequence_data = []
     mask = []
     
     # Process each season
     for idx, season in recent_seasons.iterrows():
-        if season['IP'] >= ip_threshold:
-            # Create base features
+        if season['IP'] >= sequence_ip_threshold:
+            # Valid season - use actual data (base features only, vs_career removed)
             base_features = season[input_features].values
-            # Create vs_career features (deviation from career average)
-            vs_career_features = base_features - career_stats.values
-            # Combine: base + vs_career
-            combined_features = np.concatenate([base_features, vs_career_features])
-            sequence_data.append(combined_features)
+            sequence_data.append(base_features)
             mask.append(1)
         else:
-            # Find nearest valid season (forward then backward search)
-            valid_seasons = player_data[player_data['IP'] >= ip_threshold]
-            if not valid_seasons.empty:
-                # Get nearest valid season's stats
-                valid_stats = valid_seasons.iloc[0][input_features].values
-                # Maintain correct age
-                age_idx = input_features.index('Age')
-                valid_stats[age_idx] = season['Age']
-                # Create vs_career features
-                vs_career_features = valid_stats - career_stats.values
-                combined_features = np.concatenate([valid_stats, vs_career_features])
-                sequence_data.append(combined_features)
-            else:
-                # If no valid seasons, use current season
-                base_features = season[input_features].values
-                vs_career_features = base_features - career_stats.values
-                combined_features = np.concatenate([base_features, vs_career_features])
-                sequence_data.append(combined_features)
-            mask.append(0)
+            # Low-IP season - SKIP it entirely, don't include in sequence
+            # This prevents 2-10 IP seasons from influencing predictions
+            continue
     
-    # Pad if not enough seasons
+    # Check if we have any valid seasons at all
+    if len(sequence_data) == 0:
+        logger.debug(f"Skipping pitcher {player_name} - no seasons with IP >= {sequence_ip_threshold}")
+        return []
+    
+    # Pad if not enough seasons (use earliest valid season for padding)
     if len(sequence_data) < seq_length:
-        first_year = sequence_data[0] if sequence_data else None
-        if first_year is None:
-            base_features = player_data.iloc[0][input_features].values
-            vs_career_features = base_features - career_stats.values
-            first_year = np.concatenate([base_features, vs_career_features])
-        sequence_data = [first_year] * (seq_length - len(sequence_data)) + sequence_data
-        mask = [0] * (seq_length - len(mask)) + mask
+        first_valid_year = sequence_data[0]
+        # Pad at the beginning with the earliest valid season
+        sequence_data = [first_valid_year] * (seq_length - len(sequence_data)) + sequence_data
+        mask = [0] * (seq_length - len(mask)) + mask  # Padded seasons marked as invalid
     
     current_sequence = np.array(sequence_data[-seq_length:])
     mask = np.array(mask[-seq_length:], dtype=np.int64)
-    
-    # CRITICAL FIX: Skip players with all invalid seasons (mask sum = 0)
-    # This can happen for players who never reached IP threshold
-    if mask.sum() == 0:
-        logger.warning(f"Skipping pitcher {player_name} - no valid seasons with IP >= {ip_threshold}")
-        return []
     
     device = next(model.parameters()).device
     predictions_list = []
@@ -175,28 +656,22 @@ def predict_future_stats_pitcher(player_id: str, input_features: List[str], mode
     
     # Generate predictions
     for year in range(1, future_years + 1):
-        # Scale the full sequence (base + vs_career features)
+        # Scale the sequence
         sequence_scaled = scaler.transform(current_sequence)
         
-        # CRITICAL: Model was trained on base features only, so truncate
-        sequence_scaled_base = sequence_scaled[:, :n_features]
-        
-        sequence_tensor = torch.FloatTensor(sequence_scaled_base).unsqueeze(0).to(device)
+        sequence_tensor = torch.FloatTensor(sequence_scaled).unsqueeze(0).to(device)
         mask_tensor = torch.LongTensor(mask).unsqueeze(0).to(device)
         
         with torch.no_grad():
             prediction = model(sequence_tensor, mask_tensor.sum(1))
             prediction = prediction.cpu().numpy()
         
-        # Reconstruct full feature vector for inverse scaling
-        # Create dummy vs_career features (will be replaced)
-        full_prediction = np.concatenate([prediction[0], np.zeros(n_features)])
-        
         # Inverse transform to get actual values
-        prediction_unscaled_full = scaler.inverse_transform(full_prediction.reshape(1, -1))[0]
+        prediction_constrained = scaler.inverse_transform(prediction)[0]
         
-        # Extract base features
-        prediction_unscaled = prediction_unscaled_full[:n_features]
+        # NOTE: Physical constraints removed for consistency with backtest
+        # Previously applied velocity caps, IP limits, and post-surgery constraints
+        # These are now handled in post-processing if needed
         
         pred_dict = {
             'Name': player_name,
@@ -209,716 +684,69 @@ def predict_future_stats_pitcher(player_id: str, input_features: List[str], mode
         # Add predicted stats (except Age)
         for i, feature in enumerate(input_features):
             if feature != 'Age':
-                pred_dict[feature] = prediction_unscaled[i]
+                pred_dict[feature] = prediction_constrained[i]
         
         predictions_list.append(pred_dict)
         
-        # Update sequence for next prediction
-        next_sequence_base = prediction_unscaled.copy()
-        age_index = input_features.index('Age')
-        next_sequence_base[age_index] = last_age + year + 1
+        # Update player_context for next year's constraints
+        # The constrained velocity becomes the baseline for next year
+        if 'FBv' in input_features:
+            fbv_idx = input_features.index('FBv')
+            player_context['last_fbv'] = prediction_constrained[fbv_idx]
         
-        # Create vs_career features for next iteration
-        next_sequence_vs_career = next_sequence_base - career_stats.values
-        next_sequence_full = np.concatenate([next_sequence_base, next_sequence_vs_career])
+        # Update sequence for next prediction - use constrained values for continuity
+        next_sequence = prediction_constrained.copy()
+        age_index = input_features.index('Age')
+        next_sequence[age_index] = last_age + year + 1
+        
+        # Scale the next prediction
+        next_sequence_scaled = scaler.transform(next_sequence.reshape(1, -1))[0]
         
         # Update sequence
-        current_sequence = np.vstack([current_sequence[1:], next_sequence_full])
+        current_sequence = np.vstack([current_sequence[1:], next_sequence])
         mask = np.ones(seq_length, dtype=np.int64)  # All valid for subsequent predictions
     
     return predictions_list
 
 
-def predict_future_stats_batter(player_id: str, input_features: List[str], model: ImprovedLSTM,
-                               scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                               future_years: int = 16) -> List[Dict]:
-    """Predict future stats for a batter - matches original notebook functionality with enhanced features"""
-    
-    # Get player data
-    player_data = raw_df[raw_df['IDfg'] == player_id].copy()
-    if len(player_data) == 0:
-        return []
-    
-    # Get player name
-    try:
-        player_name = player_names[player_names['IDfg'] == player_id]['Name'].iloc[0]
-    except IndexError:
-        logger.warning(f"Player name not found for ID {player_id}")
-        return []
-    
-    # Sort by season
-    player_data = player_data.sort_values('Season')
-    
-    # Handle players with less than 3 seasons (like the notebook)
-    num_seasons = len(player_data)
-    if num_seasons < 3:
-        # For players with 1-2 seasons, pad with their available data
-        recent_data = player_data[input_features].copy()
-        while len(recent_data) < 3:
-            # Duplicate their most recent season
-            recent_data = pd.concat([recent_data, recent_data.iloc[-1:]])
-    else:
-        # Use last 3 seasons for established players
-        recent_data = player_data[input_features].iloc[-3:].copy()
-    
-    # Check for valid data
-    if recent_data.isna().any().any():
-        return []
-    
-    # Calculate career stats from available data (matching training approach)
-    career_stats = player_data[input_features].mean()
-    
-    # CRITICAL FIX: Match notebook's enhanced features approach exactly
-    # Create enhanced features with career stats (like notebook does)
-    enhanced_features = []
-    for idx, row in recent_data.iterrows():
-        career_dev = row - career_stats  # Direct subtraction like notebook
-        combined = np.concatenate([row.values, career_dev.values])  # Simple concatenation like notebook
-        enhanced_features.append(combined)
-
-    sequence = np.array(enhanced_features)
-    # Scale using the 26-feature scaler (but will only use first 13 for model)
-    sequence_scaled = scaler.transform(sequence)
-    
-    # CRITICAL FIX: Like notebook, truncate to only base features for model input
-    n_features = len(input_features)  # 13 base features only
-    sequence_scaled = sequence_scaled[:, :n_features]  # Use only first 13 features for model
-    
-    predictions = []
-    latest_age = recent_data['Age'].iloc[-1] if 'Age' in recent_data.columns else player_data['Age'].iloc[-1]
-    latest_season = player_data['Season'].max()
-    
-    # Predict for each future year
-    for year_offset in range(1, future_years + 1):
-        year = latest_season + year_offset
-        age = latest_age + year_offset
-        
-        # Predict using the model
-        with torch.no_grad():
-            seq_tensor = torch.FloatTensor(sequence_scaled).unsqueeze(0)
-            # Calculate lengths properly
-            lengths = torch.tensor([3], dtype=torch.int64)
-            
-            # Move tensors to the same device as model
-            device = next(model.parameters()).device
-            seq_tensor = seq_tensor.to(device)
-            lengths = lengths.to(device)
-            
-            output = model(seq_tensor, lengths)
-            pred_numpy = output.cpu().numpy()[0]
-        
-        # Inverse transform with proper handling (matching training approach)
-        try:
-            # CRITICAL FIX: Match notebook's inverse transform approach exactly
-            n_features = len(input_features)  # 13 base features
-            scaler_dim = scaler.n_features_in_  # Should be 26 (13 base + 13 vs_career)
-            
-            # Pad predictions to match scaler dimensions (like notebook)
-            pred_padded = np.pad(pred_numpy, (0, scaler_dim - n_features), 'constant')
-            
-            # Inverse transform using padded prediction
-            unscaled_pred = scaler.inverse_transform([pred_padded])[0][:n_features]
-            
-            # Create prediction dictionary with all batter features
-            prediction_dict = {
-                'Name': player_name,
-                'IDfg': player_id,
-                'Year': year,
-                'Age': age,
-            }
-            
-            # Add all input features to prediction
-            for i, feature in enumerate(input_features):
-                if feature == 'Age':
-                    prediction_dict[feature] = age
-                else:
-                    prediction_dict[feature] = unscaled_pred[i]
-            
-            predictions.append(prediction_dict)
-            
-            # CRITICAL FIX: Update sequence for next prediction (matching notebook exactly)
-            age_index = input_features.index('Age')
-            # Create age update with proper scaling (like notebook)
-            age_update = [0] * scaler_dim  # Initialize with zeros
-            age_update[age_index] = age    # Set the age
-            
-            # Scale the age update and use it to update pred_numpy
-            pred_numpy[age_index] = scaler.transform([age_update])[0][age_index]
-            sequence_scaled = np.vstack([sequence_scaled[1:], pred_numpy])
-            
-        except Exception as e:
-            logger.error(f"Batter prediction error for player {player_id}, year {year}: {e}")
-            break
-    
-    return predictions
-
-
-def predict_future_stats_fielding(player_id: str, input_features: List[str], model: ImprovedLSTM,
-                                 scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                                 position_group: str, seq_length: int = 5, future_years: int = 16) -> List[Dict]:
-    """Predict future fielding stats - matches notebook functionality with enhanced features"""
-    
-    # Get player data
-    player_data = raw_df[raw_df['IDfg'] == player_id].copy()
-    if len(player_data) == 0:
-        return []
-    
-    # Get player name
-    try:
-        player_name = player_names[player_names['IDfg'] == player_id]['Name'].iloc[0]
-    except IndexError:
-        logger.warning(f"Player name not found for fielder ID {player_id}")
-        return []
-    
-    # Sort by season
-    player_data = player_data.sort_values('Season')
-    
-    # Handle players with less than seq_length seasons
-    num_seasons = len(player_data)
-    if num_seasons < seq_length:
-        # For players with insufficient seasons, pad with their available data
-        recent_data = player_data[input_features].copy()
-        while len(recent_data) < seq_length:
-            # Duplicate their most recent season
-            recent_data = pd.concat([recent_data, recent_data.iloc[-1:]])
-    else:
-        # Use last seq_length seasons for established players
-        recent_data = player_data[input_features].iloc[-seq_length:].copy()
-    
-    # Check for valid data
-    if recent_data.isna().any().any():
-        return []
-    
-    # Create a temporary DataFrame to match training preprocessing
-    temp_df = recent_data.copy()
-    temp_df = temp_df.reset_index(drop=True)
-    
-    # Add IDfg and Pos for groupby (required by scale_features function for defense models)
-    temp_df['IDfg'] = player_id
-    temp_df['Pos'] = position_group  # Use the actual position for position-specific career averages
-    
-    # CRITICAL FIX: Calculate position-specific career averages from ALL player data (matching training)
-    # Use all historical data to calculate career averages, not just recent 3 seasons
-    career_data = player_data[input_features + ['IDfg', 'Pos']].copy()
-    
-    # Calculate position-specific career averages (this replicates defense model scale_features logic)
-    # Group by IDfg and Pos to get position-specific career averages
-    player_pos_stats = career_data.groupby(['IDfg', 'Pos'])[input_features].mean()
-    
-    # For prediction, we need to handle the fact that a player might play multiple positions
-    # Use the position_group to determine which positions to average over
-    if position_group == 'infield':
-        relevant_positions = ['1B', '2B', '3B', 'SS']
-    elif position_group == 'outfield':
-        relevant_positions = ['LF', 'CF', 'RF']
-    elif position_group == 'catcher':
-        relevant_positions = ['C']
-    else:
-        # Default to all positions for this player
-        relevant_positions = career_data['Pos'].unique()
-    
-    # Get career averages for relevant positions
-    player_career_means = {}
-    for feature in input_features:
-        position_values = []
-        for pos in relevant_positions:
-            if (player_id, pos) in player_pos_stats.index:
-                position_values.append(player_pos_stats.loc[(player_id, pos), feature])
-        
-        if position_values:
-            player_career_means[feature] = np.mean(position_values)
-        else:
-            # Fallback to overall player average
-            player_career_means[feature] = career_data[feature].mean()
-    
-    # Now apply these career averages to the recent 3 seasons
-    for feature in input_features:
-        temp_df[f'{feature}_vs_career'] = temp_df[feature] - player_career_means[feature]
-    
-    # Combine original and new features (this replicates scale_features logic)
-    all_features = input_features + [f'{feature}_vs_career' for feature in input_features]
-    
-    # Scale using the same approach as training
-    try:
-        sequence_scaled = scaler.transform(temp_df[all_features].values)
-    except Exception as e:
-        logger.error(f"Scaling error for fielder {player_id}: {e}")
-        return []
-    
-    # CRITICAL FIX: The models were trained on ONLY the base features, not vs_career features
-    # Extract only the base features for the model (first len(input_features) columns)
-    n_features = len(input_features)
-    sequence_scaled = sequence_scaled[:, :n_features]  # Keep only base features
-    
-    predictions = []
-    latest_age = recent_data['Age'].iloc[-1] if 'Age' in recent_data.columns else player_data['Age'].iloc[-1]
-    latest_season = player_data['Season'].max()
-    
-    # Predict for each future year
-    for year_offset in range(1, future_years + 1):
-        year = latest_season + year_offset
-        age = latest_age + year_offset
-        
-        # Predict using the model
-        with torch.no_grad():
-            seq_tensor = torch.FloatTensor(sequence_scaled).unsqueeze(0)
-            # Calculate lengths properly using seq_length parameter
-            lengths = torch.tensor([seq_length], dtype=torch.int64)
-            
-            # Move tensors to the same device as model
-            device = next(model.parameters()).device
-            seq_tensor = seq_tensor.to(device)
-            lengths = lengths.to(device)
-            
-            output = model(seq_tensor, lengths)
-            pred_numpy = output.cpu().numpy()[0]
-        
-        # Inverse transform with proper handling (matching training approach)
-        try:
-            # CRITICAL FIX: Model outputs only base features, but scaler expects all features (base + vs_career)
-            # We need to reconstruct the full feature vector for inverse scaling
-            n_features = len(input_features)
-            
-            # Pad the prediction with zeros for vs_career features to match scaler expectations
-            full_pred = np.zeros(scaler.n_features_in_)
-            full_pred[:n_features] = pred_numpy  # Set base features
-            # vs_career features stay as zeros (reasonable for future predictions)
-            
-            unscaled_pred = scaler.inverse_transform(full_pred.reshape(1, -1))[0][:n_features]
-            
-            # Create prediction dictionary with all fielding features
-            prediction_dict = {
-                'Name': player_name,
-                'IDfg': player_id,
-                'Year': year,
-                'Age': age,
-                'Position_Group': position_group,
-            }
-            
-            # Add all input features to prediction
-            for i, feature in enumerate(input_features):
-                if feature == 'Age':
-                    prediction_dict[feature] = age
-                else:
-                    prediction_dict[feature] = unscaled_pred[i]
-            
-            predictions.append(prediction_dict)
-            
-            # Update sequence for next prediction (matching notebook approach)
-            age_index = input_features.index('Age')
-            # Create zero array of correct scaler dimension
-            scaler_dim = scaler.n_features_in_
-            age_update = np.zeros(scaler_dim)
-            age_update[age_index] = age
-            pred_numpy[age_index] = scaler.transform([age_update])[0][age_index]
-            sequence_scaled = np.vstack([sequence_scaled[1:], pred_numpy])
-            
-        except Exception as e:
-            logger.error(f"Fielding prediction error for player {player_id}, year {year}: {e}")
-            break
-    
-    return predictions
-
-
-def predict_future_stats_baserunning(player_id: str, input_features: List[str], model: ImprovedLSTM,
-                                    scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                                    seq_length: int = 4, future_years: int = 16) -> List[Dict]:
-    """Predict future baserunning stats - matches original notebook functionality with enhanced features"""
-    
-    # Get player data
-    player_data = raw_df[raw_df['IDfg'] == player_id].copy()
-    if len(player_data) == 0:
-        return []
-    
-    # Get player name
-    try:
-        player_name = player_names[player_names['IDfg'] == player_id]['Name'].iloc[0]
-    except IndexError:
-        logger.warning(f"Player name not found for ID {player_id}")
-        return []
-    
-    # Sort by season
-    player_data = player_data.sort_values('Season')
-    
-    # Handle players with less than seq_length seasons
-    num_seasons = len(player_data)
-    if num_seasons < seq_length:
-        # For players with insufficient seasons, pad with their available data
-        recent_data = player_data[input_features].copy()
-        while len(recent_data) < seq_length:
-            # Duplicate their most recent season
-            recent_data = pd.concat([recent_data, recent_data.iloc[-1:]], ignore_index=True)
-    else:
-        # Use last seq_length seasons for established players
-        recent_data = player_data[input_features].iloc[-seq_length:].copy().reset_index(drop=True)
-    
-    # Check for valid data
-    if recent_data.isna().any().any():
-        return []
-    
-    # Calculate career stats from available data (matching training approach)
-    career_stats = player_data[input_features].mean()
-    
-    # Create a temporary DataFrame to match training preprocessing
-    temp_df = recent_data.copy()
-    temp_df = temp_df.reset_index(drop=True)
-    
-    # Add IDfg for groupby (required by scale_features function)
-    temp_df['IDfg'] = player_id
-    
-    # Calculate player career averages (this replicates scale_features logic)
-    player_stats = temp_df.groupby('IDfg')[input_features].transform('mean')
-    
-    # Create deviation from career average features (this replicates scale_features logic)
-    for feature in input_features:
-        temp_df[f'{feature}_vs_career'] = temp_df[feature] - player_stats[feature]
-    
-    # Combine original and new features (this replicates scale_features logic)
-    all_features = input_features + [f'{feature}_vs_career' for feature in input_features]
-    
-    # Scale using the same approach as training
-    try:
-        sequence_scaled = scaler.transform(temp_df[all_features].values)
-    except Exception as e:
-        logger.error(f"Scaling error for player {player_id}: {e}")
-        return []
-    
-    # CRITICAL FIX: Model was trained on base features only, but scaler expects all features
-    n_features = len(input_features)
-    n_extended_features = len(all_features)  # This includes vs_career features
-    
-    # Extract only the base features for model input (matches training approach)
-    sequence_base_features = sequence_scaled[:, :n_features]
-    
-    predictions = []
-    latest_age = recent_data['Age'].iloc[-1] if 'Age' in recent_data.columns else player_data['Age'].iloc[-1]
-    latest_season = player_data['Season'].max()
-    
-    # Predict for each future year
-    for year_offset in range(1, future_years + 1):
-        year = latest_season + year_offset
-        age = latest_age + year_offset
-        
-        # Predict using the model (using only base features)
-        with torch.no_grad():
-            seq_tensor = torch.FloatTensor(sequence_base_features).unsqueeze(0)
-            # Calculate lengths properly
-            lengths = torch.tensor([seq_length], dtype=torch.int64)
-            
-            # Move tensors to the same device as model
-            device = next(model.parameters()).device
-            seq_tensor = seq_tensor.to(device)
-            lengths = lengths.to(device)
-            
-            output = model(seq_tensor, lengths)
-            pred_numpy = output.cpu().numpy()[0]
-        
-        # Inverse transform with proper handling (matching training approach)
-        try:
-            # Model outputs base features (6), but scaler expects all features (12)
-            # Pad with zeros for vs_career features to match scaler expectations
-            if len(pred_numpy) == n_features and scaler.n_features_in_ == n_extended_features:
-                # Pad the prediction to match scaler input size
-                padded_pred = np.zeros(scaler.n_features_in_)
-                padded_pred[:n_features] = pred_numpy
-                unscaled_pred = scaler.inverse_transform(padded_pred.reshape(1, -1))[0][:n_features]
-            elif len(pred_numpy) == scaler.n_features_in_:
-                unscaled_pred = scaler.inverse_transform(pred_numpy.reshape(1, -1))[0][:n_features]
-            else:
-                logger.error(f"Model output size {len(pred_numpy)} doesn't match expected sizes")
-                break
-            
-            # Create prediction dictionary with all predicted features
-            prediction_dict = {
-                'Name': player_name,
-                'IDfg': player_id,
-                'Year': year,
-                'Age': age,
-            }
-            
-            # Add all predicted features dynamically from input_features
-            for i, feature in enumerate(input_features):
-                if feature != 'Age':  # Age is already added above
-                    # Apply non-negative constraint for counting stats
-                    if feature in ['SB_rate', 'CS_rate']:
-                        prediction_dict[feature] = max(0, unscaled_pred[i])
-                    else:
-                        prediction_dict[feature] = unscaled_pred[i]
-            
-            predictions.append(prediction_dict)
-            
-
-            age_index = input_features.index('Age')
-            
-            # Create next year's prediction in UNSCALED space
-            next_pred_unscaled = unscaled_pred.copy()
-            next_pred_unscaled[age_index] = age + 1  # Next year's age
-            
-            # Calculate vs_career features for the next prediction
-            next_pred_vs_career = next_pred_unscaled - career_stats.values
-            
-            # Combine base + vs_career features
-            next_pred_full = np.concatenate([next_pred_unscaled, next_pred_vs_career])
-            
-            # Scale the full prediction
-            next_pred_scaled = scaler.transform(next_pred_full.reshape(1, -1))[0]
-            
-            # Update sequence_scaled
-            sequence_scaled = np.vstack([sequence_scaled[1:], next_pred_scaled.reshape(1, -1)])
-            
-            # Extract base features for next iteration
-            sequence_base_features = sequence_scaled[:, :n_features]
-            
-        except Exception as e:
-            logger.error(f"Baserunning prediction error for player {player_id}, year {year}: {e}")
-            break
-    
-    return predictions
-
-
-def calculate_pitcher_war(df: pd.DataFrame) -> pd.DataFrame:
-    """Calculate WAR for pitchers using correct replacement level baseline"""
-    
-    def estimate_playing_time(row):
-        if row['Role'] == 'SP':
-            base_ip = 180
-            scaled_ip = base_ip * (4.20/row['FIP'])
-            return pd.Series({
-                'IP': min(220, max(150, scaled_ip)),
-                'G': 32,
-                'GS': 32
-            })
-        else:
-            base_ip = 65
-            scaled_ip = base_ip * (4.20/row['FIP'])
-            return pd.Series({
-                'IP': min(80, max(50, scaled_ip)),
-                'G': 65,
-                'GS': 0
-            })
-    
-    df[['IP', 'G', 'GS']] = df.apply(estimate_playing_time, axis=1)
-    
-    # Calculate WAR components
-    league_fip = 4.20
-    replacement_level_fip = 4.95  # Approximately 0.75 runs worse than league average
-    
-    # Runs above replacement level
-    df['RAR'] = (replacement_level_fip - df['FIP']) * (df['IP'] / 9)
-    
-    # Calculate WAR
-    df['WAR'] = df['RAR'] / 9.0
-    
-    # Cleanup and round
-    df = df.drop(columns=['RAR'])
-    df['WAR'] = df['WAR'].round(1)
-    
-    return df
-
-
-def calculate_war_components(row, pos_games_map={'C': 135}, default_games=150):
-    """Calculate WAR components with position-specific playing time - from batter notebook"""
-    # Position-based games
-    games = pos_games_map.get(row.get('Position', 'OF'), default_games)
-    pa = games * 4.2
-
-    # Hitting counting stats
-    hitting_stats = {}
-    for stat in ['HR', '2B', '3B', 'RBI', 'R']:
-        if f'{stat}_rate' in row:
-            hitting_stats[stat] = round(row[f'{stat}_rate'] * games, 1)
-
-    # WAR components (from batter notebook)
-    wOBA_scale = 1.23
-    RPA = 0.117
-    lg_wOBA = 0.309
-    RPW = 9.8
-    team = row.get('Team', None)
-    
-    # Ballpark factors (simplified - from notebook)
-    ballpark_factors = {
-        'COL': 104, 'BOS': 103, 'CIN': 102, 'TEX': 101, 'BAL': 101,
-        'NYY': 100, 'MIN': 100, 'CHW': 100, 'LAA': 100, 'ATL': 100,
-        'HOU': 99, 'WSN': 99, 'TB': 99, 'MIL': 99, 'TOR': 99,
-        'KC': 98, 'ARI': 98, 'NYM': 98, 'SF': 98, 'PIT': 98,
-        'CLE': 97, 'STL': 97, 'LAD': 97, 'CHC': 97, 'DET': 97,
-        'MIA': 96, 'PHI': 96, 'OAK': 95, 'SD': 95, 'SEA': 94
-    }
-    
-    if pd.isnull(team):
-        PF = 1.0
-    else:
-        team_str = str(team).upper().strip()
-        PF = ballpark_factors.get(team_str, 100) / 100
-    
-    lgPA = 186188
-    wRAA = ((row['wOBA'] - lg_wOBA) / wOBA_scale) * pa
-    batting_runs = wRAA + (RPA - (RPA * PF)) * pa
-    
-    # Get defensive and baserunning values (default to 0 if not available)
-    Def = row.get('def_value', 0)  # From fielding predictions
-    BsR = row.get('BsR', 0)        # From baserunning predictions
-    
-    Off = batting_runs + BsR
-    rep_level = 570 * RPW * pa / lgPA
-    
-    rar = Off + Def + rep_level
-    war = rar / RPW
-
-    return war, {
-        'Off': Off,
-        'BsR': BsR,
-        'Def': Def,
-        'WAR': war,
-        'PA': pa,
-        'G': games,
-        **hitting_stats,
-        'SB': row.get('SB', 0),
-        'CS': row.get('CS', 0)
-    }
-
-
-def calculate_batter_war_with_fielding(batter_df: pd.DataFrame, fielding_df: pd.DataFrame) -> pd.DataFrame:
+def predict_all_pitchers(
+    raw_df: pd.DataFrame, 
+    player_names: pd.DataFrame, 
+    sp_model, 
+    rp_model,
+    sp_scaler, 
+    rp_scaler, 
+    sp_input_features: List[str],
+    rp_input_features: List[str], 
+    seq_length: int, 
+    future_years: int = 16, 
+    cutoff_year: int = 2024,
+    sp_config = None,
+    rp_config = None
+) -> Optional[pd.DataFrame]:
     """
-    Calculate WAR for batters using position-specific fielding data.
+    Generate future predictions for all qualified pitchers.
+    
+    Identifies starting and relief pitchers from the cutoff year (and previous year 
+    for returning/injured players), then generates multi-year projections for each.
     
     Args:
-        batter_df: Batter predictions DataFrame
-        fielding_df: Position-specific fielding predictions DataFrame
+        raw_df: Historical pitcher data with Season, IDfg, IP, G, GS columns
+        player_names: DataFrame mapping IDfg to Name
+        sp_model: Trained LSTM model for starting pitchers
+        rp_model: Trained LSTM model for relief pitchers
+        sp_scaler: Fitted scaler for SP features
+        rp_scaler: Fitted scaler for RP features
+        sp_input_features: List of input features for SP model
+        rp_input_features: List of input features for RP model
+        seq_length: Number of historical seasons used as input sequence
+        future_years: Number of years to project into the future
+        cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
         
     Returns:
-        DataFrame with WAR calculations including defensive values
+        DataFrame with predictions for all pitchers, or None if no predictions generated
     """
-    from .defensive_value_calculator import merge_defensive_values_with_batters
-    
-    # Merge defensive values from position-specific fielding data
-    df_with_defense = merge_defensive_values_with_batters(batter_df, fielding_df)
-    
-    # Position-based games mapping
-    pos_games_map = {'C': 135}
-    default_games = 150
-    
-    # Calculate WAR components for each prediction
-    for idx, row in df_with_defense.iterrows():
-        _, components = calculate_war_components(
-            row, 
-            pos_games_map=pos_games_map,
-            default_games=default_games
-        )
-        
-        # Update the dataframe with WAR components
-        for component, value in components.items():
-            df_with_defense.at[idx, component] = value
-    
-    # Remove only intermediate rate statistics (keep the important counting stat rates)
-    rate_columns_to_remove = [col for col in df_with_defense.columns 
-                              if col.endswith('_rate') and 
-                              col not in ['HR_rate', '2B_rate', '3B_rate', 'RBI_rate', 'R_rate']]
-    df_with_defense = df_with_defense.drop(columns=rate_columns_to_remove, errors='ignore')
-    
-    return df_with_defense
-
-
-def calculate_batter_war_with_fielding_and_baserunning(batter_df: pd.DataFrame, fielding_df: pd.DataFrame, baserunning_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Calculate WAR for batters using position-specific fielding data and baserunning predictions.
-    
-    Args:
-        batter_df: Batter predictions DataFrame
-        fielding_df: Position-specific fielding predictions DataFrame
-        baserunning_df: Baserunning predictions DataFrame
-        
-    Returns:
-        DataFrame with WAR calculations including defensive and baserunning values
-    """
-    from .defensive_value_calculator import merge_defensive_values_with_batters
-    
-    # Merge defensive values from position-specific fielding data
-    df_with_defense = merge_defensive_values_with_batters(batter_df, fielding_df)
-    
-    # Merge baserunning values
-    logger.info("Merging baserunning values with batter predictions")
-    
-    # Calculate BsR from baserunning predictions
-    # BsR = wSB + UBR + wGDP (from baserunning notebook methodology)
-    baserunning_df = baserunning_df.copy()
-    baserunning_df['BsR'] = (baserunning_df['wSB_rate'] + 
-                             baserunning_df['UBR_rate'] + 
-                             baserunning_df['wGDP_rate']) * 150  # Scale by games
-    
-    # Merge baserunning data on IDfg and Year
-    df_with_baserunning = df_with_defense.merge(
-        baserunning_df[['IDfg', 'Year', 'BsR', 'SB_rate', 'CS_rate']],
-        on=['IDfg', 'Year'],
-        how='left'
-    )
-    
-    # Fill missing baserunning values with 0
-    df_with_baserunning['BsR'] = df_with_baserunning['BsR'].fillna(0)
-    df_with_baserunning['SB_rate'] = df_with_baserunning['SB_rate'].fillna(0)
-    df_with_baserunning['CS_rate'] = df_with_baserunning['CS_rate'].fillna(0)
-    
-    logger.info(f"Successfully merged baserunning values for {df_with_baserunning['BsR'].notna().sum()} predictions")
-    
-    # Position-based games mapping
-    pos_games_map = {'C': 135}
-    default_games = 150
-    
-    # Calculate WAR components for each prediction
-    for idx, row in df_with_baserunning.iterrows():
-        _, components = calculate_war_components(
-            row, 
-            pos_games_map=pos_games_map,
-            default_games=default_games
-        )
-        
-        # Update the dataframe with WAR components
-        for component, value in components.items():
-            df_with_baserunning.at[idx, component] = value
-    
-    # Remove only intermediate rate statistics (keep the important counting stat rates)
-    rate_columns_to_remove = [col for col in df_with_baserunning.columns 
-                              if col.endswith('_rate') and 
-                              col not in ['HR_rate', '2B_rate', '3B_rate', 'RBI_rate', 'R_rate', 'SB_rate', 'CS_rate']]
-    df_with_baserunning = df_with_baserunning.drop(columns=rate_columns_to_remove, errors='ignore')
-    
-    return df_with_baserunning
-
-
-def calculate_batter_war(df: pd.DataFrame) -> pd.DataFrame:
-    """Calculate WAR for batters using proper methodology from batter notebook (legacy version)"""
-    
-    # Position-based games mapping
-    pos_games_map = {'C': 135}
-    default_games = 150
-    
-    # Calculate WAR components for each prediction
-    for idx, row in df.iterrows():
-        _, components = calculate_war_components(
-            row, 
-            pos_games_map=pos_games_map,
-            default_games=default_games
-        )
-        
-        # Update the dataframe with WAR components
-        for component, value in components.items():
-            df.at[idx, component] = value
-    
-    # Remove only intermediate rate statistics (keep the important counting stat rates)
-    rate_columns_to_remove = [col for col in df.columns 
-                              if col.endswith('_rate') and 
-                              col not in ['HR_rate', '2B_rate', '3B_rate', 'RBI_rate', 'R_rate']]
-    df = df.drop(columns=rate_columns_to_remove, errors='ignore')
-    
-    return df
-
-
-def predict_all_2024_pitchers(raw_df: pd.DataFrame, player_names: pd.DataFrame, 
-                             sp_model: ImprovedLSTM, rp_model: ImprovedLSTM,
-                             sp_scaler: Any, rp_scaler: Any, input_features: List[str],
-                             seq_length: int, future_years: int = 16, cutoff_year: int = 2024) -> Optional[pd.DataFrame]:
-    """Predict future years with role determination - year-agnostic version"""
-    logger.info(f"Starting predictions for current and potentially injured/recovering pitchers from {cutoff_year}")
+    logger.info(f"Starting predictions for pitchers from cutoff year {cutoff_year}")
     
     # Get current year and previous year pitchers
     pitchers_current = raw_df[raw_df['Season'] == cutoff_year].copy()
@@ -928,13 +756,17 @@ def predict_all_2024_pitchers(raw_df: pd.DataFrame, player_names: pd.DataFrame,
     pitchers_current['GS_rate'] = pitchers_current['GS'] / pitchers_current['G']
     pitchers_prev['GS_rate'] = pitchers_prev['GS'] / pitchers_prev['G']
     
+    # Get minimum IP thresholds from config or use defaults
+    sp_min_ip = sp_config.MIN_IP_CURRENT if sp_config and hasattr(sp_config, 'MIN_IP_CURRENT') else 25
+    rp_min_ip = rp_config.MIN_IP_CURRENT if rp_config and hasattr(rp_config, 'MIN_IP_CURRENT') else 15
+    
     # First determine current year roles by GS rate only
     qualified_current_sp = pitchers_current[
-        (pitchers_current['IP'] >= 25) & 
+        (pitchers_current['IP'] >= sp_min_ip) & 
         (pitchers_current['G'] >= 6)
     ]
     qualified_current_rp = pitchers_current[
-        (pitchers_current['IP'] >= 15) & 
+        (pitchers_current['IP'] >= rp_min_ip) & 
         (pitchers_current['G'] >= 15)
     ]
     
@@ -946,14 +778,14 @@ def predict_all_2024_pitchers(raw_df: pd.DataFrame, player_names: pd.DataFrame,
     missing_current = set(pitchers_prev['IDfg']) - set(pitchers_current['IDfg'])
     sp_ids_prev = set(pitchers_prev[
         (pitchers_prev['IDfg'].isin(missing_current)) &
-        (pitchers_prev['IP'] >= 25) & 
+        (pitchers_prev['IP'] >= sp_min_ip) & 
         (pitchers_prev['G'] >= 6) & 
         (pitchers_prev['GS_rate'] >= 0.8)
     ]['IDfg'])
     
     rp_ids_prev = set(pitchers_prev[
         (pitchers_prev['IDfg'].isin(missing_current)) &
-        (pitchers_prev['IP'] >= 15) & 
+        (pitchers_prev['IP'] >= rp_min_ip) & 
         (pitchers_prev['G'] >= 15) & 
         (pitchers_prev['GS_rate'] < 0.8)
     ]['IDfg'])
@@ -965,21 +797,31 @@ def predict_all_2024_pitchers(raw_df: pd.DataFrame, player_names: pd.DataFrame,
     logger.info(f"Found {len(sp_ids_current)} qualified {cutoff_year} SPs and {len(sp_ids_prev)} returning/recovering SPs")
     logger.info(f"Found {len(rp_ids_current)} qualified {cutoff_year} RPs and {len(rp_ids_prev)} returning/recovering RPs")
     
+    # Target year is cutoff_year + 1 (e.g., if cutoff_year=2025, projections start at 2026)
+    target_year = cutoff_year + 1
+    
     all_predictions = []
     
     # Predict SPs
     logger.info("Generating SP predictions...")
     for player_id in tqdm(sp_ids, desc="Starting Pitchers"):
+        # Filter to historical data up to cutoff_year
+        player_historical_data = raw_df[
+            (raw_df['IDfg'] == player_id) & 
+            (raw_df['Season'] <= cutoff_year)
+        ].copy()
+        
         predictions = predict_future_stats_pitcher(
             player_id=player_id,
-            input_features=input_features,
+            input_features=sp_input_features,
             model=sp_model,
             scaler=sp_scaler,
-            raw_df=raw_df,
+            raw_df=player_historical_data,
             player_names=player_names,
             role='SP',
             seq_length=seq_length,
-            future_years=future_years
+            future_years=future_years,
+            target_year=target_year
         )
         if predictions:
             all_predictions.extend(predictions)
@@ -987,16 +829,23 @@ def predict_all_2024_pitchers(raw_df: pd.DataFrame, player_names: pd.DataFrame,
     # Predict RPs
     logger.info("Generating RP predictions...")
     for player_id in tqdm(rp_ids, desc="Relief Pitchers"):
+        # Filter to historical data up to cutoff_year
+        player_historical_data = raw_df[
+            (raw_df['IDfg'] == player_id) & 
+            (raw_df['Season'] <= cutoff_year)
+        ].copy()
+        
         predictions = predict_future_stats_pitcher(
             player_id=player_id,
-            input_features=input_features,
+            input_features=rp_input_features,
             model=rp_model,
             scaler=rp_scaler,
-            raw_df=raw_df,
+            raw_df=player_historical_data,
             player_names=player_names,
             role='RP',
             seq_length=seq_length,
-            future_years=future_years
+            future_years=future_years,
+            target_year=target_year
         )
         if predictions:
             all_predictions.extend(predictions)
@@ -1004,11 +853,8 @@ def predict_all_2024_pitchers(raw_df: pd.DataFrame, player_names: pd.DataFrame,
     if all_predictions:
         predictions_df = pd.DataFrame(all_predictions)
         
-        # Calculate WAR
-        predictions_df = calculate_pitcher_war(predictions_df)
-        
-        # Sort by Year, Role, and WAR (descending)
-        predictions_df = predictions_df.sort_values(['Year', 'Role', 'WAR'], ascending=[True, True, False])
+        # Sort by Year, Role, and player name
+        predictions_df = predictions_df.sort_values(['Year', 'Role', 'Name'], ascending=[True, True, True])
         
         return predictions_df
     else:
@@ -1016,26 +862,57 @@ def predict_all_2024_pitchers(raw_df: pd.DataFrame, player_names: pd.DataFrame,
         return None
 
 
-def predict_all_2024_batters_no_war(raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                                  model: ImprovedLSTM, scaler: Any, input_features: List[str],
-                                  future_years: int = 16, cutoff_year: int = 2024) -> Optional[pd.DataFrame]:
-    """Generate predictions for all batters without WAR calculation - year-agnostic version"""
+def predict_all_batters(
+    raw_df: pd.DataFrame, 
+    player_names: pd.DataFrame,
+    model: ImprovedLSTM, 
+    scaler: Any, 
+    input_features: List[str],
+    seq_length: int = 5,
+    future_years: int = 16, 
+    cutoff_year: int = 2024,
+    min_pa_current: int = 100
+) -> Optional[pd.DataFrame]:
+    """
+    Generate future predictions for all qualified batters.
     
+    Identifies batters with sufficient plate appearances in the cutoff year,
+    then generates multi-year projections for each.
+    
+    Args:
+        raw_df: Historical batter data with Season, IDfg, PA columns
+        player_names: DataFrame mapping IDfg to Name
+        model: Trained LSTM model for batters
+        scaler: Fitted scaler for batter features
+        input_features: List of input features for the model
+        seq_length: Number of historical seasons to use for predictions (from config)
+        future_years: Number of years to project into the future
+        cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
+        min_pa_current: Minimum PA in cutoff year to qualify for predictions
+        
+    Returns:
+        DataFrame with predictions for all batters, or None if no predictions generated
+    """
     # Get only current year players (like fielding/baserunning)
     all_players = set(raw_df[
         (raw_df['Season'] == cutoff_year) & 
-        (raw_df['PA'] >= 100)  # Minimum PA threshold
+        (raw_df['PA'] >= min_pa_current)
     ]['IDfg'])
     
-    logger.info(f"Found {len(all_players)} qualified {cutoff_year} players")
-    logger.info(f"Total players to predict: {len(all_players)}")
-    
+    logger.info(f"Found {len(all_players)} qualified {cutoff_year} batters (min_pa={min_pa_current})")
+
     all_predictions = []
+    failed_count = 0
+    error_sample = []
     
     for player_id in tqdm(all_players, desc="Generating batter predictions"):
         try:
+            # Filter to only historical data up to cutoff_year
+            player_data = raw_df[
+                (raw_df['IDfg'] == player_id) & 
+                (raw_df['Season'] <= cutoff_year)
+            ].copy()
             # Additional filtering: Remove seasons with fewer than 50 PA (matching notebook)
-            player_data = raw_df[raw_df['IDfg'] == player_id].copy()
             player_data = player_data[player_data['PA'] >= 50].reset_index(drop=True)
             
             if len(player_data) < 1:  # Skip if no valid seasons
@@ -1046,8 +923,9 @@ def predict_all_2024_batters_no_war(raw_df: pd.DataFrame, player_names: pd.DataF
                 input_features=input_features,
                 model=model,
                 scaler=scaler,
-                raw_df=player_data,  # Use filtered data
+                raw_df=player_data,  # Use filtered data (up to cutoff_year)
                 player_names=player_names,
+                seq_length=seq_length,
                 future_years=future_years
             )
             
@@ -1055,87 +933,60 @@ def predict_all_2024_batters_no_war(raw_df: pd.DataFrame, player_names: pd.DataF
                 all_predictions.extend(predictions)
                 
         except Exception as e:
-            logger.error(f"Error predicting for batter {player_id}: {str(e)}")
+            failed_count += 1
+            # Collect first 5 errors for detailed logging
+            if len(error_sample) < 5:
+                error_sample.append((player_id, str(e)))
             continue
+    
+    # Log error details if any failures occurred
+    if failed_count > 0:
+        logger.error(f"Failed to generate predictions for {failed_count} batters")
+        if error_sample:
+            logger.error("Sample errors (first 5):")
+            for player_id, error in error_sample:
+                logger.error(f"  Player {player_id}: {error}")
     
     if all_predictions:
         predictions_df = pd.DataFrame(all_predictions)
-        
-        # Sort by Year and player name for consistency (no WAR calculation)
         predictions_df = predictions_df.sort_values(['Year', 'Name'])
-        
         return predictions_df
     else:
         logger.warning("No batter predictions were generated")
         return None
 
 
-def predict_all_2024_batters(raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                           model: ImprovedLSTM, scaler: Any, input_features: List[str],
-                           future_years: int = 16, cutoff_year: int = 2024) -> Optional[pd.DataFrame]:
-    """Generate predictions for all batters - year-agnostic version"""
+def predict_all_fielders(
+    raw_df: pd.DataFrame, 
+    player_names: pd.DataFrame,
+    position_models: Dict[str, ImprovedLSTM], 
+    position_scalers: Dict[str, Any],
+    position_group_map: Dict[str, str],
+    input_features_map: Dict[str, List[str]],
+    seq_length_map: Dict[str, int],
+    future_years: int = 16, 
+    cutoff_year: int = 2025
+) -> Optional[pd.DataFrame]:
+    """
+    Generate future predictions for all qualified fielders.
     
-    # Get only current year players (like fielding/baserunning)
-    all_players = set(raw_df[
-        (raw_df['Season'] == cutoff_year) & 
-        (raw_df['PA'] >= 100)  # Minimum PA threshold
-    ]['IDfg'])
+    Processes each position group (infield, outfield, catcher) separately using
+    position-specific models, then combines results.
     
-    logger.info(f"Found {len(all_players)} qualified {cutoff_year} players")
-    logger.info(f"Total players to predict: {len(all_players)}")
-    
-    all_predictions = []
-    
-    for player_id in tqdm(all_players, desc="Generating batter predictions"):
-        try:
-            # Additional filtering: Remove seasons with fewer than 50 PA (matching notebook)
-            player_data = raw_df[raw_df['IDfg'] == player_id].copy()
-            player_data = player_data[player_data['PA'] >= 50].reset_index(drop=True)
-            
-            if len(player_data) < 1:  # Skip if no valid seasons
-                continue
-                
-            predictions = predict_future_stats_batter(
-                player_id=player_id,
-                input_features=input_features,
-                model=model,
-                scaler=scaler,
-                raw_df=player_data,  # Use filtered data
-                player_names=player_names,
-                future_years=future_years
-            )
-            
-            if predictions:
-                all_predictions.extend(predictions)
-                
-        except Exception as e:
-            logger.error(f"Error predicting for batter {player_id}: {str(e)}")
-            continue
-    
-    if all_predictions:
-        predictions_df = pd.DataFrame(all_predictions)
+    Args:
+        raw_df: Historical fielding data with Season, IDfg, Pos, Inn columns
+        player_names: DataFrame mapping IDfg to Name
+        position_models: Dict mapping position group to trained model
+        position_scalers: Dict mapping position group to fitted scaler
+        position_group_map: Dict mapping specific positions to position groups
+        input_features_map: Dict mapping position group to input features
+        seq_length_map: Dict mapping position group to sequence length
+        future_years: Number of years to project into the future
+        cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
         
-        # Calculate WAR
-        predictions_df = calculate_batter_war(predictions_df)
-        
-        # Sort by Year and WAR (descending)
-        predictions_df = predictions_df.sort_values(['Year', 'WAR'], ascending=[True, False])
-        
-        return predictions_df
-    else:
-        logger.warning("No batter predictions were generated")
-        return None
-
-
-def predict_all_2024_fielders(raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                            position_models: Dict[str, ImprovedLSTM], 
-                            position_scalers: Dict[str, Any],
-                            position_group_map: Dict[str, str],
-                            input_features_map: Dict[str, List[str]],
-                            seq_length_map: Dict[str, int],
-                            future_years: int = 16, cutoff_year: int = 2024) -> Optional[pd.DataFrame]:
-    """Generate predictions for all fielders - year-agnostic version"""
-    
+    Returns:
+        DataFrame with predictions for all fielders, or None if no predictions generated
+    """
     # Define minimum innings threshold (matches notebook MIN_POSITION_INNINGS)
     MIN_POSITION_INNINGS = 50
     
@@ -1175,12 +1026,18 @@ def predict_all_2024_fielders(raw_df: pd.DataFrame, player_names: pd.DataFrame,
                 player_id = row['IDfg']
                 specific_position = row['Pos']  # Keep the specific position (SS, 2B, etc.)
                 
+                # Filter to historical data up to cutoff_year
+                player_historical_data = group_df[
+                    (group_df['IDfg'] == player_id) & 
+                    (group_df['Season'] <= cutoff_year)
+                ].copy()
+                
                 predictions = predict_future_stats_fielding(
                     player_id=player_id,
                     input_features=input_features,
                     model=model,
                     scaler=scaler,
-                    raw_df=group_df,
+                    raw_df=player_historical_data,
                     player_names=player_names,
                     position_group=model_key,
                     seq_length=seq_length,
@@ -1201,7 +1058,77 @@ def predict_all_2024_fielders(raw_df: pd.DataFrame, player_names: pd.DataFrame,
                 continue
     
     if all_predictions:
-        predictions_df = pd.DataFrame(all_predictions)
+        # Apply aging enforcement to prevent unrealistic improvements for players 30+
+        enforcer = get_aging_enforcer()
+        
+        # Group predictions by player and position group for enforcement
+        from collections import defaultdict
+        player_predictions = defaultdict(list)
+        for pred in all_predictions:
+            key = (pred['IDfg'], pred.get('Position_Group', 'unknown'))
+            player_predictions[key].append(pred)
+        
+        # Enforce aging for each player
+        enforced_predictions = []
+        for (player_id, pos_group), preds in player_predictions.items():
+            # Sort by year
+            preds_sorted = sorted(preds, key=lambda x: x['Year'])
+            
+            # Map position group to category
+            if pos_group == 'infield':
+                category = 'fielding_infield'
+                valid_positions = ['1B', '2B', '3B', 'SS']
+            elif pos_group == 'outfield':
+                category = 'fielding_outfield'
+                valid_positions = ['LF', 'CF', 'RF']
+            elif pos_group == 'catcher':
+                category = 'fielding_catcher'
+                valid_positions = ['C']
+            else:
+                category = 'fielding_outfield'
+                valid_positions = ['LF', 'CF', 'RF']
+            
+            # Get the player's last actual season as baseline for first prediction
+            # This is critical: compare 2025 prediction to 2024 actual, not just 2025 to 2026
+            player_last_actual = raw_df[
+                (raw_df['IDfg'] == player_id) & 
+                (raw_df['Season'] == cutoff_year) &
+                (raw_df['Pos'].isin(valid_positions))
+            ]
+            
+            if not player_last_actual.empty:
+                # Create a baseline record from actual data
+                actual_row = player_last_actual.iloc[0]
+                baseline = {
+                    'IDfg': player_id,
+                    'Year': cutoff_year,  # e.g., 2024
+                    'Age': actual_row.get('Age', 0),
+                    'Name': preds_sorted[0].get('Name', ''),
+                    'Position_Group': pos_group,
+                    '_is_baseline': True  # Mark so we can remove later
+                }
+                # Copy defensive metrics from actual data
+                for metric in enforcer.DEFENSE_METRICS:
+                    if metric in actual_row.index:
+                        baseline[metric] = actual_row[metric]
+                
+                # Prepend baseline so first prediction is compared against actual
+                preds_with_baseline = [baseline] + preds_sorted
+            else:
+                preds_with_baseline = preds_sorted
+            
+            # Enforce aging constraints
+            adjusted = enforcer.enforce_aging(preds_with_baseline, category)
+            
+            # Remove baseline row (it was just for comparison)
+            adjusted = [p for p in adjusted if not p.get('_is_baseline', False)]
+            enforced_predictions.extend(adjusted)
+        
+        predictions_df = pd.DataFrame(enforced_predictions)
+        
+        # Clean up the _is_baseline column if it somehow persisted
+        if '_is_baseline' in predictions_df.columns:
+            predictions_df = predictions_df.drop(columns=['_is_baseline'])
         
         # Sort by Name, Position, and Year (matches notebook output)
         predictions_df = predictions_df.sort_values(['Name', 'Pos', 'Year'])
@@ -1212,11 +1139,35 @@ def predict_all_2024_fielders(raw_df: pd.DataFrame, player_names: pd.DataFrame,
         return None
 
 
-def predict_all_2024_baserunners(raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                                model: ImprovedLSTM, scaler: Any, input_features: List[str],
-                                seq_length: int = 4, future_years: int = 16, cutoff_year: int = 2024) -> Optional[pd.DataFrame]:
-    """Generate predictions for all baserunners - year-agnostic version"""
+def predict_all_baserunners(
+    raw_df: pd.DataFrame, 
+    player_names: pd.DataFrame,
+    model, 
+    scaler, 
+    input_features: List[str],
+    seq_length: int = 4, 
+    future_years: int = 16, 
+    cutoff_year: int = 2024
+) -> Optional[pd.DataFrame]:
+    """
+    Generate future predictions for all baserunners.
     
+    Identifies players from the cutoff year and generates multi-year
+    baserunning projections (stolen bases, caught stealing, baserunning runs).
+    
+    Args:
+        raw_df: Historical baserunning data with Season, IDfg columns
+        player_names: DataFrame mapping IDfg to Name
+        model: Trained LSTM model for baserunning
+        scaler: Fitted scaler for baserunning features
+        input_features: List of input features for the model
+        seq_length: Number of historical seasons used as input sequence
+        future_years: Number of years to project into the future
+        cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
+        
+    Returns:
+        DataFrame with predictions for all baserunners, or None if no predictions generated
+    """
     # Get unique players from cutoff year data
     current_players = raw_df[raw_df['Season'] == cutoff_year]['IDfg'].unique()
     
@@ -1226,12 +1177,18 @@ def predict_all_2024_baserunners(raw_df: pd.DataFrame, player_names: pd.DataFram
     
     for player_id in tqdm(current_players, desc="Generating baserunning predictions"):
         try:
+            # Filter to historical data up to cutoff_year
+            player_historical_data = raw_df[
+                (raw_df['IDfg'] == player_id) & 
+                (raw_df['Season'] <= cutoff_year)
+            ].copy()
+            
             predictions = predict_future_stats_baserunning(
                 player_id=player_id,
                 input_features=input_features,
                 model=model,
                 scaler=scaler,
-                raw_df=raw_df,
+                raw_df=player_historical_data,
                 player_names=player_names,
                 seq_length=seq_length,
                 future_years=future_years
@@ -1258,4 +1215,5 @@ def predict_all_2024_baserunners(raw_df: pd.DataFrame, player_names: pd.DataFram
     else:
         logger.warning("No baserunning predictions were generated")
         return None
+
 

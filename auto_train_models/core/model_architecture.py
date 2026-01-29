@@ -247,6 +247,18 @@ class ImprovedLSTM(nn.Module):
                 param.requires_grad = True
         logger.info(f"Unfrozen {self.num_layers} LSTM layers")
     
+    def freeze_attention(self):
+        """Freeze attention layers only (for very limited data scenarios)"""
+        for param in self.attention.parameters():
+            param.requires_grad = False
+        logger.info("Frozen attention layers")
+    
+    def unfreeze_attention(self):
+        """Unfreeze attention layers"""
+        for param in self.attention.parameters():
+            param.requires_grad = True
+        logger.info("Unfrozen attention layers")
+    
     def freeze_attention_and_output(self):
         """Freeze attention and output projection"""
         for param in self.attention.parameters():
@@ -262,6 +274,12 @@ class ImprovedLSTM(nn.Module):
         for param in self.output_projection.parameters():
             param.requires_grad = True
         logger.info("Unfrozen attention and output layers")
+    
+    def unfreeze_output_only(self):
+        """Unfreeze only output projection - for very limited data scenarios"""
+        for param in self.output_projection.parameters():
+            param.requires_grad = True
+        logger.info("Unfrozen output projection only")
     
     def expand_input_projection(self, new_input_size: int):
         """

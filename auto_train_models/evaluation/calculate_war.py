@@ -68,13 +68,17 @@ POSITIONAL_ADJUSTMENTS = {
     'C': 12.5,
     'SS': 7.5,
     '2B': 2.5,
-    'CF': 7.5,
-    '3B': 0.0,
+    'CF': 2.5,
+    '3B': 2.5,
     'LF': -7.5,
     'RF': -7.5,
     '1B': -12.5,
     'DH': -17.5
 }
+
+# Pitcher constants
+LG_FIP = 4.20  # League average FIP
+REPLACEMENT_LEVEL_RUNS_200IP = 20.0  # Replacement level runs per 200 IP
 
 def load_player_orgs(data_dir: Path) -> pd.DataFrame:
     """
@@ -82,11 +86,11 @@ def load_player_orgs(data_dir: Path) -> pd.DataFrame:
     Returns DataFrame with IDfg (fg_id) and their current team.
     """
     # Try to load from active_roster directory first (correct location)
-    roster_file = data_dir.parent / "active_roster" / "current_rosters_with_fg_id.csv"
+    roster_file = data_dir.parent / "active_roster" / "current_rosters.csv"
     
     # Fallback to data root directory
     if not roster_file.exists():
-        roster_file = data_dir.parent / "current_rosters_with_fg_id.csv"
+        roster_file = data_dir.parent / "current_rosters.csv"
     
     if not roster_file.exists():
         logger.warning(f"Current rosters file not found at: {roster_file}")
@@ -190,6 +194,64 @@ def calculate_baserunning_value(row: pd.Series, games: int) -> float:
     bsr = runner_runs_xb + runner_runs_sbx
     
     return bsr
+
+def calculate_pitcher_war(fip: float,
+                         ip: float,
+                         team: str,
+                         role: str = 'SP',
+                         rate_stats: Optional[Dict] = None) -> Tuple[float, Dict[str, Any]]:
+    """
+    Calculate pitcher WAR from FIP and allocated innings.
+    
+    FIP-based WAR formula:
+    - Runs prevented = (LG_FIP - FIP) / 9 * IP
+    - Replacement level = IP / 9 * (replacement_runs_per_9)
+    - WAR = (Runs prevented + Replacement) / RPW
+    
+    Args:
+        fip: Projected FIP
+        ip: Allocated innings pitched
+        team: Team abbreviation for park factor
+        role: 'SP' or 'RP'
+        rate_stats: Dict with rate stats (K%, BB%, ERA, etc.)
+        
+    Returns:
+        Tuple of (war, components_dict) with full breakdown
+    """
+    # Park factor adjustment for pitchers (inverse of batters)
+    park_factor = BALLPARK_FACTORS.get(str(team).upper().strip(), 100) / 100
+    
+    # Adjust FIP for park (pitcher in a hitter's park has inflated FIP)
+    park_adjusted_fip = fip / park_factor if park_factor != 0 else fip
+    
+    # FIP runs saved (positive = better than league)
+    fip_runs = (LG_FIP - park_adjusted_fip) / 9.0 * ip
+    
+    # Replacement level runs
+    replacement_runs = REPLACEMENT_LEVEL_RUNS_200IP * (ip / 200.0)
+    
+    # Total runs above replacement
+    rar = fip_runs + replacement_runs
+    
+    # WAR
+    war = rar / RPW
+    
+    # Build components dict
+    components = {
+        'FIP_Runs': fip_runs,
+        'Replacement_Runs': replacement_runs,
+        'WAR': war,
+        'IP': ip,
+        'Team': team,
+        'Role': role
+    }
+    
+    # Add rate stats if provided
+    if rate_stats:
+        for key, value in rate_stats.items():
+            components[key] = value
+    
+    return war, components
 
 def infer_position_from_fielding(fielding_df: pd.DataFrame, player_id: int, year: int) -> str:
     """

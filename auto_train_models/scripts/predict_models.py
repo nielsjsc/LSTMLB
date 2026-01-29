@@ -2,11 +2,16 @@
 """
 MLB Player Prediction Pipeline
 Author: Niels Christoffersen
-Version: 1.0
-Last Updated: 12/28/2024
+Version: 2.0
+Last Updated: January 2026
 
 This script generates predictions for all MLB player types using trained models.
 It matches the exact functionality of the original Jupyter notebooks.
+
+Changes in v2.0:
+- Added --cutoff-year CLI argument for backtesting support
+- Renamed functions to remove hardcoded year references
+- Consolidated duplicate batter prediction functions
 """
 
 import sys
@@ -18,6 +23,7 @@ import numpy as np
 import torch
 import joblib
 from typing import Dict, Any, Optional, List
+from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -25,9 +31,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.model_registry import ModelFactory
 from core.data_processing import DataConfig, calculate_rate_stats
 from core.prediction import (
-    generate_batter_names, load_model_from_checkpoint,
-    predict_all_2024_pitchers, predict_all_2024_batters,
-    predict_all_2024_fielders, predict_all_2024_baserunners
+    generate_batter_names, 
+    load_model_from_checkpoint,
+    predict_all_pitchers, 
+    predict_all_batters,
+    predict_all_fielders, 
+    predict_all_baserunners
 )
 
 # Configure logging
@@ -71,15 +80,31 @@ def resolve_data_path(config_data_file: str) -> Path:
         return DATA_DIR / config_path.name
 
 
-def load_pitcher_models_and_scalers() -> tuple:
-    """Load pitcher models and scalers for SP and RP"""
+def load_pitcher_models_and_scalers(use_pretrained: bool = False) -> tuple:
+    """Load pitcher models and scalers for SP and RP
+    
+    Args:
+        use_pretrained: If True, use pretrained model (classical features).
+                       If False, try finetuned model first.
+    """
     
     # Load SP model
     sp_config = ModelFactory.get_config('pitcher_sp')
-    sp_data_config = sp_config.get_data_config()
     
-    sp_checkpoint_path = AUTO_TRAIN_DIR / sp_config.CHECKPOINT_DIR / sp_config.CHECKPOINT_FILE
-    sp_scaler_path = AUTO_TRAIN_DIR / sp_config.SCALER_FILE
+    # Determine which checkpoint and config to use
+    sp_pretrain_checkpoint = AUTO_TRAIN_DIR / sp_config.CHECKPOINT_DIR / sp_config.PRETRAIN_CHECKPOINT_FILE
+    sp_finetune_checkpoint = AUTO_TRAIN_DIR / sp_config.CHECKPOINT_DIR / sp_config.FINETUNE_CHECKPOINT_FILE
+    
+    if not use_pretrained and sp_finetune_checkpoint.exists() and hasattr(sp_config, 'FINETUNE_CHECKPOINT_FILE'):
+        logger.info("Using SP finetuned model (classical + PITCHf/x + Statcast)")
+        sp_data_config = sp_config.get_data_config(mode='finetune')
+        sp_checkpoint_path = sp_finetune_checkpoint
+        sp_scaler_path = AUTO_TRAIN_DIR / sp_config.FINETUNE_SCALER_FILE
+    else:
+        logger.info("Using SP pretrained model (classical features only)")
+        sp_data_config = sp_config.get_data_config(mode='pretrain')
+        sp_checkpoint_path = sp_pretrain_checkpoint
+        sp_scaler_path = AUTO_TRAIN_DIR / sp_config.PRETRAIN_SCALER_FILE
     
     sp_model = load_model_from_checkpoint(
         str(sp_checkpoint_path),
@@ -90,10 +115,20 @@ def load_pitcher_models_and_scalers() -> tuple:
     
     # Load RP model
     rp_config = ModelFactory.get_config('pitcher_rp')
-    rp_data_config = rp_config.get_data_config()
     
-    rp_checkpoint_path = AUTO_TRAIN_DIR / rp_config.CHECKPOINT_DIR / rp_config.CHECKPOINT_FILE
-    rp_scaler_path = AUTO_TRAIN_DIR / rp_config.SCALER_FILE
+    rp_pretrain_checkpoint = AUTO_TRAIN_DIR / rp_config.CHECKPOINT_DIR / rp_config.PRETRAIN_CHECKPOINT_FILE
+    rp_finetune_checkpoint = AUTO_TRAIN_DIR / rp_config.CHECKPOINT_DIR / rp_config.FINETUNE_CHECKPOINT_FILE
+    
+    if not use_pretrained and rp_finetune_checkpoint.exists() and hasattr(rp_config, 'FINETUNE_CHECKPOINT_FILE'):
+        logger.info("Using RP finetuned model (classical + PITCHf/x + Statcast)")
+        rp_data_config = rp_config.get_data_config(mode='finetune')
+        rp_checkpoint_path = rp_finetune_checkpoint
+        rp_scaler_path = AUTO_TRAIN_DIR / rp_config.FINETUNE_SCALER_FILE
+    else:
+        logger.info("Using RP pretrained model (classical features only)")
+        rp_data_config = rp_config.get_data_config(mode='pretrain')
+        rp_checkpoint_path = rp_pretrain_checkpoint
+        rp_scaler_path = AUTO_TRAIN_DIR / rp_config.PRETRAIN_SCALER_FILE
     
     rp_model = load_model_from_checkpoint(
         str(rp_checkpoint_path),
@@ -102,7 +137,7 @@ def load_pitcher_models_and_scalers() -> tuple:
     )
     rp_scaler = joblib.load(rp_scaler_path)
     
-    return sp_model, rp_model, sp_scaler, rp_scaler, sp_config, rp_config
+    return sp_model, rp_model, sp_scaler, rp_scaler, sp_config, rp_config, sp_data_config, rp_data_config
 
 
 def load_fielding_models_and_scalers() -> tuple:
@@ -160,10 +195,25 @@ def load_fielding_models_and_scalers() -> tuple:
     return position_models, position_scalers, position_group_map, input_features_map, seq_length_map
 
 
-def generate_pitcher_predictions(output_file: str = None) -> Optional[pd.DataFrame]:
-    """Generate pitcher predictions matching notebook functionality"""
+def generate_pitcher_predictions(
+    output_file: str = None, 
+    use_pretrained: bool = False,
+    cutoff_year: int = None
+) -> Optional[pd.DataFrame]:
+    """Generate pitcher predictions for SP and RP
     
-    logger.info("Starting pitcher predictions generation...")
+    Args:
+        output_file: Path to save predictions
+        use_pretrained: If True, use pretrained model (classical features).
+                       If False, try finetuned model first.
+        cutoff_year: Last year of actual data. Predictions start from cutoff_year + 1.
+                    Defaults to current year - 1 if not specified.
+    """
+    # Default to previous year if not specified
+    if cutoff_year is None:
+        cutoff_year = datetime.now().year - 1
+    
+    logger.info(f"Starting pitcher predictions generation (cutoff_year={cutoff_year})...")
     
     # Get data file from config
     sp_config_class = ModelFactory.get_config('pitcher_sp')
@@ -181,20 +231,23 @@ def generate_pitcher_predictions(output_file: str = None) -> Optional[pd.DataFra
         player_names = pd.read_csv(pitcher_names_path)
     
     # Load models and scalers
-    sp_model, rp_model, sp_scaler, rp_scaler, sp_config, rp_config = load_pitcher_models_and_scalers()
+    sp_model, rp_model, sp_scaler, rp_scaler, sp_config, rp_config, sp_data_config, rp_data_config = load_pitcher_models_and_scalers(use_pretrained)
     
-    # Generate predictions
-    predictions_df = predict_all_2024_pitchers(
+    # Generate predictions with separate feature lists for SP and RP
+    predictions_df = predict_all_pitchers(
         raw_df=raw_df,
         player_names=player_names,
         sp_model=sp_model,
         rp_model=rp_model,
         sp_scaler=sp_scaler,
         rp_scaler=rp_scaler,
-        input_features=sp_config.INPUT_FEATURES,  # Both use same features
-        seq_length=sp_config.get_data_config().seq_length,
+        sp_input_features=sp_data_config.input_features,
+        rp_input_features=rp_data_config.input_features,
+        seq_length=sp_data_config.seq_length,
         future_years=15,
-        cutoff_year=2025  # 2025 season completed, predict 2026+
+        cutoff_year=cutoff_year,
+        sp_config=sp_config,
+        rp_config=rp_config
     )
     
     if predictions_df is not None:
@@ -214,15 +267,24 @@ def generate_pitcher_predictions(output_file: str = None) -> Optional[pd.DataFra
         return None
 
 
-def generate_batter_predictions(output_file: str = None, use_pretrained: bool = False) -> Optional[pd.DataFrame]:
+def generate_batter_predictions(
+    output_file: str = None, 
+    use_pretrained: bool = False,
+    cutoff_year: int = None
+) -> Optional[pd.DataFrame]:
     """Generate batter predictions matching notebook functionality
     
     Args:
         output_file: Path to save predictions
         use_pretrained: If True, use pretrained model (13 features). If False, try finetuned model first.
+        cutoff_year: Last year of actual data. Predictions start from cutoff_year + 1.
+                    Defaults to current year - 1 if not specified.
     """
+    # Default to previous year if not specified
+    if cutoff_year is None:
+        cutoff_year = datetime.now().year - 1
     
-    logger.info("Starting batter predictions generation...")
+    logger.info(f"Starting batter predictions generation (cutoff_year={cutoff_year})...")
     
     # Get config
     batter_config_class = ModelFactory.get_config('batter')
@@ -289,14 +351,16 @@ def generate_batter_predictions(output_file: str = None, use_pretrained: bool = 
         input_features = config.INPUT_FEATURES
     
     # Generate predictions
-    predictions_df = predict_all_2024_batters(
+    predictions_df = predict_all_batters(
         raw_df=raw_df,
         player_names=player_names,
         model=model,
         scaler=scaler,
         input_features=input_features,  # Use features matching the model
+        seq_length=data_config.seq_length,
         future_years=15,
-        cutoff_year=2025  # 2025 season completed, predict 2026+
+        cutoff_year=cutoff_year,
+        min_pa_current=config.MIN_PA_CURRENT if hasattr(config, 'MIN_PA_CURRENT') else 100
     )
     
     if predictions_df is not None:
@@ -314,14 +378,30 @@ def generate_batter_predictions(output_file: str = None, use_pretrained: bool = 
         return None
 
 
-def generate_integrated_batter_predictions(output_file: str = None) -> Optional[pd.DataFrame]:
+def generate_integrated_batter_predictions(
+    output_file: str = None,
+    cutoff_year: int = None
+) -> Optional[pd.DataFrame]:
     """
     Generate batter predictions with proper WAR calculation using position-specific fielding data.
     This is the new approach that properly handles defensive values from position-specific predictions.
-    """
-    from core.prediction import calculate_batter_war_with_fielding
     
-    logger.info("Starting integrated batter predictions with position-specific fielding...")
+    WAR calculation is delegated to evaluation/calculate_war.py which is the authoritative source.
+    
+    Args:
+        output_file: Path to save predictions
+        cutoff_year: Last year of actual data. Predictions start from cutoff_year + 1.
+                    Defaults to current year - 1 if not specified.
+    """
+    # Import WAR calculation from the authoritative source
+    sys.path.insert(0, str(AUTO_TRAIN_DIR / 'evaluation'))
+    from calculate_war import calculate_war_components, calculate_baserunning_value, calculate_defensive_value, load_player_orgs
+    
+    # Default to previous year if not specified
+    if cutoff_year is None:
+        cutoff_year = datetime.now().year - 1
+    
+    logger.info(f"Starting integrated batter predictions with position-specific fielding (cutoff_year={cutoff_year})...")
     
     # Get config
     batter_config_class = ModelFactory.get_config('batter')
@@ -376,16 +456,17 @@ def generate_integrated_batter_predictions(output_file: str = None) -> Optional[
         scaler = joblib.load(AUTO_TRAIN_DIR / config.SCALER_FILE)
         input_features = config.INPUT_FEATURES
     
-    # Get batter predictions without WAR calculation
-    from core.prediction import predict_all_2024_batters_no_war
-    batter_df = predict_all_2024_batters_no_war(
+    # Get batter predictions without WAR calculation (WAR calculated in post-processing via calculate_war.py)
+    batter_df = predict_all_batters(
         raw_df=raw_df,
         player_names=player_names,
         model=model,
         scaler=scaler,
         input_features=input_features,
+        seq_length=data_config.seq_length,
         future_years=15,
-        cutoff_year=2025  # 2025 season completed, predict 2026+
+        cutoff_year=cutoff_year,
+        min_pa_current=config.MIN_PA_CURRENT if hasattr(config, 'MIN_PA_CURRENT') else 100
     )
     
     if batter_df is None:
@@ -421,16 +502,41 @@ def generate_integrated_batter_predictions(output_file: str = None) -> Optional[
             return None
     
     # Calculate WAR with position-specific fielding data and baserunning
+    # Use the authoritative WAR calculation from evaluation/calculate_war.py
     logger.info("Step 3: Calculating WAR with position-specific defensive and baserunning values...")
-    from core.prediction import calculate_batter_war_with_fielding_and_baserunning
-    integrated_df = calculate_batter_war_with_fielding_and_baserunning(batter_df, fielding_df, baserunning_df)
     
-    # Filter out 2025 predictions (players who played in 2024 but not 2025)
-    logger.info("Step 4: Filtering out 2025 predictions...")
+    # Load player organizations for park factors
+    org_data = load_player_orgs(GENERATED_DIR)
+    batter_df = batter_df.merge(org_data, on='IDfg', how='left')
+    
+    # Calculate WAR components for each batter prediction
+    war_components_list = []
+    for idx, row in batter_df.iterrows():
+        try:
+            war, components = calculate_war_components(row, baserunning_df, fielding_df)
+            components['IDfg'] = row['IDfg']
+            components['Year'] = row['Year']
+            war_components_list.append(components)
+        except Exception as e:
+            logger.warning(f"Error calculating WAR for {row.get('Name', 'Unknown')} ({row['IDfg']}): {e}")
+            continue
+    
+    # Merge WAR components back into batter dataframe
+    war_df = pd.DataFrame(war_components_list)
+    integrated_df = batter_df.merge(war_df, on=['IDfg', 'Year'], how='left', suffixes=('_old', ''))
+    
+    # Clean up duplicate columns
+    columns_to_remove = [col for col in integrated_df.columns if col.endswith('_old')]
+    integrated_df = integrated_df.drop(columns=columns_to_remove, errors='ignore')
+    
+    # Filter out predictions from cutoff year (players who played in cutoff_year-1 but not cutoff_year)
+    # Projections should start from cutoff_year + 1
+    filter_year = cutoff_year
+    logger.info(f"Step 4: Filtering out {filter_year} predictions...")
     initial_count = len(integrated_df)
-    integrated_df = integrated_df[integrated_df['Year'] != 2025].copy()
+    integrated_df = integrated_df[integrated_df['Year'] != filter_year].copy()
     filtered_count = len(integrated_df)
-    logger.info(f"Removed {initial_count - filtered_count} rows with Year=2025")
+    logger.info(f"Removed {initial_count - filtered_count} rows with Year={filter_year}")
     
     # Sort by Year and WAR (descending)
     integrated_df = integrated_df.sort_values(['Year', 'WAR'], ascending=[True, False])
@@ -450,10 +556,22 @@ def generate_integrated_batter_predictions(output_file: str = None) -> Optional[
     return integrated_df
 
 
-def generate_fielding_predictions(output_file: str = None) -> Optional[pd.DataFrame]:
-    """Generate fielding predictions matching notebook functionality"""
+def generate_fielding_predictions(
+    output_file: str = None,
+    cutoff_year: int = None
+) -> Optional[pd.DataFrame]:
+    """Generate fielding predictions matching notebook functionality
     
-    logger.info("Starting fielding predictions generation...")
+    Args:
+        output_file: Path to save predictions
+        cutoff_year: Last year of actual data. Predictions start from cutoff_year + 1.
+                    Defaults to current year - 1 if not specified.
+    """
+    # Default to previous year if not specified
+    if cutoff_year is None:
+        cutoff_year = datetime.now().year - 1
+    
+    logger.info(f"Starting fielding predictions generation (cutoff_year={cutoff_year})...")
     
     # Get data file from config
     fielding_config_class = ModelFactory.get_config('defense_infield')
@@ -472,7 +590,7 @@ def generate_fielding_predictions(output_file: str = None) -> Optional[pd.DataFr
     position_models, position_scalers, position_group_map, input_features_map, seq_length_map = load_fielding_models_and_scalers()
     
     # Generate predictions
-    predictions_df = predict_all_2024_fielders(
+    predictions_df = predict_all_fielders(
         raw_df=raw_df,
         player_names=player_names,
         position_models=position_models,
@@ -481,7 +599,7 @@ def generate_fielding_predictions(output_file: str = None) -> Optional[pd.DataFr
         input_features_map=input_features_map,
         seq_length_map=seq_length_map,
         future_years=15,
-        cutoff_year=2025  # 2025 season completed, predict 2026+
+        cutoff_year=cutoff_year
     )
     
     if predictions_df is not None:
@@ -521,10 +639,22 @@ def generate_fielding_predictions(output_file: str = None) -> Optional[pd.DataFr
         return None
 
 
-def generate_baserunning_predictions(output_file: str = None) -> Optional[pd.DataFrame]:
-    """Generate baserunning predictions matching notebook functionality"""
+def generate_baserunning_predictions(
+    output_file: str = None,
+    cutoff_year: int = None
+) -> Optional[pd.DataFrame]:
+    """Generate baserunning predictions matching notebook functionality
     
-    logger.info("Starting baserunning predictions generation...")
+    Args:
+        output_file: Path to save predictions
+        cutoff_year: Last year of actual data. Predictions start from cutoff_year + 1.
+                    Defaults to current year - 1 if not specified.
+    """
+    # Default to previous year if not specified
+    if cutoff_year is None:
+        cutoff_year = datetime.now().year - 1
+    
+    logger.info(f"Starting baserunning predictions generation (cutoff_year={cutoff_year})...")
     
     # Get data file from config
     baserunning_config_class = ModelFactory.get_config('baserunning')
@@ -555,7 +685,7 @@ def generate_baserunning_predictions(output_file: str = None) -> Optional[pd.Dat
     scaler = joblib.load(scaler_path)
     
     # Generate predictions
-    predictions_df = predict_all_2024_baserunners(
+    predictions_df = predict_all_baserunners(
         raw_df=raw_df,
         player_names=player_names,
         model=model,
@@ -563,7 +693,7 @@ def generate_baserunning_predictions(output_file: str = None) -> Optional[pd.Dat
         input_features=config.INPUT_FEATURES,
         seq_length=data_config.seq_length,
         future_years=15,
-        cutoff_year=2025  # 2025 season completed, predict 2026+
+        cutoff_year=cutoff_year
     )
     
     if predictions_df is not None:
@@ -584,13 +714,35 @@ def generate_baserunning_predictions(output_file: str = None) -> Optional[pd.Dat
 def main():
     """Main entry point for prediction generation"""
     
-    parser = argparse.ArgumentParser(description='Generate MLB player predictions')
-    parser.add_argument('--model-type', choices=['pitcher', 'batter', 'fielding', 'baserunning', 'integrated-batter', 'all'],
-                       default='all', help='Type of predictions to generate')
+    # Calculate default cutoff year (previous year)
+    default_cutoff_year = datetime.now().year - 1
+    
+    parser = argparse.ArgumentParser(
+        description='Generate MLB player predictions using trained LSTM models',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Generate all predictions for current year
+  python predict_models.py --model-type all
+  
+  # Generate batter predictions for backtesting 2023 season
+  python predict_models.py --model-type batter --cutoff-year 2022
+  
+  # Generate predictions using pretrained model only
+  python predict_models.py --model-type pitcher --use-pretrained
+        """
+    )
+    parser.add_argument('--model-type', 
+                       choices=['pitcher', 'batter', 'fielding', 'baserunning', 'integrated-batter', 'all'],
+                       default='all', 
+                       help='Type of predictions to generate (default: all)')
     parser.add_argument('--output-dir', type=str, default=str(PIPELINE_DIR),
                        help='Output directory for prediction files')
+    parser.add_argument('--cutoff-year', type=int, default=default_cutoff_year,
+                       help=f'Last year of actual data. Predictions start from cutoff_year + 1. '
+                            f'(default: {default_cutoff_year})')
     parser.add_argument('--use-pretrained', action='store_true',
-                       help='Use pretrained model only (13 classical features) instead of finetuned model')
+                       help='Use pretrained model only (classical features) instead of finetuned model')
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Enable verbose logging')
     
@@ -603,46 +755,69 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    logger.info("Starting MLB Player Prediction Pipeline")
+    logger.info("=" * 60)
+    logger.info("MLB Player Prediction Pipeline v2.0")
+    logger.info("=" * 60)
     logger.info(f"Model type: {args.model_type}")
+    logger.info(f"Cutoff year: {args.cutoff_year} (projections start from {args.cutoff_year + 1})")
     logger.info(f"Output directory: {output_dir}")
+    logger.info(f"Using pretrained model: {args.use_pretrained}")
     
     success = True
     
     try:
         if args.model_type in ['pitcher', 'all']:
             output_file = str(output_dir / 'pitcher_predictions.csv')
-            result = generate_pitcher_predictions(output_file)
+            result = generate_pitcher_predictions(
+                output_file, 
+                use_pretrained=args.use_pretrained,
+                cutoff_year=args.cutoff_year
+            )
             if result is None:
                 success = False
         
         if args.model_type in ['batter', 'all']:
             output_file = str(output_dir / 'batter_predictions.csv')
-            result = generate_batter_predictions(output_file, use_pretrained=args.use_pretrained)
+            result = generate_batter_predictions(
+                output_file, 
+                use_pretrained=args.use_pretrained,
+                cutoff_year=args.cutoff_year
+            )
             if result is None:
                 success = False
         
         if args.model_type in ['fielding', 'all']:
             output_file = str(output_dir / 'fielding_predictions.csv')
-            result = generate_fielding_predictions(output_file)
+            result = generate_fielding_predictions(
+                output_file,
+                cutoff_year=args.cutoff_year
+            )
             if result is None:
                 success = False
         
         if args.model_type in ['baserunning', 'all']:
             output_file = str(output_dir / 'baserunning_predictions.csv')
-            result = generate_baserunning_predictions(output_file)
+            result = generate_baserunning_predictions(
+                output_file,
+                cutoff_year=args.cutoff_year
+            )
             if result is None:
                 success = False
         
         # New integrated batter predictions with position-specific fielding
         if args.model_type == 'integrated-batter':
             output_file = str(output_dir / 'integrated_batter_predictions.csv')
-            result = generate_integrated_batter_predictions(output_file)
+            result = generate_integrated_batter_predictions(
+                output_file,
+                cutoff_year=args.cutoff_year
+            )
             if result is None:
                 success = False
         
         if success:
+            logger.info("=" * 60)
             logger.info("Prediction pipeline completed successfully!")
+            logger.info("=" * 60)
             
             # Provide helpful information about the new feature
             if args.model_type == 'integrated-batter':

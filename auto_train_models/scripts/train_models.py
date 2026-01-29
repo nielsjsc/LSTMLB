@@ -3,6 +3,7 @@
 import argparse
 import sys
 import os
+import numpy as np
 
 # Add the auto_train_models directory to the path (parent of scripts/)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -10,12 +11,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 from core.utils import setup_logging, set_random_seeds, get_device
 from core.data_processing import preprocess_data
 from core.training import create_data_loaders, Config, train_model, load_checkpoint_for_finetuning
-from core.losses import WeightedPlayerDifferentiationLoss, PlayerDifferentiationLoss, InningsWeightedLoss, WeightedMSELoss
+from core.losses import WeightedPlayerDifferentiationLoss, PlayerDifferentiationLoss, InningsWeightedLoss, WeightedMSELoss, IPWeightedMSELoss
+
+# Empirical losses - data-driven survivorship-bias-corrected aging parameters
+from core.empirical_losses import (
+    EmpiricalBaseballLoss,
+    create_loss as create_empirical_loss,
+    AgingConstraintConfig
+)
+
 from models.model_registry import ModelFactory
 import torch
 import torch.optim as optim
 import torch.nn as nn
 from torch.utils.data import DataLoader
+
 
 def main():
     parser = argparse.ArgumentParser(description='Train LSTM baseball prediction models with transfer learning support')
@@ -35,6 +45,22 @@ def main():
                        help='Path to pre-trained checkpoint for fine-tuning')
     parser.add_argument('--freeze-lstm', action='store_true', default=False,
                        help='Freeze LSTM layers during fine-tuning (recommended)')
+    parser.add_argument('--freeze-attention', action='store_true', default=False,
+                       help='Also freeze attention layers (recommended for very limited data)')
+    
+    # ==========================================================================
+    # LOSS FUNCTION SELECTION
+    # ==========================================================================
+    # NEW: Empirical aging loss (RECOMMENDED) - uses data-derived aging parameters
+    parser.add_argument('--empirical-loss', action='store_true',
+                       help='[RECOMMENDED] Use empirical aging loss (data-derived parameters from aging_parameters.json)')
+    parser.add_argument('--aging-weight', type=float, default=0.10,
+                       help='Weight for aging constraint in empirical loss (default: 0.10)')
+    parser.add_argument('--aging-tolerance', type=float, default=1.5,
+                       help='Std tolerance before penalizing improvement (default: 1.5)')
+    parser.add_argument('--empirical-strength', type=str, default='moderate',
+                       choices=['none', 'light', 'moderate', 'strong', 'aggressive'],
+                       help='Preset strength for empirical loss. Use strong/aggressive for fielding (default: moderate)')
     
     args = parser.parse_args()
     
@@ -45,25 +71,45 @@ def main():
         parser.error("Cannot use both --pretrain and --finetune")
     if args.from_checkpoint and not args.finetune:
         parser.error("--from-checkpoint requires --finetune")
+    if args.freeze_attention and not args.freeze_lstm:
+        parser.error("--freeze-attention requires --freeze-lstm")
+    
+    # Train single model
+    return train_single_model(args)
+
+
+def train_single_model(args):
+    """Train a single model (original logic)"""
+    
+    # Get configuration first to check if model supports two-stage training
+    config_class = ModelFactory.get_config(args.model)
     
     # Determine training mode
     if args.finetune:
         training_mode = 'finetune'
+    elif args.pretrain:
+        training_mode = 'pretrain'
     else:
-        training_mode = 'pretrain'  # Default mode
+        # Check if model supports two-stage training (has PRETRAIN_CHECKPOINT_FILE)
+        if hasattr(config_class, 'PRETRAIN_CHECKPOINT_FILE'):
+            # Default to pretrain for models with two-stage support
+            training_mode = 'pretrain'
+        else:
+            # For models without two-stage training (baserunning, defense), use 'train' mode
+            training_mode = 'train'
     
     # Setup
     logger = setup_logging()
     set_random_seeds()
     device = get_device()
     
-    # Get configuration and data file for the model
-    config_class = ModelFactory.get_config(args.model)
-    
     # Get data configuration
     if hasattr(config_class, 'get_data_config'):
-        # Use mode-specific data config for batter model with transfer learning
-        if args.model == 'batter':
+        # Use mode-specific data config for models with transfer learning support
+        # Check if get_data_config accepts a 'mode' parameter
+        import inspect
+        sig = inspect.signature(config_class.get_data_config)
+        if 'mode' in sig.parameters:
             data_config = config_class.get_data_config(mode=training_mode)
         else:
             data_config = config_class.get_data_config()
@@ -117,19 +163,37 @@ def main():
     # Initialize training config - use model-specific settings from config class
     # Check if config class has model-specific hyperparameters
     if hasattr(config_class, 'HIDDEN_SIZE'):
-        # Model has custom hyperparameters - use them
-        train_config = Config(
-            data_batch.train.tensors[0], 
-            data_batch.train.tensors[-1],
-            hidden_size=config_class.HIDDEN_SIZE,
-            num_layers=config_class.NUM_LAYERS,
-            num_heads=config_class.NUM_HEADS,
-            learning_rate=config_class.LEARNING_RATE,
-            dropout=config_class.DROPOUT,
-            bidirectional=config_class.BIDIRECTIONAL,
-            gradient_clip=getattr(config_class, 'GRADIENT_CLIP', 1.0)
-        )
-        logger.info(f"Using model-specific hyperparameters from {args.model} config class")
+        # Check if we're in finetune mode and have finetune-specific hyperparameters
+        if training_mode == 'finetune' and hasattr(config_class, 'FINETUNE_HIDDEN_SIZE'):
+            # Use finetune-specific hyperparameters
+            train_config = Config(
+                data_batch.train.tensors[0], 
+                data_batch.train.tensors[-1],
+                hidden_size=config_class.FINETUNE_HIDDEN_SIZE,
+                num_layers=config_class.FINETUNE_NUM_LAYERS,
+                num_heads=config_class.FINETUNE_NUM_HEADS,
+                learning_rate=config_class.FINETUNE_LEARNING_RATE,
+                dropout=config_class.FINETUNE_DROPOUT,
+                bidirectional=config_class.BIDIRECTIONAL,
+                gradient_clip=getattr(config_class, 'GRADIENT_CLIP', 1.0),
+                batch_size=config_class.FINETUNE_BATCH_SIZE
+            )
+            logger.info(f"Using finetune-specific hyperparameters from {args.model} config class")
+        else:
+            # Use pretrain/default hyperparameters
+            train_config = Config(
+                data_batch.train.tensors[0], 
+                data_batch.train.tensors[-1],
+                hidden_size=config_class.HIDDEN_SIZE,
+                num_layers=config_class.NUM_LAYERS,
+                num_heads=config_class.NUM_HEADS,
+                learning_rate=config_class.LEARNING_RATE,
+                dropout=config_class.DROPOUT,
+                bidirectional=config_class.BIDIRECTIONAL,
+                gradient_clip=getattr(config_class, 'GRADIENT_CLIP', 1.0),
+                batch_size=getattr(config_class, 'BATCH_SIZE', 16)
+            )
+            logger.info(f"Using model-specific hyperparameters from {args.model} config class")
     else:
         # Use generic Config defaults
         train_config = Config(data_batch.train.tensors[0], data_batch.train.tensors[-1])
@@ -166,6 +230,12 @@ def main():
             freeze_lstm=args.freeze_lstm
         )
         logger.info(f"Checkpoint metadata: {checkpoint_metadata}")
+        
+        # Apply additional attention freezing if requested
+        if args.freeze_attention:
+            model.freeze_attention()
+            logger.info("Additionally frozen attention layers (--freeze-attention)")
+            logger.info("Only input_projection and output_projection are trainable")
         
         # Verify checkpoint is from pre-training
         if checkpoint_metadata.get('training_mode') != 'pretrain':
@@ -204,13 +274,79 @@ def main():
         final_div_factor=1e4  # More aggressive final lr reduction
     )
     
-    # Choose appropriate loss function based on model type
-    if args.model == 'batter':
-        # For batter model, use weighted loss with proper indices
-        # Use output features for calculating indices (these are what the model predicts)
-        output_features = data_config.output_features
+    # =========================================================================
+    # LOSS FUNCTION SELECTION
+    # =========================================================================
+    # Get output features for loss functions
+    output_features = data_config.output_features if hasattr(data_config, 'output_features') else data_config.input_features
+    
+    # Map model types to categories for empirical loss
+    # These must match the keys in aging_parameters.json
+    CATEGORY_MAP = {
+        'batter': 'batter',
+        'pitcher_sp': 'pitcher',
+        'pitcher_rp': 'pitcher',
+        'baserunning': 'baserunning',
+        'defense_infield': 'fielding_infield',
+        'defense_outfield': 'fielding_outfield',
+        'defense_catcher': 'fielding_catcher',
+    }
+    
+    if args.empirical_loss:
+        # =========================================================================
+        # EMPIRICAL AGING LOSS (RECOMMENDED)
+        # =========================================================================
+        # Uses data-derived aging parameters from aging_parameters.json
+        logger.info("=" * 70)
+        logger.info("USING EMPIRICAL AGING LOSS (v3) - Same-Position Comparisons")
+        logger.info("=" * 70)
         
-        # Only use base feature indices (no vs_career features in training)
+        category = CATEGORY_MAP.get(args.model, 'batter')
+        
+        # Apply preset or custom settings
+        # Note: Stronger presets recommended for fielding/baserunning
+        if args.empirical_strength == 'none':
+            aging_weight = 0.0
+            tolerance_std = 2.0
+        elif args.empirical_strength == 'light':
+            aging_weight = 0.05
+            tolerance_std = 2.0
+        elif args.empirical_strength == 'moderate':
+            aging_weight = 0.15
+            tolerance_std = 1.5
+        elif args.empirical_strength == 'strong':
+            aging_weight = 0.30
+            tolerance_std = 1.0
+        elif args.empirical_strength == 'aggressive':
+            aging_weight = 0.50
+            tolerance_std = 0.5
+        else:
+            aging_weight = args.aging_weight
+            tolerance_std = args.aging_tolerance
+        
+        # Command-line overrides take precedence
+        if args.aging_weight != 0.10:  # User explicitly set it
+            aging_weight = args.aging_weight
+        if args.aging_tolerance != 1.5:  # User explicitly set it
+            tolerance_std = args.aging_tolerance
+        
+        criterion = EmpiricalBaseballLoss(
+            feature_names=output_features,
+            category=category,
+            aging_weight=aging_weight,
+            tolerance_std=tolerance_std
+        ).to(device)
+        
+        logger.info(f"Category: {category}")
+        logger.info(f"Aging weight: {aging_weight}")
+        logger.info(f"Tolerance: {tolerance_std} std")
+        logger.info(f"Features: {output_features[:5]}{'...' if len(output_features) > 5 else ''}")
+        logger.info("=" * 70)
+        
+    elif args.model == 'batter':
+        # =========================================================================
+        # DEFAULT BATTER LOSS (no aging constraint)
+        # =========================================================================
         rate_stats_indices = [i for i, feat in enumerate(output_features) 
                              if not feat.endswith('_rate')]
         counting_stats_indices = [i for i, feat in enumerate(output_features) 
@@ -229,9 +365,14 @@ def main():
         logger.info(f"Using InningsWeightedLoss for {args.model} model")
         logger.info(f"Feature weights: {config_class.FEATURE_WEIGHTS}")
     elif args.model.startswith('pitcher'):
-        # For pitcher models, use simple WeightedMSELoss like notebook (numerically stable)
-        criterion = WeightedMSELoss().to(device)
-        logger.info(f"Using WeightedMSELoss for {args.model} model")
+        # For pitcher models, use IPWeightedMSELoss (weights samples by innings pitched)
+        # This addresses the sample importance issue: 200 IP pitcher is more reliable than 50 IP
+        criterion = IPWeightedMSELoss(
+            min_weight=0.5,   # Low-IP seasons still contribute
+            max_weight=1.5    # High-IP seasons weighted up to 3x more
+        ).to(device)
+        logger.info(f"Using IPWeightedMSELoss for {args.model} model")
+        logger.info(f"  IP weighting range: [0.5, 1.5] (sqrt-normalized)")
     else:
         # For other models, use the enhanced PlayerDifferentiationLoss
         criterion = PlayerDifferentiationLoss().to(device)
@@ -266,6 +407,8 @@ def main():
     logger.info("Training completed!")
     logger.info(f"Best epoch: {metrics['best_epoch']}")
     logger.info(f"Best validation loss: {min(metrics['val_losses']):.4f}")
+    
+    return metrics
 
 if __name__ == "__main__":
     main()

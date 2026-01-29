@@ -1,9 +1,29 @@
 # Custom loss functions for baseball prediction models
+#
+# This module contains basic loss functions for training.
+# For domain-constrained losses that encode baseball knowledge
+# (aging curves, physical bounds, etc.), see:
+#   - core/domain_losses.py - Main implementation
+#   - core/constraint_config.py - Configuration presets
+#
+# Recommended usage for new models:
+#   from core.domain_losses import create_loss_for_model
+#   criterion = create_loss_for_model('batter', feature_names, 'medium')
+#
+# LOSS FUNCTION SELECTION GUIDE:
+# ==============================
+# - Batters: WeightedPlayerDifferentiationLoss (rate/counting stat aware)
+# - Pitchers: IPWeightedMSELoss (innings-weighted for sample importance)
+# - Defense: InningsWeightedLoss (defensive innings weighting)
+# - Baserunning: WeightedMSELoss (simple feature weighting)
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import List, Dict
+from typing import List, Dict, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 class WeightedPlayerDifferentiationLoss(nn.Module):
     """
@@ -26,9 +46,18 @@ class WeightedPlayerDifferentiationLoss(nn.Module):
         - L1 regularization for counting stats
         - Weighted average based on feature importance
         """
-        # Use exponential moving average of games played
-        weights = torch.exp(games_weights) / torch.exp(games_weights).mean()
-        weights = weights[:, -1]  # Take most recent season weight
+        # Normalize game weights to prevent overflow
+        # Take most recent season weight
+        weights = games_weights[:, -1]
+        
+        # Normalize to [0, 1] range, then scale to [0.5, 1.5] to maintain relative importance
+        weights_min = weights.min()
+        weights_max = weights.max()
+        if weights_max > weights_min:
+            weights = (weights - weights_min) / (weights_max - weights_min)
+            weights = 0.5 + weights  # Scale to [0.5, 1.5]
+        else:
+            weights = torch.ones_like(weights)
         
         # Rate stats loss (MSE works well for rates)
         rate_loss = F.mse_loss(
@@ -103,6 +132,114 @@ class InningsWeightedLoss(nn.Module):
         weighted_loss = (sample_losses * innings_weights).mean()
         
         return weighted_loss
+
+
+class IPWeightedMSELoss(nn.Module):
+    """
+    Innings Pitched (IP) weighted MSE loss for pitcher models.
+    
+    RATIONALE:
+    ==========
+    Pitchers with more IP provide more reliable statistical samples:
+    - 200 IP starter: Much more reliable than 50 IP starter
+    - This weighting encourages the model to fit high-IP pitchers better
+    - Low-IP seasons are still included but with reduced influence
+    
+    WEIGHTING SCHEME:
+    ================
+    - Raw IP values are normalized to [0.5, 1.5] range
+    - Square root transformation reduces extreme differences
+    - Floor of 0.5 ensures all samples contribute
+    - Cap of 1.5 prevents any single sample from dominating
+    
+    USAGE:
+    ======
+    This loss expects the weights tensor to contain IP values (or proxy)
+    for each sample in the batch.
+    
+    Example:
+        criterion = IPWeightedMSELoss(ip_index=5)  # IP is 6th feature
+        loss = criterion(pred, target, batch_weights)
+    """
+    
+    def __init__(self, 
+                 feature_weights: Optional[Dict[str, float]] = None,
+                 ip_index: Optional[int] = None,
+                 min_weight: float = 0.5,
+                 max_weight: float = 1.5):
+        """
+        Initialize IP-weighted MSE loss.
+        
+        Args:
+            feature_weights: Optional dict mapping feature indices to importance weights
+            ip_index: Index of IP in the feature vector (for extracting IP from targets)
+            min_weight: Minimum sample weight (default 0.5)
+            max_weight: Maximum sample weight (default 1.5)
+        """
+        super().__init__()
+        self.feature_weights = feature_weights
+        self.ip_index = ip_index
+        self.min_weight = min_weight
+        self.max_weight = max_weight
+        
+    def forward(self, pred: torch.Tensor, target: torch.Tensor, 
+                sample_weights: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Compute IP-weighted MSE loss.
+        
+        Args:
+            pred: Model predictions [batch_size, n_features]
+            target: Ground truth targets [batch_size, n_features]
+            sample_weights: Per-sample weights [batch_size] or [batch_size, seq_len]
+                           If seq_len dimension exists, uses last timestep weights
+        
+        Returns:
+            Weighted MSE loss scalar
+        """
+        # Calculate per-sample, per-feature MSE
+        feature_losses = F.mse_loss(pred, target, reduction='none')  # [batch, features]
+        
+        # Apply optional feature weighting
+        if self.feature_weights is not None:
+            fw = torch.ones(feature_losses.shape[1], device=pred.device)
+            for idx, weight in enumerate(self.feature_weights.values()):
+                if idx < len(fw):
+                    fw[idx] = weight
+            feature_losses = feature_losses * fw
+        
+        # Average across features for each sample
+        sample_losses = feature_losses.mean(dim=1)  # [batch]
+        
+        # Calculate IP weights
+        if sample_weights is not None:
+            # Handle different weight tensor shapes
+            if sample_weights.dim() == 2:
+                # Sequence weights: use last timestep (most recent season)
+                ip_weights = sample_weights[:, -1]
+            else:
+                ip_weights = sample_weights
+            
+            # Normalize to [min_weight, max_weight] range
+            # Use sqrt to reduce extreme differences
+            ip_sqrt = torch.sqrt(ip_weights.clamp(min=1.0))
+            
+            # Min-max normalize
+            ip_min = ip_sqrt.min()
+            ip_max = ip_sqrt.max()
+            if ip_max > ip_min:
+                normalized = (ip_sqrt - ip_min) / (ip_max - ip_min + 1e-8)
+                final_weights = self.min_weight + normalized * (self.max_weight - self.min_weight)
+            else:
+                final_weights = torch.ones_like(ip_sqrt)
+            
+            # Weighted mean
+            weighted_loss = (sample_losses * final_weights).sum() / final_weights.sum()
+        else:
+            # Fallback to simple mean
+            weighted_loss = sample_losses.mean()
+        
+        return weighted_loss
+
 
 class WeightedMSELoss(nn.Module):
     """
