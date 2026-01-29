@@ -301,7 +301,8 @@ def generate_prospect_histories() -> pd.DataFrame:
             year_int = int(year_row['year'])
             
             # Top 100 rank (if applicable) - this is the MLB-wide ranking
-            record[f'{year_int}_Top100'] = year_row.get('top_100') if pd.notna(year_row.get('top_100')) else None
+            top_100 = year_row.get('top_100') if pd.notna(year_row.get('top_100')) else None
+            record[f'{year_int}_Top100'] = top_100
             
             # Org rank (informational only, not used for sorting/value)
             record[f'{year_int}_OrgRank'] = year_row['rank'] if pd.notna(year_row['rank']) else None
@@ -311,6 +312,9 @@ def generate_prospect_histories() -> pd.DataFrame:
             
             # Calculated value
             record[f'{year_int}_Value'] = year_row['prospect_value']
+            
+            # Composite ranking: only for top 100 prospects, otherwise None (avoids FV-based ties)
+            record[f'{year_int}_Composite'] = float(top_100) if top_100 is not None else None
         
         prospect_histories.append(record)
     

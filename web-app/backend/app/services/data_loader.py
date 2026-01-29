@@ -139,7 +139,7 @@ class DataLoader:
             'value_2024': float(row.get('2024_Value')) if pd.notna(row.get('2024_Value')) else None,
             'value_2025': float(row.get('2025_Value')) if pd.notna(row.get('2025_Value')) else None,
             
-            # Composite metrics (Float)
+            # Composite metrics (Float) - top 100 rank for top prospects, None otherwise
             'composite_2022': float(row.get('2022_Composite')) if pd.notna(row.get('2022_Composite')) else None,
             'composite_2023': float(row.get('2023_Composite')) if pd.notna(row.get('2023_Composite')) else None,
             'composite_2024': float(row.get('2024_Composite')) if pd.notna(row.get('2024_Composite')) else None,
@@ -239,7 +239,7 @@ def init_db():
         
         # Define paths to data files
         player_data = base_path / "data" / "generated" / "value_by_year" / "player_values_complete.csv"
-        prospects_data = base_path / "data" / "generated" / "MiLB" / "player_histories.csv"
+        prospects_data = base_path / "data" / "generated" / "MiLB" / "prospect_histories.csv"
         
         logger.info(f"Looking for data files in: {base_path}")
         
