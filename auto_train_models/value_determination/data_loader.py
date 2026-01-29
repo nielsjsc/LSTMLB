@@ -1,15 +1,34 @@
 """
-Data loading and merging functionality for prediction data.
+Data Loading Module
+===================
+
+Handles loading and validation of prediction, salary, and historical data.
+
+This module is responsible for:
+- Loading pitcher/batter prediction files
+- Loading salary data
+- Merging and validating data sources
+- Loading historical MLB data
+
+TODO: Add mlbam_id support
+    - Load mlbam_id from predictions alongside IDfg
+    - Prefer mlbam_id for matching when available
+    - Fall back to name matching when IDs unavailable
 """
 
 import pandas as pd
 from pathlib import Path
 from typing import Tuple
 
-from .constants import (
-    logger, PIPELINE_DIR, PREDICTION_YEARS, REQUIRED_COLUMNS,
-    SALARY_DIR, HISTORIC_MLB_DIR
-)
+# Import from central config
+from .config import Config, logger
+
+# Backward compatibility
+PIPELINE_DIR = Config.Paths.PIPELINE_DIR
+PREDICTION_YEARS = Config.Pipeline.PREDICTION_YEARS
+REQUIRED_COLUMNS = Config.Columns.REQUIRED
+SALARY_DIR = Config.Paths.SALARY_DIR
+HISTORIC_MLB_DIR = Config.Paths.HISTORIC_MLB_DIR
 
 
 def validate_files_exist(directory: Path, filename: str) -> None:
@@ -24,6 +43,12 @@ def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, p
     
     Returns:
         Tuple containing (sp_data, rp_data, batter_data, salary_data)
+        
+    Raises:
+        FileNotFoundError: If required files are missing
+        ValueError: If required columns are missing
+        
+    TODO: Track mlbam_id alongside IDfg for future migration
     """
     # Validate files exist
     required_files = [
@@ -37,8 +62,9 @@ def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, p
         # Load pitcher data
         pitcher_df = pd.read_csv(PIPELINE_DIR / 'pitcher_predictions.csv')
         
-        # Validate required columns
-        missing_cols = set(REQUIRED_COLUMNS['predictions']) - set(pitcher_df.columns)
+        # Validate required columns for pitchers (WAR calculated in pipeline)
+        required_pitcher_cols = set(REQUIRED_COLUMNS['pitcher_predictions'])
+        missing_cols = required_pitcher_cols - set(pitcher_df.columns)
         if missing_cols:
             raise ValueError(f"Missing columns in pitcher_predictions.csv: {missing_cols}")
         
@@ -64,7 +90,7 @@ def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, p
         batter_data = pd.read_csv(PIPELINE_DIR / 'batter_predictions_with_war.csv')
         
         # Validate required columns
-        missing_cols = set(REQUIRED_COLUMNS['predictions']) - set(batter_data.columns)
+        missing_cols = set(REQUIRED_COLUMNS['batter_predictions']) - set(batter_data.columns)
         if missing_cols:
             raise ValueError(f"Missing columns in batter_predictions.csv: {missing_cols}")
         

@@ -1,5 +1,20 @@
 """
-Salary data processing and player ID integration.
+Salary Data Processing Module
+=============================
+
+Handles cleaning, normalization, and player ID integration for salary data.
+
+Key responsibilities:
+- Clean raw Sportrac salary data
+- Normalize player names for matching
+- Merge salary data with player IDs from predictions
+- Handle various payroll formats and FA markers
+
+TODO: mlbam_id Migration
+    - Current: Uses name matching to find IDfg
+    - Target: Use mlbam_id as primary match key
+    - Sportrac data includes player_id which may be MLBAM
+    - Need to validate and use this for direct matching
 """
 
 import pandas as pd
@@ -7,11 +22,19 @@ import numpy as np
 import unidecode
 from typing import Tuple
 
-from .constants import logger
+from .config import Config, logger
 
 
 def normalize_name(name: str) -> str:
-    """Normalize player names by removing accents and standardizing format."""
+    """
+    Normalize player names by removing accents and standardizing format.
+    
+    Args:
+        name: Raw player name
+        
+    Returns:
+        Normalized uppercase name without accents
+    """
     if pd.isna(name):
         return name
     return unidecode.unidecode(str(name)).upper().strip()
@@ -26,6 +49,9 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
         
     Returns:
         Cleaned salary data with standardized values
+        
+    Note:
+        Handles multiple column naming conventions (snake_case vs Title Case)
     """
     logger.info("Starting salary data cleaning process")
     

@@ -1,11 +1,82 @@
 """
-Trade value calculations including prospect adjustments and ranking metrics.
+Trade Value Calculations
+========================
+
+This module handles trade value calculations including:
+- Contract option analysis (player/team options, opt-outs)
+- Base trade value from surplus value  
+- Prospect adjustments with experience-based weighting
+- Trade ranking metrics
+
+The key insight for prospect valuation is that a player's trade value should
+transition smoothly from prospect-based (for players with little MLB experience)
+to performance-based (for established players). The transition is controlled by
+games played thresholds defined in Config.Prospects.EXPERIENCE_THRESHOLD_GAMES.
+
+Usage:
+    from value_determination.trade_value import (
+        calculate_trade_values, add_trade_ranking_metrics
+    )
 """
 
 import pandas as pd
 import numpy as np
 
-from .constants import logger, DATA_DIR
+# Import from central config
+from .config import Config, logger
+
+
+def calculate_prospect_value_fangraphs(fv: float, rank: float) -> float:
+    """
+    Calculate prospect value based on FV grade and ranking using FanGraphs methodology.
+    
+    Uses FV base values and rank adjustments from Config.Prospects.
+    
+    Args:
+        fv: Future Value grade (40-70+ scale). Can include '+' suffix (e.g., '55+')
+        rank: Prospect ranking (1-100 for top 100, higher for organizational)
+        
+    Returns:
+        Dollar value of prospect, or None if calculation fails
+        
+    Example:
+        >>> calculate_prospect_value_fangraphs(60, 15)  # 60 FV, #15 prospect
+        67_200_000  # $80M base * 0.84 rank adjustment
+    """
+    if pd.isna(fv):
+        return None
+        
+    try:
+        # Handle FV with plus grades (e.g., '55+' -> 57.5)
+        if '+' in str(fv):
+            fv = float(str(fv).replace('+', '')) + 2.5
+        else:
+            fv = float(fv)
+        
+        # Get base value from config
+        fv_values = Config.Prospects.FV_BASE_VALUES
+        
+        # Find closest FV tier (round down to nearest 5)
+        valid_tiers = [k for k in fv_values.keys() if k <= fv]
+        if not valid_tiers:
+            logger.warning(f"FV {fv} below minimum tier, using lowest value")
+            base_fv = min(fv_values.keys())
+        else:
+            base_fv = max(valid_tiers)
+        
+        base_value = fv_values[base_fv]
+        
+        # Calculate rank adjustment using config method
+        if pd.notna(rank):
+            rank_adj = Config.Prospects.calculate_rank_adjustment(float(rank))
+            return base_value * rank_adj
+        
+        # Default to minimum adjustment if no rank
+        return base_value * Config.Prospects.RANK_ADJ_ORG_MIN
+        
+    except Exception as e:
+        logger.warning(f"Error calculating prospect value for FV={fv}, rank={rank}: {e}")
+        return None
 
 
 def analyze_contract_options(df: pd.DataFrame) -> pd.DataFrame:
@@ -92,13 +163,10 @@ def analyze_contract_options(df: pd.DataFrame) -> pd.DataFrame:
     # Clean up temporary column
     result = result.drop('option_year', axis=1, errors='ignore')
     
-    # Log examples
-    option_examples = result[
-        result['FA_Year'] != result['probable_fa_year']
-    ][['Name', 'Year', 'Status', 'surplus_value', 'FA_Year', 'probable_fa_year']].head()
-    
-    print("\nExample players with adjusted FA years:")
-    print(option_examples)
+    # Log examples at debug level
+    adjusted_fa_count = (result['FA_Year'] != result['probable_fa_year']).sum()
+    if adjusted_fa_count > 0:
+        logger.debug(f"Players with adjusted FA years: {adjusted_fa_count}")
     
     return result
 
@@ -148,43 +216,57 @@ def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
                 'trade_value'
             ] = trade_value
     
-    print(f"\nPlayers with initial trade values: {result_df['trade_value'].notna().sum()}")
+    logger.info(f"Players with initial trade values: {result_df['trade_value'].notna().sum()}")
     
     # Try to load prospect data for adjustments
-    prospect_file = DATA_DIR / 'generated/MiLB/player_histories.csv'
+    prospect_file = Config.Paths.PROSPECT_FILE
     if prospect_file.exists():
         result_df = _apply_prospect_adjustments(result_df, prospect_file)
     else:
         logger.warning(f"Prospect file not found: {prospect_file}")
     
-    print(f"\nFinal players with trade values: {result_df['trade_value'].notna().sum()}")
-    
     # Log statistics
-    print("\nTrade Value Statistics:")
-    print(f"Total players with trade values: {result_df['trade_value'].notna().sum()}")
-    print(f"Average trade value: ${result_df['trade_value'].mean():,.2f}")
-    print(f"Median trade value: ${result_df['trade_value'].median():,.2f}")
+    total_with_values = result_df['trade_value'].notna().sum()
+    avg_value = result_df['trade_value'].mean()
+    median_value = result_df['trade_value'].median()
+    logger.info(f"Trade values calculated: {total_with_values} players, avg=${avg_value:,.0f}, median=${median_value:,.0f}")
     
     return result_df
 
 
 def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.DataFrame:
-    """Apply prospect value adjustments to trade values."""
+    """
+    Apply prospect value adjustments to trade values.
+    
+    Uses MLB.com prospect rankings and grades to adjust trade values for young players.
+    Players with high prospect grades get a bonus, especially if they haven't proven themselves yet.
+    """
     
     prospect_df = pd.read_csv(prospect_file)
-    print(f"\nProspect data shape: {prospect_df.shape}")
-    print(f"Sample prospect IDs: {prospect_df['IDfg'].head().tolist()}")
+    logger.info(f"Loaded prospect data: {prospect_df.shape[0]} records, years {prospect_df['year'].min():.0f}-{prospect_df['year'].max():.0f}")
     
-    result_df['IDfg'] = result_df['IDfg'].astype(str).str.strip()
-    prospect_df['IDfg'] = prospect_df['IDfg'].astype(str).str.strip()
+    # Normalize names for matching
+    result_df['name_normalized'] = result_df['Name'].str.lower().str.strip()
+    prospect_df['name_normalized'] = prospect_df['name'].str.lower().str.strip()
     
-    # Get latest pre-2025 WAR for each player
+    # Get latest prospect ranking for each player (most recent year)
+    latest_prospect_data = (
+        prospect_df
+        .sort_values('year', ascending=False)
+        .groupby('name_normalized')
+        .first()
+        .reset_index()
+    )
+    
+    logger.info(f"Unique prospects in rankings: {len(latest_prospect_data)}")
+    
+    # Get latest pre-2025 MLB experience for each player
     latest_mlb_experience = (
         result_df[
             (result_df['Year'] < 2025) &
             ((result_df['G_bat'].notna()) | (result_df['G_pit'].notna()) | (result_df['GS'].notna()))
         ]
-        .groupby('IDfg')
+        .groupby('name_normalized')
         .agg({
             'G_bat': 'sum',
             'G_pit': 'sum',
@@ -193,130 +275,136 @@ def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.Da
         })
         .reset_index()
     )
-    print(f"\nPlayers with MLB experience: {len(latest_mlb_experience)}")
+    logger.info(f"Players with pre-2025 MLB experience: {len(latest_mlb_experience)}")
     
-    # Debug matching conditions
-    print("\nChecking matching conditions:")
-    condition1 = result_df['Year'] >= 2025
-    condition2 = result_df['IDfg'].isin(prospect_df['IDfg'])
-    condition3 = result_df['trade_value'].notna()
-    condition4 = result_df['IDfg'].isin(latest_mlb_experience['IDfg'])
+    # Match prospects with trade values
+    prospects_with_values = result_df[
+        (result_df['Year'] >= 2025) &
+        (result_df['name_normalized'].isin(latest_prospect_data['name_normalized'])) &
+        (result_df['trade_value'].notna())
+    ].copy()
     
-    print(f"Players in 2025+: {condition1.sum()}")
-    print(f"Players matching prospect IDs: {condition2.sum()}")
-    print(f"Players with trade values: {condition3.sum()}")
-    print(f"Players with MLB experience: {condition4.sum()}")
+    # Merge with prospect data
+    prospects_with_values = prospects_with_values.merge(
+        latest_prospect_data[['name_normalized', 'year', 'rank', 'grade_overall', 'top_100', 'organization']],
+        on='name_normalized',
+        how='left',
+        suffixes=('', '_prospect')
+    )
     
-    # Process recent prospects that have both trade values and prospect values
-    recent_prospects = result_df[
-        condition1 & condition2 & condition3 & condition4
-    ].drop_duplicates('IDfg')
+    matched_count = len(prospects_with_values.drop_duplicates('name_normalized'))
+    logger.info(f"Matched {matched_count} prospects with trade values")
     
-    print(f"\nMatched prospects to process: {len(recent_prospects)}")
-    if len(recent_prospects) > 0:
-        print("\nSample matched prospect:")
-        sample_prospect = recent_prospects.iloc[0]
-        print(f"ID: {sample_prospect['IDfg']}")
-        print(f"Name: {sample_prospect.get('Name', 'N/A')}")
-        print(f"Trade Value: {sample_prospect['trade_value']}")
+    if len(prospects_with_values) == 0:
+        result_df = result_df.drop(columns=['name_normalized'], errors='ignore')
+        return result_df
     
-    for _, prospect in recent_prospects.iterrows():
-        # Get career MLB experience
-        career_stats = latest_mlb_experience[
-            latest_mlb_experience['IDfg'] == prospect['IDfg']
-        ].iloc[0]
+    # Process each unique prospect
+    adjusted_count = 0
+    for name in prospects_with_values['name_normalized'].unique():
+        prospect_data = prospects_with_values[prospects_with_values['name_normalized'] == name].iloc[0]
         
-        # Calculate MLB games based on position and role
-        if prospect['position_group'] in ['SP', 'RP']:
-            gs = career_stats.get('GS', 0) or 0
-            g_pit = career_stats.get('G_pit', 0) or 0
+        # Determine position type for experience threshold
+        position_group = prospect_data.get('position_group', 'batter')
+        if position_group == 'SP':
+            position_type = 'sp'
+        elif position_group == 'RP':
+            position_type = 'rp'
+        else:
+            position_type = 'batter'
+        
+        # Get MLB experience if exists
+        if name in latest_mlb_experience['name_normalized'].values:
+            career_stats = latest_mlb_experience[latest_mlb_experience['name_normalized'] == name].iloc[0]
             
-            # If they have significant starts, only use GS
-            if gs > 0 and g_pit > 0 and gs / g_pit > 0.5:
-                games_played = gs
-                max_games = 45
+            # Calculate MLB games based on position type
+            if position_type == 'sp':
+                games_played = career_stats.get('GS', 0) or 0
+            elif position_type == 'rp':
+                gs = career_stats.get('GS', 0) or 0
+                g_pit = career_stats.get('G_pit', 0) or 0
+                games_played = g_pit - gs  # RP appearances
             else:
-                games_played = g_pit
-                max_games = 65
+                games_played = career_stats.get('G_bat', 0) or 0
         else:
-            # For position players
-            games_played = career_stats.get('G_bat', 0) or 0
-            max_games = 300
+            games_played = 0
         
-        print(f"\nProcessing prospect {prospect.get('Name', prospect['IDfg'])}:")
-        print(f"Position group: {prospect['position_group']}")
-        if prospect['position_group'] in ['SP', 'RP']:
-            print(f"Career Games Started: {gs}")
-            print(f"Career Games Pitched: {g_pit}")
-        print(f"Career Games counted: {games_played}")
-        print(f"Max games threshold: {max_games}")
+        # Use centralized prospect weight calculation from config
+        # This properly diminishes prospect weight as players gain experience
+        prospect_weight = Config.Prospects.calculate_prospect_weight(games_played, position_type)
+        mlb_weight = 1.0 - prospect_weight
         
-        # Get prospect value with debug info
-        prospect_matches = prospect_df[prospect_df['IDfg'] == prospect['IDfg']]
-        print(f"Found {len(prospect_matches)} matching prospect records")
+        # Skip prospect adjustment entirely for established players
+        if prospect_weight == 0.0:
+            logger.debug(f"Skipping {prospect_data['Name']}: established player ({games_played} games)")
+            continue
         
-        # Attempt to find a valid year column in descending order
-        prospect_value = 0
-        for year_col in ["2025_Value", "2024_Value", "2023_Value", "2022_Value"]:
-            if year_col in prospect_matches.columns:
-                year_vals = prospect_matches[year_col].dropna()
-                if not year_vals.empty:
-                    prospect_value = year_vals.iloc[0]
-                    print(f"Using {year_col}: {prospect_value}")
-                    break
+        # Calculate prospect value using FanGraphs methodology
+        fv = prospect_data.get('grade_overall', None)
+        org_rank = prospect_data.get('rank', None)
+        top_100_rank = prospect_data.get('top_100', None)
+        year = prospect_data.get('year', None)
         
-        print(f"MLB trade value: {prospect['trade_value']}")
+        # For 2026, 'rank' is actually the top_100 value (no org lists yet)
+        if year == 2026 and pd.notna(org_rank):
+            top_100_rank = org_rank
+            org_rank = None
         
-        # Calculate weights based on games played
-        mlb_weight = min(1.0, games_played / max_games)
-        prospect_weight = 1 - mlb_weight
+        # Determine which rank to use (prefer top_100, fallback to org_rank)
+        rank = top_100_rank if pd.notna(top_100_rank) else org_rank
         
-        print(f"MLB weight: {mlb_weight:.2f}")
-        print(f"Prospect weight: {prospect_weight:.2f}")
+        prospect_value = calculate_prospect_value_fangraphs(fv, rank)
         
-        # Add null checks before calculation
-        if pd.isna(prospect['trade_value']):
-            print("Warning: MLB trade value is nan")
-            mlb_component = 0
-        else:
-            mlb_component = prospect['trade_value'] * mlb_weight
+        if prospect_value is None:
+            logger.debug(f"Skipping {prospect_data['Name']}: could not calculate prospect value")
+            continue
         
-        if pd.isna(prospect_value):
-            print("Warning: Prospect value is nan")
-            prospect_component = 0
-        else:
-            prospect_component = prospect_value * prospect_weight
-        
-        # Calculate weighted value with components
+        # Calculate weighted value
+        # MLB component: value from projected performance * MLB experience weight
+        # Prospect component: value from prospect grade * prospect weight
+        mlb_component = prospect_data['trade_value'] * mlb_weight
+        prospect_component = prospect_value * prospect_weight
         weighted_value = mlb_component + prospect_component
         
-        print(f"MLB component: {mlb_component:,.2f}")
-        print(f"Prospect component: {prospect_component:,.2f}")
-        print(f"Final weighted value: {weighted_value:,.2f}")
-        
-        # Update trade values for 2025+ years
-        result_df.loc[
-            (result_df['IDfg'] == prospect['IDfg']) &
-            (result_df['Year'] >= 2025),
-            'trade_value'
-        ] = weighted_value
+        # Update trade values for all future years
+        mask = (result_df['name_normalized'] == name) & (result_df['Year'] >= 2025)
+        if mask.sum() > 0:
+            result_df.loc[mask, 'trade_value'] = weighted_value
+            adjusted_count += 1
+            
+            # Log details at debug level
+            rank_display = f"top100={top_100_rank:.0f}" if pd.notna(top_100_rank) else f"org={org_rank:.0f}" if pd.notna(org_rank) else "no rank"
+            logger.debug(
+                f"  {prospect_data['Name']}: FV={fv}, {rank_display}, "
+                f"games={games_played}, prospect_wt={prospect_weight:.2f}, "
+                f"prospect_val=${prospect_value:,.0f}, final=${weighted_value:,.0f}"
+            )
+    
+    logger.info(f"Applied prospect adjustments to {adjusted_count} players")
+    
+    # Clean up temporary columns before returning
+    result_df = result_df.drop(columns=['name_normalized'], errors='ignore')
     
     return result_df
 
 
 def add_trade_ranking_metrics(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Add pre-calculated metrics needed for trade value rankings:
-    - Contract WAR (WAR while under contract)
-    - Average WAR per season under contract
-    - Total contract value
-    - Average contract value per season
-    - Total future WAR (all future seasons)
-    - Total future value (all future seasons)
-    - Total WAR (all career seasons)
-    - Total value (all career seasons)
-    - Historical WAR (all seasons before 2025)
-    - Historical value (all seasons before 2025)
+    Add pre-calculated metrics needed for trade value rankings.
+    
+    Metrics added:
+        - contract_war: WAR while under team control
+        - contract_base_value: Dollar value of contract WAR
+        - avg_war: Average WAR per control year
+        - total_contract: Total contract cost
+        - avg_contract: Average annual cost
+        - total_surplus: Sum of surplus values under control
+        - years_control: Number of control years remaining
+        - control_through: Last year of team control
+        - total_future_war: All WAR from 2025 onward
+        - total_future_value: Dollar value of future WAR
+        - historical_war: Career WAR before 2025
+        - historical_value: Dollar value of historical WAR
     
     Args:
         df: DataFrame with trade values calculated
@@ -399,8 +487,13 @@ def update_prospect_mlb_status(export_data: pd.DataFrame) -> None:
     
     Args:
         export_data: Final export data with all players
+        
+    Note:
+        This function updates a legacy file location. Consider updating to use
+        Config.Paths.PROSPECT_FILE instead.
     """
-    prospect_file = DATA_DIR / 'generated/MiLB/player_histories.csv'
+    # TODO: Update to use Config.Paths after validating file format compatibility
+    prospect_file = Config.Paths.GENERATED_DIR / 'MiLB' / 'player_histories.csv'
     
     if not prospect_file.exists():
         logger.warning(f"Prospect file not found: {prospect_file}")
@@ -423,14 +516,12 @@ def update_prospect_mlb_status(export_data: pd.DataFrame) -> None:
         # Save updated prospect file
         prospect_df.to_csv(prospect_file, index=False)
         
-        # Print summary
+        # Log summary
         total_prospects = len(prospect_df['IDfg'].unique())
         mlb_prospects = len(prospect_df[prospect_df['has_mlb']]['IDfg'].unique())
+        pct_mlb = (mlb_prospects / total_prospects) * 100 if total_prospects > 0 else 0
         
-        print(f"\nProspect MLB Status Summary:")
-        print(f"Total unique prospects: {total_prospects}")
-        print(f"Prospects with MLB data: {mlb_prospects}")
-        print(f"Percentage with MLB: {(mlb_prospects/total_prospects)*100:.1f}%")
+        logger.info(f"Prospect MLB status: {mlb_prospects}/{total_prospects} ({pct_mlb:.1f}%) have MLB data")
         
     except Exception as e:
         logger.error(f"Failed to update prospect MLB status: {str(e)}")

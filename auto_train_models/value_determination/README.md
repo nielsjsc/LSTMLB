@@ -1,91 +1,107 @@
 # Value Determination Module
+==========================
 
-This module calculates player trade values based on WAR projections and contract status. It is a script-based implementation of the `determine_value.ipynb` notebook.
+This module calculates player trade values based on WAR projections and contract status.
+It provides the core valuation logic for the MLB Trade Simulator.
 
-## Overview
+## Quick Start
 
-The value determination pipeline combines projected stats and salary data to calculate trade value for MLB players. The main workflow:
+```bash
+# Run from project root
+python -m auto_train_models.value_determination.main
 
-1. Load prediction data (batters, starting pitchers, relief pitchers)
-2. Load and clean salary data
-3. Merge salary data with player IDs
-4. Normalize contract statuses (Pre-Arb, Arb-1/2/3, Free Agent, etc.)
-5. Generate contract timelines through free agency
-6. Calculate WAR-based values using tiered pricing
-7. Calculate contract values based on arbitration status
-8. Calculate surplus value (Base Value - Contract Value)
-9. Integrate historical stats
-10. Analyze contract options (player options, team options, opt-outs)
-11. Calculate trade values with prospect adjustments
-12. Export final data
+# Or via pipeline
+cd auto_train_models
+python scripts/pipeline.py  # Select option 4
+```
 
-## Directory Structure
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         PIPELINE FLOW                                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  [1] LOAD DATA                                                       │
+│      ├── Predictions (SP, RP, Batters)                               │
+│      ├── Salary/Contract data                                        │
+│      └── Prospect rankings                                           │
+│              ↓                                                       │
+│  [2] CALCULATE PITCHER WAR                                           │
+│      └── FIP-based WAR with park factors                             │
+│              ↓                                                       │
+│  [3-6] PROCESS CONTRACTS                                             │
+│      ├── Normalize status (Pre-Arb, ARB1-3, FA)                      │
+│      ├── Generate year-by-year timeline                              │
+│      └── Handle options (player, team, opt-out)                      │
+│              ↓                                                       │
+│  [7] CALCULATE VALUES                                                │
+│      ├── WAR → Dollar value (tiered pricing)                         │
+│      ├── Contract value (arb percentages)                            │
+│      └── Surplus = Base Value - Contract                             │
+│              ↓                                                       │
+│  [8-9] TRADE VALUE                                                   │
+│      ├── Sum surplus through FA year                                 │
+│      ├── Apply prospect adjustments (FV + experience weight)         │
+│      └── Calculate ranking metrics                                   │
+│              ↓                                                       │
+│  [10] EXPORT                                                         │
+│      └── player_values_complete.csv                                  │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+## Module Structure
 
 ```
 value_determination/
-├── __init__.py           # Module exports
-├── constants.py          # Configuration and constants
-├── data_loader.py        # Data loading functions
-├── salary_processor.py   # Salary data cleaning and merging
-├── contract_processor.py # Contract status normalization and timeline generation
-├── value_calculator.py   # WAR and contract value calculations
-├── trade_value.py        # Trade value and ranking metrics
-├── exporter.py           # Data export functions
-├── main.py               # Main pipeline script
-└── README.md             # This file
+├── config.py           # ★ CENTRAL CONFIG - edit settings here
+├── main.py             # Pipeline entry point
+├── calculate_war.py    # WAR calculations (batters + pitchers)
+├── data_loader.py      # Load prediction/salary files
+├── salary_processor.py # Clean and merge salary data
+├── contract_processor.py # Contract timeline generation
+├── value_calculator.py # WAR-to-dollars, surplus calc
+├── trade_value.py      # Trade value + prospect adjustments
+├── exporter.py         # Output to CSV
+├── constants.py        # Legacy constants (use config.py instead)
+└── README.md           # This file
 ```
 
-## Input Data
+## Configuration
 
-The pipeline requires the following input files:
+All settings are centralized in `config.py`. Key configuration classes:
 
-### From `data/generated/pipeline/`:
-- `pitcher_predictions.csv` - Pitcher projections with columns: Name, Year, Age, Role, IDfg, FIP, SIERA, ERA, K%, BB%, WAR, etc.
-- `batter_predictions.csv` - Batter projections with columns: Name, IDfg, Year, Age, BB%, K%, AVG, OBP, SLG, WAR, etc.
+### Config.Paths
+- `DATA_DIR`: Root data directory
+- `PROSPECT_FILE`: Path to prospect rankings
+- `ROSTER_FILE`: Path to team rosters
 
-### From `data/salary/`:
-- `mlb_salary_data.csv` - Salary data with columns: player_name, player_id, team, year, status, payroll_annual, etc.
+### Config.WAR
+- `BALLPARK_FACTORS`: Park factor by team
+- `LG_FIP`: League average FIP
+- `DEFAULT_SP_IP`: Assumed IP for SP projections
+- `POSITIONAL_ADJUSTMENTS`: Position value adjustments
 
-### From `data/historic_mlb/`:
-- `mlb_batting_data_1950_2025.csv` (or `mlb_batting_data_2000_2024.csv`)
-- `mlb_pitching_data_1950_2025.csv` (or `mlb_pitching_data_2000_2024.csv`)
+### Config.Contracts
+- `HISTORICAL_WAR_VALUE`: $/WAR by year
+- `WAR_VALUE_DEFAULT`: Default $/WAR for future years
+- `INFLATION_RATE`: Annual inflation (4%)
+- `ARB_PERCENT`: Arbitration salary percentages
 
-### Optional (for prospect adjustments):
-- `data/generated/MiLB/player_histories.csv`
-
-## Output
-
-The pipeline outputs:
-- `data/generated/value_by_year/player_values_complete.csv`
-
-## Usage
-
-### Run from project root:
-```bash
-python run_value_determination.py
-```
-
-### Or run the module directly:
-```bash
-python -m value_determination.main
-```
-
-### Or import and use programmatically:
-```python
-from value_determination.main import main
-
-# Run the full pipeline
-export_data = main()
-
-# Or use individual components
-from value_determination.data_loader import load_prediction_files
-from value_determination.value_calculator import calculate_war_value
-
-sp_data, rp_data, batter_data, salary_data = load_prediction_files()
-value = calculate_war_value(war=5.0, year=2025)
-```
+### Config.Prospects
+- `FV_BASE_VALUES`: Dollar value per FV grade
+- `EXPERIENCE_THRESHOLD_GAMES`: When prospect value diminishes
+- `calculate_prospect_weight()`: Experience-based weighting
 
 ## Key Calculations
+
+### WAR Calculation (Pitchers)
+```
+FIP Runs = (LG_FIP - park_adj_FIP) / 9 * IP
+Replacement Runs = 20.0 * (IP / 200)
+WAR = (FIP Runs + Replacement Runs) / 9.8
+```
 
 ### WAR Value Tiers (with 4% annual inflation from 2025):
 - Tier 1 (0-2 WAR): $8M per WAR
@@ -99,15 +115,74 @@ value = calculate_war_value(war=5.0, year=2025)
 - Arb-3: 40% of market value (min $4M)
 - Arb-4: 60% of market value (min $5M)
 
-### Surplus Value:
+### Prospect Value
 ```
-Surplus Value = Base Value - Contract Value
+Base Value = FV_BASE_VALUES[FV grade]  # e.g., FV 60 = $80M
+Rank Adjustment = 0.9 - (rank-1) * 0.4/100  # for top 100
+Prospect Value = Base Value * Rank Adjustment
+
+# Experience weighting (CRITICAL)
+Prospect Weight = max(0, 1 - games_played / threshold)
+Final Value = (MLB_Value * MLB_Weight) + (Prospect_Value * Prospect_Weight)
 ```
 
-### Trade Value:
-Sum of surplus values from current year through free agency, with:
-- Floor of $0 for players under team control
-- Prospect value adjustments based on MLB experience
+Experience thresholds (games to become "established"):
+- Batters: 300 games (~2 full seasons)
+- Starting Pitchers: 45 starts (~1.5 seasons)
+- Relief Pitchers: 65 appearances (~1.5 seasons)
+
+### Trade Value
+```
+Trade Value = Σ(Surplus Value from 2025 to FA year)
+Surplus Value = Base Value - Contract Value
+
+For arbitration players: floor at $0
+For prospects: apply prospect adjustment
+```
+
+## Input Files
+
+| File | Location | Description |
+|------|----------|-------------|
+| `batter_predictions.csv` | `data/generated/pipeline/` | Batter projections with wOBA, WAR |
+| `pitcher_predictions.csv` | `data/generated/pipeline/` | SP/RP projections with FIP |
+| `mlb_salary_data.csv` | `data/salary/` | Contract/salary data |
+| `prospects_2014_2026_with_top100.csv` | `data/prospect_data/` | FV grades and rankings |
+| `current_rosters.csv` | `data/active_roster/` | Team assignments for park factors |
+
+## Output
+
+**Primary output**: `data/generated/value_by_year/player_values_complete.csv`
+
+Key columns:
+- `IDfg`: FanGraphs player ID
+- `Name`: Player name
+- `Year`: Season
+- `WAR`: Projected WAR
+- `Base_Value`: Dollar value of WAR
+- `contract_value`: Contract cost
+- `surplus_value`: Base_Value - contract_value
+- `trade_value`: Sum of surplus through FA
+- `prospect_adjustment`: Value from prospect grade (if applicable)
+
+## TODO / Known Issues
+
+### ID Migration (Priority: High)
+Currently uses FanGraphs ID (`IDfg`) as primary identifier. Plan to migrate to MLB ID (`mlbam_id`):
+- [ ] Update data_loader.py to track mlbam_id
+- [ ] Update salary_processor.py to match on mlbam_id
+- [ ] Update roster matching to prefer mlbam_id
+- [ ] Update prospect matching to use mlbam_id
+
+### Testing (Priority: Medium)
+- [ ] Add unit tests for calculate_war.py
+- [ ] Add unit tests for prospect value calculation
+- [ ] Add integration tests for full pipeline
+
+### Validation (Priority: Medium)
+- [ ] Compare WAR calculations to FanGraphs published values
+- [ ] Validate prospect values against historical trade returns
+- [ ] Add sanity checks for extreme values
 
 ## Dependencies
 
@@ -115,6 +190,17 @@ Sum of surplus values from current year through free agency, with:
 - numpy
 - unidecode
 - thefuzz (for name matching)
+
+## Changelog
+
+### 2025-01-28
+- Created centralized `config.py` with all settings
+- Consolidated WAR calculation in `calculate_war.py`
+- Fixed prospect weight to use proper experience thresholds
+- Converted all `print()` to `logger` calls
+- Added input validation with `validate_input_data()`
+- Simplified pipeline from 19 steps to 10
+- Added TODO comments for mlbam_id migration
 
 ## Author
 
