@@ -24,7 +24,6 @@ web-app/frontend/.env.local
 
 # Netlify
 .netlify/
-netlify.toml
 # Keep these files
 !.env.production
 !.env.d.ts
