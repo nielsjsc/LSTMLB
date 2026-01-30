@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { getPlayerDetails, PlayerStats } from '../../services/api';
-import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
+import { getPlayerDetails, PlayerStats } from '../../services/api';import { CURRENT_YEAR } from '../../config';import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
 
 const StatCard: React.FC<{
   title: string;
@@ -71,10 +70,10 @@ const PlayerDetails = () => {
     fetchPlayer();
   }, [playerId]);
 
-  const has2025Stats = (data: PlayerStats['projections'] | undefined, type: 'hitting' | 'pitching'): boolean => {
+  const hasCurrentYearStats = (data: PlayerStats['projections'] | undefined, type: 'hitting' | 'pitching'): boolean => {
     if (!data) return false;
     return data.some(proj => 
-      proj.year === 2025 && 
+      proj.year === CURRENT_YEAR && 
       (type === 'hitting' ? proj.hitting?.war_bat != null : proj.pitching?.war_pit != null)
     );
   };
@@ -91,8 +90,8 @@ const PlayerDetails = () => {
 
   const hasPitchingStats = player?.projections.some(proj => proj.pitching?.era != null);
   const hasHittingStats = player?.projections.some(proj => proj.hitting?.avg != null);
-  const get2025Data = () => player?.projections.find(p => p.year === 2025) || player?.projections[0];
-  const data2025 = get2025Data();
+  const getCurrentYearData = () => player?.projections.find(p => p.year === CURRENT_YEAR) || player?.projections[0];
+  const dataCurrentYear = getCurrentYearData();
   
   const pitchingTableData = React.useMemo(() => {
     if (!player?.projections) return [];
@@ -144,7 +143,7 @@ const PlayerDetails = () => {
                     <h1 className="text-3xl font-bold text-white">{player?.name}</h1>
                     <div className="flex gap-2">
                       <span className="px-3 py-1 rounded-full text-sm font-medium bg-emerald-400/10 text-emerald-400">
-                        {get2025Data()?.team?.toUpperCase()}
+                        {getCurrentYearData()?.team?.toUpperCase()}
                       </span>
                       <span className="px-3 py-1 rounded-full text-sm font-medium bg-slate-700/50 text-gray-300">
                         {player?.position}
@@ -161,41 +160,41 @@ const PlayerDetails = () => {
               <div className="rounded-xl p-6 border border-slate-700/50 bg-slate-800/50">
                 <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-2">Trade Value</h3>
                 <p className={`text-lg font-semibold ${
-                  (data2025?.value?.trade_value || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  (dataCurrentYear?.value?.trade_value || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
                 }`}>
-                  {`$${((data2025?.value?.trade_value || 0) / 1000000).toFixed(1)}M`}
+                  {`$${((dataCurrentYear?.value?.trade_value || 0) / 1000000).toFixed(1)}M`}
                 </p>
               </div>
 
                 <StatCard 
                   title="Historical Stats"
                   stats={{
-                    war: data2025?.value.historical_war || 0,
-                    value: data2025?.value.historical_value || 0
+                    war: dataCurrentYear?.value.historical_war || 0,
+                    value: dataCurrentYear?.value.historical_value || 0
                   }}
                 />
                 <StatCard
                   title="Projected Stats While Under Contract"
                   stats={{
-                    war: data2025?.value.contract_war || 0,
-                    value: data2025?.value.contract_base_value || 0,
-                    contract: data2025?.value.total_contract || 0,
-                    surplus: data2025?.value.trade_value || 0
+                    war: dataCurrentYear?.value.contract_war || 0,
+                    value: dataCurrentYear?.value.contract_base_value || 0,
+                    contract: dataCurrentYear?.value.total_contract || 0,
+                    surplus: dataCurrentYear?.value.trade_value || 0
                   }}
                   showSurplus={true}
                 />
                 <StatCard
                   title="Total Value"
                   stats={{
-                    war: data2025?.value.total_war || 0,
-                    value: data2025?.value.total_value || 0
+                    war: dataCurrentYear?.value.total_war || 0,
+                    value: dataCurrentYear?.value.total_value || 0
                   }}
                 />
               </div>
             </div>
 
             <div className="space-y-8">
-              {player && hasPitchingStats && has2025Stats(player.projections, 'pitching') && (
+              {player && hasPitchingStats && hasCurrentYearStats(player.projections, 'pitching') && (
                 <section className="rounded-xl overflow-hidden border border-slate-700/50 bg-slate-800/50">
                   <div className="p-6 border-b border-slate-700/50">
                     <h2 className="text-xl font-semibold text-white">Pitching Stats</h2>
@@ -206,7 +205,7 @@ const PlayerDetails = () => {
                 </section>
               )}
 
-              {player && hasHittingStats && has2025Stats(player.projections, 'hitting') && (
+              {player && hasHittingStats && hasCurrentYearStats(player.projections, 'hitting') && (
                 <section className="rounded-xl overflow-hidden border border-slate-700/50 bg-slate-800/50">
                   <div className="p-6 border-b border-slate-700/50">
                     <h2 className="text-xl font-semibold text-white">Hitting Stats</h2>
