@@ -328,10 +328,10 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     # Combine with timeline
     complete_timeline = pd.concat([timeline_df, historical])
     
-    # Sort and remove duplicates
+    # Sort and remove duplicates, keeping LAST (historical data) not first
     complete_timeline = (complete_timeline
                         .sort_values(['IDfg', 'Year'])
-                        .drop_duplicates(subset=['IDfg', 'Year']))
+                        .drop_duplicates(subset=['IDfg', 'Year'], keep='last'))
     
     logger.info(f"Added historical records. New shape: {complete_timeline.shape}")
     
