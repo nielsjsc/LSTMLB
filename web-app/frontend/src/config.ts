@@ -15,6 +15,9 @@ const getApiUrl = (): string => {
 export const API_BASE: string = getApiUrl();
 export const API_URL: string = API_BASE;
 
+// Current projection year
+export const CURRENT_YEAR = 2026;
+
 // Debug logging
 console.log('Frontend Config Debug:');
 console.log('import.meta.env.DEV:', import.meta.env.DEV);

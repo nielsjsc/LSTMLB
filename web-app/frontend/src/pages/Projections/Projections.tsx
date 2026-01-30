@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { getProjections, ProjectionResponse } from '../../services/api';
 import ProjectionsTable from '../../components/Tables/Projections/ProjectionsTable';
+import { CURRENT_YEAR } from '../../config';
 
 
 const years = Array.from(
   { length: 15 }, 
-  (_, i) => 2025 + i
+  (_, i) => CURRENT_YEAR + i
 );
 const teams = ['ARI', 'ATL', 'BAL', 'BOS', 'CHC', 'CHW', 'CIN', 'CLE', 'COL', 'DET', 
                'HOU', 'KC', 'LAA', 'LAD', 'MIA', 'MIL', 'MIN', 'NYM', 'NYY', 'ATH', 
@@ -18,7 +19,7 @@ const pitcherPositions = ['SP', 'RP'];
 
 const ProjectionsPage = () => {
   // Existing state
-  const [year, setYear] = useState(2025);
+  const [year, setYear] = useState(CURRENT_YEAR);
   const [playerType, setPlayerType] = useState<'hitter' | 'pitcher'>('hitter');
   const [team, setTeam] = useState<string>();
   const [position, setPosition] = useState<string>();

@@ -35,7 +35,7 @@ const TradeAnalyzer = () => {
     const fetchAssets = async () => {
       try {
         const [playersData, hittersData, pitchersData] = await Promise.all([
-          getPlayers(2025),
+          getPlayers(CURRENT_YEAR),
           getAllProspects('hitter', 2025),
           getAllProspects('pitcher', 2025)
         ]);

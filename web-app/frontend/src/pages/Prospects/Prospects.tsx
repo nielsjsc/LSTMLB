@@ -9,7 +9,7 @@ const teams = ['ARI', 'ATL', 'BAL', 'BOS', 'CHC', 'CHW', 'CIN', 'CLE', 'COL', 'D
 
 const hitterPositions = ['C', '1B', '2B', '3B', 'SS', 'OF', 'LF', 'CF', 'RF', 'DH'];
 
-// Update years array to show most recent first
+// Update years array to show most recent first (2025 is latest prospect data)
 const years = [2025, 2024, 2023, 2022];
 
 const ProspectsPage = () => {
