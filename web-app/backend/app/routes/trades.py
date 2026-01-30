@@ -3,7 +3,7 @@ from math import isnan
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc
+from sqlalchemy import desc, asc, func
 from typing import List, Optional
 from pydantic import BaseModel
 import logging
@@ -187,10 +187,10 @@ def get_trade_value_rankings(
         
         # Add team filter if specified
         if team:
-            if team.lower() == 'fa':
+            if team.upper() == 'FA':
                 query = query.filter(Player.team == 'FA')
             else:
-                query = query.filter(Player.team == team.lower())
+                query = query.filter(func.upper(Player.team) == team.upper())
         
         
         sort_column = getattr(Player, sort_by)

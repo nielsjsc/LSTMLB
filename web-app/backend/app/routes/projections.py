@@ -47,10 +47,10 @@ async def get_projections(
             query = query.filter(Player.war_pit.isnot(None))
             
         if team:
-            if team.lower() == 'fa':
+            if team.upper() == 'FA':
                 query = query.filter(Player.team == 'FA')
             else:
-                query = query.filter(Player.team == team.lower())
+                query = query.filter(func.upper(Player.team) == team.upper())
         
         if position:
             if position == 'OF':
