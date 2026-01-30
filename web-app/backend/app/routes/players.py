@@ -20,7 +20,7 @@ router = APIRouter()
 
 @router.get("/")
 async def get_players(
-    year: int = 2025,
+    year: int = 2026,
     team: Optional[str] = None,
     position: Optional[str] = None,
     search: Optional[str] = None,
@@ -135,13 +135,14 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
                 status_code=404, 
                 detail=f"Player not found with ID: {player_id}"
             )
-            
-        year_2025 = next((p for p in player_years if p.year == 2025), player_years[0])
+        
+        # Get current year data (2026) or fallback to first available
+        current_year_data = next((p for p in player_years if p.year == 2026), player_years[0])
         
         response = {
-            "name": year_2025.name,
-            "team": year_2025.team,
-            "position": year_2025.position,
+            "name": current_year_data.name,
+            "team": current_year_data.team,
+            "position": current_year_data.position,
             "projections": [{
                 "year": p.year,
                 "age": p.age,
