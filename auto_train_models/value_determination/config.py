@@ -14,7 +14,7 @@ Configuration Categories:
     - Pipeline Settings
 
 Usage:
-    from value_determination.config import Config
+    from value_determination.config import Config, CURRENT_YEAR
     
     # Access any config value
     data_dir = Config.Paths.DATA_DIR
@@ -28,6 +28,8 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 import logging
 
+# Module-level constant for easy import
+CURRENT_YEAR = 2026
 # =============================================================================
 # LOGGING CONFIGURATION
 # =============================================================================
@@ -342,12 +344,12 @@ class ProspectConstants:
         30: 2_000_000     # Minor league depth
     }
     
-    # Rank adjustment factors
-    # Top 100 prospects: gradual decline from 0.9 (rank 1) to 0.5 (rank 100)
-    # Ranks 101-500: decline from 0.5 to 0.3
-    RANK_ADJ_TOP100_MAX = 0.9
-    RANK_ADJ_TOP100_MIN = 0.5
-    RANK_ADJ_ORG_MIN = 0.3  # Minimum adjustment for any ranked prospect
+    # Rank adjustment factors (BONUS multipliers for top 100)
+    # Top 100 prospects: bonus from 1.5 (rank 1) to 1.0 (rank 100)
+    # This ensures top 100 prospects are NEVER valued less than non-top-100 with same FV
+    RANK_ADJ_TOP100_MAX = 1.5   # Rank 1 gets 50% bonus
+    RANK_ADJ_TOP100_MIN = 1.0   # Rank 100 gets no bonus (base FV value)
+    RANK_ADJ_NON_TOP100 = 1.0   # Non-top-100 gets base FV value
     
     # Experience thresholds for prospect weight diminishing
     # These define when a player transitions from "prospect" to "established"
@@ -393,23 +395,26 @@ class ProspectConstants:
         """
         Calculate the rank-based value adjustment multiplier.
         
+        Top 100 prospects get a BONUS (1.0-1.5x) based on rank.
+        Non-top-100 prospects get base FV value (1.0x).
+        
+        This ensures a top 100 prospect is NEVER valued less than a
+        non-top-100 prospect with the same FV grade.
+        
         Args:
             rank: Prospect ranking (1-100 for top 100, higher for org rankings)
             
         Returns:
-            Multiplier between 0.3 and 0.9
+            Multiplier between 1.0 and 1.5 for top 100, 1.0 for others
         """
         if rank <= 100:
-            # Top 100: gradual decline from 0.9 to 0.5
+            # Top 100: bonus from 1.5 (rank 1) down to 1.0 (rank 100)
             return cls.RANK_ADJ_TOP100_MAX - (rank - 1) * (
                 cls.RANK_ADJ_TOP100_MAX - cls.RANK_ADJ_TOP100_MIN
-            ) / 100
+            ) / 99  # Use 99 so rank 100 gets exactly 1.0
         else:
-            # Ranks 101-500: decline from 0.5 to 0.3
-            rank_above_100 = min(rank - 100, 400)
-            return cls.RANK_ADJ_TOP100_MIN - (
-                rank_above_100 * (cls.RANK_ADJ_TOP100_MIN - cls.RANK_ADJ_ORG_MIN) / 400
-            )
+            # Non-top-100: base FV value only
+            return cls.RANK_ADJ_NON_TOP100
 
 
 # =============================================================================
@@ -419,8 +424,8 @@ class PipelineSettings:
     """Settings controlling pipeline behavior."""
     
     # Year range for predictions (5 years for all players)
-    PREDICTION_YEARS = range(2025, 2030)  # Save 5 years of projections for each player
-    CURRENT_YEAR = 2025
+    PREDICTION_YEARS = range(2026, 2031)  # Save 5 years of projections for each player
+    CURRENT_YEAR = 2026
     
     # Processing flags
     APPLY_PROSPECT_ADJUSTMENTS = True

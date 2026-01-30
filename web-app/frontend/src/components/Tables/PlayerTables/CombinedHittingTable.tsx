@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CURRENT_YEAR } from '../../../config';
 
 interface CombinedHittingTableProps {
   data: Array<{
@@ -190,8 +191,8 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
         </thead>
         <tbody className="divide-y divide-slate-700/50">
           {sortedData.map((row, i) => {
-            const isProjYear = row.year >= 2025;
-            const isFirstProjYear = isProjYear && (!sortedData[i - 1] || sortedData[i - 1].year < 2025);
+            const isProjYear = row.year >= CURRENT_YEAR;
+            const isFirstProjYear = isProjYear && (!sortedData[i - 1] || sortedData[i - 1].year < CURRENT_YEAR);
             
             return (
               <React.Fragment key={i}>

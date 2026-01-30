@@ -93,11 +93,14 @@ const PlayerDetails = () => {
   const getCurrentYearData = () => player?.projections.find(p => p.year === CURRENT_YEAR) || player?.projections[0];
   const dataCurrentYear = getCurrentYearData();
   
+  // Only show projections for current year + 4 future years (5 total future years)
+  const MAX_PROJECTION_YEAR = CURRENT_YEAR + 4;
+  
   const pitchingTableData = React.useMemo(() => {
     if (!player?.projections) return [];
     return player.projections
       .filter((proj): proj is (typeof proj & { pitching: NonNullable<typeof proj.pitching> }) => 
-        proj.pitching?.war_pit != null
+        proj.pitching?.war_pit != null && proj.year <= MAX_PROJECTION_YEAR
       )
       .map(proj => ({
         year: proj.year,
@@ -112,7 +115,7 @@ const PlayerDetails = () => {
     if (!player?.projections) return [];
     return player.projections
       .filter((proj): proj is (typeof proj & { hitting: NonNullable<typeof proj.hitting> }) => 
-        proj.hitting?.war_bat != null
+        proj.hitting?.war_bat != null && proj.year <= MAX_PROJECTION_YEAR
       )
       .map(proj => ({
         year: proj.year,

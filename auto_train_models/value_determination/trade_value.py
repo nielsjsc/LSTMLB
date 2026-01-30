@@ -23,7 +23,7 @@ import pandas as pd
 import numpy as np
 
 # Import from central config
-from .config import Config, logger
+from .config import Config, logger, CURRENT_YEAR
 
 
 def calculate_prospect_value_fangraphs(fv: float, rank: float) -> float:
@@ -193,9 +193,9 @@ def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
         if pd.isna(fa_year):
             fa_year = player_data['FA_Year'].iloc[0]
         
-        # Sum surplus values from 2025 to FA year (exclusive)
+        # Sum surplus values from current year to FA year (exclusive)
         valid_surplus = player_data[
-            (player_data['Year'] >= 2025) &
+            (player_data['Year'] >= CURRENT_YEAR) &
             (player_data['Year'] < fa_year) &
             (player_data['surplus_value'].notna())
         ]['surplus_value']
@@ -212,7 +212,7 @@ def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
             
             result_df.loc[
                 (result_df['IDfg'] == player_id) &
-                (result_df['Year'] >= 2025),
+                (result_df['Year'] >= CURRENT_YEAR),
                 'trade_value'
             ] = trade_value
     
@@ -260,10 +260,10 @@ def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.Da
     
     logger.info(f"Unique prospects in rankings: {len(latest_prospect_data)}")
     
-    # Get latest pre-2025 MLB experience for each player
+    # Get latest pre-current-year MLB experience for each player
     latest_mlb_experience = (
         result_df[
-            (result_df['Year'] < 2025) &
+            (result_df['Year'] < CURRENT_YEAR) &
             ((result_df['G_bat'].notna()) | (result_df['G_pit'].notna()) | (result_df['GS'].notna()))
         ]
         .groupby('name_normalized')
@@ -275,11 +275,11 @@ def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.Da
         })
         .reset_index()
     )
-    logger.info(f"Players with pre-2025 MLB experience: {len(latest_mlb_experience)}")
+    logger.info(f"Players with pre-{CURRENT_YEAR} MLB experience: {len(latest_mlb_experience)}")
     
     # Match prospects with trade values
     prospects_with_values = result_df[
-        (result_df['Year'] >= 2025) &
+        (result_df['Year'] >= CURRENT_YEAR) &
         (result_df['name_normalized'].isin(latest_prospect_data['name_normalized'])) &
         (result_df['trade_value'].notna())
     ].copy()
@@ -367,7 +367,7 @@ def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.Da
         weighted_value = mlb_component + prospect_component
         
         # Update trade values for all future years
-        mask = (result_df['name_normalized'] == name) & (result_df['Year'] >= 2025)
+        mask = (result_df['name_normalized'] == name) & (result_df['Year'] >= CURRENT_YEAR)
         if mask.sum() > 0:
             result_df.loc[mask, 'trade_value'] = weighted_value
             adjusted_count += 1
@@ -427,15 +427,15 @@ def add_trade_ranking_metrics(df: pd.DataFrame) -> pd.DataFrame:
         
         # Contract years data
         control_years = player_data[
-            (player_data['Year'] >= 2025) &
+            (player_data['Year'] >= CURRENT_YEAR) &
             (player_data['Year'] < fa_year)
         ]
         
-        # Future years data (all years 2025+)
-        future_years = player_data[player_data['Year'] >= 2025]
+        # Future years data (all years from current year onward)
+        future_years = player_data[player_data['Year'] >= CURRENT_YEAR]
         
-        # Historical years data (before 2025)
-        historical_years = player_data[player_data['Year'] < 2025]
+        # Historical years data (before current year)
+        historical_years = player_data[player_data['Year'] < CURRENT_YEAR]
         
         # All career years
         all_years = player_data

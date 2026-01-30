@@ -10,6 +10,60 @@ from .constants import (
     MIN_SALARY, ARB_PERCENT, HISTORICAL_WAR_VALUE, WAR_VALUE,
     HITTER_COLUMNS, PITCHER_COLUMNS, get_war_value
 )
+from .config import Config, CURRENT_YEAR
+
+
+# Team name to abbreviation mapping (handles both full names and existing abbreviations)
+TEAM_NAME_TO_ABBREV = {
+    # Full names from salary data
+    'Athletics': 'OAK',
+    'Pittsburgh Pirates': 'PIT',
+    'San Diego Padres': 'SD',
+    'Seattle Mariners': 'SEA',
+    'San Francisco Giants': 'SF',
+    'Arizona Diamondbacks': 'ARI',
+    'Atlanta Braves': 'ATL',
+    'Baltimore Orioles': 'BAL',
+    'Boston Red Sox': 'BOS',
+    'Chicago Cubs': 'CHC',
+    'Chicago White Sox': 'CHW',
+    'Cincinnati Reds': 'CIN',
+    'Cleveland Guardians': 'CLE',
+    'Colorado Rockies': 'COL',
+    'Detroit Tigers': 'DET',
+    'Houston Astros': 'HOU',
+    'Kansas City Royals': 'KC',
+    'Los Angeles Angels': 'LAA',
+    'Los Angeles Dodgers': 'LAD',
+    'Miami Marlins': 'MIA',
+    'Milwaukee Brewers': 'MIL',
+    'Minnesota Twins': 'MIN',
+    'New York Mets': 'NYM',
+    'New York Yankees': 'NYY',
+    'Philadelphia Phillies': 'PHI',
+    'St. Louis Cardinals': 'STL',
+    'Tampa Bay Rays': 'TB',
+    'Texas Rangers': 'TEX',
+    'Toronto Blue Jays': 'TOR',
+    'Washington Nationals': 'WSH',
+    # Already abbreviations (pass through)
+    'OAK': 'OAK', 'PIT': 'PIT', 'SD': 'SD', 'SEA': 'SEA', 'SF': 'SF',
+    'ARI': 'ARI', 'ATL': 'ATL', 'BAL': 'BAL', 'BOS': 'BOS', 'CHC': 'CHC',
+    'CHW': 'CHW', 'CIN': 'CIN', 'CLE': 'CLE', 'COL': 'COL', 'DET': 'DET',
+    'HOU': 'HOU', 'KC': 'KC', 'LAA': 'LAA', 'LAD': 'LAD', 'MIA': 'MIA',
+    'MIL': 'MIL', 'MIN': 'MIN', 'NYM': 'NYM', 'NYY': 'NYY', 'PHI': 'PHI',
+    'STL': 'STL', 'TB': 'TB', 'TEX': 'TEX', 'TOR': 'TOR', 'WSH': 'WSH',
+    # Free agent indicators
+    'FA': 'FA', '- - -': 'FA', '---': 'FA', '': 'FA',
+}
+
+
+def normalize_team_name(team: str) -> str:
+    """Convert team name (full or abbreviation) to standard 3-letter abbreviation."""
+    if pd.isna(team) or team is None:
+        return 'FA'
+    team_str = str(team).strip()
+    return TEAM_NAME_TO_ABBREV.get(team_str, team_str[:3].upper() if len(team_str) >= 3 else 'FA')
 
 
 def calculate_inflation_multiplier(year: int) -> float:
@@ -301,8 +355,8 @@ def integrate_player_statistics(value_data: pd.DataFrame,
         Combined data with integrated statistics
     """
     # Split data
-    historical_data = value_data[value_data['Year'] < 2025].copy()
-    prediction_data = value_data[value_data['Year'] >= 2025].copy()
+    historical_data = value_data[value_data['Year'] < CURRENT_YEAR].copy()
+    prediction_data = value_data[value_data['Year'] >= CURRENT_YEAR].copy()
     
     # Clean prediction data - keep only essential columns
     essential_cols = ['Name', 'IDfg', 'position_group', 'Year', 'Team',
@@ -470,8 +524,8 @@ def post_process_export_data(df: pd.DataFrame) -> pd.DataFrame:
             np.nan
         )
     
-    # If team value is nan fill with "FA"
+    # If team value is nan fill with "FA", and normalize all team names to abbreviations
     if 'Team' in export_data.columns:
-        export_data['Team'] = np.where(export_data['Team'].isna(), 'FA', export_data['Team'])
+        export_data['Team'] = export_data['Team'].apply(normalize_team_name)
     
     return export_data

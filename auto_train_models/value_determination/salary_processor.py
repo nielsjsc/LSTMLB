@@ -84,7 +84,9 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
         is_fa_marker = payroll_str.str.contains('UFA|RFA|FA', case=False, na=False, regex=True)
         
         # Clean payroll values
-        payroll = (payroll_str
+        # First remove parenthetical notes like "(Arb. Midpoint)"
+        payroll = payroll_str.str.split('(').str[0]
+        payroll = (payroll
                   .str.replace('$', '', regex=False)
                   .str.replace(',', '', regex=False)
                   .str.replace('-', '', regex=False))

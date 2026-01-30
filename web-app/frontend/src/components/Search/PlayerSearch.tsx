@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { filterPlayers } from '../../services/api'
+import { CURRENT_YEAR } from '../../config'
 
 interface PlayerResult {
   id: number;
@@ -34,7 +35,7 @@ const PlayerSearch = () => {
     }
 
     try {
-      const response = await filterPlayers({ year: 2025, search: value });
+      const response = await filterPlayers({ year: CURRENT_YEAR, search: value });
       
       if (!response || !response.players) {
         console.error('Invalid response structure');
