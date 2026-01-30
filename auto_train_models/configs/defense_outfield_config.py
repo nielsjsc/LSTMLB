@@ -27,7 +27,7 @@ class DefenseOutfieldConfig:
     def get_data_config():
         return DataConfig(
             input_features=DefenseOutfieldConfig.INPUT_FEATURES,
-            seq_length=5,  # OF_SEQ_LENGTH from notebook
+            seq_length=3,  # OF_SEQ_LENGTH from notebook
             start_season=2002,
             min_pa=100,  # OF_MIN_INNINGS from notebook (converted to min_pa for compatibility)
             train_ratio=0.7,  # Fixed - must sum to less than 1.0
@@ -37,10 +37,10 @@ class DefenseOutfieldConfig:
     
     # Model hyperparameters (actual values used internally by notebook's ImprovedLSTM)
     # NOTE: Notebook Config shows 512/6/8 but ImprovedLSTM internally divides by 2 and hardcodes layers
-    HIDDEN_SIZE = 128  # Notebook uses hidden_size // 2 = 512 // 2 = 256
-    NUM_LAYERS = 2  # Notebook hardcodes this in ImprovedLSTM.__init__
-    NUM_HEADS = 8  # Notebook hardcodes this in attention layer
-    DROPOUT = 0.15  # Notebook uses dropout/2 = 0.3/2 = 0.15
+    HIDDEN_SIZE = 256  
+    NUM_LAYERS = 2  
+    NUM_HEADS = 4  
+    DROPOUT = 0.15 
     BIDIRECTIONAL = True
     GRADIENT_CLIP = 1.0
     
@@ -58,20 +58,4 @@ class DefenseOutfieldConfig:
         #'Inn': 1.0,
         'sc_total_runs/150': 1.0
     }
-    
-    # ============================================================================
-    # DOMAIN CONSTRAINT CONFIGURATION
-    # ============================================================================
-    # Outfield defense relies heavily on speed/athleticism.
-    # Range declines faster than arm strength.
-    
-    CONSTRAINT_STRENGTH = 'medium'
-    
-    DOMAIN_CONSTRAINTS = {
-        'mse_weight': 1.0,
-        'aging_weight': 0.22,        # Strong aging (OF relies on speed)
-        'smoothness_weight': 0.07,   # Defensive metrics are noisy
-        'bounds_hard_weight': 0.60,
-        'bounds_soft_weight': 0.08,
-        'peak_weight': 0.05,
-    }
+

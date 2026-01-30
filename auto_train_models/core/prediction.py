@@ -1013,25 +1013,37 @@ def predict_all_fielders(
         group_df = raw_df[raw_df['Pos'].isin(valid_positions)].copy()
         
         # Get players who played enough innings at any valid position in cutoff year
-        players_current = group_df[
+        # For each player, find their PRIMARY position (most innings played)
+        players_current_all = group_df[
             (group_df['Season'] == cutoff_year) & 
             (group_df['Inn'] >= MIN_POSITION_INNINGS) &
             (group_df['Pos'].isin(valid_positions))
-        ][['IDfg', 'Pos']].drop_duplicates()  # Keep player-position combinations
+        ][['IDfg', 'Pos', 'Inn']].copy()
         
-        logger.info(f"\nProcessing {model_key} - {len(players_current)} player-position combinations")
+        # Group by player and find position with most innings
+        primary_positions = players_current_all.groupby('IDfg').apply(
+            lambda x: x.loc[x['Inn'].idxmax(), 'Pos']
+        ).reset_index()
+        primary_positions.columns = ['IDfg', 'Primary_Pos']
         
-        # Generate predictions for each player-position combination (matches notebook exactly)
-        for _, row in tqdm(players_current.iterrows(), desc=f"{model_key} predictions"):
+        logger.info(f"\nProcessing {model_key} - {len(primary_positions)} players with primary positions")
+        
+        # Generate predictions for each player at their PRIMARY position only
+        for _, row in tqdm(primary_positions.iterrows(), desc=f"{model_key} predictions"):
             try:
                 player_id = row['IDfg']
-                specific_position = row['Pos']  # Keep the specific position (SS, 2B, etc.)
+                primary_position = row['Primary_Pos']  # The position they played most
                 
-                # Filter to historical data up to cutoff_year
+                # Filter to historical data up to cutoff_year, PRIMARY POSITION ONLY
                 player_historical_data = group_df[
                     (group_df['IDfg'] == player_id) & 
-                    (group_df['Season'] <= cutoff_year)
+                    (group_df['Season'] <= cutoff_year) &
+                    (group_df['Pos'] == primary_position)  # Only this position's data
                 ].copy()
+                
+                # Skip if not enough historical data at this position
+                if len(player_historical_data) == 0:
+                    continue
                 
                 predictions = predict_future_stats_fielding(
                     player_id=player_id,
@@ -1046,10 +1058,9 @@ def predict_all_fielders(
                 )
                 
                 if predictions:
-                    # Add the specific position to each prediction (matches notebook)
+                    # Add the primary position to each prediction
                     for pred in predictions:
-                        pred['Pos'] = specific_position  # Add specific position column
-                        # Keep Position_Group for compatibility but Pos is the key field
+                        pred['Pos'] = primary_position  # Use their primary position
                         pred['Position_Group'] = model_key
                     
                     all_predictions.extend(predictions)
@@ -1091,11 +1102,21 @@ def predict_all_fielders(
             
             # Get the player's last actual season as baseline for first prediction
             # This is critical: compare 2025 prediction to 2024 actual, not just 2025 to 2026
-            player_last_actual = raw_df[
-                (raw_df['IDfg'] == player_id) & 
-                (raw_df['Season'] == cutoff_year) &
-                (raw_df['Pos'].isin(valid_positions))
-            ]
+            # Use only the position they're being predicted for
+            first_pred = preds_sorted[0] if preds_sorted else None
+            if first_pred and 'Pos' in first_pred:
+                player_position = first_pred['Pos']
+                player_last_actual = raw_df[
+                    (raw_df['IDfg'] == player_id) & 
+                    (raw_df['Season'] == cutoff_year) &
+                    (raw_df['Pos'] == player_position)  # Only their primary position
+                ]
+            else:
+                player_last_actual = raw_df[
+                    (raw_df['IDfg'] == player_id) & 
+                    (raw_df['Season'] == cutoff_year) &
+                    (raw_df['Pos'].isin(valid_positions))
+                ]
             
             if not player_last_actual.empty:
                 # Create a baseline record from actual data
