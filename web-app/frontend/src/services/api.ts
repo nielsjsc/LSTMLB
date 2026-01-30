@@ -1,4 +1,4 @@
-import { API_BASE as CONFIG_API_BASE, CURRENT_YEAR } from '../config';
+import { API_BASE as CONFIG_API_BASE } from '../config';
 
 const API_BASE = CONFIG_API_BASE;
 
