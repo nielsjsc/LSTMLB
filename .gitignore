@@ -6,9 +6,8 @@ __pycache__/
 
 # Scrapers
 scrapers/**
-
+models/**
 # Models storage (large files)
-models/MiLB
 
 
 # Virtual Environment
@@ -77,3 +76,4 @@ coverage/
 # Local Netlify folder
 .netlify
 *.log
+
