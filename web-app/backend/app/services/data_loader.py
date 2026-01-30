@@ -44,8 +44,8 @@ class DataLoader:
             'year': int(row['Year']) if pd.notna(row['Year']) else None,
             'years_control': int(row.get('years_control')) if pd.notna(row.get('years_control')) else None,
             'fa_year': int(row.get('FA_Year')) if pd.notna(row.get('FA_Year')) else None,
-            'probable_fa_year': int(row.get('probable_fa_year')) if pd.notna(row.get('probable_fa_year')) else None,
-            'earliest_fa_year': int(row.get('earliest_fa_year')) if pd.notna(row.get('earliest_fa_year')) else None,
+            'probable_fa_year': int(row.get('Probable_FA_Year')) if pd.notna(row.get('Probable_FA_Year')) else None,
+            'earliest_fa_year': int(row.get('Earliest_FA_Year')) if pd.notna(row.get('Earliest_FA_Year')) else None,
             'control_through': int(row.get('control_through')) if pd.notna(row.get('control_through')) else None,
             
             # Integer stats
@@ -91,8 +91,8 @@ class DataLoader:
 
             # Float fields - Value metrics
             'base_value': float(row.get('Base_Value')) if pd.notna(row.get('Base_Value')) else None,
-            'contract_value': float(row.get('contract_value')) if pd.notna(row.get('contract_value')) else None,
-            'surplus_value': float(row.get('surplus_value')) if pd.notna(row.get('surplus_value')) else None,
+            'contract_value': float(row.get('Contract_Value')) if pd.notna(row.get('Contract_Value')) else None,
+            'surplus_value': float(row.get('Surplus_Value')) if pd.notna(row.get('Surplus_Value')) else None,
             'trade_value': float(row.get('trade_value')) if pd.notna(row.get('trade_value')) else None,
             'contract_war': float(row.get('contract_war')) if pd.notna(row.get('contract_war')) else None,
             'avg_war': float(row.get('avg_war')) if pd.notna(row.get('avg_war')) else None,
