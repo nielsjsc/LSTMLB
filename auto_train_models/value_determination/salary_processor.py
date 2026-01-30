@@ -230,12 +230,27 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
     luis_garcia_ref = player_ref[player_ref['Name_Normalized'].str.contains('LUIS GARCIA', na=False)]
     print(luis_garcia_ref[['Name_Normalized', 'IDfg', 'position_group']].to_string())
     
-    # Regular merge
+    # Use OUTER merge to keep both prediction years AND salary-only years (for long contracts like Soto's 2031-2039)
     merged_df = player_ref.merge(
         salary_df[['Name_Normalized', 'Year', 'Team', 'Payroll', 'Status']],
         on=['Name_Normalized', 'Year'],
-        how='left'
+        how='outer'
     )
+    
+    # For rows that came from salary but not predictions (salary-only years beyond 2030),
+    # fill in IDfg and position_group by matching on Name_Normalized
+    missing_id_mask = merged_df['IDfg'].isna() & merged_df['Payroll'].notna()
+    if missing_id_mask.any():
+        # Create lookup: Name_Normalized -> (IDfg, position_group, Name)
+        id_lookup = player_ref[['Name_Normalized', 'IDfg', 'position_group', 'Name']].drop_duplicates('Name_Normalized')
+        
+        for idx in merged_df[missing_id_mask].index:
+            name_norm = merged_df.loc[idx, 'Name_Normalized']
+            match = id_lookup[id_lookup['Name_Normalized'] == name_norm]
+            if len(match) > 0:
+                merged_df.loc[idx, 'IDfg'] = match.iloc[0]['IDfg']
+                merged_df.loc[idx, 'position_group'] = match.iloc[0]['position_group']
+                merged_df.loc[idx, 'Name'] = match.iloc[0]['Name']
     
     print("\nMerged DF Info:")
     print(f"Total rows: {len(merged_df)}")

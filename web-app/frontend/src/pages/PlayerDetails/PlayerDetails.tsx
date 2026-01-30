@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { getPlayerDetails, PlayerStats } from '../../services/api';import { CURRENT_YEAR } from '../../config';import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
+import { getPlayerDetails, PlayerStats } from '../../services/api';import { CURRENT_YEAR, MAX_PROJECTION_YEARS } from '../../config';import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
 
 const StatCard: React.FC<{
   title: string;
@@ -93,8 +93,8 @@ const PlayerDetails = () => {
   const getCurrentYearData = () => player?.projections.find(p => p.year === CURRENT_YEAR) || player?.projections[0];
   const dataCurrentYear = getCurrentYearData();
   
-  // Only show projections for current year + 4 future years (5 total future years)
-  const MAX_PROJECTION_YEAR = CURRENT_YEAR + 4;
+  // Only show configured number of future projection years
+  const MAX_PROJECTION_YEAR = CURRENT_YEAR + MAX_PROJECTION_YEARS - 1;
   
   const pitchingTableData = React.useMemo(() => {
     if (!player?.projections) return [];

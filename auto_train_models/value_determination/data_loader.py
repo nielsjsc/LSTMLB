@@ -72,8 +72,7 @@ def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, p
         if 'Season' in pitcher_df.columns:
             pitcher_df['Year'] = pitcher_df['Season']
         
-        # Filter for prediction years and add prediction_year
-        pitcher_df = pitcher_df[pitcher_df['Year'].isin(PREDICTION_YEARS)]
+        # Add prediction_year (no filtering - keep all years in file)
         pitcher_df['prediction_year'] = pitcher_df['Year']
         
         # Split into SP and RP
@@ -94,16 +93,17 @@ def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, p
         if missing_cols:
             raise ValueError(f"Missing columns in batter_predictions.csv: {missing_cols}")
         
-        # Filter years and add prediction_year
-        batter_data = batter_data[batter_data['Year'].isin(PREDICTION_YEARS)]
+        # Add prediction_year (no filtering - keep all years in file)
         batter_data['prediction_year'] = batter_data['Year']
         batter_data['position_group'] = 'POS'
         
         # Load salary data
         salary_data = pd.read_csv(SALARY_DIR / 'mlb_salary_data.csv')
         
+        min_year = min(sp_data['Year'].min(), rp_data['Year'].min(), batter_data['Year'].min())
+        max_year = max(sp_data['Year'].max(), rp_data['Year'].max(), batter_data['Year'].max())
         logger.info(f"Loaded {len(sp_data)} SP predictions, {len(rp_data)} RP predictions, "
-                   f"{len(batter_data)} batter predictions for years {min(PREDICTION_YEARS)}-{max(PREDICTION_YEARS)}")
+                   f"{len(batter_data)} batter predictions for years {min_year}-{max_year}")
         
         return sp_data, rp_data, batter_data, salary_data
         
