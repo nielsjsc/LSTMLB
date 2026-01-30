@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
 
 
 def get_player_values(player_name: str, db: Session):
-    # Get only the 2025 player entry since it has all the values we need
+    # Get only the 2026 player entry since it has all the values we need
     base_player = (
         db.query(Player)
         .filter(Player.name == player_name)
-        .filter(Player.year == 2025)
+        .filter(Player.year == 2026)
         .first()
     )
     
@@ -44,7 +44,7 @@ def get_player_values(player_name: str, db: Session):
         "total_surplus": base_player.trade_value or 0,  # Already correct
         "total_contract": base_player.total_contract or 0,  # Changed from calculated total_contract
         "total_production": base_player.contract_base_value or 0,  # Changed from base_value
-        "years": [year for year in range(2025, (base_player.control_through or 2025) + 1)]  # Using control_through
+        "years": [year for year in range(2026, (base_player.control_through or 2026) + 1)]  # Using control_through
     }
 
 
@@ -63,14 +63,14 @@ def get_prospect_values(prospect_name: str, db: Session):
     prospect = (
         db.query(Prospect)
         .filter(Prospect.name == prospect_name)
-        .filter(Prospect.year == 2025)  # Add this filter
+        .filter(Prospect.year == 2026)  # Add this filter
         .first()
     )
     
     if not prospect:
         raise HTTPException(status_code=404, detail=f"Prospect {prospect_name} not found")
     
-    value = getattr(prospect, 'value_2025', 0) or 0
+    value = getattr(prospect, 'value_2026', 0) or 0
     
 
     
@@ -179,8 +179,8 @@ def get_trade_value_rankings(
     sort_direction: str = Query("desc", regex="^(asc|desc)$")
 ):
     try:
-        # Start with 2025 players
-        query = db.query(Player).filter(Player.year == 2025)
+        # Start with 2026 players
+        query = db.query(Player).filter(Player.year == 2026)
         
         # Add filter for non-NaN trade values
         query = query.filter(Player.trade_value.isnot(None))  # Filter out NULL values
