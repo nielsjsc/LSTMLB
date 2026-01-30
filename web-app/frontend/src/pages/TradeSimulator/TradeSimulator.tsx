@@ -7,6 +7,7 @@ import {
   Prospect,
   TradeAnalysis 
 } from '../../services/api';
+import { CURRENT_YEAR } from '../../config';
 import { teamDivisions, sortTeamsByDivision } from '../../config/teams';
 import TeamPlayerList from './components/PlayerSelector/TeamPlayerList';
 import ValueDisplay from './components/TradeBreakdown/ValueDisplay';
