@@ -197,7 +197,7 @@ def main():
         # Step 1: Load Data
         # ============================================================
         logger.info("\n[Step 1/10] Loading prediction and salary data...")
-        sp_data, rp_data, batter_data, salary_data = load_prediction_files()
+        sp_data, rp_data, batter_data, baserunning_data, fielding_data, salary_data = load_prediction_files()
         
         # Validate input data
         validate_input_data(sp_data, rp_data, batter_data, salary_data)
@@ -221,6 +221,58 @@ def main():
         
         logger.info(f"SP WAR: n={len(sp_data)}, avg={sp_data['WAR'].mean():.2f}")
         logger.info(f"RP WAR: n={len(rp_data)}, avg={rp_data['WAR'].mean():.2f}")
+        
+        # ============================================================
+        # Step 2.5: Calculate Batter WAR Components
+        # ============================================================
+        logger.info("\n[Step 2.5/10] Calculating comprehensive WAR components for batters...")
+        
+        # Merge org data with batter predictions for park factors
+        batter_data = batter_data.merge(org_data, on='IDfg', how='left', suffixes=('', '_org'))
+        
+        # Calculate wRC+ with park factors
+        logger.info("Calculating wRC+ with park factors...")
+        batter_data['wRC+'] = batter_data.apply(
+            lambda row: calculate_wrc_plus(row['wOBA'], row.get('Team', ''), row.get('PA', 630)),
+            axis=1
+        )
+        
+        # Calculate WAR components for each batter
+        logger.info("Calculating WAR components (Off, BsR, Def, Position)...")
+        war_components_list = []
+        for idx, row in batter_data.iterrows():
+            try:
+                war, components = calculate_war_components(row, baserunning_data, fielding_data)
+                components['IDfg'] = row['IDfg']
+                components['Year'] = row['Year']
+                war_components_list.append(components)
+            except Exception as e:
+                logger.error(f"Error calculating WAR for {row.get('Name', 'Unknown')} ({row['IDfg']}): {e}")
+                # Add placeholder components so player isn't dropped
+                war_components_list.append({
+                    'IDfg': row['IDfg'],
+                    'Year': row['Year'],
+                    'WAR': 0.0,
+                    'Off': 0.0,
+                    'BsR': 0.0,
+                    'Fld': 0.0,
+                    'Pos': 0.0,
+                    'Def': 0.0,
+                    'Position': 'OF',
+                    'PA': 630,
+                    'G': 150
+                })
+        
+        # Merge WAR components back into batter data
+        war_df = pd.DataFrame(war_components_list)
+        batter_data = batter_data.merge(war_df, on=['IDfg', 'Year'], how='left', suffixes=('_old', ''))
+        
+        # Clean up duplicate columns
+        columns_to_remove = [col for col in batter_data.columns if col.endswith('_old')]
+        batter_data = batter_data.drop(columns=columns_to_remove)
+        
+        logger.info(f"Calculated WAR components for {len(batter_data)} batters")
+        logger.info(f"Batter WAR: avg={batter_data['WAR'].mean():.2f}")
         
         # ============================================================
         # Step 3: Merge Prediction Data

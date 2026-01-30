@@ -37,12 +37,12 @@ def validate_files_exist(directory: Path, filename: str) -> None:
         raise FileNotFoundError(f"Missing file: {filename} in {directory}")
 
 
-def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Load and process consolidated prediction files.
+    Load and process consolidated prediction files from pipeline directory.
     
     Returns:
-        Tuple containing (sp_data, rp_data, batter_data, salary_data)
+        Tuple containing (sp_data, rp_data, batter_data, baserunning_data, fielding_data, salary_data)
         
     Raises:
         FileNotFoundError: If required files are missing
@@ -53,7 +53,9 @@ def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, p
     # Validate files exist
     required_files = [
         'pitcher_predictions.csv',
-        'batter_predictions.csv'
+        'batter_predictions.csv',
+        'baserunning_predictions.csv',
+        'fielding_predictions.csv'
     ]
     for file in required_files:
         validate_files_exist(PIPELINE_DIR, file)
@@ -85,11 +87,15 @@ def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, p
         sp_data['Position'] = sp_data['position_group']
         rp_data['Position'] = rp_data['position_group']
         
-        # Load batter data (with WAR, Position, BsR, Def columns)
-        batter_data = pd.read_csv(PIPELINE_DIR / 'batter_predictions_with_war.csv')
+        # Load raw batter prediction files (WAR will be calculated in main.py)
+        batter_data = pd.read_csv(PIPELINE_DIR / 'batter_predictions.csv')
+        baserunning_data = pd.read_csv(PIPELINE_DIR / 'baserunning_predictions.csv')
+        fielding_data = pd.read_csv(PIPELINE_DIR / 'fielding_predictions.csv')
         
-        # Validate required columns
-        missing_cols = set(REQUIRED_COLUMNS['batter_predictions']) - set(batter_data.columns)
+        # Validate required columns for batters
+        # Only core prediction columns needed (WAR calculated later)
+        core_batter_cols = {'Name', 'IDfg', 'Year', 'Age', 'wOBA', 'BB%', 'K%', 'AVG', 'OBP', 'SLG'}
+        missing_cols = core_batter_cols - set(batter_data.columns)
         if missing_cols:
             raise ValueError(f"Missing columns in batter_predictions.csv: {missing_cols}")
         
@@ -104,8 +110,9 @@ def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, p
         max_year = max(sp_data['Year'].max(), rp_data['Year'].max(), batter_data['Year'].max())
         logger.info(f"Loaded {len(sp_data)} SP predictions, {len(rp_data)} RP predictions, "
                    f"{len(batter_data)} batter predictions for years {min_year}-{max_year}")
+        logger.info(f"Loaded {len(baserunning_data)} baserunning predictions, {len(fielding_data)} fielding predictions")
         
-        return sp_data, rp_data, batter_data, salary_data
+        return sp_data, rp_data, batter_data, baserunning_data, fielding_data, salary_data
         
     except Exception as e:
         logger.error(f"Error loading prediction files: {str(e)}")

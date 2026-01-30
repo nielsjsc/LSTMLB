@@ -246,24 +246,19 @@ def infer_position_from_fielding(fielding_df: pd.DataFrame, player_id: int, year
         'Outfield': 'OF'
     }
     
-    # Find position with most innings played
-    if 'Inn' in player_fielding.columns:
-        max_inn_idx = player_fielding['Inn'].idxmax()
-        primary_pos = player_fielding.loc[max_inn_idx, pos_col]
+    # After primary position fix, there should only be one row per player-year
+    # Just use the first row's position (Inn column is empty anyway)
+    if len(player_fielding) > 0:
+        primary_pos = player_fielding.iloc[0][pos_col]
         return position_map.get(primary_pos, 'OF')
-    else:
-        # No innings column, use most common position
-        pos_value = player_fielding[pos_col].mode()
-        if not pos_value.empty:
-            return position_map.get(pos_value.iloc[0], 'OF')
     
     return 'OF'
 
 def calculate_defensive_value(fielding_data: pd.DataFrame, player_id: int, year: int) -> tuple[float, float]:
     """
     Calculate defensive value and positional adjustment from fielding predictions using Statcast FRV metrics.
-    Accounts for multi-position players by weighting each position by innings played.
-    The /150 metrics are per 150 GAMES, so we scale by games played at each position.
+    Accounts for multi-position players by using their primary position (most recent prediction).
+    The /150 metrics are ALREADY per 150 games from the predictions, so we use them directly.
     
     Returns:
         tuple: (defensive_value, positional_adjustment)
@@ -275,84 +270,51 @@ def calculate_defensive_value(fielding_data: pd.DataFrame, player_id: int, year:
     if player_fielding.empty:
         return 0.0, 0.0
     
-    # Calculate total innings across all positions
-    total_innings = player_fielding['Inn'].sum()
+    # Use the first row (should only be one row per player-year now after primary position fix)
+    row = player_fielding.iloc[0]
     
-    if total_innings == 0 or pd.isna(total_innings):
-        return 0.0, 0.0
+    position = row.get('Pos') or row.get('Position') or row.get('Position_Group', 'OF')
     
-    total_def_value = 0.0
-    total_pos_adjustment = 0.0
+    # Determine target games (135 for C, 150 for others)
+    target_games = 135 if (position == 'C' or position.lower() == 'catcher') else 150
     
-    # Process each position the player played
-    for idx, row in player_fielding.iterrows():
-        position = row.get('Pos') or row.get('Position') or row.get('Position_Group', 'OF')
-        innings = row.get('Inn', 0)
-        
-        # Calculate percentage of time at this position
-        pct_at_position = innings / total_innings if total_innings > 0 else 0
-        
-        # Convert innings to games (9 innings = 1 game)
-        games_at_position = innings / 9.0
-        
-        # Determine target games for extrapolation (135 for C, 150 for others)
-        target_games = 135 if (position == 'C' or position.lower() == 'catcher') else 150
-        
-        # Extrapolate defensive value to target games
-        if games_at_position > 0:
-            extrapolation_factor = target_games / games_at_position
-        else:
-            extrapolation_factor = 1.0
-        
-        # The /150 metrics are per 150 GAMES, so scale by target games
-        scaling_factor = target_games / 150.0
-        
-        # Map position for positional adjustment lookup
+    # The predictions are already per 150 games, scale to target games
+    scaling_factor = target_games / 150.0
+    
+    # Map position for positional adjustment lookup
+    pos_for_adjustment = position
+    if position in ['LF', 'CF', 'RF']:
         pos_for_adjustment = position
-        if position in ['LF', 'CF', 'RF']:
-            # Use specific OF position for adjustment
-            pos_for_adjustment = position
-        elif position.lower() == 'outfield':
-            pos_for_adjustment = 'OF'
-        elif position.lower() == 'infield':
-            pos_for_adjustment = '2B'
-        elif position.lower() == 'catcher':
-            pos_for_adjustment = 'C'
-        
-        # Calculate position-specific defensive value
-        if position == 'C' or position.lower() == 'catcher':
-            # Catchers: framing + throwing + blocking
-            framing = row.get('sc_framing_runs/150', 0) * scaling_factor
-            throwing = row.get('sc_throwing_runs/150', 0) * scaling_factor
-            blocking = row.get('sc_blocking_runs/150', 0) * scaling_factor
-            pos_value = framing + throwing + blocking
-            
-        elif position in ['1B', '2B', '3B', 'SS'] or position.lower() in ['infield', 'first base', 'second base', 'third base', 'shortstop']:
-            # Infielders: range + arm + double play
-            range_runs = row.get('sc_range_runs/150', 0) * scaling_factor
-            arm_runs = row.get('sc_arm_runs/150', 0) * scaling_factor
-            dp_runs = row.get('sc_dp_runs/150', 0) * scaling_factor
-            pos_value = range_runs + arm_runs + dp_runs
-            
-        else:
-            # Outfielders: range + arm
-            range_runs = row.get('sc_range_runs/150', 0) * scaling_factor
-            arm_runs = row.get('sc_arm_runs/150', 0) * scaling_factor
-            pos_value = range_runs + arm_runs
-        
-        # Calculate positional adjustment for target games (extrapolated)
-        # Adjustments are per 162 games, scale to target games
-        pos_adj_per_162 = POSITIONAL_ADJUSTMENTS.get(pos_for_adjustment, 0.0)
-        pos_adjustment = pos_adj_per_162 * (target_games / 162.0)
-        
-        # Weight by percentage of time at this position
-        weighted_def = pos_value * pct_at_position
-        weighted_pos = pos_adjustment * pct_at_position
-        
-        total_def_value += weighted_def
-        total_pos_adjustment += weighted_pos
+    elif position.lower() == 'outfield':
+        pos_for_adjustment = 'OF'
+    elif position.lower() == 'infield':
+        pos_for_adjustment = '2B'
+    elif position.lower() == 'catcher':
+        pos_for_adjustment = 'C'
     
-    return total_def_value, total_pos_adjustment
+    # Calculate position-specific defensive value
+    # The /150 metrics are already rate stats, just scale by target games
+    if position == 'C' or position.lower() == 'catcher':
+        # Catchers: framing + throwing + blocking
+        framing = row.get('sc_framing_runs/150', 0) * scaling_factor
+        throwing = row.get('sc_throwing_runs/150', 0) * scaling_factor
+        blocking = row.get('sc_blocking_runs/150', 0) * scaling_factor
+        def_value = framing + throwing + blocking
+        
+    elif position in ['1B', '2B', '3B', 'SS'] or position.lower() in ['infield', 'first base', 'second base', 'third base', 'shortstop']:
+        # Infielders: use sc_total_runs (which already combines range + arm + dp)
+        def_value = row.get('sc_total_runs/150', 0) * scaling_factor
+        
+    else:
+        # Outfielders: use sc_total_runs (which already combines range + arm)
+        def_value = row.get('sc_total_runs/150', 0) * scaling_factor
+    
+    # Calculate positional adjustment for target games
+    # Adjustments are per 162 games, scale to target games
+    pos_adj_per_162 = POSITIONAL_ADJUSTMENTS.get(pos_for_adjustment, 0.0)
+    pos_adjustment = pos_adj_per_162 * (target_games / 162.0)
+    
+    return def_value, pos_adjustment
 
 def calculate_war_components(row: pd.Series, baserunning_data: pd.DataFrame, 
                            fielding_data: pd.DataFrame) -> Tuple[float, Dict[str, Any]]:
