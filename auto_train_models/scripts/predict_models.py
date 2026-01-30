@@ -558,7 +558,8 @@ def generate_integrated_batter_predictions(
 
 def generate_fielding_predictions(
     output_file: str = None,
-    cutoff_year: int = None
+    cutoff_year: int = None,
+    use_aging_enforcer: bool = False
 ) -> Optional[pd.DataFrame]:
     """Generate fielding predictions matching notebook functionality
     
@@ -566,6 +567,7 @@ def generate_fielding_predictions(
         output_file: Path to save predictions
         cutoff_year: Last year of actual data. Predictions start from cutoff_year + 1.
                     Defaults to current year - 1 if not specified.
+        use_aging_enforcer: If True, apply aging constraints to prevent unrealistic late-career improvements.
     """
     # Default to previous year if not specified
     if cutoff_year is None:
@@ -599,7 +601,8 @@ def generate_fielding_predictions(
         input_features_map=input_features_map,
         seq_length_map=seq_length_map,
         future_years=15,
-        cutoff_year=cutoff_year
+        cutoff_year=cutoff_year,
+        use_aging_enforcer=use_aging_enforcer
     )
     
     if predictions_df is not None:
@@ -743,6 +746,8 @@ Examples:
                             f'(default: {default_cutoff_year})')
     parser.add_argument('--use-pretrained', action='store_true',
                        help='Use pretrained model only (classical features) instead of finetuned model')
+    parser.add_argument('--use-aging-enforcer', action='store_true',
+                       help='Apply aging constraints to fielding predictions (prevents unrealistic late-career improvements)')
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Enable verbose logging')
     
@@ -762,6 +767,7 @@ Examples:
     logger.info(f"Cutoff year: {args.cutoff_year} (projections start from {args.cutoff_year + 1})")
     logger.info(f"Output directory: {output_dir}")
     logger.info(f"Using pretrained model: {args.use_pretrained}")
+    logger.info(f"Using aging enforcer: {args.use_aging_enforcer}")
     
     success = True
     
@@ -790,7 +796,8 @@ Examples:
             output_file = str(output_dir / 'fielding_predictions.csv')
             result = generate_fielding_predictions(
                 output_file,
-                cutoff_year=args.cutoff_year
+                cutoff_year=args.cutoff_year,
+                use_aging_enforcer=args.use_aging_enforcer
             )
             if result is None:
                 success = False

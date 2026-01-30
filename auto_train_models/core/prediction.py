@@ -965,7 +965,8 @@ def predict_all_fielders(
     input_features_map: Dict[str, List[str]],
     seq_length_map: Dict[str, int],
     future_years: int = 16, 
-    cutoff_year: int = 2025
+    cutoff_year: int = 2025,
+    use_aging_enforcer: bool = False
 ) -> Optional[pd.DataFrame]:
     """
     Generate future predictions for all qualified fielders.
@@ -1117,12 +1118,17 @@ def predict_all_fielders(
             else:
                 preds_with_baseline = preds_sorted
             
-            # Enforce aging constraints
-            adjusted = enforcer.enforce_aging(preds_with_baseline, category)
-            
-            # Remove baseline row (it was just for comparison)
-            adjusted = [p for p in adjusted if not p.get('_is_baseline', False)]
-            enforced_predictions.extend(adjusted)
+            # Conditionally enforce aging constraints
+            if use_aging_enforcer:
+                adjusted = enforcer.enforce_aging(preds_with_baseline, category)
+                # Remove baseline row (it was just for comparison)
+                adjusted = [p for p in adjusted if not p.get('_is_baseline', False)]
+                enforced_predictions.extend(adjusted)
+            else:
+                # Skip aging enforcement - use raw predictions
+                # Still remove baseline row if it exists
+                preds_no_baseline = [p for p in preds_with_baseline if not p.get('_is_baseline', False)]
+                enforced_predictions.extend(preds_no_baseline)
         
         predictions_df = pd.DataFrame(enforced_predictions)
         

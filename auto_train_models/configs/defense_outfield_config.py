@@ -18,8 +18,8 @@ class DefenseOutfieldConfig:
     
     # Model-specific features
     INPUT_FEATURES = [
-        'Age', 'OAA/150', 'DRS/150', 'Inn',
-        'sc_total_runs/150', 'sc_range_runs/150', 'sc_arm_runs/150'
+        'Age', #'Inn',#'OAA/150', 'DRS/150', 
+        'sc_total_runs/150',# 'sc_range_runs/150', 'sc_arm_runs/150'
     ]
     
     # Data preprocessing config
@@ -45,22 +45,18 @@ class DefenseOutfieldConfig:
     GRADIENT_CLIP = 1.0
     
     # Training parameters (match notebook)
-    BATCH_SIZE = 16
+    BATCH_SIZE = 64
     LEARNING_RATE = 1e-3
     WEIGHT_DECAY = 1e-5
     GRADIENT_CLIP = 1.0
     NUM_EPOCHS = 50
     EARLY_STOPPING_PATIENCE = 10
     
-    # Position-specific weights for loss function
+    # Position-specific weights for loss function (must match INPUT_FEATURES)
     FEATURE_WEIGHTS = {
-        'Age': 4.0,
-        'OAA/150': 1.0,
-        'DRS/150': 1.0,
-        'Inn': 1.0,
-        'sc_total_runs/150': 1.5,
-        'sc_range_runs/150': 1.5,
-        'sc_arm_runs/150': 1.0
+        'Age': 1.0,
+        #'Inn': 1.0,
+        'sc_total_runs/150': 1.0
     }
     
     # ============================================================================

@@ -18,8 +18,8 @@ class DefenseInfieldConfig:
     
     # Model-specific features
     INPUT_FEATURES = [
-        'Age', 'OAA/150', 'DRS/150', 'Inn',
-        'sc_total_runs/150', 'sc_range_runs/150', 'sc_arm_runs/150', 'sc_dp_runs/150'
+        'Age',# 'OAA/150', 'DRS/150', 'Inn',
+        'sc_total_runs/150',# 'sc_range_runs/150', 'sc_arm_runs/150', 'sc_dp_runs/150'
     ]
     
     # Data preprocessing config
@@ -53,14 +53,14 @@ class DefenseInfieldConfig:
     
     # Position-specific weights for loss function
     FEATURE_WEIGHTS = {
-        'Age': 2.0,
-        'OAA/150': 1.0,
-        'DRS/150': 1.5,
-        'Inn': 1.0,
-        'sc_total_runs/150': 1.5,
-        'sc_range_runs/150': 1.5,
-        'sc_arm_runs/150': 1.0,
-        'sc_dp_runs/150': 1.0
+        'Age': 1.0,
+        #'OAA/150': 1.0,
+        #'DRS/150': 1.5,
+        #'Inn': 1.0,
+        'sc_total_runs/150': 1.0,
+        #'sc_range_runs/150': 1.5,
+        #'sc_arm_runs/150': 1.0,
+        #'sc_dp_runs/150': 1.0
     }
     
     # ============================================================================

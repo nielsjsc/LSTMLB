@@ -352,6 +352,27 @@ def get_hyperparameter_overrides() -> Dict[str, Any]:
     else:
         print("   ✓ Using default model-specific loss")
     
+    # Aging enforcer for predictions
+    print("\n3. AGING ENFORCER (Fielding Predictions)")
+    print("   Apply post-prediction constraints to prevent unrealistic late-career improvements")
+    print("   in defensive metrics.")
+    print("   ")
+    print("   [1] Off (default) - Use raw model predictions")
+    print("   [2] On - Apply aging constraints post-prediction")
+    print("   ")
+    print("   Note: This is separate from empirical aging loss during training.")
+    print("   Empirical loss guides training; aging enforcer clips predictions.")
+    print("   ")
+    print("   Enter choice (1/2, default: 1):")
+    aging_choice = input("   > ").strip()
+    
+    if aging_choice == '2':
+        overrides['use_aging_enforcer'] = True
+        print("   ✓ Aging enforcer enabled for fielding predictions")
+    else:
+        overrides['use_aging_enforcer'] = False
+        print("   ✓ Aging enforcer disabled (using raw predictions)")
+    
     print("\n" + "=" * 60)
     return overrides
 
@@ -450,11 +471,12 @@ def train_models(selected_models: List[str], hyperparameter_overrides: Dict[str,
     return len(failed_models) == 0
 
 
-def generate_predictions(selected_models: List[str]) -> bool:
+def generate_predictions(selected_models: List[str], use_aging_enforcer: bool = False) -> bool:
     """Generate predictions for selected models
     
     Args:
         selected_models: List of model keys to generate predictions for
+        use_aging_enforcer: Whether to apply aging constraints to fielding predictions
     """
     print(f"\n🔮 Generating predictions for {len(selected_models)} model(s)...")
     
@@ -471,6 +493,10 @@ def generate_predictions(selected_models: List[str]) -> bool:
     failed_predictions = []
     
     for command, model_key in prediction_commands.items():
+        # Add aging enforcer flag if this is a fielding prediction
+        if 'fielding' in command and use_aging_enforcer:
+            command += ' --use-aging-enforcer'
+        
         description = f"Generating predictions for {model_key}"
         
         if run_command(command, description, timeout=3600):
@@ -643,7 +669,8 @@ def run_full_pipeline() -> bool:
     
     # Step 2: Generate predictions (use finetuned models)
     prediction_models = ['batter_finetune', 'pitcher_sp_finetune', 'baserunning', 'defense_infield']
-    if not generate_predictions(prediction_models):
+    use_aging_enforcer = overrides.get('use_aging_enforcer', False)
+    if not generate_predictions(prediction_models, use_aging_enforcer):
         logger.error("❌ Prediction phase failed")
         return False
     
@@ -722,7 +749,16 @@ def main():
         elif choice == '2':
             # Generate Predictions
             selected = select_models_for_prediction()
-            generate_predictions(selected)
+            
+            # Ask about aging enforcer for fielding predictions
+            use_aging_enforcer = False
+            if any('defense' in model for model in selected):
+                print("\nApply aging enforcer to fielding predictions? (y/n)")
+                print("(Prevents unrealistic late-career defensive improvements)")
+                if input("> ").strip().lower() == 'y':
+                    use_aging_enforcer = True
+            
+            generate_predictions(selected, use_aging_enforcer)
             
         elif choice == '3':
             # Run Projection Engine
