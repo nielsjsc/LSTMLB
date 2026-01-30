@@ -25,7 +25,6 @@ web-app/frontend/.env.local
 # Netlify
 .netlify/
 # Keep these files
-!.env.production
 !.env.d.ts
 
 # Distribution / packaging
