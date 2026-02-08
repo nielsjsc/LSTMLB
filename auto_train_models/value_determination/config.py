@@ -333,15 +333,15 @@ class ProspectConstants:
     # FV (Future Value) grade base values in dollars
     # Based on FanGraphs research on prospect value
     FV_BASE_VALUES = {
-        70: 180_000_000,  # Generational talent
-        65: 100_000_000,  # Perennial All-Star
-        60: 80_000_000,   # All-Star caliber
-        55: 75_000_000,   # Above average regular
-        50: 55_000_000,   # Average regular
-        45: 40_000_000,   # Platoon/utility player
-        40: 15_000_000,   # Fringe major leaguer
-        35: 5_000_000,    # Organizational depth
-        30: 2_000_000     # Minor league depth
+        70: 120_000_000,  # Generational talent
+        65: 90_000_000,  # Perennial All-Star
+        60: 70_000_000,   # All-Star caliber
+        55: 50_000_000,   # Above average regular
+        50: 30_000_000,   # Average regular
+        45: 15_000_000,   # Platoon/utility player
+        40: 7_000_000,   # Fringe major leaguer
+        35: 2_000_000,    # Organizational depth
+        30: 1_000_000     # Minor league depth
     }
     
     # Rank adjustment factors (BONUS multipliers for top 100)
