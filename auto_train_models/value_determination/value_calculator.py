@@ -296,12 +296,28 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
                         .rename(columns={'Season': 'Year', 'WAR': 'WAR_pitcher',
                                         'K%': 'K%_pit', 'BB%': 'BB%_pit', 'G': 'G_pit'}))
     
-    # Merge batting and pitching data
+    # Merge batting and pitching data - use only IDfg and Year to avoid duplicates
+    # Name, Team, Age can differ slightly between batting/pitching datasets
     historical = batting_filtered.merge(
         pitching_filtered,
-        on=['IDfg', 'Year', 'Name', 'Team', 'Age'],
-        how='outer'
+        on=['IDfg', 'Year'],
+        how='outer',
+        suffixes=('_bat', '_pit')
     )
+    
+    # Consolidate duplicate columns (Name, Team, Age)
+    # Prefer batting data if available, otherwise use pitching data
+    if 'Name_bat' in historical.columns and 'Name_pit' in historical.columns:
+        historical['Name'] = historical['Name_bat'].fillna(historical['Name_pit'])
+        historical = historical.drop(['Name_bat', 'Name_pit'], axis=1)
+    
+    if 'Team_bat' in historical.columns and 'Team_pit' in historical.columns:
+        historical['Team'] = historical['Team_bat'].fillna(historical['Team_pit'])
+        historical = historical.drop(['Team_bat', 'Team_pit'], axis=1)
+    
+    if 'Age_bat' in historical.columns and 'Age_pit' in historical.columns:
+        historical['Age'] = historical['Age_bat'].fillna(historical['Age_pit'])
+        historical = historical.drop(['Age_bat', 'Age_pit'], axis=1)
     
     # Add position info from current data
     historical = historical.merge(current_players[['IDfg', 'position_group']], on='IDfg')

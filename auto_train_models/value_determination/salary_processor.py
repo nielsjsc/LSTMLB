@@ -37,7 +37,13 @@ def normalize_name(name: str) -> str:
     """
     if pd.isna(name):
         return name
-    return unidecode.unidecode(str(name)).upper().strip()
+    normalized = unidecode.unidecode(str(name)).upper().strip()
+    
+    # Remove FA suffix that sometimes appears in salary data
+    if normalized.endswith(' FA'):
+        normalized = normalized[:-3].strip()
+    
+    return normalized
 
 
 def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -256,19 +262,22 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
     print(f"Total rows: {len(merged_df)}")
     print(f"Null Payroll: {merged_df['Payroll'].isna().sum()}")
     print(f"Null Status: {merged_df['Status'].isna().sum()}")
-    print(f"2025 rows: {len(merged_df[merged_df['Year'] == 2025])}")
+    print(f"Rows with predictions (IDfg): {merged_df['IDfg'].notna().sum()}")
     
-    # Check each condition separately
+    # Keep ALL rows that have predictions (IDfg not null)
+    # This includes Free Agents without salary data
+    # Also keep salary-only rows (for long contracts beyond prediction years)
+    has_prediction = merged_df['IDfg'].notna()
     has_payroll = merged_df['Payroll'].notna()
     has_status = merged_df['Status'].notna()
-    is_2025 = merged_df['Year'] == 2025
     
     print("\nCondition Counts:")
+    print(f"Rows with predictions (IDfg): {has_prediction.sum()}")
     print(f"Rows with Payroll: {has_payroll.sum()}")
     print(f"Rows with Status: {has_status.sum()}")
-    print(f"Rows in 2025: {is_2025.sum()}")
-    print(f"Rows meeting any condition: {(has_payroll | has_status | is_2025).sum()}")
+    print(f"Rows meeting any condition: {(has_prediction | has_payroll | has_status).sum()}")
     
-    valid_data = merged_df[has_payroll | has_status | is_2025]
+    # Keep rows with predictions OR salary data
+    valid_data = merged_df[has_prediction | has_payroll | has_status]
     
     return valid_data.drop('Name_Normalized', axis=1)

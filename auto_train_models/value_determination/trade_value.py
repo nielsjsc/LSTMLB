@@ -67,12 +67,14 @@ def calculate_prospect_value_fangraphs(fv: float, rank: float) -> float:
         base_value = fv_values[base_fv]
         
         # Calculate rank adjustment using config method
+        # Only apply rank adjustment for top 100 rank (comparable across orgs)
+        # Org ranks are NOT comparable and should not get bonuses
         if pd.notna(rank):
             rank_adj = Config.Prospects.calculate_rank_adjustment(float(rank))
             return base_value * rank_adj
         
-        # Default to minimum adjustment if no rank
-        return base_value * Config.Prospects.RANK_ADJ_ORG_MIN
+        # Default to base value (1.0x) if no rank
+        return base_value * 1.0
         
     except Exception as e:
         logger.warning(f"Error calculating prospect value for FV={fv}, rank={rank}: {e}")
@@ -350,8 +352,9 @@ def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.Da
             top_100_rank = org_rank
             org_rank = None
         
-        # Determine which rank to use (prefer top_100, fallback to org_rank)
-        rank = top_100_rank if pd.notna(top_100_rank) else org_rank
+        # Only use top_100 rank for value calculation (org ranks not comparable)
+        # This ensures only true top 100 prospects get the rank bonus
+        rank = top_100_rank
         
         prospect_value = calculate_prospect_value_fangraphs(fv, rank)
         

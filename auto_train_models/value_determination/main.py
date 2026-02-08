@@ -308,13 +308,15 @@ def main():
         # ============================================================
         logger.info("\n[Step 6/10] Processing contracts and generating timeline...")
         contract_data = normalize_contract_status(salary_data_with_id)
-        problem_cases = check_none_statuses(contract_data)
         
         contract_timeline = generate_contract_timeline(contract_data)
         logger.info(f"Generated {len(contract_timeline)} timeline records")
         
         missing_fa = validate_fa_years(contract_timeline)
         extended_timeline = extend_fa_timeline(contract_timeline)
+        
+        # Check for any remaining None statuses after timeline generation
+        problem_cases = check_none_statuses(extended_timeline)
         
         # ============================================================
         # Step 7: Calculate Values

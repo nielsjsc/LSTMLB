@@ -111,6 +111,7 @@ def calculate_prospect_value(
         return 0.0
     
     # Apply top 100 rank multiplier (only if they're in the top 100)
+    # Org ranks are NOT used because they're not comparable across organizations
     rank_multiplier = 1.0
     if pd.notna(top_100_rank):
         # Use the rank adjustment from config
@@ -394,7 +395,7 @@ def main():
         save_prospect_histories(df)
         
         logger.info("\n" + "=" * 60)
-        logger.info("✓ Prospect histories generated successfully!")
+        logger.info("Prospect histories generated successfully!")
         logger.info("=" * 60)
         
     except Exception as e:

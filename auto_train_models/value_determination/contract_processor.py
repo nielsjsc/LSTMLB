@@ -203,95 +203,124 @@ def check_none_statuses(contract_data: pd.DataFrame) -> list:
 def generate_contract_timeline(df: pd.DataFrame) -> pd.DataFrame:
     """
     Generate complete contract timeline for each player.
+    Fills in predicted contract progression and calculates FA years.
     """
     result_df = df.copy()
     
     def process_player_timeline(group):
-        player_rows = group.copy()
+        player_rows = group.copy().sort_values('Year')
         
         # Check for Super 2
         is_super2 = any('Super 2' in str(status) for status in player_rows['Normalized_Status'])
         
-        # Get latest year and status
-        latest_year = player_rows['Year'].max()
-        latest_status_series = player_rows.loc[player_rows['Year'] == latest_year, 'Normalized_Status']
-        
-        if len(latest_status_series) == 0:
-            logger.warning(f"No status found for player {player_rows['IDfg'].iloc[0]} in year {latest_year}")
+        # Find the last row with a valid (non-None) status
+        valid_status_mask = player_rows['Normalized_Status'].notna()
+        if not valid_status_mask.any():
+            # All statuses are None - mark all as Free Agent
+            player_rows['Normalized_Status'] = 'Free Agent'
             return player_rows
         
-        latest_status = latest_status_series.iloc[0]
-        new_rows = []
+        last_valid_idx = player_rows[valid_status_mask].index[-1]
+        latest_status = player_rows.loc[last_valid_idx, 'Normalized_Status']
+        latest_year = player_rows.loc[last_valid_idx, 'Year']
         
+        # If already at FA, nothing to add
         if latest_status == 'Free Agent':
+            # Fill any remaining None years with FA
+            player_rows.loc[player_rows['Normalized_Status'].isna(), 'Normalized_Status'] = 'Free Agent'
             return player_rows
         
-        # Modified status checking
+        # Calculate what statuses should follow
+        new_statuses = []
+        
         if latest_status.startswith('Arb-4'):
-            new_rows.append({'Year': latest_year + 1, 'Normalized_Status': 'Free Agent'})
+            new_statuses = [('Free Agent', 1)]
         
         elif latest_status.startswith('Arb-3'):
             if is_super2:
-                new_rows.append({'Year': latest_year + 1, 'Normalized_Status': 'Arb-4'})
-                new_rows.append({'Year': latest_year + 2, 'Normalized_Status': 'Free Agent'})
+                new_statuses = [('Arb-4', 1), ('Free Agent', 2)]
             else:
-                new_rows.append({'Year': latest_year + 1, 'Normalized_Status': 'Free Agent'})
+                new_statuses = [('Free Agent', 1)]
         
         elif latest_status.startswith('Arb-2'):
-            new_rows.append({'Year': latest_year + 1, 'Normalized_Status': 'Arb-3'})
             if is_super2:
-                new_rows.append({'Year': latest_year + 2, 'Normalized_Status': 'Arb-4'})
-                new_rows.append({'Year': latest_year + 3, 'Normalized_Status': 'Free Agent'})
+                new_statuses = [('Arb-3', 1), ('Arb-4', 2), ('Free Agent', 3)]
             else:
-                new_rows.append({'Year': latest_year + 2, 'Normalized_Status': 'Free Agent'})
+                new_statuses = [('Arb-3', 1), ('Free Agent', 2)]
         
         elif latest_status.startswith('Arb-1'):
-            arb2_status = 'Arb-2'
-            new_rows.append({'Year': latest_year + 1, 'Normalized_Status': arb2_status})
-            new_rows.append({'Year': latest_year + 2, 'Normalized_Status': 'Arb-3'})
             if is_super2:
-                new_rows.append({'Year': latest_year + 3, 'Normalized_Status': 'Arb-4'})
-                new_rows.append({'Year': latest_year + 4, 'Normalized_Status': 'Free Agent'})
+                new_statuses = [('Arb-2', 1), ('Arb-3', 2), ('Arb-4', 3), ('Free Agent', 4)]
             else:
-                new_rows.append({'Year': latest_year + 3, 'Normalized_Status': 'Free Agent'})
+                new_statuses = [('Arb-2', 1), ('Arb-3', 2), ('Free Agent', 3)]
         
         elif latest_status == 'Pre-Arb':
             pre_arb_years = len(player_rows[player_rows['Normalized_Status'] == 'Pre-Arb'])
-            remaining_pre_arb = 3 - pre_arb_years
+            remaining_pre_arb = max(0, 3 - pre_arb_years)
             
-            current_year = latest_year
+            year_offset = 0
             for i in range(remaining_pre_arb):
-                current_year += 1
-                new_rows.append({'Year': current_year, 'Normalized_Status': 'Pre-Arb'})
+                year_offset += 1
+                new_statuses.append(('Pre-Arb', year_offset))
             
             arb1_status = 'Arb-1 (Super 2)' if is_super2 else 'Arb-1'
-            new_rows.append({'Year': current_year + 1, 'Normalized_Status': arb1_status})
-            new_rows.append({'Year': current_year + 2, 'Normalized_Status': 'Arb-2'})
-            new_rows.append({'Year': current_year + 3, 'Normalized_Status': 'Arb-3'})
-            
             if is_super2:
-                new_rows.append({'Year': current_year + 4, 'Normalized_Status': 'Arb-4'})
-                new_rows.append({'Year': current_year + 5, 'Normalized_Status': 'Free Agent'})
+                new_statuses.extend([
+                    (arb1_status, year_offset + 1),
+                    ('Arb-2', year_offset + 2),
+                    ('Arb-3', year_offset + 3),
+                    ('Arb-4', year_offset + 4),
+                    ('Free Agent', year_offset + 5)
+                ])
             else:
-                new_rows.append({'Year': current_year + 4, 'Normalized_Status': 'Free Agent'})
+                new_statuses.extend([
+                    (arb1_status, year_offset + 1),
+                    ('Arb-2', year_offset + 2),
+                    ('Arb-3', year_offset + 3),
+                    ('Free Agent', year_offset + 4)
+                ])  
         
-        # Handle Signed and Unknown statuses - infer FA year from contract end
-        elif latest_status in ['Signed', 'Unknown']:
-            # Find the last year with a Payroll value
+        elif latest_status in ['Signed', 'Team Option', 'Player Option', 'Unknown', 
+                              'Deferred', 'Buyout', 'Retained', 'RetainedBuyout', 'Active']:
+            # For all these statuses, treat as end of contract - FA comes next
+            # Find the last year with a Payroll value or just use latest_year
             payroll_years = player_rows[player_rows['Payroll'].notna()]['Year']
             if len(payroll_years) > 0:
                 last_contract_year = payroll_years.max()
-                # FA year is the year after the last contract year
-                fa_year = last_contract_year + 1
-                if fa_year > latest_year:
-                    new_rows.append({'Year': fa_year, 'Normalized_Status': 'Free Agent'})
+            else:
+                # No payroll data, assume current year is last
+                last_contract_year = latest_year
+            
+            # FA starts the year after last contract year
+            year_offset = int(last_contract_year - latest_year + 1)
+            new_statuses = [('Free Agent', year_offset)]
         
-        # Add new rows to player timeline
-        if new_rows:
-            for row in new_rows:
-                row.update({col: group.iloc[0][col] for col in group.columns
-                           if col not in ['Year', 'Normalized_Status', 'Status', 'Payroll']})
-            return pd.concat([player_rows, pd.DataFrame(new_rows)], ignore_index=True)
+        # Now fill in the predicted statuses for existing None years
+        for status, year_offset in new_statuses:
+            target_year = int(latest_year + year_offset)
+            # Check if this year exists in player_rows
+            year_mask = player_rows['Year'] == target_year
+            if year_mask.any():
+                # Update existing row
+                player_rows.loc[year_mask, 'Normalized_Status'] = status
+            else:
+                # Add new row (only if within our timeline)
+                if target_year <= 2040:
+                    new_row = {col: player_rows.iloc[0][col] for col in player_rows.columns
+                             if col not in ['Year', 'Normalized_Status', 'Status', 'Payroll']}
+                    new_row['Year'] = target_year
+                    new_row['Normalized_Status'] = status
+                    new_row['Status'] = np.nan
+                    new_row['Payroll'] = np.nan
+                    player_rows = pd.concat([player_rows, pd.DataFrame([new_row])], ignore_index=True)
+        
+        # Fill any remaining None years after FA year with FA
+        player_rows = player_rows.sort_values('Year')
+        fa_years = player_rows[player_rows['Normalized_Status'] == 'Free Agent']['Year']
+        if len(fa_years) > 0:
+            first_fa_year = fa_years.min()
+            none_after_fa = (player_rows['Year'] >= first_fa_year) & (player_rows['Normalized_Status'].isna())
+            player_rows.loc[none_after_fa, 'Normalized_Status'] = 'Free Agent'
         
         return player_rows
     
@@ -327,7 +356,12 @@ def validate_fa_years(contract_timeline: pd.DataFrame) -> list:
 
 
 def extend_fa_timeline(timeline_df: pd.DataFrame) -> pd.DataFrame:
-    """Extend timeline beyond first FA year through 2040."""
+    """
+    Extend FA timeline through 2040 for all free agents.
+    By this point, generate_contract_timeline should have already filled in FA statuses.
+    """
+    
+    timeline_df = timeline_df.copy()
     
     # Find first FA year for each player
     fa_years = (timeline_df[timeline_df['Normalized_Status'] == 'Free Agent']
@@ -335,14 +369,24 @@ def extend_fa_timeline(timeline_df: pd.DataFrame) -> pd.DataFrame:
                 .min()
                 .reset_index())
     
-    # Generate future FA rows
+    if fa_years.empty:
+        logger.warning("No Free Agent statuses found - timeline may be incomplete")
+        return timeline_df
+    
+    # Generate future FA rows for years beyond current timeline
     future_rows = []
     for _, row in fa_years.iterrows():
         idfg = row['IDfg']
-        start_year = int(row['Year']) + 1
+        first_fa_year = int(row['Year'])
+        
+        # Get player info
         player_info = timeline_df[timeline_df['IDfg'] == idfg].iloc[0]
         
-        for year in range(start_year, 2041):
+        # Find max year in timeline for this player
+        max_year = int(timeline_df[timeline_df['IDfg'] == idfg]['Year'].max())
+        
+        # Add FA years from max_year+1 to 2040
+        for year in range(max_year + 1, 2041):
             future_rows.append({
                 'Name': player_info['Name'],
                 'IDfg': idfg,
@@ -354,15 +398,19 @@ def extend_fa_timeline(timeline_df: pd.DataFrame) -> pd.DataFrame:
                 'Normalized_Status': 'Free Agent'
             })
     
-    # Add new rows to timeline
-    extended_timeline = pd.concat([
-        timeline_df,
-        pd.DataFrame(future_rows)
-    ])
+    # Add new rows
+    if future_rows:
+        extended_timeline = pd.concat([
+            timeline_df,
+            pd.DataFrame(future_rows)
+        ], ignore_index=True)
+    else:
+        extended_timeline = timeline_df
     
     # Sort and deduplicate
     extended_timeline = (extended_timeline
                         .sort_values(['IDfg', 'Year'])
-                        .drop_duplicates(subset=['IDfg', 'Year'], keep='first'))
+                        .drop_duplicates(subset=['IDfg', 'Year'], keep='first')
+                        .reset_index(drop=True))
     
     return extended_timeline

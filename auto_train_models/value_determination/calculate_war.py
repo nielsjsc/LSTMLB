@@ -365,6 +365,12 @@ def calculate_war_components(row: pd.Series, baserunning_data: pd.DataFrame,
     # Total defensive value = fielding + positional adjustment
     def_value = fld_value + pos_adjustment
     
+    # Cap negative defensive value at DH level (worst case = just be a DH)
+    # DH penalty is -17.5 per 162 games, scaled to player's games
+    dh_penalty = POSITIONAL_ADJUSTMENTS.get('DH', -17.5) * (games / 162.0)
+    if def_value < dh_penalty:
+        def_value = dh_penalty
+    
     # Offensive value
     off = batting_runs + bsr
     
