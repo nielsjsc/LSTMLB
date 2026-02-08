@@ -21,6 +21,7 @@ from .config import Config, logger
 
 
 # Team slug to MLB abbreviation mapping
+# Updated to match backend abbreviations (SFG not SF, SDP not SD, etc.)
 TEAM_ABBREVIATIONS = {
     'diamondbacks': 'ARI', 'dbacks': 'ARI',
     'braves': 'ATL',
@@ -41,14 +42,14 @@ TEAM_ABBREVIATIONS = {
     'twins': 'MIN',
     'mets': 'NYM',
     'yankees': 'NYY',
-    'athletics': 'OAK',
+    'athletics': 'OAK',  # Backend uses OAK, not ATH
     'phillies': 'PHI',
     'pirates': 'PIT',
-    'padres': 'SDP', 'sdpadres': 'SDP',
-    'giants': 'SFG', 'sfgiants': 'SFG',
+    'padres': 'SDP', 'sdpadres': 'SDP',  # Backend uses SDP, not SD
+    'giants': 'SFG', 'sfgiants': 'SFG',  # Backend uses SFG, not SF
     'mariners': 'SEA',
     'cardinals': 'STL',
-    'rays': 'TBR', 'tbr': 'TBR',
+    'rays': 'TBR', 'tbr': 'TBR',  # Backend uses TBR, not TB
     'rangers': 'TEX',
     'blue-jays': 'TOR', 'bluejays': 'TOR',
     'nationals': 'WSH', 'wsh': 'WSH'

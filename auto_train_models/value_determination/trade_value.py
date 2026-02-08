@@ -488,18 +488,18 @@ def update_prospect_mlb_status(export_data: pd.DataFrame) -> None:
     """
     Add MLB status to prospect data.
     
+    Updates the prospect_histories.csv file (used by backend) with has_mlb flags
+    to indicate which prospects have reached the majors.
+    
     Args:
         export_data: Final export data with all players
-        
-    Note:
-        This function updates a legacy file location. Consider updating to use
-        Config.Paths.PROSPECT_FILE instead.
     """
-    # TODO: Update to use Config.Paths after validating file format compatibility
-    prospect_file = Config.Paths.GENERATED_DIR / 'MiLB' / 'player_histories.csv'
+    # Use prospect_histories.csv (the current/correct file, not the legacy player_histories.csv)
+    prospect_file = Config.Paths.GENERATED_DIR / 'MiLB' / 'prospect_histories.csv'
     
     if not prospect_file.exists():
         logger.warning(f"Prospect file not found: {prospect_file}")
+        logger.info(f"Run generate_prospect_histories.py first to create this file")
         return
     
     try:
