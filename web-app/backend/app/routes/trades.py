@@ -131,7 +131,7 @@ def analyze_trade(trade: TradeRequest, db: Session = Depends(get_db)):
 @router.get("/prospects")
 def get_all_prospects(
     player_type: str = Query(..., description="Either 'hitter' or 'pitcher'"),
-    year: int = Query(2025, ge=2022, le=2025),
+    year: int = Query(2026, ge=2022, le=2026),
     db: Session = Depends(get_db)
 ):
     try:
@@ -155,7 +155,7 @@ def get_all_prospects(
                 "org": p.org,
                 "position": p.position,
                 "fv": p.fv,
-                "value": getattr(p, f"value_2025", None)
+                "value": getattr(p, f"value_{year}", None)
             })
         
         return {"players": response_data}
