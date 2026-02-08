@@ -63,14 +63,14 @@ def get_prospect_values(prospect_name: str, db: Session):
     prospect = (
         db.query(Prospect)
         .filter(Prospect.name == prospect_name)
-        .filter(Prospect.year == 2026)  # Add this filter
+        .filter(Prospect.year == 2025)  # Use 2025 since that's what exists in DB
         .first()
     )
     
     if not prospect:
         raise HTTPException(status_code=404, detail=f"Prospect {prospect_name} not found")
     
-    value = getattr(prospect, 'value_2026', 0) or 0
+    value = getattr(prospect, 'value_2025', 0) or 0
     
 
     
@@ -131,7 +131,7 @@ def analyze_trade(trade: TradeRequest, db: Session = Depends(get_db)):
 @router.get("/prospects")
 def get_all_prospects(
     player_type: str = Query(..., description="Either 'hitter' or 'pitcher'"),
-    year: int = Query(2026, ge=2022, le=2026),
+    year: int = Query(2025, ge=2022, le=2025),
     db: Session = Depends(get_db)
 ):
     try:

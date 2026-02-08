@@ -57,7 +57,7 @@ export interface PlayerResponse {
 
 export const getAllProspects = async (
   playerType: 'hitter' | 'pitcher',
-  year: number = 2026
+  year: number = 2025
 ): Promise<Prospect[]> => {
   try {
     const response = await fetch(`${API_BASE}/trades/prospects?player_type=${playerType}&year=${year}`, {
