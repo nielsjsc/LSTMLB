@@ -22,7 +22,16 @@ from app.models.prospect import Prospect
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-
+def map_team_abbreviation(team: str) -> str:
+    """Map UI team abbreviations to database team abbreviations"""
+    team_mapping = {
+        'SF': 'SFG',
+        'SD': 'SDP',
+        'KC': 'KCR',
+        'ATH': 'OAK',
+        'TB': 'TBR'
+    }
+    return team_mapping.get(team.upper(), team.upper())
 
 def get_player_values(player_name: str, db: Session):
     # Get only the 2026 player entry since it has all the values we need
