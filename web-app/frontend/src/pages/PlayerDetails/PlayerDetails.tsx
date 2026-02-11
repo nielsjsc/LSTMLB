@@ -133,7 +133,8 @@ const ContractTimeline: React.FC<{
   faLatest?: number | null;
   yearsControl?: number | null;
   teamColor: string;
-}> = ({ currentYear, faEarliest, faProbable, faLatest, yearsControl, teamColor }) => {
+  projections: Array<{ year: number; status: string }>;
+}> = ({ currentYear, faEarliest, faProbable, faLatest, yearsControl, teamColor, projections }) => {
   const yrsCtrl = yearsControl ?? 0;
   const endYear = Math.max(
     currentYear + yrsCtrl,
@@ -142,6 +143,12 @@ const ContractTimeline: React.FC<{
     currentYear + 1
   );
   const years = Array.from({ length: endYear - currentYear + 1 }, (_, i) => currentYear + i);
+
+  // Find the status for earliest FA year for legend
+  const earliestFaProj = projections.find(p => p.year === faEarliest);
+  const earliestFaStatus = earliestFaProj?.status || '';
+  const isOptionYear = earliestFaStatus.toLowerCase().includes('option');
+  const optionType = isOptionYear ? earliestFaStatus : 'Option Year';
 
   return (
     <div className="w-full">
@@ -156,8 +163,10 @@ const ContractTimeline: React.FC<{
           const isControlled = yr < currentYear + yrsCtrl;
           const isFaProbable = yr === faProbable;
           const isFaEarliest = yr === faEarliest;
+          const proj = projections.find(p => p.year === yr);
+          const status = proj?.status || '';
           return (
-            <div key={yr} className="flex-1 flex flex-col items-center gap-1">
+            <div key={yr} className="flex-1 flex flex-col items-center gap-0.5">
               <div
                 className="w-full h-6 rounded-md transition-all flex items-center justify-center"
                 style={{
@@ -174,6 +183,11 @@ const ContractTimeline: React.FC<{
                 )}
               </div>
               <span className="text-[9px] text-surface-500 tabular-nums">{yr.toString().slice(-2)}</span>
+              {status && (
+                <span className="text-[8px] text-surface-600 text-center leading-tight px-0.5" style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {status}
+                </span>
+              )}
             </div>
           );
         })}
@@ -183,10 +197,10 @@ const ContractTimeline: React.FC<{
           <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: teamColor }} />
           <span className="text-[10px] text-surface-500">Under Control</span>
         </div>
-        {faEarliest && faEarliest !== faProbable && (
+        {faEarliest && faEarliest !== faProbable && isOptionYear && (
           <div className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-sm bg-transparent" style={{ border: '1.5px dashed #f59e0b' }} />
-            <span className="text-[10px] text-surface-500">Option Year (earliest FA)</span>
+            <span className="text-[10px] text-surface-500">{optionType}</span>
           </div>
         )}
         {faProbable && (
@@ -413,6 +427,7 @@ const PlayerDetails: React.FC = () => {
               faLatest={faLatest}
               yearsControl={v?.years_control}
               teamColor={colors.primary}
+              projections={player.projections.map(p => ({ year: p.year, status: p.status }))}
             />
 
             <div className="grid grid-cols-2 gap-4 pt-2">
