@@ -230,6 +230,10 @@ def main():
         # Merge org data with batter predictions for park factors
         batter_data = batter_data.merge(org_data, on='IDfg', how='left', suffixes=('', '_org'))
         
+        # Calculate wOBA (either from components or use LSTM direct prediction based on config)
+        from .calculate_war import calculate_woba_from_predictions
+        batter_data = calculate_woba_from_predictions(batter_data)
+        
         # Calculate wRC+ with park factors
         logger.info("Calculating wRC+ with park factors...")
         batter_data['wRC+'] = batter_data.apply(

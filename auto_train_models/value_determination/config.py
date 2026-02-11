@@ -180,14 +180,24 @@ class WARConstants:
         'SEA': 91    # T-Mobile Park
     }
     
-    # League constants for offensive calculations
-    WOBA_SCALE = 1.23
-    RPA = 0.117  # League runs per PA
-    LG_WOBA = 0.309
-    RPW = 9.8  # Runs per Win
+    # League constants for offensive calculations (2025 season)
+    WOBA_SCALE = 1.232
+    RPA = 0.118  # League runs per PA
+    LG_WOBA = 0.313
+    RPW = 9.774  # Runs per Win
     LG_PA = 186188  # League total PA
-    LG_RUNS_PER_PA = 0.114
+    LG_RUNS_PER_PA = 0.118
     LG_WRC_PER_PA = 0.117
+    
+    # 2025 wOBA weights for calculating wOBA from counting stats
+    WOBA_WEIGHTS = {
+        'wBB': 0.691,    # Unintentional walk
+        'wHBP': 0.722,   # Hit by pitch
+        'w1B': 0.882,    # Single
+        'w2B': 1.252,    # Double
+        'w3B': 1.584,    # Triple
+        'wHR': 2.037     # Home run
+    }
     
     # Positional adjustments (runs per 162 games)
     POSITIONAL_ADJUSTMENTS = {

@@ -125,7 +125,7 @@ MODEL_TYPES = {
 def print_header():
     """Print pipeline header"""
     print("\n" + "=" * 70)
-    print("⚾ MLB PREDICTION PIPELINE")
+    print("MLB PREDICTION PIPELINE")
     print("=" * 70)
     print()
 
@@ -312,23 +312,37 @@ def get_hyperparameter_overrides() -> Dict[str, Any]:
     epochs = input("   > ").strip()
     if epochs and epochs.isdigit():
         overrides['epochs'] = int(epochs)
-        print(f"   ✓ Set epochs to {overrides['epochs']}")
+        print(f"   Set epochs to {overrides['epochs']}")
     
     # Loss function selection
     print("\n2. LOSS FUNCTION")
     print("   Choose a loss function for training:")
     print("   ")
-    print("   [1] Default loss (model-specific, no aging constraint)")
-    print("   [2] Empirical aging loss (RECOMMENDED)")
-    print("       → Uses data-derived aging parameters from MLB history")
+    print("   [1] MSE Loss (DEFAULT - Simple mean squared error)")
+    print("       → Standard regression loss, no special weighting")
+    print("       → Fast, stable, works well in most cases")
+    print("   [2] Weighted Loss (Model-specific sample/feature weighting)")
+    print("       → Batters: Weights by PA, separate rate/counting stats")
+    print("       → Pitchers: Weights by IP for sample importance")
+    print("       → Fielding: Weights by innings, position-specific")
+    print("   [3] Empirical Aging Loss (Aging-constrained with data-driven params)")
+    print("       → Uses historical aging curves from MLB data")
     print("       → Penalizes unrealistic late-career improvements")
     print("       → Addresses survivorship bias in training data")
     print("   ")
-    print("   Enter choice (1/2, default: 1):")
+    print("   Enter choice (1/2/3, default: 1):")
     loss_choice = input("   > ").strip()
     
-    if loss_choice == '2':
-        overrides['empirical_loss'] = True
+    if loss_choice == '1' or not loss_choice:
+        overrides['loss_function'] = 'mse'
+        print("   Using MSE Loss (default)")
+        
+    elif loss_choice == '2':
+        overrides['loss_function'] = 'weighted'
+        print("   Using model-specific weighted loss")
+        
+    elif loss_choice == '3':
+        overrides['loss_function'] = 'empirical'
         
         # Empirical loss strength
         print("\n   EMPIRICAL LOSS STRENGTH:")
@@ -347,10 +361,11 @@ def get_hyperparameter_overrides() -> Dict[str, Any]:
             overrides['empirical_strength'] = strength
         else:
             overrides['empirical_strength'] = 'moderate'
-        print(f"   ✓ Using '{overrides['empirical_strength']}' empirical aging constraint")
+        print(f"   Using empirical aging loss with '{overrides['empirical_strength']}' strength")
     
     else:
-        print("   ✓ Using default model-specific loss")
+        overrides['loss_function'] = 'mse'
+        print("   Invalid choice, using MSE Loss (default)")
     
     # Aging enforcer for predictions
     print("\n3. AGING ENFORCER (Fielding Predictions)")
@@ -368,10 +383,10 @@ def get_hyperparameter_overrides() -> Dict[str, Any]:
     
     if aging_choice == '2':
         overrides['use_aging_enforcer'] = True
-        print("   ✓ Aging enforcer enabled for fielding predictions")
+        print("   Aging enforcer enabled for fielding predictions")
     else:
         overrides['use_aging_enforcer'] = False
-        print("   ✓ Aging enforcer disabled (using raw predictions)")
+        print("   Aging enforcer disabled (using raw predictions)")
     
     print("\n" + "=" * 60)
     return overrides
@@ -387,7 +402,7 @@ def run_command(command: str, description: str, timeout: int = 7200) -> bool:
     if command.startswith('python '):
         command = f'"{PYTHON_EXE}" ' + command[7:]
     
-    logger.info(f"▶ {description}")
+    logger.info(f"Starting: {description}")
     logger.info(f"Command: {command}")
     
     start_time = datetime.now()
@@ -413,29 +428,34 @@ def run_command(command: str, description: str, timeout: int = 7200) -> bool:
         duration = datetime.now() - start_time
         
         if process.returncode == 0:
-            logger.info(f"✅ {description} completed in {duration}")
+            logger.info(f"SUCCESS: {description} completed in {duration}")
             return True
         else:
-            logger.error(f"❌ {description} failed with code {process.returncode}")
+            logger.error(f"FAILED: {description} failed with code {process.returncode}")
             return False
             
     except subprocess.TimeoutExpired:
-        logger.error(f"❌ {description} timed out after {timeout}s")
+        logger.error(f"TIMEOUT: {description} timed out after {timeout}s")
         process.kill()
         return False
     except Exception as e:
-        logger.error(f"❌ {description} failed: {str(e)}")
+        logger.error(f"ERROR: {description} failed: {str(e)}")
         return False
 
 
 def train_models(selected_models: List[str], hyperparameter_overrides: Dict[str, Any]) -> bool:
     """Train selected models"""
-    print(f"\n🏋️ Training {len(selected_models)} model(s)...")
+    print(f"\nTraining {len(selected_models)} model(s)...")
     
     # Show loss function info
-    if hyperparameter_overrides.get('empirical_loss'):
+    loss_func = hyperparameter_overrides.get('loss_function', 'mse')
+    if loss_func == 'mse':
+        print(f"Using MSE LOSS (default - simple mean squared error)")
+    elif loss_func == 'weighted':
+        print(f"Using WEIGHTED LOSS (model-specific sample/feature weighting)")
+    elif loss_func == 'empirical':
         strength = hyperparameter_overrides.get('empirical_strength', 'moderate')
-        print(f"📊 Using EMPIRICAL AGING LOSS with '{strength}' strength")
+        print(f"Using EMPIRICAL AGING LOSS with '{strength}' strength")
         print("   (Data-derived aging parameters from aging_parameters_v2.json)")
     
     success_count = 0
@@ -449,11 +469,14 @@ def train_models(selected_models: List[str], hyperparameter_overrides: Dict[str,
         if 'epochs' in hyperparameter_overrides:
             command += f" --epochs {hyperparameter_overrides['epochs']}"
         
-        # Apply empirical loss settings
-        if hyperparameter_overrides.get('empirical_loss'):
-            command += " --empirical-loss"
-            if 'empirical_strength' in hyperparameter_overrides:
-                command += f" --empirical-strength {hyperparameter_overrides['empirical_strength']}"
+        # Apply loss function selection
+        if 'loss_function' in hyperparameter_overrides:
+            command += f" --loss-function {hyperparameter_overrides['loss_function']}"
+            
+            # Add empirical loss parameters if using empirical loss
+            if hyperparameter_overrides['loss_function'] == 'empirical':
+                if 'empirical_strength' in hyperparameter_overrides:
+                    command += f" --empirical-strength {hyperparameter_overrides['empirical_strength']}"
         
         description = f"Training {model_key}"
         
@@ -478,7 +501,7 @@ def generate_predictions(selected_models: List[str], use_aging_enforcer: bool = 
         selected_models: List of model keys to generate predictions for
         use_aging_enforcer: Whether to apply aging constraints to fielding predictions
     """
-    print(f"\n🔮 Generating predictions for {len(selected_models)} model(s)...")
+    print(f"\nGenerating predictions for {len(selected_models)} model(s)...")
     
     # Group models by prediction command
     prediction_commands = {}
@@ -529,7 +552,7 @@ def check_prediction_files() -> bool:
             missing.append(filename)
     
     if missing:
-        logger.error(f"❌ Missing prediction files: {', '.join(missing)}")
+        logger.error(f"ERROR: Missing prediction files: {', '.join(missing)}")
         logger.error("Please generate predictions first (option 2) or run full pipeline (option 4)")
         return False
     
@@ -551,7 +574,7 @@ def run_projection_engine(projection_year: int = 2026) -> bool:
     Returns:
         True if successful
     """
-    print(f"\n⚙️ Running Projection Engine for {projection_year}...")
+    print(f"\nRunning Projection Engine for {projection_year}...")
     print("   → Allocating playing time based on wOBA/FIP rankings")
     print("   → Calculating WAR based on allocated games/IP")
     print("   → Incorporating injury adjustments")
@@ -568,9 +591,9 @@ def run_projection_engine(projection_year: int = 2026) -> bool:
     if success:
         output_file = DATA_DIR / 'generated' / 'playing_time' / f'projections_{projection_year}.csv'
         if output_file.exists():
-            logger.info(f"✅ Final projections saved to: {output_file}")
+            logger.info(f"SUCCESS: Final projections saved to: {output_file}")
         else:
-            logger.warning("⚠️ Output file not found at expected location")
+            logger.warning("WARNING: Output file not found at expected location")
     
     return success
 
@@ -589,7 +612,7 @@ def calculate_trade_values() -> bool:
     Returns:
         True if successful
     """
-    print("\n💰 Calculating Trade Values...")
+    print("\nCalculating Trade Values...")
     print("   → Loading predictions and salary data")
     print("   → Calculating WAR with park factors")
     print("   → Computing surplus value (WAR value - salary cost)")
@@ -607,16 +630,16 @@ def calculate_trade_values() -> bool:
     if success:
         output_file = DATA_DIR / 'generated' / 'value_by_year' / 'player_values_complete.csv'
         if output_file.exists():
-            logger.info(f"✅ Trade values saved to: {output_file}")
+            logger.info(f"SUCCESS: Trade values saved to: {output_file}")
         else:
-            logger.warning("⚠️ Output file not found at expected location")
+            logger.warning("WARNING: Output file not found at expected location")
     
     return success
 
 
 def run_full_pipeline() -> bool:
     """Run complete pipeline: train → predict → project (playing time + WAR) → trade values"""
-    print("\n🚀 Starting Full Pipeline...")
+    print("\nStarting Full Pipeline...")
     print("This will: Train all models → Generate predictions → Run Projection Engine → Calculate Trade Values")
     print("\nPipeline stages:")
     print("  1. Pre-train batter, pitcher_sp, pitcher_rp on classical features")
@@ -646,7 +669,7 @@ def run_full_pipeline() -> bool:
     print("PHASE 1: PRE-TRAINING (Classical features)")
     print("="*60)
     if not train_models(pretrain_models, overrides):
-        logger.error("❌ Pre-training phase failed")
+        logger.error("FAILED: Pre-training phase failed")
         return False
     
     # Fine-tuning phase (requires pre-trained checkpoints)
@@ -655,7 +678,7 @@ def run_full_pipeline() -> bool:
     print("PHASE 2: FINE-TUNING (Statcast features)")
     print("="*60)
     if not train_models(finetune_models, overrides):
-        logger.error("❌ Fine-tuning phase failed")
+        logger.error("FAILED: Fine-tuning phase failed")
         return False
     
     # Other models (no transfer learning)
@@ -664,30 +687,30 @@ def run_full_pipeline() -> bool:
     print("PHASE 3: OTHER MODELS (Baserunning, Defense)")
     print("="*60)
     if not train_models(other_models, overrides):
-        logger.error("❌ Other models training failed")
+        logger.error("FAILED: Other models training failed")
         return False
     
     # Step 2: Generate predictions (use finetuned models)
     prediction_models = ['batter_finetune', 'pitcher_sp_finetune', 'baserunning', 'defense_infield']
     use_aging_enforcer = overrides.get('use_aging_enforcer', False)
     if not generate_predictions(prediction_models, use_aging_enforcer):
-        logger.error("❌ Prediction phase failed")
+        logger.error("FAILED: Prediction phase failed")
         return False
     
     # Step 3: Run Projection Engine (playing time + WAR)
     if not run_projection_engine(projection_year):
-        logger.error("❌ Projection engine failed")
+        logger.error("FAILED: Projection engine failed")
         return False
     
     # Step 4: Calculate Trade Values
     if not calculate_trade_values():
-        logger.error("❌ Trade value calculation failed")
+        logger.error("FAILED: Trade value calculation failed")
         return False
     
     duration = datetime.now() - start_time
     
     print(f"\n{'='*70}")
-    print("🎉 FULL PIPELINE COMPLETED SUCCESSFULLY!")
+    print("FULL PIPELINE COMPLETED SUCCESSFULLY!")
     print(f"Total duration: {duration}")
     print(f"Projection year: {projection_year}")
     print(f"{'='*70}\n")
@@ -697,7 +720,7 @@ def run_full_pipeline() -> bool:
 
 def display_output_files():
     """Display information about generated files"""
-    print("\n📁 Generated Files:")
+    print("\nGenerated Files:")
     
     playing_time_dir = DATA_DIR / 'generated' / 'playing_time'
     
@@ -724,9 +747,9 @@ def display_output_files():
         for filepath in files:
             if filepath.exists():
                 size = filepath.stat().st_size
-                print(f"  ✅ {filepath.name}: {size:,} bytes ({size/1024/1024:.1f} MB)")
+                print(f"  SUCCESS: {filepath.name}: {size:,} bytes ({size/1024/1024:.1f} MB)")
             else:
-                print(f"  ❌ {filepath.name}: Not found")
+                print(f"  MISSING: {filepath.name}: Not found")
 
 
 def main():
@@ -775,14 +798,14 @@ def main():
             
         elif choice == '6':
             # Exit
-            print("\n👋 Exiting pipeline. Goodbye!")
+            print("\nExiting pipeline. Goodbye!")
             display_output_files()
             break
         
         # Ask if user wants to continue
         print("\nReturn to main menu? (y/n)")
         if input("> ").strip().lower() != 'y':
-            print("\n👋 Exiting pipeline. Goodbye!")
+            print("\nExiting pipeline. Goodbye!")
             display_output_files()
             break
 
@@ -791,11 +814,11 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n⚠️ Pipeline interrupted by user")
+        print("\n\nWARNING: Pipeline interrupted by user")
         display_output_files()
         sys.exit(0)
     except Exception as e:
-        logger.error(f"💥 Pipeline failed with error: {str(e)}")
+        logger.error(f"ERROR: Pipeline failed with error: {str(e)}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

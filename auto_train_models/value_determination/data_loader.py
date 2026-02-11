@@ -141,8 +141,7 @@ def merge_prediction_data(sp_df: pd.DataFrame,
     
     # Additional stat columns to preserve if they exist
     stat_cols = ['BsR', 'Def', 'Off', 'G', 'PA', 'BB%', 'K%', 'AVG', 'OBP', 'SLG',
-                 'wOBA', 'wRC+', 'HR', '2B', '3B', 'RBI', 'R', 'SB', 'CS',
-                 'HR_rate', '2B_rate', 'RBI_rate', 'R_rate',
+                 'wOBA', 'wRC+', 'HR', '2B', '3B', 'RBI', 'R', 'SB', 'CS', 'HBP', 'SF',
                  'ERA', 'FIP', 'SIERA', 'IP', 'GS', 'Role']
     
     logger.info(f"SP columns: {sp_df.columns.tolist()}")

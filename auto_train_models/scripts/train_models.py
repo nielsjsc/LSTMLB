@@ -4,6 +4,8 @@ import argparse
 import sys
 import os
 import numpy as np
+import torch
+import torch.nn as nn
 
 # Add the auto_train_models directory to the path (parent of scripts/)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -51,16 +53,22 @@ def main():
     # ==========================================================================
     # LOSS FUNCTION SELECTION
     # ==========================================================================
-    # NEW: Empirical aging loss (RECOMMENDED) - uses data-derived aging parameters
-    parser.add_argument('--empirical-loss', action='store_true',
-                       help='[RECOMMENDED] Use empirical aging loss (data-derived parameters from aging_parameters.json)')
+    parser.add_argument('--loss-function', type=str, default='mse',
+                       choices=['mse', 'weighted', 'empirical'],
+                       help='Loss function to use: mse (default), weighted (model-specific), empirical (aging-constrained)')
+    
+    # Empirical aging loss parameters (only used if --loss-function empirical)
     parser.add_argument('--aging-weight', type=float, default=0.10,
                        help='Weight for aging constraint in empirical loss (default: 0.10)')
     parser.add_argument('--aging-tolerance', type=float, default=1.5,
                        help='Std tolerance before penalizing improvement (default: 1.5)')
     parser.add_argument('--empirical-strength', type=str, default='moderate',
                        choices=['none', 'light', 'moderate', 'strong', 'aggressive'],
-                       help='Preset strength for empirical loss. Use strong/aggressive for fielding (default: moderate)')
+                       help='Preset strength for empirical loss (default: moderate)')
+    
+    # Legacy flag for backwards compatibility
+    parser.add_argument('--empirical-loss', action='store_true',
+                       help='[DEPRECATED] Use --loss-function empirical instead')
     
     args = parser.parse_args()
     
@@ -178,6 +186,9 @@ def train_single_model(args):
                 gradient_clip=getattr(config_class, 'GRADIENT_CLIP', 1.0),
                 batch_size=config_class.FINETUNE_BATCH_SIZE
             )
+            # Set training parameters as attributes
+            train_config.num_epochs = getattr(config_class, 'NUM_EPOCHS', 50)
+            train_config.early_stopping_patience = getattr(config_class, 'EARLY_STOPPING_PATIENCE', 10)
             logger.info(f"Using finetune-specific hyperparameters from {args.model} config class")
         else:
             # Use pretrain/default hyperparameters
@@ -193,6 +204,16 @@ def train_single_model(args):
                 gradient_clip=getattr(config_class, 'GRADIENT_CLIP', 1.0),
                 batch_size=getattr(config_class, 'BATCH_SIZE', 16)
             )
+            # Set training parameters as attributes
+            train_config.num_epochs = getattr(config_class, 'NUM_EPOCHS', 50)
+            train_config.early_stopping_patience = getattr(config_class, 'EARLY_STOPPING_PATIENCE', 10)
+            
+            # Override warmup and mixed precision if specified in config
+            if hasattr(config_class, 'WARMUP_EPOCHS'):
+                train_config.warmup_epochs = config_class.WARMUP_EPOCHS
+            if hasattr(config_class, 'MIXED_PRECISION'):
+                train_config.mixed_precision = config_class.MIXED_PRECISION
+            
             logger.info(f"Using model-specific hyperparameters from {args.model} config class")
     else:
         # Use generic Config defaults
@@ -201,6 +222,20 @@ def train_single_model(args):
         
     if args.epochs:
         train_config.num_epochs = args.epochs
+    
+    # Log important training config to help debug NaN issues
+    logger.info("=" * 70)
+    logger.info("TRAINING CONFIGURATION")
+    logger.info("=" * 70)
+    logger.info(f"Learning Rate: {train_config.learning_rate:.2e}")
+    logger.info(f"Batch Size: {train_config.batch_size}")
+    logger.info(f"Warmup Epochs: {train_config.warmup_epochs}")
+    logger.info(f"Mixed Precision: {train_config.mixed_precision}")
+    logger.info(f"Gradient Clip: {train_config.gradient_clip}")
+    logger.info(f"Hidden Size: {train_config.hidden_size}")
+    logger.info(f"Num Layers: {train_config.num_layers}")
+    logger.info(f"Dropout: {train_config.dropout}")
+    logger.info("=" * 70)
     
     # Create data loaders
     train_loader = DataLoader(
@@ -345,20 +380,37 @@ def train_single_model(args):
         
     elif args.model == 'batter':
         # =========================================================================
-        # DEFAULT BATTER LOSS (no aging constraint)
+        # BATTER LOSS FUNCTION SELECTION
         # =========================================================================
-        rate_stats_indices = [i for i, feat in enumerate(output_features) 
-                             if not feat.endswith('_rate')]
-        counting_stats_indices = [i for i, feat in enumerate(output_features) 
-                                if feat.endswith('_rate')]
-        
-        criterion = WeightedPlayerDifferentiationLoss(
-            rate_stats_indices=rate_stats_indices,
-            counting_stats_indices=counting_stats_indices
-        ).to(device)
-        logger.info(f"Using WeightedPlayerDifferentiationLoss for batter model")
-        logger.info(f"Rate stats indices: {rate_stats_indices}")
-        logger.info(f"Counting stats indices: {counting_stats_indices}")
+        # Check if user requested MSE loss via --loss-function argument
+        if args.loss_function == 'mse':
+            criterion = nn.MSELoss().to(device)
+            logger.info(f"Using MSELoss for batter model (user-selected)")
+        elif args.loss_function == 'empirical':
+            # Import empirical loss
+            from core.empirical_losses import create_empirical_loss
+            criterion = create_empirical_loss(
+                model_type='batter',
+                feature_names=output_features,
+                strength_preset=args.empirical_strength,
+                aging_weight=args.aging_weight,
+                aging_tolerance=args.aging_tolerance
+            ).to(device)
+            logger.info(f"Using EmpiricalBaseballLoss for batter model (strength: {args.empirical_strength})")
+        else:
+            # Default: WeightedPlayerDifferentiationLoss
+            rate_stats_indices = [i for i, feat in enumerate(output_features) 
+                                 if not feat.endswith('_rate')]
+            counting_stats_indices = [i for i, feat in enumerate(output_features) 
+                                    if feat.endswith('_rate')]
+            
+            criterion = WeightedPlayerDifferentiationLoss(
+                rate_stats_indices=rate_stats_indices,
+                counting_stats_indices=counting_stats_indices
+            ).to(device)
+            logger.info(f"Using WeightedPlayerDifferentiationLoss for batter model")
+            logger.info(f"Rate stats indices: {rate_stats_indices}")
+            logger.info(f"Counting stats indices: {counting_stats_indices}")
     elif args.model.startswith('defense'):
         # For defense models, use InningsWeightedLoss with position-specific weights
         criterion = InningsWeightedLoss(feature_weights=config_class.FEATURE_WEIGHTS).to(device)
