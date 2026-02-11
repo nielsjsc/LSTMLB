@@ -19,22 +19,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 def normalize_team_abbreviation(team: str) -> str:
-    """Normalize team abbreviations to match prospect data format (3-letter codes)"""
-    team_mapping = {
-        'SF': 'SFG',
-        'SD': 'SDP',
-        'KC': 'KCR',
-        'ATH': 'OAK',
-        'TB': 'TBR',
-        # Also handle reverse mapping for queries
-        'SFG': 'SFG',
-        'SDP': 'SDP',
-        'KCR': 'KCR',
-        'OAK': 'OAK',
-        'TBR': 'TBR'
+    """Normalize team abbreviations - players use 2-letter codes, prospects use 3-letter codes"""
+    # Map from prospect 3-letter codes to player 2-letter codes for output consistency
+    from_prospect_to_player = {
+        'SFG': 'SF',
+        'SDP': 'SD',
+        'KCR': 'KC',
+        'OAK': 'ATH',
+        'TBR': 'TB'
     }
-    normalized = team_mapping.get(team.upper(), team.upper())
-    return normalized
+    # Map from player 2-letter codes to themselves (identity)
+    player_codes = {'SF', 'SD', 'KC', 'ATH', 'TB'}
+    
+    team_upper = team.upper()
+    # If it's a 3-letter prospect code, convert to 2-letter player code
+    if team_upper in from_prospect_to_player:
+        return from_prospect_to_player[team_upper]
+    # Otherwise return as-is (uppercase)
+    return team_upper
 
 @router.get("/")
 async def get_players(
@@ -66,24 +68,8 @@ async def get_players(
             query = query.filter(normalized_name.like(f"%{normalized_search}%"))
             
         if team:
-            # Normalize team abbreviation and check both formats
-            normalized_team = normalize_team_abbreviation(team)
-            # Handle historical variations: check if player.team matches either format
-            # E.g., for KCR, accept both 'KC' and 'KCR' in database
-            alt_teams = []
-            if normalized_team == 'KCR':
-                alt_teams = ['KC', 'KCR']
-            elif normalized_team == 'OAK':
-                alt_teams = ['ATH', 'OAK']
-            elif normalized_team == 'TBR':
-                alt_teams = ['TB', 'TBR']
-            elif normalized_team == 'SDP':
-                alt_teams = ['SD', 'SDP']
-            elif normalized_team == 'SFG':
-                alt_teams = ['SF', 'SFG']
-            else:
-                alt_teams = [normalized_team]
-            query = query.filter(Player.team.in_(alt_teams))
+            # Players use 2-letter codes (TB, SD, SF, ATH, KC) directly
+            query = query.filter(Player.team == team.upper())
             
         if position:
             query = query.filter(
@@ -113,7 +99,7 @@ async def get_players(
                     "real_id": p.real_id,
                     "mlb_id": p.mlb_id,
                     "name": p.name,
-                    "team": normalize_team_abbreviation(p.team) if p.team else p.team,
+                    "team": p.team,
                     "position": p.position,
                     "status": p.status,
                     "age": p.age,
@@ -160,13 +146,13 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
         
         response = {
             "name": current_year_data.name,
-            "team": normalize_team_abbreviation(current_year_data.team) if current_year_data.team else current_year_data.team,
+            "team": current_year_data.team,
             "position": current_year_data.position,
             "mlb_id": current_year_data.mlb_id,
             "projections": [{
                 "year": p.year,
                 "age": p.age,
-                "team": normalize_team_abbreviation(p.team) if p.team else p.team,
+                "team": p.team,
                 "position": p.position,
                 "status": p.status,
                 "fa_year": p.fa_year,

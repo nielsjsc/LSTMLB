@@ -41,6 +41,13 @@ const teamColorMap: Record<string, TeamColors> = {
     gradient: 'linear-gradient(135deg, #092C5C 0%, #8FBCE6 100%)',
     bg: 'rgba(9, 44, 92, 0.08)',
   },
+  TB: { // Alias for player database
+    primary: '#092C5C',
+    secondary: '#8FBCE6',
+    accent: '#8FBCE6',
+    gradient: 'linear-gradient(135deg, #092C5C 0%, #8FBCE6 100%)',
+    bg: 'rgba(9, 44, 92, 0.08)',
+  },
   TOR: {
     primary: '#134A8E',
     secondary: '#1D2D5C',
@@ -78,6 +85,13 @@ const teamColorMap: Record<string, TeamColors> = {
     gradient: 'linear-gradient(135deg, #004687 0%, #BD9B60 100%)',
     bg: 'rgba(0, 70, 135, 0.08)',
   },
+  KC: { // Alias for player database
+    primary: '#004687',
+    secondary: '#BD9B60',
+    accent: '#6BA4E8',
+    gradient: 'linear-gradient(135deg, #004687 0%, #BD9B60 100%)',
+    bg: 'rgba(0, 70, 135, 0.08)',
+  },
   MIN: {
     primary: '#002B5C',
     secondary: '#D31145',
@@ -102,6 +116,13 @@ const teamColorMap: Record<string, TeamColors> = {
     bg: 'rgba(186, 0, 33, 0.08)',
   },
   OAK: {
+    primary: '#003831',
+    secondary: '#EFB21E',
+    accent: '#4DAB8E',
+    gradient: 'linear-gradient(135deg, #003831 0%, #EFB21E 100%)',
+    bg: 'rgba(0, 56, 49, 0.08)',
+  },
+  ATH: { // Alias for player database
     primary: '#003831',
     secondary: '#EFB21E',
     accent: '#4DAB8E',
@@ -153,6 +174,13 @@ const teamColorMap: Record<string, TeamColors> = {
     bg: 'rgba(232, 24, 40, 0.08)',
   },
   WSN: {
+    primary: '#AB0003',
+    secondary: '#14225A',
+    accent: '#D45B5D',
+    gradient: 'linear-gradient(135deg, #AB0003 0%, #14225A 100%)',
+    bg: 'rgba(171, 0, 3, 0.08)',
+  },
+  WSH: { // Alias for player database
     primary: '#AB0003',
     secondary: '#14225A',
     accent: '#D45B5D',
@@ -226,7 +254,21 @@ const teamColorMap: Record<string, TeamColors> = {
     gradient: 'linear-gradient(135deg, #2F241D 0%, #FFC425 100%)',
     bg: 'rgba(255, 196, 37, 0.06)',
   },
+  SD: { // Alias for player database
+    primary: '#2F241D',
+    secondary: '#FFC425',
+    accent: '#FFCF5B',
+    gradient: 'linear-gradient(135deg, #2F241D 0%, #FFC425 100%)',
+    bg: 'rgba(255, 196, 37, 0.06)',
+  },
   SFG: {
+    primary: '#FD5A1E',
+    secondary: '#27251F',
+    accent: '#FD8A5E',
+    gradient: 'linear-gradient(135deg, #FD5A1E 0%, #27251F 100%)',
+    bg: 'rgba(253, 90, 30, 0.08)',
+  },
+  SF: { // Alias for player database
     primary: '#FD5A1E',
     secondary: '#27251F',
     accent: '#FD8A5E',

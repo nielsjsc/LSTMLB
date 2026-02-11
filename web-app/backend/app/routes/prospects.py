@@ -18,6 +18,17 @@ from typing import Optional, List
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+def map_ui_to_prospect_team(team: str) -> str:
+    """Map UI team codes (2-letter) to prospect database codes (3-letter)"""
+    ui_to_prospect = {
+        'SF': 'SFG',
+        'SD': 'SDP',
+        'KC': 'KCR',
+        'ATH': 'OAK',
+        'TB': 'TBR'
+    }
+    return ui_to_prospect.get(team.upper(), team.upper())
+
 def is_pitcher(position: str) -> bool:
     """Determine if a player is a pitcher based on position"""
     return 'p' in position.lower() if position else False
@@ -51,7 +62,8 @@ async def get_prospects(
         
         # Apply other filters
         if team:
-            query = query.filter(Prospect.org == team.upper())
+            prospect_team = map_ui_to_prospect_team(team)
+            query = query.filter(Prospect.org == prospect_team)
         if position:
             if position == 'OF':
                 query = query.filter(or_(

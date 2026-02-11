@@ -31,6 +31,7 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
     const isProspect = 'value' in asset && !('total_production' in asset);
     const surplusPct = (Math.abs(asset.total_surplus) / maxSurplus) * 100;
     const isPositive = asset.total_surplus >= 0;
+    const uniqueKey = 'playerId' in asset ? asset.playerId : ('mlb_id' in asset ? asset.mlb_id : ('real_id' in asset ? asset.real_id : asset.name));
 
     const getPositionColor = (position: string | undefined) => {
       if (!position) return 'bg-surface-600 text-surface-300';
@@ -43,7 +44,7 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
     };
 
     return (
-      <div key={asset.name} className="rounded-lg border border-white/[0.05] bg-white/[0.02] overflow-hidden">
+      <div key={uniqueKey} className="rounded-lg border border-white/[0.05] bg-white/[0.02] overflow-hidden">
         {/* Asset header */}
         <div className="flex items-center gap-3 px-4 py-3">
           {'position' in asset && (

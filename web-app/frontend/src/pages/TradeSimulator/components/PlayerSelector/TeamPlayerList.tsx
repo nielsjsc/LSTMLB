@@ -86,7 +86,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
 
             return (
               <div
-                key={asset.name}
+                key={'playerId' in asset ? asset.playerId : ('mlb_id' in asset ? asset.mlb_id : asset.real_id)}
                 className="group relative flex items-center gap-3 p-3 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-all duration-200"
               >
                 {/* Position badge */}
@@ -216,7 +216,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
                   const war = player.war_bat || player.war_pit || 0;
                   return (
                     <button
-                      key={player.name}
+                      key={player.mlb_id || player.real_id}
                       onClick={() => {
                         onAssetSelect(player, false);
                         setSearchQuery('');
@@ -240,7 +240,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
               ) : (
                 filteredProspects.slice(0, 50).map(prospect => (
                   <button
-                    key={prospect.name}
+                    key={prospect.playerId}
                     onClick={() => {
                       onAssetSelect(prospect, true);
                       setSearchQuery('');
