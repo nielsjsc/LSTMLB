@@ -77,7 +77,7 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
                 <th
                   key={header.key}
                   onClick={() => onSort(header.key)}
-                  className="px-3 py-3 text-left text-[11px] font-semibold text-surface-400 uppercase tracking-wider cursor-pointer hover:text-white hover:bg-white/[0.04] select-none transition-colors"
+                  className="px-1.5 py-2 text-left text-[10px] font-semibold text-surface-400 uppercase tracking-wide cursor-pointer hover:text-white hover:bg-white/[0.04] select-none transition-colors"
                 >
                   <div className="flex items-center gap-1">
                     <span>{header.label}</span>
@@ -91,8 +91,8 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
           </thead>
           <tbody>
             {data.players.map((player, i) => (
-              <tr key={i} className={`text-[13px] border-b border-white/[0.03] hover:bg-white/[0.04] transition-colors ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}`}>
-                <td className="px-3 py-2.5 whitespace-nowrap">
+              <tr key={i} className={`text-[11px] border-b border-white/[0.03] hover:bg-white/[0.04] transition-colors ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}`}>
+                <td className="px-1.5 py-2 whitespace-nowrap">
                   {player.has_mlb && player.IDfg ? (
                     <Link 
                       to={`/players/${player.IDfg}`} 
@@ -106,27 +106,27 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.org}</td>
-                <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.position}</td>
-                <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.age}</td>
-                <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.fv}</td>
-                <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{formatValue(player.value)}</td>
-                <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{formatRanking(player.composite)}</td>
+                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.org}</td>
+                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.position}</td>
+                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.age}</td>
+                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.fv}</td>
+                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{formatValue(player.value)}</td>
+                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{formatRanking(player.composite)}</td>
 
                 {playerType === 'hitter' ? (
                   <>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.hit || '-'}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.game || '-'}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.raw || '-'}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.speed || '-'}</td>
+                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.hit || '-'}</td>
+                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.game || '-'}</td>
+                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.raw || '-'}</td>
+                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.speed || '-'}</td>
                   </>
                 ) : (
                   <>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.fastball || '-'}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.slider || '-'}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.curve || '-'}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.change || '-'}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">{player.command || '-'}</td>
+                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.fastball || '-'}</td>
+                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.slider || '-'}</td>
+                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.curve || '-'}</td>
+                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.change || '-'}</td>
+                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.command || '-'}</td>
                   </>
                 )}
               </tr>

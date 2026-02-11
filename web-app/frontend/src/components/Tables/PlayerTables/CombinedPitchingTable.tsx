@@ -130,9 +130,9 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
               <th
                 key={header.key}
                 onClick={() => handleSort(header.key)}
-                className="px-3 py-3 text-left text-[11px] font-semibold text-surface-400 uppercase tracking-wider cursor-pointer hover:text-white hover:bg-white/[0.04] select-none transition-colors"
+                className="px-1.5 py-2 text-left text-[10px] font-semibold text-surface-400 uppercase tracking-wide cursor-pointer hover:text-white hover:bg-white/[0.04] select-none transition-colors"
               >
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5">
                   <span>{header.label}</span>
                   {sortKey === header.key && (
                     <span className="text-brand-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
@@ -161,12 +161,12 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
                 )}
                 <tr 
                   className={`
-                    text-[13px] border-b border-white/[0.03] hover:bg-white/[0.04] transition-colors
+                    text-[11px] border-b border-white/[0.03] hover:bg-white/[0.04] transition-colors
                     ${isProjYear ? 'bg-brand-400/[0.02]' : (i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]')}
                   `}
                 >
                   {headers.map((header) => (
-                    <td key={header.key} className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">
+                    <td key={header.key} className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">
                       {formatCell(header.key, row[header.key])}
                     </td>
                   ))}

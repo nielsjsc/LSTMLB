@@ -190,7 +190,7 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
                 <th
                   key={header.key}
                   onClick={() => onSort(header.key)}
-                  className="px-3 py-3 text-left text-[11px] font-semibold text-surface-400 uppercase tracking-wider cursor-pointer hover:text-white hover:bg-white/[0.04] select-none transition-colors"
+                  className="px-1.5 py-2 text-left text-[10px] font-semibold text-surface-400 uppercase tracking-wide cursor-pointer hover:text-white hover:bg-white/[0.04] select-none transition-colors"
                 >
                   <div className="flex items-center gap-1">
                     <span>{header.label}</span>
@@ -206,7 +206,7 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
             {formattedData.map((row, i) => (
               <tr key={i} className={`text-[13px] border-b border-white/[0.03] hover:bg-white/[0.04] transition-colors ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}`}>
                 {headers.map((header) => (
-                  <td key={header.key} className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">
+                  <td key={header.key} className="px-1.5 py-2 whitespace-nowrap text-[11px] text-surface-300 font-mono">
                     {formatCell(header.key, row[header.key])}
                   </td>
                 ))}

@@ -78,58 +78,13 @@ const PlayerHeadshot: React.FC<{ mlbId: number | null; name: string; teamColor: 
   );
 };
 
-/** ──────────────────────────────────────────────────────────
- *  WAR Ring — SVG radial gauge that draws the eye
- *  ────────────────────────────────────────────────────────── */
-const WarRing: React.FC<{
-  value: number;
-  max?: number;
-  label?: string;
-  color: string;
-  size?: number;
-}> = ({ value, max = 8, label = 'WAR', color, size = 120 }) => {
-  const strokeWidth = 8;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const pct = clamp01(Math.abs(value) / max);
-  const offset = circumference * (1 - pct);
 
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90">
-          {/* Track */}
-          <circle
-            cx={size / 2} cy={size / 2} r={radius}
-            fill="none" stroke="currentColor"
-            className="text-surface-700/60" strokeWidth={strokeWidth}
-          />
-          {/* Fill */}
-          <circle
-            cx={size / 2} cy={size / 2} r={radius}
-            fill="none" stroke={color} strokeWidth={strokeWidth}
-            strokeLinecap="round" strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            className="transition-all duration-1000 ease-out"
-          />
-        </svg>
-        {/* Center text */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-extrabold text-white leading-none" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            {value.toFixed(1)}
-          </span>
-        </div>
-      </div>
-      <span className="text-[11px] uppercase tracking-widest text-surface-400 font-semibold">{label}</span>
-    </div>
-  );
-};
 
 /** ──────────────────────────────────────────────────────────
  *  Surplus Bar — horizontal value bar (-$50M → +$50M range)
  *  ────────────────────────────────────────────────────────── */
 const SurplusBar: React.FC<{ value: number; teamColor: string }> = ({ value, teamColor }) => {
-  const maxAbs = 80_000_000; // $80M range
+  const maxAbs = 200_000_000; // $200M range
   const pct = clamp01((value / maxAbs + 1) / 2); // 0 = -max, 0.5 = 0, 1 = +max
   const isPositive = value >= 0;
 
@@ -160,9 +115,9 @@ const SurplusBar: React.FC<{ value: number; teamColor: string }> = ({ value, tea
         />
       </div>
       <div className="flex justify-between mt-1">
-        <span className="text-[10px] text-surface-600">-$80M</span>
+        <span className="text-[10px] text-surface-600">-$200M</span>
         <span className="text-[10px] text-surface-600">$0</span>
-        <span className="text-[10px] text-surface-600">+$80M</span>
+        <span className="text-[10px] text-surface-600">+$200M</span>
       </div>
     </div>
   );
@@ -223,43 +178,33 @@ const ContractTimeline: React.FC<{
           );
         })}
       </div>
-      <div className="flex gap-3 mt-2">
+      <div className="flex flex-wrap gap-3 mt-2">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: teamColor }} />
           <span className="text-[10px] text-surface-500">Under Control</span>
         </div>
+        {faEarliest && faEarliest !== faProbable && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-sm bg-transparent" style={{ border: '1.5px dashed #f59e0b' }} />
+            <span className="text-[10px] text-surface-500">Option Year (earliest FA)</span>
+          </div>
+        )}
         {faProbable && (
           <div className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-sm bg-amber-500/30 border border-amber-500/60" />
-            <span className="text-[10px] text-surface-500">Likely FA</span>
+            <span className="text-[10px] text-surface-500">Probable FA</span>
           </div>
         )}
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-sm bg-white/[0.04] border border-white/[0.08]" />
+          <span className="text-[10px] text-surface-500">Free Agent</span>
+        </div>
       </div>
     </div>
   );
 };
 
-/** ──────────────────────────────────────────────────────────
- *  Stat Spotlight — large featured stat with context
- *  ────────────────────────────────────────────────────────── */
-const StatSpotlight: React.FC<{
-  label: string;
-  value: string;
-  subtitle?: string;
-  color?: string;
-  icon?: React.ReactNode;
-}> = ({ label, value, subtitle, color }) => (
-  <div className="flex flex-col items-center text-center px-3 py-4 rounded-xl bg-surface-800/40 border border-white/[0.04]">
-    <span className="text-[10px] uppercase tracking-widest text-surface-500 font-semibold mb-1">{label}</span>
-    <span
-      className="text-2xl md:text-3xl font-extrabold leading-none mb-0.5"
-      style={{ color: color ?? '#fff', fontVariantNumeric: 'tabular-nums' }}
-    >
-      {value}
-    </span>
-    {subtitle && <span className="text-[10px] text-surface-500 mt-1">{subtitle}</span>}
-  </div>
-);
+
 
 /** ──────────────────────────────────────────────────────────
  *  Collapsible Section wrapper
@@ -388,7 +333,6 @@ const PlayerDetails: React.FC = () => {
   const v = cur?.value;
 
   const projWar = v?.contract_war ?? 0;
-  const primaryWar = hasHitting && h ? h.war_bat : pit?.war_pit ?? 0;
 
   return (
     <div className="min-h-screen bg-surface-900">
@@ -451,76 +395,7 @@ const PlayerDetails: React.FC = () => {
               {/* Surplus value bar — right under the name for impact */}
               {v && <SurplusBar value={v.trade_value ?? 0} teamColor={colors.accent} />}
             </div>
-
-            {/* Right: WAR ring — the hero visual */}
-            <div className="hidden md:flex flex-col items-center gap-4 pt-2">
-              <WarRing
-                value={primaryWar}
-                label={hasHitting && hasPitching ? `${CURRENT_YEAR} WAR (bat)` : `${CURRENT_YEAR} WAR`}
-                color={colors.accent}
-                size={130}
-              />
-              {hasPitching && hasHitting && pit && (
-                <WarRing
-                  value={pit.war_pit}
-                  label={`${CURRENT_YEAR} WAR (pit)`}
-                  color={colors.primary}
-                  size={90}
-                />
-              )}
-            </div>
           </div>
-        </div>
-      </div>
-
-      {/* ════════════════════════════════════════════════════
-       *  STAT SPOTLIGHT ROW — 3-5 big eye-catching numbers
-       *  ════════════════════════════════════════════════════ */}
-      <div className="max-w-6xl mx-auto px-4 -mt-1 mb-8">
-        {/* Mobile WAR ring — visible only on small screens */}
-        <div className="flex md:hidden justify-center mb-6">
-          <WarRing value={primaryWar} label={`${CURRENT_YEAR} WAR`} color={colors.accent} size={110} />
-          {hasPitching && hasHitting && pit && (
-            <div className="ml-6">
-              <WarRing value={pit.war_pit} label="WAR (pit)" color={colors.primary} size={80} />
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-          {hasHitting && h && (
-            <>
-              <StatSpotlight label="AVG" value={fmt.dec(h.avg)} color={colors.accent} />
-              <StatSpotlight label="OPS" value={fmt.dec(h.ops)} />
-              <StatSpotlight label="wRC+" value={fmt.int(h.wrc_plus)} color={(h.wrc_plus ?? 0) >= 120 ? colors.accent : undefined} subtitle={
-                (h.wrc_plus ?? 0) >= 140 ? 'Elite' : (h.wrc_plus ?? 0) >= 120 ? 'Great' : (h.wrc_plus ?? 0) >= 100 ? 'Above Avg' : 'Below Avg'
-              } />
-              <StatSpotlight label="HR" value={fmt.int(h.hr)} />
-              <StatSpotlight label="SB" value={fmt.int(h.sb)} />
-            </>
-          )}
-          {hasPitching && pit && !hasHitting && (
-            <>
-              <StatSpotlight label="ERA" value={fmt.dec(pit.era)} color={colors.accent} />
-              <StatSpotlight label="FIP" value={fmt.dec(pit.fip)} />
-              <StatSpotlight label="SIERA" value={fmt.dec(pit.siera)} />
-              <StatSpotlight label="K%" value={fmt.pct(pit.k_pct_pit)} color={colors.accent} subtitle={
-                (pit.k_pct_pit ?? 0) >= 0.30 ? 'Elite' : (pit.k_pct_pit ?? 0) >= 0.25 ? 'Great' : 'Average'
-              } />
-              <StatSpotlight label="BB%" value={fmt.pct(pit.bb_pct_pit)} subtitle={
-                (pit.bb_pct_pit ?? 0) <= 0.06 ? 'Elite' : (pit.bb_pct_pit ?? 0) <= 0.08 ? 'Good' : 'Average'
-              } />
-            </>
-          )}
-          {hasPitching && pit && hasHitting && h && (
-            <>
-              <StatSpotlight label="ERA" value={fmt.dec(pit.era)} color={colors.accent} />
-              <StatSpotlight label="OPS" value={fmt.dec(h.ops)} />
-              <StatSpotlight label="K%" value={fmt.pct(pit.k_pct_pit)} color={colors.accent} />
-              <StatSpotlight label="wRC+" value={fmt.int(h.wrc_plus)} />
-              <StatSpotlight label="FIP" value={fmt.dec(pit.fip)} />
-            </>
-          )}
         </div>
       </div>
 
