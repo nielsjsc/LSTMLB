@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Player, Prospect } from '../../../../services/api';
 import { getTeamColors } from '../../../../utils/teamColors';
 
@@ -106,7 +107,16 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
 
                 {/* Player info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{asset.name}</p>
+                  {'id' in asset ? (
+                    <Link 
+                      to={`/players/${(asset as Player).id}`}
+                      className="text-sm font-medium text-white hover:text-brand-400 transition-colors truncate block"
+                    >
+                      {asset.name}
+                    </Link>
+                  ) : (
+                    <p className="text-sm font-medium text-white truncate">{asset.name}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-0.5">
                     {isProspect ? (
                       <>
@@ -210,7 +220,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
 
         {/* Dropdown results */}
         {isDropdownOpen && (
-          <div className="absolute z-20 w-full mt-1 bg-surface-800 border border-white/[0.08] rounded-lg shadow-xl shadow-black/30 max-h-[280px] overflow-y-auto">
+          <div className="absolute z-20 w-full mt-1 bg-surface-800/95 backdrop-blur-sm border border-white/[0.15] rounded-lg shadow-2xl shadow-black/50 max-h-[280px] overflow-y-auto">
             {activeTab === 'mlb' ? (
               filteredPlayers.length === 0 ? (
                 <div className="px-4 py-6 text-center text-surface-500 text-xs">No players found</div>
@@ -225,7 +235,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
                         setSearchQuery('');
                         setIsDropdownOpen(false);
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/[0.04] transition-colors duration-100 border-b border-white/[0.03] last:border-0"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-brand-400/10 transition-colors duration-100 border-b border-white/[0.06] last:border-0"
                     >
                       <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${getPositionColor(player.position)}`}>
                         {player.position}

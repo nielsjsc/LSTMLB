@@ -8,7 +8,7 @@ interface TradeMeterProps {
 
 const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, differential }) => {
   const [displayAngle, setDisplayAngle] = useState(0);
-  const maxDifferential = 50_000_000;
+  const maxDifferential = 100_000_000;
 
   // Calculate target angle: negative diff = team1 wins (left), positive = team2 wins (right)
   const targetAngle = useMemo(() => {
@@ -33,16 +33,8 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
     return () => cancelAnimationFrame(frame);
   }, [targetAngle]);
 
-  // Compute verdict
   const absDiff = Math.abs(differential);
-  const getVerdict = () => {
-    if (absDiff < 2_000_000) return { label: 'FAIR TRADE', color: '#34d399', emoji: '✅' };
-    if (absDiff < 10_000_000) return { label: 'SLIGHT EDGE', color: '#a3e635', emoji: '📊' };
-    if (absDiff < 25_000_000) return { label: 'UNEVEN', color: '#fbbf24', emoji: '⚠️' };
-    if (absDiff < 40_000_000) return { label: 'LOPSIDED', color: '#f97316', emoji: '🔥' };
-    return { label: 'ROBBERY', color: '#ef4444', emoji: '🚨' };
-  };
-  const verdict = getVerdict();
+  const needleGlowColor = absDiff < 5_000_000 ? '#34d399' : '#ef4444';
 
   const formatDollar = (val: number) => {
     if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
@@ -65,15 +57,15 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
 
   // Tick marks
   const ticks = [
-    { angle: -180, label: `-$50M` },
+    { angle: -180, label: `-$100M` },
     { angle: -157.5, label: '' },
-    { angle: -135, label: `-$25M` },
+    { angle: -135, label: `-$50M` },
     { angle: -112.5, label: '' },
     { angle: -90, label: `$0` },
     { angle: -67.5, label: '' },
-    { angle: -45, label: `$25M` },
+    { angle: -45, label: `$50M` },
     { angle: -22.5, label: '' },
-    { angle: 0, label: `$50M` },
+    { angle: 0, label: `$100M` },
   ];
 
   // Needle angle: map displayAngle (-90..90) to arc (-180..0)
@@ -81,8 +73,7 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
   const needleTip = polarToCart(needleAngleDeg, r - 14);
   const needleBase1 = polarToCart(needleAngleDeg - 90, 5);
   const needleBase2 = polarToCart(needleAngleDeg + 90, 5);
-
-  const needleGlowColor = verdict.color;
+  
   const favoredTeam = differential > 0 ? team1Name : differential < 0 ? team2Name : null;
 
   return (
@@ -208,22 +199,16 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
 
       {/* Digital Readout */}
       <div className="flex flex-col items-center mt-2 gap-1.5">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">{verdict.emoji}</span>
-          <span className="text-sm font-bold tracking-widest uppercase"
-            style={{ color: verdict.color }}>
-            {verdict.label}
-          </span>
-          <span className="text-lg">{verdict.emoji}</span>
-        </div>
-        {favoredTeam && absDiff >= 2_000_000 && (
-          <p className="text-surface-400 text-xs font-medium">
-            <span style={{ color: verdict.color }} className="font-semibold">
+        {favoredTeam && absDiff >= 5_000_000 ? (
+          <p className="text-surface-400 text-sm font-medium">
+            <span className="text-white font-semibold">{favoredTeam}</span>
+            {' '}overpays by{' '}
+            <span className="text-red-400 font-semibold">
               {formatDollar(absDiff)}
             </span>
-            {' '}edge for{' '}
-            <span className="text-white font-semibold">{favoredTeam}</span>
           </p>
+        ) : (
+          <p className="text-emerald-400 text-sm font-semibold">Fair Trade</p>
         )}
       </div>
     </div>

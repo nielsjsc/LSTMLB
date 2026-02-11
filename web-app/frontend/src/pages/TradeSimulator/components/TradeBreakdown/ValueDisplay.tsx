@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { TradeAnalysis } from '../../../../services/api';
 import { getTeamColors } from '../../../../utils/teamColors';
 import TradeMeter from '../TradeMeter/TradeMeter';
@@ -51,7 +52,16 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
             </span>
           )}
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-sm text-white truncate">{asset.name}</h4>
+            {'id' in asset && 'war' in asset ? (
+              <Link 
+                to={`/players/${asset.id}`}
+                className="font-semibold text-sm text-white hover:text-brand-400 transition-colors truncate block"
+              >
+                {asset.name}
+              </Link>
+            ) : (
+              <h4 className="font-semibold text-sm text-white truncate">{asset.name}</h4>
+            )}
             {isProspect && (
               <span className="text-[10px] font-medium text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded mt-0.5 inline-block">
                 PROSPECT
