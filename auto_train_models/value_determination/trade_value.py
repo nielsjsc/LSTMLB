@@ -455,9 +455,9 @@ def add_trade_ranking_metrics(df: pd.DataFrame) -> pd.DataFrame:
             'total_surplus': control_years['surplus_value'].sum() if years_control > 0 else 0,
             'years_control': years_control,
             'control_through': fa_year - 1 if pd.notna(fa_year) else None,
-            'total_future_war': future_years['WAR'].sum(),
+            'total_future_war': future_years[future_years['WAR'] > 0]['WAR'].sum(),
             'total_future_value': future_years['Base_Value'].sum(),
-            'total_war': all_years['WAR'].sum(),
+            'total_war': historical_years['WAR'].sum() + future_years[future_years['WAR'] > 0]['WAR'].sum(),
             'total_value': all_years['Base_Value'].sum(),
             'historical_war': historical_years['WAR'].sum(),
             'historical_value': historical_years['Base_Value'].sum()
