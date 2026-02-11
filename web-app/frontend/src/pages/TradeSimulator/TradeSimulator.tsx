@@ -9,6 +9,7 @@ import {
 } from '../../services/api';
 import { CURRENT_YEAR } from '../../config';
 import { teamDivisions, sortTeamsByDivision } from '../../config/teams';
+import { getTeamColors } from '../../utils/teamColors';
 import TeamPlayerList from './components/PlayerSelector/TeamPlayerList';
 import ValueDisplay from './components/TradeBreakdown/ValueDisplay';
 
@@ -23,6 +24,7 @@ const TradeAnalyzer = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<TradeAnalysis | null>(null);
   const [trade, setTrade] = useState<TradeState>({
@@ -51,11 +53,14 @@ const TradeAnalyzer = () => {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         console.error('Error fetching assets:', errorMessage);
         setError(`Failed to load assets: ${errorMessage}`);
+      } finally {
+        setInitialLoading(false);
       }
     };
   
     fetchAssets();
   }, []);
+
   const handleTeamAdd = (team: string) => {
     if (!trade.teamA) {
       setTrade({ ...trade, teamA: team });
@@ -90,7 +95,6 @@ const TradeAnalyzer = () => {
     await handleAnalyzeTrade(updatedTrade);
   };
 
-  // Update handler to work with both types
   const handleAssetRemove = async (receivingTeam: string, asset: Player | Prospect) => {
     let updatedTrade: TradeState;
     if (receivingTeam === trade.teamA) {
@@ -106,6 +110,12 @@ const TradeAnalyzer = () => {
     }
     setTrade(updatedTrade);
     await handleAnalyzeTrade(updatedTrade);
+  };
+
+  const handleResetTrade = () => {
+    setTrade({ teamA: null, teamB: null, teamAReceiving: [], teamBReceiving: [] });
+    setAnalysis(null);
+    setError(null);
   };
 
   const handleAnalyzeTrade = async (currentTrade: TradeState = trade) => {
@@ -137,143 +147,236 @@ const TradeAnalyzer = () => {
       setLoading(false);
     }
   };
-  const selectedTeams = [trade.teamA, trade.teamB].filter(Boolean) as string[];
+
+  const teamAColors = trade.teamA ? getTeamColors(trade.teamA) : null;
+  const teamBColors = trade.teamB ? getTeamColors(trade.teamB) : null;
+  const hasPlayers = trade.teamAReceiving.length > 0 || trade.teamBReceiving.length > 0;
+
+  // Team selector component
+  const TeamSelector = ({ side, team, otherTeam }: { side: 'A' | 'B'; team: string | null; otherTeam: string | null }) => {
+    const colors = team ? getTeamColors(team) : null;
+    const label = side === 'A' ? 'Team 1' : 'Team 2';
+
+    if (team) {
+      return (
+        <div className="relative rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/60 group">
+          {/* Team color accent bar */}
+          <div className="absolute top-0 left-0 right-0 h-1 opacity-80" 
+            style={{ background: colors?.gradient }} />
+          <div className="px-5 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm text-white"
+                style={{ background: `${colors?.primary}30`, border: `1px solid ${colors?.primary}40` }}>
+                {team.toUpperCase().slice(0, 3)}
+              </div>
+              <div>
+                <p className="text-white font-semibold text-sm">{teamDivisions[team]?.name || team.toUpperCase()}</p>
+                <p className="text-surface-500 text-xs">{teamDivisions[team]?.division}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleTeamRemove(team)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 opacity-0 group-hover:opacity-100"
+              title="Remove team"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-xl border border-dashed border-white/[0.1] bg-surface-800/30 p-1">
+        <select
+          onChange={(e) => handleTeamAdd(e.target.value)}
+          className="w-full bg-transparent rounded-lg px-4 py-4 text-surface-400 text-sm font-medium
+            focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400/30 transition-all duration-200 cursor-pointer
+            appearance-none"
+          value=""
+          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2394a3b8'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '20px' }}
+        >
+          <option value="" className="bg-surface-800 text-surface-400">Select {label}...</option>
+          {sortTeamsByDivision(Object.keys(teamDivisions).filter(t => t !== otherTeam)).map((t) => (
+            <option key={t} value={t} className="bg-surface-800 text-surface-200">
+              {t.toUpperCase()} — {teamDivisions[t].name}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-surface-900 via-surface-800 to-surface-900">
-      <div className="max-w-7xl mx-auto py-16 px-4">
+      <div className="max-w-7xl mx-auto py-12 px-4">
         {/* Header */}
-        <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-brand pb-2">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.06] mb-4">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
+            <span className="text-xs text-surface-400 font-medium tracking-wider uppercase">Live Analysis</span>
+          </div>
+          <h1 className="text-4xl font-bold mb-3 bg-clip-text text-transparent bg-gradient-brand pb-1">
             Trade Simulator
           </h1>
-          <p className="text-surface-400 max-w-2xl mx-auto">
-            Evaluate trades using our projection-based player valuations and prospect rankings
+          <p className="text-surface-400 max-w-xl mx-auto text-sm leading-relaxed">
+            Build trades between any two teams. Player values update in real-time using our projection-based surplus valuations and prospect rankings.
           </p>
         </div>
 
-        {error && (
-          <div className="border border-red-500/20 rounded-lg p-4 mb-6">
-            <p className="text-red-400 text-sm">{error}</p>
+        {/* Initial loading state */}
+        {initialLoading && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-full border-2 border-surface-700 border-t-brand-400 animate-spin" />
+              <div className="absolute inset-0 w-12 h-12 rounded-full border-2 border-transparent border-b-accent-blue/40 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
+            </div>
+            <p className="mt-4 text-surface-400 text-sm">Loading player data...</p>
           </div>
         )}
 
-        {/* Team Selection */}
-        <div className="grid md:grid-cols-2 gap-8 mb-12">
-          {/* Team A */}
-          <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50">
-            <h3 className="text-lg font-medium text-white mb-4">Select Team 1</h3>
-            {trade.teamA ? (
-              <div className="flex items-center justify-between rounded-lg px-4 py-3 border border-brand-500/20 bg-surface-700/50">
-                <span className="text-brand-400 font-medium">
-                  {trade.teamA.toUpperCase()} - {teamDivisions[trade.teamA].name}
-                </span>
-                <button
-                  onClick={() => handleTeamRemove(trade.teamA!)}
-                  className="text-brand-400 hover:text-brand-300"
-                >
-                  ×
-                </button>
+        {!initialLoading && (
+          <>
+            {error && (
+              <div className="flex items-center gap-3 border border-red-500/20 rounded-xl px-5 py-4 mb-6 bg-red-500/5">
+                <svg className="w-5 h-5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p className="text-red-400 text-sm">{error}</p>
               </div>
-            ) : (
-              <select
-                onChange={(e) => handleTeamAdd(e.target.value)}
-                className="w-full bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-3 text-surface-300 
-                focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
-                value=""
-              >
-                <option value="" className="bg-surface-800">Select team...</option>
-                {sortTeamsByDivision(Object.keys(teamDivisions)
-                  .filter(team => team !== trade.teamB))
-                  .map((team) => (
-                    <option key={team} value={team} className="bg-surface-800">
-                      {team.toUpperCase()} - {teamDivisions[team].name}
-                    </option>
-                ))}
-              </select>
             )}
-          </div>
 
-          {/* Team B */}
-          <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50">
-            <h3 className="text-lg font-medium text-white mb-4">Select Team 2</h3>
-            {trade.teamB ? (
-              <div className="flex items-center justify-between rounded-lg px-4 py-3 border border-accent-blue/20 bg-surface-700/50">
-                <span className="text-accent-blue font-medium">
-                  {trade.teamB.toUpperCase()} - {teamDivisions[trade.teamB].name}
-                </span>
-                <button
-                  onClick={() => handleTeamRemove(trade.teamB!)}
-                  className="text-accent-blue hover:text-blue-300"
-                >
-                  ×
-                </button>
+            {/* Team Selection Row */}
+            <div className="grid md:grid-cols-[1fr,auto,1fr] gap-4 items-center mb-8">
+              <TeamSelector side="A" team={trade.teamA} otherTeam={trade.teamB} />
+              
+              {/* VS Divider */}
+              <div className="hidden md:flex flex-col items-center gap-2">
+                <div className="w-12 h-12 rounded-full bg-surface-800 border border-white/[0.08] flex items-center justify-center shadow-lg">
+                  <span className="text-sm font-bold text-surface-400 tracking-wider">VS</span>
+                </div>
+                {(trade.teamA || trade.teamB) && (
+                  <button
+                    onClick={handleResetTrade}
+                    className="text-[10px] text-surface-500 hover:text-red-400 transition-colors duration-200 font-medium uppercase tracking-wider"
+                  >
+                    Reset
+                  </button>
+                )}
               </div>
-            ) : (
-              <select
-                onChange={(e) => handleTeamAdd(e.target.value)}
-                className="w-full bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-3 text-surface-300 
-                focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue/40"
-                value=""
-              >
-                <option value="" className="bg-surface-800">Select team...</option>
-                {sortTeamsByDivision(Object.keys(teamDivisions)
-                  .filter(team => team !== trade.teamA))
-                  .map((team) => (
-                    <option key={team} value={team} className="bg-surface-800">
-                      {team.toUpperCase()} - {teamDivisions[team].name}
-                    </option>
-                ))}
-              </select>
-            )}
-          </div>
-        </div>
-        
-        {/* Trade Builder */}
-        {trade.teamA && trade.teamB && (
-          <div className="space-y-8">
-            <div className="grid md:grid-cols-2 gap-8">
-              <div className="rounded-xl p-6 border border-slate-700/50 bg-slate-800/50">
-                <TeamPlayerList
-                  team={trade.teamA}
-                  availablePlayers={players.filter(p => p.team?.toLowerCase() === trade.teamB?.toLowerCase())}
-                  availableProspects={prospects.filter(p => p.org?.toLowerCase() === trade.teamB?.toLowerCase())}
-                  receivingAssets={trade.teamAReceiving}
-                  onAssetSelect={(asset, isProspect) => handleAssetAdd(trade.teamA!, asset, isProspect)}
-                  onAssetRemove={(asset) => handleAssetRemove(trade.teamA!, asset)}
-                  otherTeam={trade.teamB}
-                />
-              </div>
-              <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50">
-                <TeamPlayerList
-                  team={trade.teamB}
-                  availablePlayers={players.filter(p => p.team?.toLowerCase() === trade.teamA?.toLowerCase())}
-                  availableProspects={prospects.filter(p => p.org?.toLowerCase() === trade.teamA?.toLowerCase())}
-                  receivingAssets={trade.teamBReceiving}
-                  onAssetSelect={(asset, isProspect) => handleAssetAdd(trade.teamB!, asset, isProspect)}
-                  onAssetRemove={(asset) => handleAssetRemove(trade.teamB!, asset)}
-                  otherTeam={trade.teamA}
-                />
-              </div>
+
+              <TeamSelector side="B" team={trade.teamB} otherTeam={trade.teamA} />
             </div>
-            
-            {loading && (
-              <div className="text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-400 border-t-transparent"></div>
-                <p className="mt-2 text-surface-400">Analyzing trade...</p>
+
+            {/* Mobile VS + Reset */}
+            <div className="md:hidden flex items-center justify-center gap-4 -mt-2 mb-6">
+              <div className="w-10 h-10 rounded-full bg-surface-800 border border-white/[0.08] flex items-center justify-center">
+                <span className="text-xs font-bold text-surface-400">VS</span>
+              </div>
+              {(trade.teamA || trade.teamB) && (
+                <button onClick={handleResetTrade} className="text-xs text-surface-500 hover:text-red-400 transition-colors">
+                  Reset Trade
+                </button>
+              )}
+            </div>
+
+            {/* Trade Builder */}
+            {trade.teamA && trade.teamB && (
+              <div className="space-y-6">
+                {/* Player selection panels */}
+                <div className="grid md:grid-cols-2 gap-4">
+                  {/* Team A panel */}
+                  <div className="relative rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/40">
+                    <div className="absolute top-0 left-0 right-0 h-0.5 opacity-60"
+                      style={{ background: teamAColors?.gradient }} />
+                    <div className="p-5">
+                      <TeamPlayerList
+                        team={trade.teamA}
+                        availablePlayers={players.filter(p => p.team?.toLowerCase() === trade.teamB?.toLowerCase())}
+                        availableProspects={prospects.filter(p => p.org?.toLowerCase() === trade.teamB?.toLowerCase())}
+                        receivingAssets={trade.teamAReceiving}
+                        onAssetSelect={(asset, isProspect) => handleAssetAdd(trade.teamA!, asset, isProspect)}
+                        onAssetRemove={(asset) => handleAssetRemove(trade.teamA!, asset)}
+                        otherTeam={trade.teamB}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Team B panel */}
+                  <div className="relative rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/40">
+                    <div className="absolute top-0 left-0 right-0 h-0.5 opacity-60"
+                      style={{ background: teamBColors?.gradient }} />
+                    <div className="p-5">
+                      <TeamPlayerList
+                        team={trade.teamB}
+                        availablePlayers={players.filter(p => p.team?.toLowerCase() === trade.teamA?.toLowerCase())}
+                        availableProspects={prospects.filter(p => p.org?.toLowerCase() === trade.teamA?.toLowerCase())}
+                        receivingAssets={trade.teamBReceiving}
+                        onAssetSelect={(asset, isProspect) => handleAssetAdd(trade.teamB!, asset, isProspect)}
+                        onAssetRemove={(asset) => handleAssetRemove(trade.teamB!, asset)}
+                        otherTeam={trade.teamA}
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Loading indicator */}
+                {loading && (
+                  <div className="flex items-center justify-center gap-3 py-6">
+                    <div className="relative">
+                      <div className="w-8 h-8 rounded-full border-2 border-surface-700 border-t-brand-400 animate-spin" />
+                    </div>
+                    <p className="text-surface-400 text-sm font-medium">Analyzing trade value...</p>
+                  </div>
+                )}
+                
+                {/* Analysis Results */}
+                {analysis && !loading && (
+                  <div className="rounded-xl border border-white/[0.06] bg-surface-800/30 p-6">
+                    <div className="flex items-center gap-2 mb-5">
+                      <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      <h2 className="text-white font-semibold">Trade Analysis</h2>
+                    </div>
+                    <ValueDisplay 
+                      analysis={analysis} 
+                      team1Name={trade.teamA?.toUpperCase() || ''} 
+                      team2Name={trade.teamB?.toUpperCase() || ''}
+                    />
+                  </div>
+                )}
+
+                {/* Empty state prompt */}
+                {!analysis && !loading && !hasPlayers && (
+                  <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-dashed border-white/[0.06]">
+                    <svg className="w-16 h-16 text-surface-700 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                    <p className="text-surface-500 text-sm font-medium mb-1">Add players to build your trade</p>
+                    <p className="text-surface-600 text-xs">Search for MLB players or prospects on each side</p>
+                  </div>
+                )}
               </div>
             )}
-            
-            {analysis && (
-              <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50">
-                <ValueDisplay 
-                  analysis={analysis} 
-                  team1Name={trade.teamA?.toUpperCase() || ''} 
-                  team2Name={trade.teamB?.toUpperCase() || ''}
-                />
+
+            {/* Empty state: no teams selected */}
+            {!trade.teamA && !trade.teamB && (
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="w-20 h-20 rounded-2xl bg-surface-800/80 border border-white/[0.06] flex items-center justify-center mb-6">
+                  <svg className="w-10 h-10 text-surface-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                </div>
+                <h3 className="text-white font-semibold mb-2">Select Two Teams</h3>
+                <p className="text-surface-500 text-sm text-center max-w-sm">
+                  Choose two teams above to start building a trade. Player values are based on projected performance and contract surplus.
+                </p>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
