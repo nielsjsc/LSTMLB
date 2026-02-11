@@ -76,7 +76,7 @@ def generate_historical_predictions(
         
         # Skip if already exists
         if output_file.exists():
-            logger.info(f"✓ Predictions for {cutoff_year} already exist, skipping")
+            logger.info(f"Predictions for {cutoff_year} already exist, skipping")
             continue
         
         logger.info(f"Generating predictions for cutoff year {cutoff_year}...")
@@ -102,9 +102,9 @@ def generate_historical_predictions(
                 capture_output=True,
                 text=True
             )
-            logger.info(f"✓ Generated predictions for {cutoff_year}")
+            logger.info(f"Generated predictions for {cutoff_year}")
         except subprocess.CalledProcessError as e:
-            logger.error(f"✗ Failed to generate predictions for {cutoff_year}")
+            logger.error(f"Failed to generate predictions for {cutoff_year}")
             logger.error(f"Error: {e.stderr}")
             continue
 
