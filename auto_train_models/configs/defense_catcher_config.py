@@ -18,8 +18,8 @@ class DefenseCatcherConfig:
     
     # Model-specific features
     INPUT_FEATURES = [
-        'Age', 'Inn',#'DRS/150',  
-        'sc_total_runs/150', 'sc_framing_runs/150', 'sc_throwing_runs/150', 'sc_blocking_runs/150'
+        'Age', #'Inn',#'DRS/150',  
+        'sc_total_runs/150',# 'sc_framing_runs/150', 'sc_throwing_runs/150', 'sc_blocking_runs/150'
     ]
     
     # Data preprocessing config
@@ -45,23 +45,19 @@ class DefenseCatcherConfig:
     GRADIENT_CLIP = 1.0
     
     # Training parameters (match notebook)
-    BATCH_SIZE = 16
+    BATCH_SIZE = 64
     LEARNING_RATE = 1e-3
     WEIGHT_DECAY = 1e-5
     GRADIENT_CLIP = 1.0
-    NUM_EPOCHS = 50
-    EARLY_STOPPING_PATIENCE = 10
+    NUM_EPOCHS = 20
+    EARLY_STOPPING_PATIENCE = 3
     
     # Position-specific weights for loss function
     FEATURE_WEIGHTS = {
         'Age': 1.0,
         #'FRM/150': 1.5,
         #'DRS/150': 1.5,
-        'Inn': 1.0,
-        'sc_total_runs/150': 3.5,
-        'sc_framing_runs/150': 1.5,
-        'sc_throwing_runs/150': 1.0,
-        'sc_blocking_runs/150': 1.0
+        'sc_total_runs/150': 1,
     }
     
     # ============================================================================
