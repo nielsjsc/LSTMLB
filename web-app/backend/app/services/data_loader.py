@@ -164,13 +164,23 @@ class DataLoader:
             df = pd.read_csv(players_csv)
             logger.info(f"Loading {len(df)} players from {players_csv}")
             
+            skipped_count = 0
+            loaded_count = 0
+            
             for _, row in df.iterrows():
                 data = self.transform_player_data(row.to_dict())
+                
+                # Skip players without mlb_id (not on active roster)
+                if data.get('mlb_id') is None:
+                    skipped_count += 1
+                    continue
+                
                 player = Player(**data)
                 self.db.add(player)
+                loaded_count += 1
                     
             self.db.commit()
-            logger.info("Player data loading completed successfully")
+            logger.info(f"Player data loading completed successfully: {loaded_count} loaded, {skipped_count} skipped (no mlb_id)")
                 
         except Exception as e:
             logger.error(f"Error loading player data: {str(e)}")
