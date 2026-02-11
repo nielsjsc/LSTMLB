@@ -7,6 +7,8 @@ __pycache__/
 # Scrapers
 scrapers/**
 models/**
+auto_train_models/bayesian_hierarchy/
+comparison_tools/
 # Models storage (large files)
 
 
