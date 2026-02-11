@@ -293,6 +293,7 @@ export const getPlayerDetails = async (real_id: number): Promise<PlayerStats> =>
       }
       const data = await response.json();
       console.log('API Response data:', data);  // Debug log
+      console.log('Player mlb_id:', data.mlb_id);  // Check mlb_id specifically
       return data;
   } catch (error) {
       console.error('Detailed error:', error);

@@ -29,16 +29,50 @@ const PlayerHeadshot: React.FC<{ mlbId: number | null; name: string; teamColor: 
   teamColor,
 }) => {
   const [imgError, setImgError] = useState(false);
-  const src = mlbId ? `${API_BASE}/headshots/${mlbId}.png` : null;
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  
+  React.useEffect(() => {
+    if (!mlbId) return;
+    
+    const fetchImage = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/headshots/${mlbId}.png`, {
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'User-Agent': 'LongballAnalytics/1.0'
+          }
+        });
+        
+        if (!response.ok) {
+          setImgError(true);
+          return;
+        }
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+      } catch (error) {
+        console.error('Error loading headshot:', error);
+        setImgError(true);
+      }
+    };
+    
+    fetchImage();
+    
+    // Cleanup blob URL on unmount
+    return () => {
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [mlbId]);
 
   return (
     <div
       className="relative w-28 h-28 md:w-36 md:h-36 rounded-2xl overflow-hidden border-2 shrink-0"
       style={{ borderColor: teamColor + '80' }}
     >
-      {src && !imgError ? (
+      {blobUrl && !imgError ? (
         <img
-          src={src}
+          src={blobUrl}
           alt={name}
           className="w-full h-full object-cover"
           onError={() => setImgError(true)}
