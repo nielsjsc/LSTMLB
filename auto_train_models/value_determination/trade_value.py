@@ -138,29 +138,52 @@ def analyze_contract_options(df: pd.DataFrame) -> pd.DataFrame:
     result = result.merge(option_years, on='IDfg', how='left')
     result.loc[result['option_year'].notna(), 'earliest_fa_year'] = result.loc[result['option_year'].notna(), 'option_year']
     
-    # Process each option type
+    # Process each player with options - evaluate year-by-year
     for player_id in result[result['Status'].isin(option_types)]['IDfg'].unique():
         player_data = result[result['IDfg'] == player_id].sort_values('Year')
-        option_status = player_data[player_data['Status'].isin(option_types)]['Status'].iloc[0]
-        option_year = player_data[player_data['Status'].isin(option_types)]['Year'].min()
         fa_year = player_data['FA_Year'].iloc[0]
         
-        # Calculate surplus sum from option year to FA year
-        surplus_sum = player_data[
-            (player_data['Year'] >= option_year) &
-            (player_data['Year'] < fa_year)
-        ]['surplus_value'].sum()
+        # Get all option years for this player
+        option_years_data = player_data[player_data['Status'].isin(option_types)].sort_values('Year')
         
-        # Apply option-specific logic
-        if option_status in ['Player Option', 'Opt-Out']:
-            if surplus_sum > 0:  # Player opts out if positive surplus
-                result.loc[result['IDfg'] == player_id, 'probable_fa_year'] = option_year
-        elif option_status == 'Team Option':
-            if surplus_sum < 0:  # Team declines if negative surplus
-                result.loc[result['IDfg'] == player_id, 'probable_fa_year'] = option_year
-        else:  # Other option types (Mutual, Vesting)
-            if surplus_sum < 0:  # Option declined if negative surplus
-                result.loc[result['IDfg'] == player_id, 'probable_fa_year'] = option_year
+        if len(option_years_data) == 0:
+            continue
+        
+        # Evaluate each option year independently (chronologically)
+        probable_fa = fa_year  # Start with default FA year
+        
+        for idx, option_row in option_years_data.iterrows():
+            option_year = option_row['Year']
+            option_status = option_row['Status']
+            surplus = option_row['surplus_value']
+            
+            # Skip if we already determined FA happens before this option
+            if option_year >= probable_fa:
+                break
+            
+            # Apply option-specific logic for THIS year only
+            option_declined = False
+            
+            if option_status in ['Player Option', 'Opt-Out']:
+                # Player opts out if they can get more value as FA (positive surplus)
+                if pd.notna(surplus) and surplus > 0:
+                    option_declined = True
+            elif option_status == 'Team Option':
+                # Team declines if player costs more than they're worth (negative surplus)
+                if pd.notna(surplus) and surplus < 0:
+                    option_declined = True
+            else:  # Mutual Option, Vesting Option
+                # Declined if negative surplus (both parties agree it's bad)
+                if pd.notna(surplus) and surplus < 0:
+                    option_declined = True
+            
+            # If option is declined, player becomes FA at this year
+            if option_declined:
+                probable_fa = option_year
+                break  # No need to check future options
+        
+        # Update probable_fa_year for this player
+        result.loc[result['IDfg'] == player_id, 'probable_fa_year'] = probable_fa
     
     # Clean up temporary column
     result = result.drop('option_year', axis=1, errors='ignore')
@@ -208,15 +231,29 @@ def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
         # Only assign trade value if we have valid surplus values
         if not valid_surplus.empty:
             trade_value = valid_surplus.sum()
-            # Floor at 0 for arbitration players
+            
+            # Floor at 0 for arbitration players (can't have negative trade value in arb)
             if is_team_control:
                 trade_value = max(0, trade_value)
+            # For non-arb players (Signed, Options), trade value can be negative
+            # but only if they have years remaining before FA
+            elif trade_value < 0 and (fa_year <= CURRENT_YEAR):
+                # Player is already FA or becomes FA this year - no trade value
+                trade_value = 0
             
             result_df.loc[
                 (result_df['IDfg'] == player_id) &
                 (result_df['Year'] >= CURRENT_YEAR),
                 'trade_value'
             ] = trade_value
+        else:
+            # No controlled years with surplus - explicitly set to 0 or None
+            # This handles edge cases like option year = FA year
+            result_df.loc[
+                (result_df['IDfg'] == player_id) &
+                (result_df['Year'] >= CURRENT_YEAR),
+                'trade_value'
+            ] = None
     
     logger.info(f"Players with initial trade values: {result_df['trade_value'].notna().sum()}")
     
@@ -368,6 +405,16 @@ def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.Da
         mlb_component = prospect_data['trade_value'] * mlb_weight
         prospect_component = prospect_value * prospect_weight
         weighted_value = mlb_component + prospect_component
+        
+        # Sanity check: Don't apply prospect adjustment if it would create unrealistic value
+        # If MLB projection is negative and prospect value is pushing it way positive, skip it
+        if prospect_data['trade_value'] < 0 and weighted_value > abs(prospect_data['trade_value']) * 10:
+            logger.warning(
+                f"Skipping {prospect_data['Name']}: Prospect adjustment would create unrealistic value "
+                f"(MLB: ${prospect_data['trade_value']:,.0f}, prospect: ${prospect_value:,.0f}, "
+                f"weighted: ${weighted_value:,.0f})"
+            )
+            continue
         
         # Update trade values for all future years
         mask = (result_df['name_normalized'] == name) & (result_df['Year'] >= CURRENT_YEAR)
