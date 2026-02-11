@@ -10,6 +10,7 @@ models/**
 auto_train_models/bayesian_hierarchy/
 comparison_tools/
 auto_train_models/milb_projections/
+/data/headshots/
 # Models storage (large files)
 
 

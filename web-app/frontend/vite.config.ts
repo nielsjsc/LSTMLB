@@ -27,8 +27,10 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, 'index.html')
       }
-    }
+    },
+    copyPublicDir: true
   },
+  publicDir: 'public',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')
