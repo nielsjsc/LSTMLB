@@ -106,13 +106,13 @@ def calculate_rate_stats(df: pd.DataFrame) -> pd.DataFrame:
             'suffix': '_rate'
         },
         
-        # Batting stats (per game)
-        'batting_per_game': {
-            'condition': lambda df: 'G' in df.columns and any(col in df.columns for col in ['HR', '2B', '3B', 'RBI', 'R']),
-            'stats': ['HR', '2B', '3B', 'RBI', 'R'],
+        # Batting stats (per 150 games) - changed from per game for easier post-processing
+        'batting_per_150': {
+            'condition': lambda df: 'G' in df.columns and any(col in df.columns for col in ['HR', '2B', '3B', 'RBI', 'R', 'HBP', 'SF', 'PA']),
+            'stats': ['HR', '2B', '3B', 'RBI', 'R', 'HBP', 'SF', 'PA'],
             'denominator': 'G', 
-            'multiplier': 1,
-            'suffix': '_rate'
+            'multiplier': 150,
+            'suffix': ''
         },
         
         # Add new rate stat types here easily:

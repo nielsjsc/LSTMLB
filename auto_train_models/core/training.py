@@ -530,7 +530,7 @@ def train_model(
                 'model_config': {
                     'hidden_size': model.hidden_size,  # Store actual hidden size (no internal modifications)
                     'num_layers': model.num_layers,
-                    'num_heads': model.attention.num_heads,  # Access from attention module
+                    'num_heads': getattr(model, 'num_heads', config.num_heads),  # From constructor arg
                     'dropout': config.dropout,  # Use config dropout value
                     'bidirectional': model.bidirectional
                 },
@@ -659,8 +659,8 @@ def load_checkpoint_for_finetuning(
         
         # Load model state dict before expansion
         try:
-            model.load_state_dict(checkpoint['model_state_dict'], strict=True)
-            logger.info("Loaded pretrained model state dict")
+            model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+            logger.info("Loaded pretrained model state dict (strict=False for architecture compatibility)")
         except Exception as e:
             logger.error(f"Error loading model state: {str(e)}")
             raise

@@ -81,13 +81,18 @@ class MultiHeadAttention(nn.Module):
         
         # Apply key padding mask if provided
         if key_padding_mask is not None:
+            # Use large negative value instead of -inf to prevent NaN
             attn_weights = attn_weights.masked_fill(
                 key_padding_mask.unsqueeze(1).unsqueeze(2),
-                float('-inf')
+                -1e9  # Large negative instead of -inf prevents NaN in softmax
             )
         
         # Apply softmax and dropout
         attn_weights = F.softmax(attn_weights, dim=-1)
+        
+        # Replace any NaN from softmax with zeros (can happen if all positions masked)
+        attn_weights = torch.where(torch.isnan(attn_weights), torch.zeros_like(attn_weights), attn_weights)
+        
         attn_weights = self.dropout(attn_weights)
         
         # Get attention output
@@ -136,8 +141,8 @@ class ImprovedLSTM(nn.Module):
         self.bidirectional = bidirectional
         self.directions = 2 if bidirectional else 1
         
-        # Learned padding token
-        self.pad_token = nn.Parameter(torch.randn(1, 1, input_size))
+        # Learned padding token - initialize to zeros for stability
+        self.pad_token = nn.Parameter(torch.zeros(1, 1, input_size))
         
         # Input projection with Layer Normalization
         self.input_projection = nn.Sequential(
@@ -161,12 +166,8 @@ class ImprovedLSTM(nn.Module):
             }) for i in range(self.num_layers)
         ])
         
-        # Attention mechanism
-        self.attention = MultiHeadAttention(
-            self.hidden_size * self.directions,
-            num_heads=num_heads,
-            dropout=dropout
-        )
+        # No attention — sequences are 2-4 timesteps, attention adds parameters
+        # without meaningful benefit at this length. Mean pooling is used instead.
         
         # Output projection
         self.output_projection = nn.Sequential(
@@ -176,13 +177,47 @@ class ImprovedLSTM(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(self.hidden_size * 2, self.output_size)
         )
+        
+        # Learnable output scale for smooth tanh bounding (replaces hard clamp)
+        # Initialized to 2.0 so tanh(x)*scale covers roughly [-2, 2] at init
+        self.output_scale = nn.Parameter(torch.tensor(2.0))
+        
+        # Initialize weights for numerical stability
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        """Initialize weights with Xavier/Glorot initialization for stability"""
+        for name, param in self.named_parameters():
+            if 'weight' in name and param.dim() >= 2:
+                # Use Xavier initialization for linear layers
+                nn.init.xavier_uniform_(param, gain=0.5)  # Reduced gain for stability
+            elif 'bias' in name:
+                nn.init.constant_(param, 0.0)
+            # LSTM weights are already initialized by PyTorch
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         batch_size, seq_len, _ = x.size()
         
-        # Replace zero padding with learned padding token
+        # =====================================================================
+        # ANCHOR: Save the last real timestep's raw features for residual skip.
+        # This makes the model predict DELTAS (changes) rather than absolute values.
+        # Why: MSE-trained absolute predictions regress toward the population mean,
+        # which compounds during autoregressive multi-year projections. With a skip
+        # connection, the default prediction (delta=0) means "stay the same" instead
+        # of "decline toward league average."
+        # =====================================================================
+        batch_indices = torch.arange(batch_size, device=x.device)
+        last_real_input = x[batch_indices, lengths - 1]  # (batch, input_size)
+        
+        # Replace zero padding with learned padding token (clipped for stability)
+        # Clip pad_token to prevent extreme values that cause NaN
+        pad_token_clipped = torch.clamp(self.pad_token, -2.0, 2.0)
         padding_mask = (x.sum(dim=-1) == 0).unsqueeze(-1)
-        x = torch.where(padding_mask, self.pad_token.expand(batch_size, seq_len, -1), x)
+        x = torch.where(padding_mask, pad_token_clipped.expand(batch_size, seq_len, -1), x)
+        
+        # Safety check: ensure no NaN/Inf in input
+        if torch.isnan(x).any() or torch.isinf(x).any():
+            raise ValueError(f"NaN or Inf detected in input after padding replacement")
         
         # Create attention mask
         attention_mask = torch.arange(seq_len, device=x.device)[None, :] < lengths[:, None]
@@ -211,24 +246,52 @@ class ImprovedLSTM(nn.Module):
             lstm_out = layer['norm'](lstm_out)
             lstm_out = layer['dropout'](lstm_out)
             
+            # Check for NaN after LSTM layer
+            if torch.isnan(lstm_out).any() or torch.isinf(lstm_out).any():
+                raise ValueError(f"NaN or Inf detected in LSTM output")
+            
             # Residual connection if shapes match
             if lstm_out.size(-1) == x.size(-1):
                 x = x + lstm_out
             else:
                 x = lstm_out
         
-        # Apply attention with proper masking
-        attended, _ = self.attention(
-            x, x, x,
-            key_padding_mask=~attention_mask
-        )
+        # Mean pooling over valid (non-padded) timesteps
+        # Each season is independently meaningful, so equal weighting is appropriate
+        # attention_mask: (batch, seq_len) boolean, True for valid positions
+        mask_expanded = attention_mask.unsqueeze(-1).float()  # (batch, seq_len, 1)
         
-        # Get final states using sequence lengths
-        batch_indices = torch.arange(batch_size, device=x.device)
-        final_states = attended[batch_indices, lengths - 1]
+        # Sum valid timesteps and divide by count
+        pooled = (x * mask_expanded).sum(dim=1)  # (batch, hidden)
+        lengths_clamped = lengths.clamp(min=1).unsqueeze(-1).float()  # (batch, 1)
+        pooled = pooled / lengths_clamped
         
-        # Project to output size
-        output = self.output_projection(final_states)
+        # Check for NaN in pooled representation
+        if torch.isnan(pooled).any() or torch.isinf(pooled).any():
+            raise ValueError(f"NaN or Inf detected in mean-pooled output")
+        
+        # Project to output size (this learns the DELTA from last season)
+        delta = self.output_projection(pooled)
+        
+        # Smooth bounding on the delta via tanh with learnable scale
+        # tanh naturally bounds to [-1, 1], scale expands range smoothly
+        # This limits how much any single year-to-year change can be
+        delta = torch.tanh(delta) * self.output_scale
+        
+        # Residual skip: output = last_real_input + bounded_delta
+        # The model predicts changes, not absolute values. This prevents
+        # autoregressive mean-regression during multi-year projections.
+        if self.input_size == self.output_size:
+            output = last_real_input + delta
+        else:
+            # During transfer learning, output may be larger than input.
+            # Skip-connect the features that exist, predict the rest as absolute.
+            output = delta.clone()
+            output[:, :self.input_size] = last_real_input + delta[:, :self.input_size]
+        
+        # Final check before returning
+        if torch.isnan(output).any() or torch.isinf(output).any():
+            raise ValueError(f"NaN or Inf detected in model output")
         
         return output
     
@@ -248,32 +311,26 @@ class ImprovedLSTM(nn.Module):
         logger.info(f"Unfrozen {self.num_layers} LSTM layers")
     
     def freeze_attention(self):
-        """Freeze attention layers only (for very limited data scenarios)"""
-        for param in self.attention.parameters():
-            param.requires_grad = False
-        logger.info("Frozen attention layers")
+        """No-op: attention was removed. Kept for backward compatibility."""
+        logger.info("freeze_attention called (no-op, attention removed)")
     
     def unfreeze_attention(self):
-        """Unfreeze attention layers"""
-        for param in self.attention.parameters():
-            param.requires_grad = True
-        logger.info("Unfrozen attention layers")
+        """No-op: attention was removed. Kept for backward compatibility."""
+        logger.info("unfreeze_attention called (no-op, attention removed)")
     
     def freeze_attention_and_output(self):
-        """Freeze attention and output projection"""
-        for param in self.attention.parameters():
-            param.requires_grad = False
+        """Freeze output projection (attention was removed)"""
         for param in self.output_projection.parameters():
             param.requires_grad = False
-        logger.info("Frozen attention and output layers")
+        self.output_scale.requires_grad = False
+        logger.info("Frozen output layers")
     
     def unfreeze_attention_and_output(self):
-        """Unfreeze attention and output projection for fine-tuning"""
-        for param in self.attention.parameters():
-            param.requires_grad = True
+        """Unfreeze output projection for fine-tuning (attention was removed)"""
         for param in self.output_projection.parameters():
             param.requires_grad = True
-        logger.info("Unfrozen attention and output layers")
+        self.output_scale.requires_grad = True
+        logger.info("Unfrozen output layers")
     
     def unfreeze_output_only(self):
         """Unfreeze only output projection - for very limited data scenarios"""
@@ -346,16 +403,17 @@ class ImprovedLSTM(nn.Module):
         logger.info(f"Expanding output projection: {old_output_size} → {new_output_size} features")
         
         # Get current output projection structure
-        # Current: [Linear(512, 512), LayerNorm(512), GELU(), Dropout(), Linear(512, old_output_size)]
-        hidden_size_doubled = self.hidden_size * self.directions
+        # Current: [Linear(lstm_out, H*2), LayerNorm(H*2), GELU(), Dropout(), Linear(H*2, old_output_size)]
+        lstm_out_size = self.hidden_size * self.directions
+        intermediate_size = self.hidden_size * 2
         
         # Create new output projection with larger output
         new_projection = nn.Sequential(
-            nn.Linear(hidden_size_doubled, hidden_size_doubled),
-            nn.LayerNorm(hidden_size_doubled),
+            nn.Linear(lstm_out_size, intermediate_size),
+            nn.LayerNorm(intermediate_size),
             nn.GELU(),
             nn.Dropout(self.lstm_layers[0]['dropout'].p),
-            nn.Linear(hidden_size_doubled, new_output_size)
+            nn.Linear(intermediate_size, new_output_size)
         )
         
         # Copy weights for existing layers
@@ -390,11 +448,16 @@ class ImprovedLSTM(nn.Module):
             trainable = sum(p.numel() for p in module.parameters() if p.requires_grad)
             return total, trainable
         
+        # Count output_scale as part of output projection stats
+        output_scale_total = self.output_scale.numel()
+        output_scale_trainable = self.output_scale.numel() if self.output_scale.requires_grad else 0
+        output_proj_stats = count_params(self.output_projection)
+        
         stats = {
             'input_projection': count_params(self.input_projection),
             'lstm_layers': count_params(self.lstm_layers),
-            'attention': count_params(self.attention),
-            'output_projection': count_params(self.output_projection)
+            'output_projection': (output_proj_stats[0] + output_scale_total, 
+                                  output_proj_stats[1] + output_scale_trainable)
         }
         
         total_all = sum(s[0] for s in stats.values())
@@ -415,7 +478,7 @@ class ImprovedLSTM(nn.Module):
         for name, (total, trainable) in stats.items():
             pct = (trainable / total * 100) if total > 0 else 0
             frozen = total - trainable
-            status = "✓" if trainable == total else "⚠" if trainable > 0 else "✗"
+            status = "OK" if trainable == total else "PARTIAL" if trainable > 0 else "FROZEN"
             logger.info(f"{status} {name:20s}: {trainable:>10,} / {total:>10,} ({pct:>5.1f}%)")
         
         logger.info("=" * 60)

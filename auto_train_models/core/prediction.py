@@ -6,6 +6,10 @@ import logging
 from tqdm import tqdm
 from pathlib import Path
 import json
+import warnings
+
+# Suppress sklearn feature name warnings during prediction
+warnings.filterwarnings('ignore', message='X does not have valid feature names')
 
 from .data_processing import DataConfig
 from .model_architecture import ImprovedLSTM
@@ -223,7 +227,8 @@ def _prepare_player_sequence(
     raw_df: pd.DataFrame,
     player_names: pd.DataFrame,
     input_features: List[str],
-    seq_length: int
+    seq_length: int,
+    cutoff_year: Optional[int] = None
 ) -> Optional[Dict]:
     """
     Prepare player data and sequence for prediction.
@@ -236,6 +241,8 @@ def _prepare_player_sequence(
         player_names: DataFrame mapping IDfg to Name
         input_features: List of feature names for the model
         seq_length: Number of historical seasons to use
+        cutoff_year: Last year of actual data (predictions start from cutoff_year + 1).
+                    If provided, this overrides the player's actual latest_season.
         
     Returns:
         Dict with 'player_name', 'sequence', 'latest_age', 'latest_season', 'n_features'
@@ -265,20 +272,100 @@ def _prepare_player_sequence(
     else:
         recent_data = player_data[input_features].iloc[-seq_length:].copy().reset_index(drop=True)
     
+    # STATCAST METRIC SUBSTITUTION: Replace traditional metrics with xStats if configured
+    xwoba_substituted = False
+    xba_substituted = False
+    xslg_substituted = False
+    
+    try:
+        from configs.batter_config import BatterConfig
+        
+        # xwOBA substitution
+        if (BatterConfig.USE_XWOBA_FOR_PREDICTIONS and 
+            'wOBA' in input_features and 
+            'xwOBA' in player_data.columns):
+            original_woba = recent_data['wOBA'].values.copy()
+            
+            if num_seasons < seq_length:
+                xwoba_values = player_data['xwOBA'].copy()
+                while len(xwoba_values) < seq_length:
+                    xwoba_values = pd.concat([xwoba_values.iloc[:1], xwoba_values], ignore_index=True)
+                recent_data['wOBA'] = xwoba_values.values
+            else:
+                recent_data['wOBA'] = player_data['xwOBA'].iloc[-seq_length:].values
+            
+            xwoba_substituted = True
+            logger.debug(f"Player {player_id}: Substituted xwOBA → wOBA position. "
+                        f"Original wOBA: {original_woba}, New xwOBA: {recent_data['wOBA'].values}")
+        
+        # xBA substitution (AVG → xBA)
+        if (BatterConfig.USE_XBA_FOR_PREDICTIONS and 
+            'AVG' in input_features and 
+            'xBA' in player_data.columns):
+            original_avg = recent_data['AVG'].values.copy()
+            
+            if num_seasons < seq_length:
+                xba_values = player_data['xBA'].copy()
+                while len(xba_values) < seq_length:
+                    xba_values = pd.concat([xba_values.iloc[:1], xba_values], ignore_index=True)
+                recent_data['AVG'] = xba_values.values
+            else:
+                recent_data['AVG'] = player_data['xBA'].iloc[-seq_length:].values
+            
+            xba_substituted = True
+            logger.debug(f"Player {player_id}: Substituted xBA → AVG position. "
+                        f"Original AVG: {original_avg}, New xBA: {recent_data['AVG'].values}")
+        
+        # xSLG substitution (SLG → xSLG)
+        if (BatterConfig.USE_XSLG_FOR_PREDICTIONS and 
+            'SLG' in input_features and 
+            'xSLG' in player_data.columns):
+            original_slg = recent_data['SLG'].values.copy()
+            
+            if num_seasons < seq_length:
+                xslg_values = player_data['xSLG'].copy()
+                while len(xslg_values) < seq_length:
+                    xslg_values = pd.concat([xslg_values.iloc[:1], xslg_values], ignore_index=True)
+                recent_data['SLG'] = xslg_values.values
+            else:
+                recent_data['SLG'] = player_data['xSLG'].iloc[-seq_length:].values
+            
+            xslg_substituted = True
+            logger.debug(f"Player {player_id}: Substituted xSLG → SLG position. "
+                        f"Original SLG: {original_slg}, New xSLG: {recent_data['SLG'].values}")
+                        
+    except (ImportError, AttributeError):
+        # Config not available, skip substitution
+        pass
+    
     # Check for valid data (no NaN)
     if recent_data.isna().any().any():
         return None
     
     sequence = recent_data.values.astype(np.float64)
     latest_age = recent_data['Age'].iloc[-1] if 'Age' in recent_data.columns else player_data['Age'].iloc[-1]
-    latest_season = player_data['Season'].max()
+    
+    # Use cutoff_year if provided (for consistent projection years),
+    # otherwise use player's actual latest season
+    if cutoff_year is not None:
+        latest_season = cutoff_year
+        # Adjust age if cutoff_year is ahead of player's actual latest season
+        actual_latest_season = player_data['Season'].max()
+        if cutoff_year > actual_latest_season:
+            years_ahead = cutoff_year - actual_latest_season
+            latest_age = latest_age + years_ahead
+    else:
+        latest_season = player_data['Season'].max()
     
     return {
         'player_name': player_name,
         'sequence': sequence,
         'latest_age': latest_age,
         'latest_season': latest_season,
-        'n_features': len(input_features)
+        'n_features': len(input_features),
+        'xwoba_substituted': xwoba_substituted,
+        'xba_substituted': xba_substituted,
+        'xslg_substituted': xslg_substituted
     }
 
 
@@ -399,7 +486,8 @@ def predict_future_stats(
     seq_length: int,
     future_years: int = 16,
     extra_fields: Optional[Dict] = None,
-    non_negative_features: Optional[List[str]] = None
+    non_negative_features: Optional[List[str]] = None,
+    cutoff_year: Optional[int] = None
 ) -> List[Dict]:
     """
     Unified prediction function for batters, fielders, and baserunners.
@@ -418,12 +506,13 @@ def predict_future_stats(
         future_years: Number of years to project
         extra_fields: Additional fields to add to each prediction (e.g., {'Position_Group': 'infield'})
         non_negative_features: Features that should be clipped to >= 0 (e.g., ['SB_rate', 'CS_rate'])
+        cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
         
     Returns:
         List of prediction dictionaries
     """
     # Prepare player data and sequence
-    prep = _prepare_player_sequence(player_id, raw_df, player_names, input_features, seq_length)
+    prep = _prepare_player_sequence(player_id, raw_df, player_names, input_features, seq_length, cutoff_year)
     if prep is None:
         return []
     
@@ -451,7 +540,7 @@ def predict_future_stats(
 
 def predict_future_stats_batter(player_id: str, input_features: List[str], model: ImprovedLSTM,
                                scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                               seq_length: int = 5, future_years: int = 16) -> List[Dict]:
+                               seq_length: int = 5, future_years: int = 16, cutoff_year: Optional[int] = None) -> List[Dict]:
     """Predict future stats for a batter. Wrapper around unified predict_future_stats."""
     return predict_future_stats(
         player_id=player_id,
@@ -461,13 +550,14 @@ def predict_future_stats_batter(player_id: str, input_features: List[str], model
         raw_df=raw_df,
         player_names=player_names,
         seq_length=seq_length,
-        future_years=future_years
+        future_years=future_years,
+        cutoff_year=cutoff_year
     )
 
 
 def predict_future_stats_fielding(player_id: str, input_features: List[str], model: ImprovedLSTM,
                                  scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                                 position_group: str, seq_length: int = 5, future_years: int = 16) -> List[Dict]:
+                                 position_group: str, seq_length: int = 5, future_years: int = 16, cutoff_year: Optional[int] = None) -> List[Dict]:
     """Predict future fielding stats. Wrapper around unified predict_future_stats."""
     return predict_future_stats(
         player_id=player_id,
@@ -478,13 +568,14 @@ def predict_future_stats_fielding(player_id: str, input_features: List[str], mod
         player_names=player_names,
         seq_length=seq_length,
         future_years=future_years,
-        extra_fields={'Position_Group': position_group}
+        extra_fields={'Position_Group': position_group},
+        cutoff_year=cutoff_year
     )
 
 
 def predict_future_stats_baserunning(player_id: str, input_features: List[str], model: ImprovedLSTM,
                                     scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                                    seq_length: int = 4, future_years: int = 16) -> List[Dict]:
+                                    seq_length: int = 4, future_years: int = 16, cutoff_year: Optional[int] = None) -> List[Dict]:
     """Predict future baserunning stats. Wrapper around unified predict_future_stats."""
     return predict_future_stats(
         player_id=player_id,
@@ -495,7 +586,8 @@ def predict_future_stats_baserunning(player_id: str, input_features: List[str], 
         player_names=player_names,
         seq_length=seq_length,
         future_years=future_years,
-        non_negative_features=['SB_rate', 'CS_rate']
+        non_negative_features=['SB_rate', 'CS_rate'],
+        cutoff_year=cutoff_year
     )
 
 
@@ -879,6 +971,10 @@ def predict_all_batters(
     Identifies batters with sufficient plate appearances in the cutoff year,
     then generates multi-year projections for each.
     
+    Note: If BatterConfig.USE_XWOBA_FOR_PREDICTIONS is True and xwOBA data is available,
+    the model will receive xwOBA values in place of wOBA for predictions (while still
+    being trained on wOBA for broader historical coverage).
+    
     Args:
         raw_df: Historical batter data with Season, IDfg, PA columns
         player_names: DataFrame mapping IDfg to Name
@@ -899,11 +995,28 @@ def predict_all_batters(
         (raw_df['PA'] >= min_pa_current)
     ]['IDfg'])
     
-    logger.info(f"Found {len(all_players)} qualified {cutoff_year} batters (min_pa={min_pa_current})")
+    
+    # Check if xStat substitutions are enabled
+    try:
+        from configs.batter_config import BatterConfig
+        if BatterConfig.USE_XWOBA_FOR_PREDICTIONS and 'xwOBA' in raw_df.columns:
+            xwoba_available_count = raw_df[raw_df['IDfg'].isin(all_players)]['xwOBA'].notna().sum()
+            logger.info(f"xwOBA substitution ENABLED - {xwoba_available_count} player-seasons have xwOBA data available")
+        if BatterConfig.USE_XBA_FOR_PREDICTIONS and 'xBA' in raw_df.columns:
+            xba_available_count = raw_df[raw_df['IDfg'].isin(all_players)]['xBA'].notna().sum()
+            logger.info(f"xBA substitution ENABLED - {xba_available_count} player-seasons have xBA data available")
+        if BatterConfig.USE_XSLG_FOR_PREDICTIONS and 'xSLG' in raw_df.columns:
+            xslg_available_count = raw_df[raw_df['IDfg'].isin(all_players)]['xSLG'].notna().sum()
+            logger.info(f"xSLG substitution ENABLED - {xslg_available_count} player-seasons have xSLG data available")
+    except (ImportError, AttributeError):
+        pass
 
     all_predictions = []
     failed_count = 0
     error_sample = []
+    xwoba_substitution_count = 0
+    xba_substitution_count = 0
+    xslg_substitution_count = 0
     
     for player_id in tqdm(all_players, desc="Generating batter predictions"):
         try:
@@ -918,6 +1031,24 @@ def predict_all_batters(
             if len(player_data) < 1:  # Skip if no valid seasons
                 continue
                 
+            # Check if xStat substitutions occurred for this player
+            prep = _prepare_player_sequence(
+                player_id=player_id,
+                raw_df=player_data,
+                player_names=player_names,
+                input_features=input_features,
+                seq_length=seq_length,
+                cutoff_year=cutoff_year
+            )
+            
+            if prep:
+                if prep.get('xwoba_substituted', False):
+                    xwoba_substitution_count += 1
+                if prep.get('xba_substituted', False):
+                    xba_substitution_count += 1
+                if prep.get('xslg_substituted', False):
+                    xslg_substitution_count += 1
+            
             predictions = predict_future_stats_batter(
                 player_id=player_id,
                 input_features=input_features,
@@ -926,7 +1057,8 @@ def predict_all_batters(
                 raw_df=player_data,  # Use filtered data (up to cutoff_year)
                 player_names=player_names,
                 seq_length=seq_length,
-                future_years=future_years
+                future_years=future_years,
+                cutoff_year=cutoff_year  # Ensure predictions start from cutoff_year + 1
             )
             
             if predictions:
@@ -938,6 +1070,17 @@ def predict_all_batters(
             if len(error_sample) < 5:
                 error_sample.append((player_id, str(e)))
             continue
+    
+    # Log xStat substitution summary
+    total_players = len(all_players)
+    if xwoba_substitution_count > 0:
+        logger.info(f"✓ xwOBA substitution applied to {xwoba_substitution_count}/{total_players} players ({xwoba_substitution_count/total_players*100:.1f}%)")
+    if xba_substitution_count > 0:
+        logger.info(f"✓ xBA substitution applied to {xba_substitution_count}/{total_players} players ({xba_substitution_count/total_players*100:.1f}%)")
+    if xslg_substitution_count > 0:
+        logger.info(f"✓ xSLG substitution applied to {xslg_substitution_count}/{total_players} players ({xslg_substitution_count/total_players*100:.1f}%)")
+    if xwoba_substitution_count == 0 and xba_substitution_count == 0 and xslg_substitution_count == 0:
+        logger.info("No xStat substitutions applied (all toggles may be False or xStat data not available)")
     
     # Log error details if any failures occurred
     if failed_count > 0:
@@ -1054,7 +1197,8 @@ def predict_all_fielders(
                     player_names=player_names,
                     position_group=model_key,
                     seq_length=seq_length,
-                    future_years=future_years
+                    future_years=future_years,
+                    cutoff_year=cutoff_year  # Ensure predictions start from cutoff_year + 1
                 )
                 
                 if predictions:
@@ -1218,7 +1362,8 @@ def predict_all_baserunners(
                 raw_df=player_historical_data,
                 player_names=player_names,
                 seq_length=seq_length,
-                future_years=future_years
+                future_years=future_years,
+                cutoff_year=cutoff_year  # Ensure predictions start from cutoff_year + 1
             )
             
             if predictions:

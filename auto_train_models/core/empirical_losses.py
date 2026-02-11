@@ -963,11 +963,11 @@ def validate_projection_plausibility(
     if verbose and (warnings or severe_warnings):
         print("=== Projection Plausibility Check ===")
         if severe_warnings:
-            print("\n⚠️  SEVERE WARNINGS:")
+            print("\nSEVERE WARNINGS:")
             for w in severe_warnings:
                 print(f"   - {w}")
         if warnings:
-            print("\n⚡ Warnings:")
+            print("\nWarnings:")
             for w in warnings:
                 print(f"   - {w}")
         print(f"\nValid: {is_valid}")

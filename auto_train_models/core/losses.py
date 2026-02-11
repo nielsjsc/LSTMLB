@@ -46,6 +46,14 @@ class WeightedPlayerDifferentiationLoss(nn.Module):
         - L1 regularization for counting stats
         - Weighted average based on feature importance
         """
+        # Safety checks for input tensors
+        if torch.isnan(pred).any() or torch.isinf(pred).any():
+            raise ValueError(f"NaN or Inf in predictions. Range: [{pred.min():.2f}, {pred.max():.2f}]")
+        if torch.isnan(target).any() or torch.isinf(target).any():
+            raise ValueError(f"NaN or Inf in targets. Range: [{target.min():.2f}, {target.max():.2f}]")
+        if torch.isnan(games_weights).any() or torch.isinf(games_weights).any():
+            raise ValueError(f"NaN or Inf in weights. Range: [{games_weights.min():.2f}, {games_weights.max():.2f}]")
+        
         # Normalize game weights to prevent overflow
         # Take most recent season weight
         weights = games_weights[:, -1]
@@ -60,34 +68,48 @@ class WeightedPlayerDifferentiationLoss(nn.Module):
             weights = torch.ones_like(weights)
         
         # Rate stats loss (MSE works well for rates)
-        rate_loss = F.mse_loss(
-            pred[:, self.rate_stats_indices], 
-            target[:, self.rate_stats_indices], 
-            reduction='none'
-        )
+        if len(self.rate_stats_indices) > 0:
+            rate_loss = F.mse_loss(
+                pred[:, self.rate_stats_indices], 
+                target[:, self.rate_stats_indices], 
+                reduction='none'
+            )
+            rate_loss = (rate_loss * weights.unsqueeze(1)).mean()
+        else:
+            rate_loss = torch.tensor(0.0, device=pred.device)
         
         # Counting stats loss (Combined MSE and L1)
-        mse_counting = F.mse_loss(
-            pred[:, self.counting_stats_indices],
-            target[:, self.counting_stats_indices],
-            reduction='none'
-        )
-        
-        l1_counting = F.l1_loss(
-            pred[:, self.counting_stats_indices],
-            target[:, self.counting_stats_indices],
-            reduction='none'
-        )
-        
-        # Combine losses with feature-wise weighting
-        rate_loss = (rate_loss * weights.unsqueeze(1)).mean()
-        counting_loss = (
-            0.8 * (mse_counting * weights.unsqueeze(1)).mean() +
-            0.2 * (l1_counting * weights.unsqueeze(1)).mean()
-        )
+        if len(self.counting_stats_indices) > 0:
+            mse_counting = F.mse_loss(
+                pred[:, self.counting_stats_indices],
+                target[:, self.counting_stats_indices],
+                reduction='none'
+            )
+            
+            l1_counting = F.l1_loss(
+                pred[:, self.counting_stats_indices],
+                target[:, self.counting_stats_indices],
+                reduction='none'
+            )
+            
+            counting_loss = (
+                0.8 * (mse_counting * weights.unsqueeze(1)).mean() +
+                0.2 * (l1_counting * weights.unsqueeze(1)).mean()
+            )
+        else:
+            counting_loss = torch.tensor(0.0, device=pred.device)
         
         # Combine with learned ratio
-        total_loss = self.alpha * rate_loss + (1 - self.alpha) * counting_loss
+        # If one type is empty, use the other
+        if len(self.rate_stats_indices) > 0 and len(self.counting_stats_indices) > 0:
+            total_loss = self.alpha * rate_loss + (1 - self.alpha) * counting_loss
+        elif len(self.rate_stats_indices) > 0:
+            total_loss = rate_loss
+        elif len(self.counting_stats_indices) > 0:
+            total_loss = counting_loss
+        else:
+            # Fallback to basic MSE if indices are misconfigured
+            total_loss = F.mse_loss(pred, target)
         
         return total_loss
 
