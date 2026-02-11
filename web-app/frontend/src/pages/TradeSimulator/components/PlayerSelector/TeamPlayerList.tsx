@@ -50,8 +50,8 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
 
   const totalValue = receivingAssets.reduce((sum, { asset }) => {
     if ('war_bat' in asset || 'war_pit' in asset) {
-      const surplus = (asset as Player).surplus_value;
-      return sum + (surplus && !isNaN(surplus) ? surplus : 0);
+      const baseValue = (asset as Player).base_value;
+      return sum + (baseValue && !isNaN(baseValue) ? baseValue : 0);
     }
     const value = (asset as Prospect).value;
     return sum + (value && !isNaN(value) ? value : 0);
@@ -82,7 +82,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
           receivingAssets.map(({ asset, isProspect }) => {
             const war = 'war_bat' in asset ? asset.war_bat : 'war_pit' in asset ? asset.war_pit : null;
             const value = 'value' in asset ? (asset as Prospect).value : null;
-            const surplus = 'surplus_value' in asset ? (asset as Player).surplus_value : null;
+            const baseValue = 'base_value' in asset ? (asset as Player).base_value : null;
 
             return (
               <div
@@ -125,14 +125,14 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
                         )}
                       </>
                     )}
-                    {value !== null && value !== undefined && (
+                    {value !== null && value !== undefined && !isNaN(value as number) && (
                       <span className={`text-xs font-medium ${(value as number) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         ${((value as number) / 1_000_000).toFixed(1)}M
                       </span>
                     )}
-                    {surplus !== null && surplus !== undefined && (
-                      <span className={`text-xs font-medium ${(surplus as number) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        ${((surplus as number) / 1_000_000).toFixed(1)}M
+                    {baseValue !== null && baseValue !== undefined && !isNaN(baseValue as number) && (
+                      <span className={`text-xs font-medium ${(baseValue as number) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        ${((baseValue as number) / 1_000_000).toFixed(1)}M
                       </span>
                     )}
                   </div>

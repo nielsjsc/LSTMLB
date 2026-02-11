@@ -57,9 +57,9 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
 
   // Tick marks
   const ticks = [
-    { angle: -180, label: `-$100M` },
+    { angle: -180, label: `$100M` },
     { angle: -157.5, label: '' },
-    { angle: -135, label: `-$50M` },
+    { angle: -135, label: `$50M` },
     { angle: -112.5, label: '' },
     { angle: -90, label: `$0` },
     { angle: -67.5, label: '' },
@@ -74,7 +74,9 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
   const needleBase1 = polarToCart(needleAngleDeg - 90, 5);
   const needleBase2 = polarToCart(needleAngleDeg + 90, 5);
   
-  const favoredTeam = differential > 0 ? team1Name : differential < 0 ? team2Name : null;
+  // If differential > 0, team1 gets more surplus, so team2 overpays
+  // If differential < 0, team2 gets more surplus, so team1 overpays
+  const favoredTeam = differential > 0 ? team2Name : differential < 0 ? team1Name : null;
 
   return (
     <div className="flex flex-col items-center py-6">
@@ -188,11 +190,11 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
           {/* Team labels */}
           <text x="28" y={cy + 20} fill="#94a3b8" textAnchor="start"
             style={{ fontSize: '11px', fontWeight: 600, fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em' }}>
-            {team1Name}
+            {team2Name}
           </text>
           <text x="272" y={cy + 20} fill="#94a3b8" textAnchor="end"
             style={{ fontSize: '11px', fontWeight: 600, fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em' }}>
-            {team2Name}
+            {team1Name}
           </text>
         </svg>
       </div>
