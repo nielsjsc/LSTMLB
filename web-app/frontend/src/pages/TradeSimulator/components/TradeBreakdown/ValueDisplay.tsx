@@ -174,16 +174,16 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
         <div className="rounded-b-xl border-t border-white/[0.06] bg-white/[0.01] px-5 py-4">
           <div className="grid grid-cols-3 gap-3 text-center mb-3">
             <div>
-              <p className="text-[10px] text-surface-500 uppercase tracking-wider mb-1">Production</p>
+              <p className="text-[10px] text-surface-300 uppercase tracking-wider mb-1 font-semibold">Production</p>
               <p className="text-sm font-bold text-emerald-400 tabular-nums">{formatValue(team.total_production)}</p>
             </div>
             <div>
-              <p className="text-[10px] text-surface-500 uppercase tracking-wider mb-1">Contract</p>
+              <p className="text-[10px] text-surface-300 uppercase tracking-wider mb-1 font-semibold">Contract</p>
               <p className="text-sm font-bold text-red-400 tabular-nums">{formatValue(team.total_contract)}</p>
             </div>
             <div>
-              <p className="text-[10px] text-surface-500 uppercase tracking-wider mb-1">Net Value</p>
-              <p className="text-sm font-bold tabular-nums" style={{ color: colors.primary }}>
+              <p className="text-[10px] text-surface-300 uppercase tracking-wider mb-1 font-semibold">Net Value</p>
+              <p className="text-sm font-bold tabular-nums text-white">
                 {formatValue(team.total_surplus)}
               </p>
             </div>
@@ -233,9 +233,8 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
           <div className="flex items-center gap-4">
             <div className="w-3 h-3 rounded-full" style={{ background: team1Colors.primary }} />
             <div className="text-center sm:text-left">
-              <p className="text-xs text-surface-500 uppercase tracking-wider">Trade Differential</p>
-              <p className="text-xl font-bold tabular-nums mt-0.5"
-                style={{ color: tradeDifferential >= 0 ? team1Colors.primary : team2Colors.primary }}>
+              <p className="text-xs text-surface-300 uppercase tracking-wider font-semibold">Trade Differential</p>
+              <p className="text-2xl font-bold tabular-nums mt-1 text-white">
                 {formatValue(Math.abs(tradeDifferential))}
               </p>
             </div>

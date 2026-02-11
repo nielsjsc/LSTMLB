@@ -18,6 +18,24 @@ from app.models.player import Player
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+def normalize_team_abbreviation(team: str) -> str:
+    """Normalize team abbreviations to match prospect data format (3-letter codes)"""
+    team_mapping = {
+        'SF': 'SFG',
+        'SD': 'SDP',
+        'KC': 'KCR',
+        'ATH': 'OAK',
+        'TB': 'TBR',
+        # Also handle reverse mapping for queries
+        'SFG': 'SFG',
+        'SDP': 'SDP',
+        'KCR': 'KCR',
+        'OAK': 'OAK',
+        'TBR': 'TBR'
+    }
+    normalized = team_mapping.get(team.upper(), team.upper())
+    return normalized
+
 @router.get("/")
 async def get_players(
     year: int = 2026,
@@ -48,7 +66,24 @@ async def get_players(
             query = query.filter(normalized_name.like(f"%{normalized_search}%"))
             
         if team:
-            query = query.filter(Player.team == team.upper())
+            # Normalize team abbreviation and check both formats
+            normalized_team = normalize_team_abbreviation(team)
+            # Handle historical variations: check if player.team matches either format
+            # E.g., for KCR, accept both 'KC' and 'KCR' in database
+            alt_teams = []
+            if normalized_team == 'KCR':
+                alt_teams = ['KC', 'KCR']
+            elif normalized_team == 'OAK':
+                alt_teams = ['ATH', 'OAK']
+            elif normalized_team == 'TBR':
+                alt_teams = ['TB', 'TBR']
+            elif normalized_team == 'SDP':
+                alt_teams = ['SD', 'SDP']
+            elif normalized_team == 'SFG':
+                alt_teams = ['SF', 'SFG']
+            else:
+                alt_teams = [normalized_team]
+            query = query.filter(Player.team.in_(alt_teams))
             
         if position:
             query = query.filter(
@@ -78,7 +113,7 @@ async def get_players(
                     "real_id": p.real_id,
                     "mlb_id": p.mlb_id,
                     "name": p.name,
-                    "team": p.team,
+                    "team": normalize_team_abbreviation(p.team) if p.team else p.team,
                     "position": p.position,
                     "status": p.status,
                     "age": p.age,
@@ -125,13 +160,13 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
         
         response = {
             "name": current_year_data.name,
-            "team": current_year_data.team,
+            "team": normalize_team_abbreviation(current_year_data.team) if current_year_data.team else current_year_data.team,
             "position": current_year_data.position,
             "mlb_id": current_year_data.mlb_id,
             "projections": [{
                 "year": p.year,
                 "age": p.age,
-                "team": p.team,
+                "team": normalize_team_abbreviation(p.team) if p.team else p.team,
                 "position": p.position,
                 "status": p.status,
                 "fa_year": p.fa_year,
