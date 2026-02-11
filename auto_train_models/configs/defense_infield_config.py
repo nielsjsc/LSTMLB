@@ -27,24 +27,24 @@ class DefenseInfieldConfig:
     def get_data_config():
         return DataConfig(
             input_features=DefenseInfieldConfig.INPUT_FEATURES,
-            seq_length=5,  # IF_SEQ_LENGTH from notebook
+            seq_length=3,  # IF_SEQ_LENGTH from notebook
             start_season=2002,
-            min_pa=150,  # IF_MIN_INNINGS from notebook (converted to min_pa for compatibility)
+            min_pa=50, 
             train_ratio=0.7, 
             valid_ratio=0.2,
             random_seed=42
         )
     
     
-    HIDDEN_SIZE = 128 
+    HIDDEN_SIZE = 256 
     NUM_LAYERS = 2  # Notebook hardcodes this in ImprovedLSTM.__init__
-    NUM_HEADS = 4  # Notebook hardcodes this in attention layer
-    DROPOUT = 0.15  # Notebook uses dropout/2 = 0.3/2 = 0.15
+    NUM_HEADS = 4  
+    DROPOUT = 0.15  
     BIDIRECTIONAL = True
     GRADIENT_CLIP = 1.0
     
     # Training parameters (match notebook)
-    BATCH_SIZE = 16
+    BATCH_SIZE = 64
     LEARNING_RATE = 1e-3
     WEIGHT_DECAY = 1e-5
     GRADIENT_CLIP = 1.0
