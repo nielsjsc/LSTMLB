@@ -460,22 +460,10 @@ def calculate_defensive_value(fielding_data: pd.DataFrame, player_id: int, year:
     elif position.lower() == 'catcher':
         pos_for_adjustment = 'C'
     
-    # Calculate position-specific defensive value
-    # The /150 metrics are already rate stats, just scale by target games
-    if position == 'C' or position.lower() == 'catcher':
-        # Catchers: framing + throwing + blocking
-        framing = row.get('sc_framing_runs/150', 0) * scaling_factor
-        throwing = row.get('sc_throwing_runs/150', 0) * scaling_factor
-        blocking = row.get('sc_blocking_runs/150', 0) * scaling_factor
-        def_value = framing + throwing + blocking
-        
-    elif position in ['1B', '2B', '3B', 'SS'] or position.lower() in ['infield', 'first base', 'second base', 'third base', 'shortstop']:
-        # Infielders: use sc_total_runs (which already combines range + arm + dp)
-        def_value = row.get('sc_total_runs/150', 0) * scaling_factor
-        
-    else:
-        # Outfielders: use sc_total_runs (which already combines range + arm)
-        def_value = row.get('sc_total_runs/150', 0) * scaling_factor
+    # Calculate defensive value from sc_total_runs/150
+    # All positions (catchers, infielders, outfielders) use the same combined metric
+    # which is the only column the fielding models output
+    def_value = row.get('sc_total_runs/150', 0) * scaling_factor
     
     # Calculate positional adjustment for target games
     # Adjustments are per 162 games, scale to target games
