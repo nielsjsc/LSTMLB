@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { getPlayerDetails, PlayerStats } from '../../services/api';
 import { CURRENT_YEAR, MAX_PROJECTION_YEARS, API_BASE } from '../../config';
@@ -20,66 +20,56 @@ const fmt = {
   int: (v: number | null | undefined) => (v != null ? Math.round(v).toString() : '—'),
 };
 
+/** Clamp to 0-1 range */
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
 // ─── Subcomponents ──────────────────────────────────────────
 
-/** Headshot with fallback silhouette */
-const PlayerHeadshot: React.FC<{ mlbId: number | null; name: string; teamColor: string }> = ({
+/** Headshot with fallback silhouette — fitted, not zoomed */
+const PlayerHeadshot: React.FC<{ mlbId: number | null; name: string; teamColor: string; size?: string }> = ({
   mlbId,
   name,
   teamColor,
+  size = 'w-40 h-40 md:w-48 md:h-48',
 }) => {
   const [imgError, setImgError] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  
-  React.useEffect(() => {
+
+  useEffect(() => {
     if (!mlbId) return;
-    
+    let cancelled = false;
     const fetchImage = async () => {
       try {
         const response = await fetch(`${API_BASE}/headshots/${mlbId}.png`, {
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-            'User-Agent': 'LongballAnalytics/1.0'
-          }
+          headers: { 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'LongballAnalytics/1.0' },
         });
-        
-        if (!response.ok) {
-          setImgError(true);
-          return;
-        }
-        
+        if (!response.ok) { setImgError(true); return; }
         const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setBlobUrl(url);
-      } catch (error) {
-        console.error('Error loading headshot:', error);
-        setImgError(true);
-      }
+        if (!cancelled) setBlobUrl(URL.createObjectURL(blob));
+      } catch { if (!cancelled) setImgError(true); }
     };
-    
     fetchImage();
-    
-    // Cleanup blob URL on unmount
-    return () => {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-    };
+    return () => { cancelled = true; };
   }, [mlbId]);
+
+  // Revoke blob on unmount
+  useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
 
   return (
     <div
-      className="relative w-28 h-28 md:w-36 md:h-36 rounded-2xl overflow-hidden border-2 shrink-0"
-      style={{ borderColor: teamColor + '80' }}
+      className={`relative ${size} rounded-2xl overflow-hidden shrink-0 ring-1 ring-white/10`}
+      style={{ background: `linear-gradient(135deg, ${teamColor}18, ${teamColor}08)` }}
     >
       {blobUrl && !imgError ? (
         <img
           src={blobUrl}
           alt={name}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain object-bottom"
           onError={() => setImgError(true)}
         />
       ) : (
-        <div className="w-full h-full bg-surface-700 flex items-center justify-center">
-          <svg className="w-16 h-16 text-surface-500" fill="currentColor" viewBox="0 0 24 24">
+        <div className="w-full h-full flex items-center justify-center">
+          <svg className="w-20 h-20 text-surface-600" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
           </svg>
         </div>
@@ -88,57 +78,220 @@ const PlayerHeadshot: React.FC<{ mlbId: number | null; name: string; teamColor: 
   );
 };
 
-/** Small key-value stat used in the overview grid */
-const MiniStat: React.FC<{
+/** ──────────────────────────────────────────────────────────
+ *  WAR Ring — SVG radial gauge that draws the eye
+ *  ────────────────────────────────────────────────────────── */
+const WarRing: React.FC<{
+  value: number;
+  max?: number;
+  label?: string;
+  color: string;
+  size?: number;
+}> = ({ value, max = 8, label = 'WAR', color, size = 120 }) => {
+  const strokeWidth = 8;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = clamp01(Math.abs(value) / max);
+  const offset = circumference * (1 - pct);
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90">
+          {/* Track */}
+          <circle
+            cx={size / 2} cy={size / 2} r={radius}
+            fill="none" stroke="currentColor"
+            className="text-surface-700/60" strokeWidth={strokeWidth}
+          />
+          {/* Fill */}
+          <circle
+            cx={size / 2} cy={size / 2} r={radius}
+            fill="none" stroke={color} strokeWidth={strokeWidth}
+            strokeLinecap="round" strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            className="transition-all duration-1000 ease-out"
+          />
+        </svg>
+        {/* Center text */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-2xl font-extrabold text-white leading-none" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {value.toFixed(1)}
+          </span>
+        </div>
+      </div>
+      <span className="text-[11px] uppercase tracking-widest text-surface-400 font-semibold">{label}</span>
+    </div>
+  );
+};
+
+/** ──────────────────────────────────────────────────────────
+ *  Surplus Bar — horizontal value bar (-$50M → +$50M range)
+ *  ────────────────────────────────────────────────────────── */
+const SurplusBar: React.FC<{ value: number; teamColor: string }> = ({ value, teamColor }) => {
+  const maxAbs = 80_000_000; // $80M range
+  const pct = clamp01((value / maxAbs + 1) / 2); // 0 = -max, 0.5 = 0, 1 = +max
+  const isPositive = value >= 0;
+
+  return (
+    <div className="w-full">
+      <div className="flex justify-between items-baseline mb-1.5">
+        <span className="text-xs text-surface-400 font-medium">Surplus Value</span>
+        <span
+          className="text-lg font-bold"
+          style={{ color: isPositive ? teamColor : '#f87171' }}
+        >
+          {fmt.dollar(value)}
+        </span>
+      </div>
+      <div className="relative h-2.5 bg-surface-700/60 rounded-full overflow-hidden">
+        {/* Center line marker */}
+        <div className="absolute top-0 bottom-0 left-1/2 w-px bg-surface-500/60 z-10" />
+        {/* Fill bar */}
+        <div
+          className="absolute top-0 bottom-0 rounded-full transition-all duration-700 ease-out"
+          style={{
+            left: isPositive ? '50%' : `${pct * 100}%`,
+            width: `${Math.abs(pct - 0.5) * 100}%`,
+            background: isPositive
+              ? `linear-gradient(90deg, ${teamColor}90, ${teamColor})`
+              : 'linear-gradient(90deg, #f87171, #f8717190)',
+          }}
+        />
+      </div>
+      <div className="flex justify-between mt-1">
+        <span className="text-[10px] text-surface-600">-$80M</span>
+        <span className="text-[10px] text-surface-600">$0</span>
+        <span className="text-[10px] text-surface-600">+$80M</span>
+      </div>
+    </div>
+  );
+};
+
+/** ──────────────────────────────────────────────────────────
+ *  Contract Timeline — visual year-by-year control bar
+ *  ────────────────────────────────────────────────────────── */
+const ContractTimeline: React.FC<{
+  currentYear: number;
+  faEarliest?: number | null;
+  faProbable?: number | null;
+  faLatest?: number | null;
+  yearsControl?: number | null;
+  teamColor: string;
+}> = ({ currentYear, faEarliest, faProbable, faLatest, yearsControl, teamColor }) => {
+  const yrsCtrl = yearsControl ?? 0;
+  const endYear = Math.max(
+    currentYear + yrsCtrl,
+    faLatest ?? currentYear,
+    faProbable ?? currentYear,
+    currentYear + 1
+  );
+  const years = Array.from({ length: endYear - currentYear + 1 }, (_, i) => currentYear + i);
+
+  return (
+    <div className="w-full">
+      <div className="flex justify-between items-baseline mb-2">
+        <span className="text-xs text-surface-400 font-medium">Contract Control</span>
+        <span className="text-xs text-surface-500">
+          {yrsCtrl > 0 ? `${yrsCtrl} yr${yrsCtrl > 1 ? 's' : ''} remaining` : 'Free Agent'}
+        </span>
+      </div>
+      <div className="flex gap-1">
+        {years.map((yr) => {
+          const isControlled = yr < currentYear + yrsCtrl;
+          const isFaProbable = yr === faProbable;
+          const isFaEarliest = yr === faEarliest;
+          return (
+            <div key={yr} className="flex-1 flex flex-col items-center gap-1">
+              <div
+                className="w-full h-6 rounded-md transition-all flex items-center justify-center"
+                style={{
+                  backgroundColor: isControlled
+                    ? teamColor + (yr === currentYear ? 'FF' : '80')
+                    : isFaProbable
+                    ? '#f59e0b40'
+                    : 'rgba(255,255,255,0.04)',
+                  border: isFaEarliest ? '1px dashed #f59e0b' : isFaProbable ? '1px solid #f59e0b60' : '1px solid transparent',
+                }}
+              >
+                {yr === currentYear && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                )}
+              </div>
+              <span className="text-[9px] text-surface-500 tabular-nums">{yr.toString().slice(-2)}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-3 mt-2">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: teamColor }} />
+          <span className="text-[10px] text-surface-500">Under Control</span>
+        </div>
+        {faProbable && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-sm bg-amber-500/30 border border-amber-500/60" />
+            <span className="text-[10px] text-surface-500">Likely FA</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/** ──────────────────────────────────────────────────────────
+ *  Stat Spotlight — large featured stat with context
+ *  ────────────────────────────────────────────────────────── */
+const StatSpotlight: React.FC<{
   label: string;
   value: string;
-  highlight?: boolean;
-  negative?: boolean;
-  teamAccent?: string;
-}> = ({ label, value, highlight, negative, teamAccent }) => (
-  <div className="flex flex-col">
-    <span className="text-[11px] uppercase tracking-wider text-surface-500 mb-0.5">{label}</span>
+  subtitle?: string;
+  color?: string;
+  icon?: React.ReactNode;
+}> = ({ label, value, subtitle, color }) => (
+  <div className="flex flex-col items-center text-center px-3 py-4 rounded-xl bg-surface-800/40 border border-white/[0.04]">
+    <span className="text-[10px] uppercase tracking-widest text-surface-500 font-semibold mb-1">{label}</span>
     <span
-      className={`text-lg font-semibold leading-tight ${
-        negative ? 'text-red-400' : highlight ? '' : 'text-white'
-      }`}
-      style={highlight && !negative ? { color: teamAccent } : undefined}
+      className="text-2xl md:text-3xl font-extrabold leading-none mb-0.5"
+      style={{ color: color ?? '#fff', fontVariantNumeric: 'tabular-nums' }}
     >
       {value}
     </span>
+    {subtitle && <span className="text-[10px] text-surface-500 mt-1">{subtitle}</span>}
   </div>
 );
 
-/** Value card (trade value, surplus, contract, etc.) */
-const ValueCard: React.FC<{
+/** ──────────────────────────────────────────────────────────
+ *  Collapsible Section wrapper
+ *  ────────────────────────────────────────────────────────── */
+const CollapsibleSection: React.FC<{
   title: string;
-  items: Array<{ label: string; value: string; positive?: boolean }>;
   teamColor: string;
-}> = ({ title, items, teamColor }) => (
-  <div className="rounded-xl p-5 border border-white/[0.06] bg-surface-800/60">
-    <h3
-      className="text-xs font-semibold uppercase tracking-widest mb-4"
-      style={{ color: teamColor }}
-    >
-      {title}
-    </h3>
-    <div className="space-y-3">
-      {items.map((item) => (
-        <div key={item.label} className="flex justify-between items-baseline">
-          <span className="text-sm text-surface-400">{item.label}</span>
-          <span
-            className={`text-base font-semibold ${
-              item.positive === false ? 'text-red-400' : item.positive ? '' : 'text-white'
-            }`}
-            style={item.positive ? { color: teamColor } : undefined}
-          >
-            {item.value}
-          </span>
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}> = ({ title, teamColor, defaultOpen = false, children }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/40">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-5 rounded-full" style={{ backgroundColor: teamColor }} />
+          <h2 className="text-lg font-semibold text-white">{title}</h2>
         </div>
-      ))}
-    </div>
-  </div>
-);
+        <svg
+          className={`w-5 h-5 text-surface-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && <div className="border-t border-white/[0.06]">{children}</div>}
+    </section>
+  );
+};
 
 // ─── Main Component ─────────────────────────────────────────
 
@@ -184,7 +337,7 @@ const PlayerDetails: React.FC = () => {
     (p) => p.year === CURRENT_YEAR && p.pitching?.war_pit != null
   );
 
-  const pitchingTableData = React.useMemo(() => {
+  const pitchingTableData = useMemo(() => {
     if (!player?.projections) return [];
     return player.projections
       .filter(
@@ -194,7 +347,7 @@ const PlayerDetails: React.FC = () => {
       .map((proj) => ({ year: proj.year, age: proj.age, status: proj.status, value: proj.value, pitching: proj.pitching }));
   }, [player, MAX_PROJECTION_YEAR]);
 
-  const hittingTableData = React.useMemo(() => {
+  const hittingTableData = useMemo(() => {
     if (!player?.projections) return [];
     return player.projections
       .filter(
@@ -226,184 +379,226 @@ const PlayerDetails: React.FC = () => {
     );
   }
 
-  // ── FA year display ──
+  // ── Shortcuts ──
   const faEarliest = cur?.earliest_fa_year;
   const faProbable = cur?.probable_fa_year;
   const faLatest = cur?.fa_year;
-
-  // Hitting overview stats
   const h = cur?.hitting;
-  const p = cur?.pitching;
+  const pit = cur?.pitching;
   const v = cur?.value;
+
+  const projWar = v?.contract_war ?? 0;
+  const primaryWar = hasHitting && h ? h.war_bat : pit?.war_pit ?? 0;
 
   return (
     <div className="min-h-screen bg-surface-900">
-      {/* ════════ HERO HEADER ════════ */}
-      <div className="relative overflow-hidden">
-        {/* Team gradient background */}
-        <div className="absolute inset-0" style={{ background: colors.gradient, opacity: 0.15 }} />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-surface-900/60 to-surface-900" />
 
-        <div className="relative max-w-6xl mx-auto px-4 pt-8 pb-10 md:pt-12 md:pb-14">
-          <div className="flex items-start gap-6 md:gap-8">
-            {/* Headshot */}
+      {/* ════════════════════════════════════════════════════
+       *  HERO — Big cinematic header with headshot + WAR ring
+       *  ════════════════════════════════════════════════════ */}
+      <div className="relative overflow-hidden">
+        {/* Layered team-color background */}
+        <div className="absolute inset-0" style={{ background: colors.gradient, opacity: 0.18 }} />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(255,255,255,0.06),transparent)]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-surface-900/50 to-surface-900" />
+
+        <div className="relative max-w-6xl mx-auto px-4 pt-10 pb-6 md:pt-14 md:pb-8">
+          {/* Top: team name breadcrumb */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.primary }} />
+            <span className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: colors.accent }}>
+              {teamName}
+            </span>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-start gap-6 md:gap-10">
+            {/* Left: Headshot */}
             <PlayerHeadshot
               mlbId={player.mlb_id}
               name={player.name}
               teamColor={colors.primary}
             />
 
-            {/* Identity */}
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2 mb-1">
-                <span
-                  className="text-xs font-bold uppercase tracking-widest"
-                  style={{ color: colors.accent }}
-                >
-                  {teamName}
-                </span>
-              </div>
-
-              <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight mb-3 truncate">
+            {/* Center: Identity + badges */}
+            <div className="flex-1 min-w-0 pt-1">
+              <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-3">
                 {player.name}
               </h1>
 
-              {/* Badges */}
               <div className="flex flex-wrap gap-2 mb-5">
                 <span
-                  className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide"
-                  style={{ backgroundColor: colors.primary + '20', color: colors.accent }}
+                  className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border"
+                  style={{
+                    backgroundColor: colors.primary + '15',
+                    borderColor: colors.primary + '40',
+                    color: colors.accent,
+                  }}
                 >
                   {player.position}
                 </span>
                 {cur?.age && (
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-surface-700/60 text-surface-300">
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-300 border border-white/[0.08]">
                     Age {cur.age}
                   </span>
                 )}
                 {cur?.status && (
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-surface-700/60 text-surface-300">
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-300 border border-white/[0.08]">
                     {cur.status}
-                  </span>
-                )}
-                {faProbable && (
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-surface-700/60 text-surface-300">
-                    FA: {faProbable}
                   </span>
                 )}
               </div>
 
-              {/* Key Stat Overview */}
-              <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 gap-x-6 gap-y-3">
-                {hasHitting && h && (
-                  <>
-                    <MiniStat label="WAR" value={fmt.war(h.war_bat)} highlight teamAccent={colors.accent} />
-                    <MiniStat label="AVG" value={fmt.dec(h.avg)} />
-                    <MiniStat label="OPS" value={fmt.dec(h.ops)} />
-                    <MiniStat label="wRC+" value={fmt.int(h.wrc_plus)} highlight teamAccent={colors.accent} />
-                    <MiniStat label="HR" value={fmt.int(h.hr)} />
-                    <MiniStat label="SB" value={fmt.int(h.sb)} />
-                    <MiniStat label="wOBA" value={fmt.dec(h.woba)} />
-                  </>
-                )}
-                {hasPitching && p && !hasHitting && (
-                  <>
-                    <MiniStat label="WAR" value={fmt.war(p.war_pit)} highlight teamAccent={colors.accent} />
-                    <MiniStat label="ERA" value={fmt.dec(p.era)} />
-                    <MiniStat label="FIP" value={fmt.dec(p.fip)} />
-                    <MiniStat label="SIERA" value={fmt.dec(p.siera)} />
-                    <MiniStat label="K%" value={fmt.pct(p.k_pct_pit)} highlight teamAccent={colors.accent} />
-                    <MiniStat label="BB%" value={fmt.pct(p.bb_pct_pit)} />
-                    <MiniStat label="GS" value={fmt.int(p.gs)} />
-                  </>
-                )}
-                {hasPitching && p && hasHitting && (
-                  <>
-                    <MiniStat label="WAR (bat)" value={fmt.war(h?.war_bat)} highlight teamAccent={colors.accent} />
-                    <MiniStat label="WAR (pit)" value={fmt.war(p.war_pit)} highlight teamAccent={colors.accent} />
-                    <MiniStat label="ERA" value={fmt.dec(p.era)} />
-                    <MiniStat label="AVG" value={fmt.dec(h?.avg)} />
-                    <MiniStat label="OPS" value={fmt.dec(h?.ops)} />
-                    <MiniStat label="K%" value={fmt.pct(p.k_pct_pit)} />
-                    <MiniStat label="wRC+" value={fmt.int(h?.wrc_plus)} />
-                  </>
-                )}
+              {/* Surplus value bar — right under the name for impact */}
+              {v && <SurplusBar value={v.trade_value ?? 0} teamColor={colors.accent} />}
+            </div>
+
+            {/* Right: WAR ring — the hero visual */}
+            <div className="hidden md:flex flex-col items-center gap-4 pt-2">
+              <WarRing
+                value={primaryWar}
+                label={hasHitting && hasPitching ? `${CURRENT_YEAR} WAR (bat)` : `${CURRENT_YEAR} WAR`}
+                color={colors.accent}
+                size={130}
+              />
+              {hasPitching && hasHitting && pit && (
+                <WarRing
+                  value={pit.war_pit}
+                  label={`${CURRENT_YEAR} WAR (pit)`}
+                  color={colors.primary}
+                  size={90}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ════════════════════════════════════════════════════
+       *  STAT SPOTLIGHT ROW — 3-5 big eye-catching numbers
+       *  ════════════════════════════════════════════════════ */}
+      <div className="max-w-6xl mx-auto px-4 -mt-1 mb-8">
+        {/* Mobile WAR ring — visible only on small screens */}
+        <div className="flex md:hidden justify-center mb-6">
+          <WarRing value={primaryWar} label={`${CURRENT_YEAR} WAR`} color={colors.accent} size={110} />
+          {hasPitching && hasHitting && pit && (
+            <div className="ml-6">
+              <WarRing value={pit.war_pit} label="WAR (pit)" color={colors.primary} size={80} />
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+          {hasHitting && h && (
+            <>
+              <StatSpotlight label="AVG" value={fmt.dec(h.avg)} color={colors.accent} />
+              <StatSpotlight label="OPS" value={fmt.dec(h.ops)} />
+              <StatSpotlight label="wRC+" value={fmt.int(h.wrc_plus)} color={(h.wrc_plus ?? 0) >= 120 ? colors.accent : undefined} subtitle={
+                (h.wrc_plus ?? 0) >= 140 ? 'Elite' : (h.wrc_plus ?? 0) >= 120 ? 'Great' : (h.wrc_plus ?? 0) >= 100 ? 'Above Avg' : 'Below Avg'
+              } />
+              <StatSpotlight label="HR" value={fmt.int(h.hr)} />
+              <StatSpotlight label="SB" value={fmt.int(h.sb)} />
+            </>
+          )}
+          {hasPitching && pit && !hasHitting && (
+            <>
+              <StatSpotlight label="ERA" value={fmt.dec(pit.era)} color={colors.accent} />
+              <StatSpotlight label="FIP" value={fmt.dec(pit.fip)} />
+              <StatSpotlight label="SIERA" value={fmt.dec(pit.siera)} />
+              <StatSpotlight label="K%" value={fmt.pct(pit.k_pct_pit)} color={colors.accent} subtitle={
+                (pit.k_pct_pit ?? 0) >= 0.30 ? 'Elite' : (pit.k_pct_pit ?? 0) >= 0.25 ? 'Great' : 'Average'
+              } />
+              <StatSpotlight label="BB%" value={fmt.pct(pit.bb_pct_pit)} subtitle={
+                (pit.bb_pct_pit ?? 0) <= 0.06 ? 'Elite' : (pit.bb_pct_pit ?? 0) <= 0.08 ? 'Good' : 'Average'
+              } />
+            </>
+          )}
+          {hasPitching && pit && hasHitting && h && (
+            <>
+              <StatSpotlight label="ERA" value={fmt.dec(pit.era)} color={colors.accent} />
+              <StatSpotlight label="OPS" value={fmt.dec(h.ops)} />
+              <StatSpotlight label="K%" value={fmt.pct(pit.k_pct_pit)} color={colors.accent} />
+              <StatSpotlight label="wRC+" value={fmt.int(h.wrc_plus)} />
+              <StatSpotlight label="FIP" value={fmt.dec(pit.fip)} />
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ════════════════════════════════════════════════════
+       *  VALUE & CONTRACT SECTION — visual, not a wall of text
+       *  ════════════════════════════════════════════════════ */}
+      <div className="max-w-6xl mx-auto px-4 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Left: Contract timeline + financial summary */}
+          <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/40 space-y-6">
+            <ContractTimeline
+              currentYear={CURRENT_YEAR}
+              faEarliest={faEarliest}
+              faProbable={faProbable}
+              faLatest={faLatest}
+              yearsControl={v?.years_control}
+              teamColor={colors.primary}
+            />
+
+            <div className="grid grid-cols-2 gap-4 pt-2">
+              <div>
+                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Total Contract</span>
+                <span className="text-xl font-bold text-red-400">{fmt.dollar(v?.total_contract)}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Avg $/Year</span>
+                <span className="text-xl font-bold text-red-400">{fmt.dollar(v?.avg_contract)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Production + Career summary */}
+          <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/40">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-surface-400 mb-5">
+              Production Overview
+            </h3>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+              <div>
+                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Projected WAR</span>
+                <span className="text-2xl font-bold" style={{ color: colors.accent }}>{fmt.war(projWar)}</span>
+                <span className="text-[10px] text-surface-500 block mt-0.5">
+                  over {v?.years_control ?? '?'} yr · {fmt.war(v?.avg_war)} WAR/yr
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Projected Value</span>
+                <span className="text-2xl font-bold text-white">{fmt.dollar(v?.contract_base_value)}</span>
+                <span className="text-[10px] text-surface-500 block mt-0.5">on-field production value</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Historical WAR</span>
+                <span className="text-2xl font-bold text-white">{fmt.war(v?.historical_war)}</span>
+                <span className="text-[10px] text-surface-500 block mt-0.5">career to date</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Total WAR</span>
+                <span className="text-2xl font-bold text-white">{fmt.war(v?.total_war)}</span>
+                <span className="text-[10px] text-surface-500 block mt-0.5">hist + projected</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ════════ VALUE CARDS ════════ */}
-      <div className="max-w-6xl mx-auto px-4 -mt-2 mb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <ValueCard
-            title="Trade Value"
-            teamColor={colors.accent}
-            items={[
-              { label: 'Surplus', value: fmt.dollar(v?.trade_value), positive: (v?.trade_value ?? 0) >= 0 },
-              { label: 'Years Ctrl', value: v?.years_control != null ? `${v.years_control}` : '—' },
-              { label: 'Ctrl Through', value: v?.control_through != null ? `${v.control_through}` : '—' },
-            ]}
-          />
-          <ValueCard
-            title="Production"
-            teamColor={colors.accent}
-            items={[
-              { label: 'Proj WAR', value: fmt.war(v?.contract_war) },
-              { label: 'Proj Value', value: fmt.dollar(v?.contract_base_value), positive: true },
-              { label: 'Avg WAR/yr', value: fmt.war(v?.avg_war) },
-            ]}
-          />
-          <ValueCard
-            title="Contract"
-            teamColor={colors.accent}
-            items={[
-              { label: 'Total $', value: fmt.dollar(v?.total_contract), positive: false },
-              { label: 'Avg $/yr', value: fmt.dollar(v?.avg_contract), positive: false },
-              {
-                label: 'FA Window',
-                value:
-                  faEarliest && faLatest
-                    ? faEarliest === faLatest
-                      ? `${faLatest}`
-                      : `${faEarliest}–${faLatest}`
-                    : '—',
-              },
-            ]}
-          />
-          <ValueCard
-            title="Career / History"
-            teamColor={colors.accent}
-            items={[
-              { label: 'Hist WAR', value: fmt.war(v?.historical_war) },
-              { label: 'Hist Value', value: fmt.dollar(v?.historical_value), positive: true },
-              { label: 'Total WAR', value: fmt.war(v?.total_war) },
-            ]}
-          />
-        </div>
-      </div>
-
-      {/* ════════ STAT TABLES ════════ */}
-      <div className="max-w-6xl mx-auto px-4 pb-16 space-y-6">
+      {/* ════════════════════════════════════════════════════
+       *  PROJECTION TABLES — collapsible to reduce clutter
+       *  ════════════════════════════════════════════════════ */}
+      <div className="max-w-6xl mx-auto px-4 pb-16 space-y-4">
         {hasPitching && hasCurrentPitching && (
-          <section className="rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/40">
-            <div className="px-6 py-4 border-b border-white/[0.06] flex items-center gap-3">
-              <div className="w-1 h-5 rounded-full" style={{ backgroundColor: colors.primary }} />
-              <h2 className="text-lg font-semibold text-white">Pitching Projections</h2>
-            </div>
+          <CollapsibleSection title="Pitching Projections" teamColor={colors.primary} defaultOpen>
             <CombinedPitchingTable data={pitchingTableData.sort((a, b) => b.year - a.year)} />
-          </section>
+          </CollapsibleSection>
         )}
 
         {hasHitting && hasCurrentHitting && (
-          <section className="rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/40">
-            <div className="px-6 py-4 border-b border-white/[0.06] flex items-center gap-3">
-              <div className="w-1 h-5 rounded-full" style={{ backgroundColor: colors.primary }} />
-              <h2 className="text-lg font-semibold text-white">Hitting Projections</h2>
-            </div>
+          <CollapsibleSection title="Hitting Projections" teamColor={colors.primary} defaultOpen>
             <CombinedHittingTable data={hittingTableData.sort((a, b) => b.year - a.year)} />
-          </section>
+          </CollapsibleSection>
         )}
       </div>
     </div>
