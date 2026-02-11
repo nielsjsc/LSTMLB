@@ -109,14 +109,17 @@ app.include_router(trades.router, prefix="/trades", tags=["trades"])
 app.include_router(projections.router, prefix="/projections", tags=["projections"])
 
 # Headshot images endpoint
-HEADSHOTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "headshots" / "pixelated"
+HEADSHOTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "headshots"
+logger.info(f"Headshots directory: {HEADSHOTS_DIR}")
+logger.info(f"Headshots directory exists: {HEADSHOTS_DIR.exists()}")
 
 @app.get("/headshots/{mlb_id}.png")
 async def get_headshot(mlb_id: int):
     """Serve pixelated player headshot by MLB ID"""
     file_path = HEADSHOTS_DIR / f"{mlb_id}.png"
+    logger.info(f"Requesting headshot: {file_path}, exists: {file_path.exists()}")
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Headshot not found")
+        raise HTTPException(status_code=404, detail=f"Headshot not found: {mlb_id}.png")
     return FileResponse(file_path, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
