@@ -41,6 +41,7 @@ export interface PlayerResponse {
     count: number;
     players: Array<{
         real_id: number;
+        mlb_id: number | null;
         name: string;
         team: string;
         position: string;
@@ -211,6 +212,7 @@ export interface PlayerStats {
     name: string;
     team: string;
     position: string;
+    mlb_id: number | null;
     projections: Array<{
         year: number;
         age: number;
@@ -304,6 +306,7 @@ export interface ProjectionResponse {
     count: number;
     players: Array<{
         real_id: number;
+        mlb_id: number | null;
         name: string;
         team: string;
         position: string;
@@ -482,6 +485,7 @@ export interface Prospect {
 
 export interface TradeValueRankings {
   real_id: number;
+  mlb_id: number | null;
   name: string;
   team: string;
   position: string;

@@ -76,6 +76,7 @@ async def get_players(
             "players": [
                 {
                     "real_id": p.real_id,
+                    "mlb_id": p.mlb_id,
                     "name": p.name,
                     "team": p.team,
                     "position": p.position,
@@ -101,32 +102,15 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
     logger.info(f"Received request for player_id: {player_id}")  # Debug log
     
     try:
-        # Debug query
-        logger.info(f"Executing query for real_id: {player_id}")
-        query = db.query(Player).filter(Player.real_id == player_id)
-        logger.info(f"SQL Query: {query.statement}")  # Show actual SQL
-        
+        # Try lookup by mlb_id first, then fall back to real_id (IDfg)
+        logger.info(f"Trying mlb_id lookup for: {player_id}")
+        query = db.query(Player).filter(Player.mlb_id == player_id)
         player_years = query.order_by(Player.year).all()
-        logger.info(f"Found {len(player_years)} years")  # Debug log
         
         if not player_years:
-            logger.warning(f"No player found with real_id: {player_id}")
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Player not found with ID: {player_id}"
-            )
-        
-        # Debug first row
-        if player_years:
-            logger.info(f"First year data: {player_years[0].__dict__}")
-            
-        # Get all years directly using player_id as real_id
-        player_years = (
-            db.query(Player)
-            .filter(Player.real_id == player_id)
-            .order_by(Player.year)
-            .all()
-        )
+            logger.info(f"No mlb_id match, trying real_id lookup for: {player_id}")
+            query = db.query(Player).filter(Player.real_id == player_id)
+            player_years = query.order_by(Player.year).all()
         
         logger.info(f"Found {len(player_years)} years for player with ID: {player_id}")
         
@@ -143,6 +127,7 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
             "name": current_year_data.name,
             "team": current_year_data.team,
             "position": current_year_data.position,
+            "mlb_id": current_year_data.mlb_id,
             "projections": [{
                 "year": p.year,
                 "age": p.age,

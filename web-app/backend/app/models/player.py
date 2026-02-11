@@ -16,6 +16,7 @@ class Player(Base):
     # Primary Key
     id = Column(Integer, primary_key=True, index=True)
     real_id = Column(Integer, index=True)
+    mlb_id = Column(Integer, index=True)
     
     # Basic Info
     name = Column(String, index=True)

@@ -40,6 +40,7 @@ class DataLoader:
         return {
             # Integer fields
             'real_id': int(row['IDfg']) if pd.notna(row['IDfg']) else None,
+            'mlb_id': int(row['mlb_id']) if pd.notna(row.get('mlb_id')) else None,
             'age': int(row['Age']) if pd.notna(row['Age']) else None,
             'year': int(row['Year']) if pd.notna(row['Year']) else None,
             'years_control': int(row.get('years_control')) if pd.notna(row.get('years_control')) else None,

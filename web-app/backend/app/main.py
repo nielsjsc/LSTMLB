@@ -2,6 +2,8 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 import logging
 import time
 import sys
@@ -105,6 +107,17 @@ app.include_router(players.router, prefix="/players", tags=["players"])
 app.include_router(prospects.router, prefix="/prospects", tags=["prospects"])
 app.include_router(trades.router, prefix="/trades", tags=["trades"])
 app.include_router(projections.router, prefix="/projections", tags=["projections"])
+
+# Headshot images endpoint
+HEADSHOTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "headshots" / "pixelated"
+
+@app.get("/headshots/{mlb_id}.png")
+async def get_headshot(mlb_id: int):
+    """Serve pixelated player headshot by MLB ID"""
+    file_path = HEADSHOTS_DIR / f"{mlb_id}.png"
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Headshot not found")
+    return FileResponse(file_path, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/")

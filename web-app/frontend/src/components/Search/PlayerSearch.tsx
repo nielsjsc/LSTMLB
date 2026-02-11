@@ -5,6 +5,7 @@ import { CURRENT_YEAR } from '../../config'
 
 interface PlayerResult {
   id: number;
+  mlb_id: number | null;
   name: string;
   team: string;
   position: string;
@@ -45,6 +46,7 @@ const PlayerSearch = () => {
       // Just use the backend results directly
       setResults(response.players.map(p => ({
         id: p.real_id,
+        mlb_id: p.mlb_id,
         name: p.name,
         team: p.team,
         position: p.position,
@@ -59,7 +61,7 @@ const PlayerSearch = () => {
   const handleSelect = (player: PlayerResult) => {
     setQuery('');
     setResults([]);
-    navigate(`/players/${player.id}`);
+    navigate(`/players/${player.mlb_id || player.id}`);
   };
 
   return (

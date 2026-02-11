@@ -98,6 +98,7 @@ async def get_projections(
             "page_size": page_size,
             "players": [{
                 "real_id": p.real_id,
+                "mlb_id": p.mlb_id,
                 "name": p.name,
                 "team": p.team,
                 "position": p.position,

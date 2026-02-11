@@ -13,6 +13,7 @@ interface TradeValuesTableProps {
 }
 interface FormattedTradeValueRow extends Record<string, any> {
   real_id: number;
+  mlb_id: number | null;
   name: { id: string; name: string };
   team: string;
   position: string;
@@ -57,7 +58,7 @@ const TradeValuesTable: React.FC<TradeValuesTableProps> = ({
     
     if (key === 'name') {
       return (
-        <Link to={`/players/${row.real_id}`} className="text-accent-blue hover:text-blue-300 font-medium">
+        <Link to={`/players/${row.mlb_id || row.real_id}`} className="text-accent-blue hover:text-blue-300 font-medium">
           {value.name}
         </Link>
       );
@@ -81,7 +82,7 @@ const TradeValuesTable: React.FC<TradeValuesTableProps> = ({
   const formattedData: FormattedTradeValueRow[] = data.players.map(player => ({
     ...player,
     name: { 
-      id: player.name.replace(/\s+/g, '-').toLowerCase(), 
+      id: String(player.mlb_id || player.real_id), 
       name: player.name 
     }
   }));

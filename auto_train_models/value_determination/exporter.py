@@ -23,7 +23,7 @@ def export_value_data(df: pd.DataFrame, output_dir: Path) -> None:
     # Define column groups
     base_cols = [
         'Player Name', 'Team', 'Status', 'Position', 'Age', 'WAR',
-        'Base_Value', 'Contract_Value', 'Surplus_Value', 'IDfg', 'Year', 'FA_Year',
+        'Base_Value', 'Contract_Value', 'Surplus_Value', 'IDfg', 'mlb_id', 'Year', 'FA_Year',
         'Probable_FA_Year', 'Earliest_FA_Year', 'trade_value', 'contract_war', 'avg_war',
         'total_contract', 'avg_contract', 'total_surplus', 'years_control', 'control_through',
         'total_future_war', 'total_future_value', 'total_value', 'total_war',
@@ -44,6 +44,26 @@ def export_value_data(df: pd.DataFrame, output_dir: Path) -> None:
     try:
         # Create copy for export
         export_df = df.copy()
+        
+        # Merge with roster data to get mlb_id (mlbam_id) from fg_id
+        roster_path = output_dir.parent.parent / 'active_roster' / 'current_rosters.csv'
+        if roster_path.exists():
+            roster_df = pd.read_csv(roster_path)
+            # fg_id in roster is string with '.0' suffix, IDfg in export is float
+            roster_df['fg_id_clean'] = pd.to_numeric(roster_df['fg_id'], errors='coerce')
+            id_map = roster_df.dropna(subset=['fg_id_clean']).drop_duplicates('fg_id_clean')[['mlbam_id', 'fg_id_clean']]
+            export_df['IDfg_num'] = pd.to_numeric(export_df.get('IDfg', pd.Series()), errors='coerce')
+            export_df = export_df.merge(
+                id_map, left_on='IDfg_num', right_on='fg_id_clean', how='left'
+            )
+            export_df['mlb_id'] = export_df['mlbam_id'].apply(
+                lambda x: int(x) if pd.notna(x) else None
+            )
+            export_df = export_df.drop(columns=['mlbam_id', 'fg_id_clean', 'IDfg_num'], errors='ignore')
+            logger.info(f"Matched {export_df['mlb_id'].notna().sum()}/{len(export_df)} players to mlb_id")
+        else:
+            export_df['mlb_id'] = None
+            logger.warning(f"Roster file not found at {roster_path}, mlb_id will be empty")
         
         # Rename Name column if exists
         if 'Name' in export_df.columns:

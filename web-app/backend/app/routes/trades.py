@@ -211,6 +211,7 @@ def get_trade_value_rankings(
         players = query.all()
         results = [{
             "real_id": p.real_id,
+            "mlb_id": p.mlb_id,
             "name": p.name,
             "team": p.team,
             "position": p.position,

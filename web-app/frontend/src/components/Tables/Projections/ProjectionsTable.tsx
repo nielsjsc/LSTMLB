@@ -167,7 +167,7 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
 
   const formattedData: FormattedPlayerRow[] = data.players.map(player => ({
     id: player.real_id,
-    name: { id: player.real_id, name: player.name },
+    name: { id: player.mlb_id || player.real_id, name: player.name },
     team: player.team,
     position: player.position,
     age: player.age,
