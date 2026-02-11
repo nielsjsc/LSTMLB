@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Player, Prospect } from '../../../../services/api';
 import { getTeamColors } from '../../../../utils/teamColors';
@@ -24,22 +24,9 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'mlb' | 'prospects'>('mlb');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const otherTeamColors = getTeamColors(otherTeam);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
 
   const getPositionColor = (position: string | undefined) => {
     if (!position) return 'bg-surface-600 text-surface-300';
@@ -63,9 +50,11 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
 
   const totalValue = receivingAssets.reduce((sum, { asset }) => {
     if ('war_bat' in asset || 'war_pit' in asset) {
-      return sum + (asset.surplus_value || 0);
+      const surplus = (asset as Player).surplus_value;
+      return sum + (surplus && !isNaN(surplus) ? surplus : 0);
     }
-    return sum + ((asset as Prospect).value || 0);
+    const value = (asset as Prospect).value;
+    return sum + (value && !isNaN(value) ? value : 0);
   }, 0);
 
   return (
@@ -166,7 +155,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
       </div>
 
       {/* Total value bar */}
-      {receivingAssets.length > 0 && (
+      {receivingAssets.length > 0 && !isNaN(totalValue) && (
         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.04] mb-4">
           <span className="text-xs text-surface-400 font-medium">Package Value</span>
           <span className={`text-sm font-bold ${totalValue >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -175,8 +164,8 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
         </div>
       )}
 
-      {/* Searchable Player Dropdown */}
-      <div ref={dropdownRef} className="relative">
+      {/* Player List */}
+      <div className="flex flex-col">
         {/* Tab switcher */}
         <div className="flex mb-2 bg-surface-800/80 rounded-lg p-0.5 border border-white/[0.04]">
           <button
@@ -202,7 +191,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
         </div>
 
         {/* Search input */}
-        <div className="relative">
+        <div className="relative mb-2">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -212,15 +201,13 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
             placeholder={activeTab === 'mlb' ? 'Search MLB players...' : 'Search prospects...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => setIsDropdownOpen(true)}
             className="w-full bg-surface-700/50 border border-white/[0.08] rounded-lg pl-9 pr-4 py-2.5 text-sm text-surface-300 
               placeholder:text-surface-500 focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400/30 transition-all duration-200"
           />
         </div>
 
-        {/* Dropdown results */}
-        {isDropdownOpen && (
-          <div className="absolute z-20 w-full mt-1 bg-surface-800/95 backdrop-blur-sm border border-white/[0.15] rounded-lg shadow-2xl shadow-black/50 max-h-[280px] overflow-y-auto">
+        {/* Player list - always visible */}
+        <div className="bg-surface-800/95 backdrop-blur-sm border border-white/[0.15] rounded-lg shadow-lg max-h-[320px] overflow-y-auto">
             {activeTab === 'mlb' ? (
               filteredPlayers.length === 0 ? (
                 <div className="px-4 py-6 text-center text-surface-500 text-xs">No players found</div>
@@ -233,7 +220,6 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
                       onClick={() => {
                         onAssetSelect(player, false);
                         setSearchQuery('');
-                        setIsDropdownOpen(false);
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-brand-400/10 transition-colors duration-100 border-b border-white/[0.06] last:border-0"
                     >
@@ -258,9 +244,8 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
                     onClick={() => {
                       onAssetSelect(prospect, true);
                       setSearchQuery('');
-                      setIsDropdownOpen(false);
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/[0.04] transition-colors duration-100 border-b border-white/[0.03] last:border-0"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-brand-400/10 transition-colors duration-100 border-b border-white/[0.06] last:border-0"
                   >
                     <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${getPositionColor(prospect.position)}`}>
                       {prospect.position}
@@ -270,7 +255,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
                       <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1 py-0.5 rounded font-medium">
                         FV {prospect.fv}
                       </span>
-                      {prospect.value && (
+                      {prospect.value && !isNaN(prospect.value) && (
                         <span className="text-xs font-medium text-surface-400 tabular-nums">
                           ${(prospect.value / 1_000_000).toFixed(1)}M
                         </span>
@@ -281,7 +266,6 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
               )
             )}
           </div>
-        )}
       </div>
     </div>
   );
