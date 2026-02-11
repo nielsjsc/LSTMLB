@@ -2,16 +2,12 @@
 Trade Value Calculations
 ========================
 
-This module handles trade value calculations including:
-- Contract option analysis (player/team options, opt-outs)
-- Base trade value from surplus value  
-- Prospect adjustments with experience-based weighting
-- Trade ranking metrics
-
-The key insight for prospect valuation is that a player's trade value should
-transition smoothly from prospect-based (for players with little MLB experience)
-to performance-based (for established players). The transition is controlled by
-games played thresholds defined in Config.Prospects.EXPERIENCE_THRESHOLD_GAMES.
+Calculates trade value for each player:
+    1. Sum projected WAR over remaining team-control years
+    2. Convert WAR to dollar value
+    3. Subtract total contract cost → trade value (surplus)
+    4. For recent prospects with limited MLB experience, blend the
+       performance-based value with their prospect grade value
 
 Usage:
     from value_determination.trade_value import (
@@ -21,558 +17,422 @@ Usage:
 
 import pandas as pd
 import numpy as np
+import re
 
-# Import from central config
 from .config import Config, logger, CURRENT_YEAR
 
 
-def calculate_prospect_value_fangraphs(fv: float, rank: float) -> float:
+# ---------------------------------------------------------------------------
+# Prospect dollar value from FV grade + ranking
+# ---------------------------------------------------------------------------
+
+def _prospect_dollar_value(fv, rank) -> float | None:
     """
-    Calculate prospect value based on FV grade and ranking using FanGraphs methodology.
-    
-    Uses FV base values and rank adjustments from Config.Prospects.
-    
+    Convert a FanGraphs FV grade and ranking into a dollar value.
+
     Args:
-        fv: Future Value grade (40-70+ scale). Can include '+' suffix (e.g., '55+')
-        rank: Prospect ranking (1-100 for top 100, higher for organizational)
-        
+        fv: Future Value grade (40-70 scale, may include '+' suffix).
+        rank: Top-100 ranking (1-100) or NaN for org-only prospects.
+
     Returns:
-        Dollar value of prospect, or None if calculation fails
-        
-    Example:
-        >>> calculate_prospect_value_fangraphs(60, 15)  # 60 FV, #15 prospect
-        67_200_000  # $80M base * 0.84 rank adjustment
+        Dollar value, or None if inputs are invalid.
     """
     if pd.isna(fv):
         return None
-        
+
     try:
-        # Handle FV with plus grades (e.g., '55+' -> 57.5)
-        if '+' in str(fv):
-            fv = float(str(fv).replace('+', '')) + 2.5
-        else:
-            fv = float(fv)
-        
-        # Get base value from config
-        fv_values = Config.Prospects.FV_BASE_VALUES
-        
-        # Find closest FV tier (round down to nearest 5)
-        valid_tiers = [k for k in fv_values.keys() if k <= fv]
-        if not valid_tiers:
-            logger.warning(f"FV {fv} below minimum tier, using lowest value")
-            base_fv = min(fv_values.keys())
-        else:
-            base_fv = max(valid_tiers)
-        
-        base_value = fv_values[base_fv]
-        
-        # Calculate rank adjustment using config method
-        # Only apply rank adjustment for top 100 rank (comparable across orgs)
-        # Org ranks are NOT comparable and should not get bonuses
+        # Handle plus grades (e.g. '55+' → 57.5)
+        fv = float(str(fv).replace("+", "")) + (2.5 if "+" in str(fv) else 0)
+
+        # Find the highest FV tier at or below this grade
+        tiers = Config.Prospects.FV_BASE_VALUES
+        valid = [k for k in tiers if k <= fv]
+        base_tier = max(valid) if valid else min(tiers)
+        base_value = tiers[base_tier]
+
+        # Apply top-100 rank bonus (non-top-100 get 1.0×)
         if pd.notna(rank):
-            rank_adj = Config.Prospects.calculate_rank_adjustment(float(rank))
-            return base_value * rank_adj
-        
-        # Default to base value (1.0x) if no rank
-        return base_value * 1.0
-        
+            return base_value * Config.Prospects.calculate_rank_adjustment(float(rank))
+        return base_value
+
     except Exception as e:
-        logger.warning(f"Error calculating prospect value for FV={fv}, rank={rank}: {e}")
+        logger.warning(f"Could not calculate prospect value (FV={fv}, rank={rank}): {e}")
         return None
 
 
+# ---------------------------------------------------------------------------
+# Contract option analysis (opt-outs, team/player options)
+# ---------------------------------------------------------------------------
+
 def analyze_contract_options(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Add FA year and probable FA year analysis.
-    
-    Args:
-        df: DataFrame with contract status information
-        
-    Returns:
-        DataFrame with FA_Year, probable_fa_year, earliest_fa_year columns
+    Determine each player's FA year accounting for contract options.
+
+    Adds columns:
+        FA_Year           – first explicit Free Agent year
+        probable_fa_year  – FA year after evaluating options
+        earliest_fa_year  – earliest possible FA year (any option exercised)
     """
     result = df.copy()
-    
-    # Find base FA year
-    fa_years = (result[result['Status'] == 'Free Agent']
-                .groupby('IDfg')['Year']
-                .min()
-                .reset_index()
-                .rename(columns={'Year': 'FA_Year'}))
-    
-    result = result.merge(fa_years, on='IDfg', how='left')
-    
-    # Fallback: For players without FA_Year, infer from last contract year
-    players_without_fa = result[result['FA_Year'].isna()]['IDfg'].unique()
-    if len(players_without_fa) > 0:
-        logger.info(f"Inferring FA year for {len(players_without_fa)} players without explicit FA status")
-        
-        for player_id in players_without_fa:
-            player_data = result[result['IDfg'] == player_id]
-            
-            # Find last year with contract value or Signed status
-            contract_years = player_data[
-                (player_data['contract_value'].notna() & (player_data['contract_value'] > 0)) | 
-                (player_data['Status'].isin(['Signed', 'Unknown']))
-            ]['Year']
-            
-            if len(contract_years) > 0:
-                last_contract_year = contract_years.max()
-                inferred_fa_year = last_contract_year + 1
-                result.loc[result['IDfg'] == player_id, 'FA_Year'] = inferred_fa_year
-                logger.debug(f"Player {player_id}: Inferred FA_Year = {inferred_fa_year} (contract ends {last_contract_year})")
-    
-    result['probable_fa_year'] = result['FA_Year']
-    
-    # Find players with any type of option
-    option_types = ['Player Option', 'Team Option', 'Mutual Option', 'Vesting Option', 'Opt-Out']
-    
-    # Set earliest_fa_year to option year if exists, otherwise FA_Year
-    option_years = (result[result['Status'].isin(option_types)]
-                   .groupby('IDfg')['Year']
-                   .min()
-                   .reset_index()
-                   .rename(columns={'Year': 'option_year'}))
-    
-    result['earliest_fa_year'] = result['FA_Year']
-    result = result.merge(option_years, on='IDfg', how='left')
-    result.loc[result['option_year'].notna(), 'earliest_fa_year'] = result.loc[result['option_year'].notna(), 'option_year']
-    
-    # Process each player with options - evaluate year-by-year
-    for player_id in result[result['Status'].isin(option_types)]['IDfg'].unique():
-        player_data = result[result['IDfg'] == player_id].sort_values('Year')
-        fa_year = player_data['FA_Year'].iloc[0]
-        
-        # Get all option years for this player
-        option_years_data = player_data[player_data['Status'].isin(option_types)].sort_values('Year')
-        
-        if len(option_years_data) == 0:
-            continue
-        
-        # Evaluate each option year independently (chronologically)
-        probable_fa = fa_year  # Start with default FA year
-        
-        for idx, option_row in option_years_data.iterrows():
-            option_year = option_row['Year']
-            option_status = option_row['Status']
-            surplus = option_row['surplus_value']
-            
-            # Skip if we already determined FA happens before this option
-            if option_year >= probable_fa:
+
+    # --- Base FA year (first year with 'Free Agent' status) ------------------
+    fa_years = (
+        result.loc[result["Status"] == "Free Agent"]
+        .groupby("IDfg")["Year"]
+        .min()
+        .rename("FA_Year")
+    )
+    result = result.merge(fa_years, on="IDfg", how="left")
+
+    # Infer FA year for players without an explicit Free Agent row
+    missing = result.loc[result["FA_Year"].isna(), "IDfg"].unique()
+    if len(missing):
+        logger.info(f"Inferring FA year for {len(missing)} players without explicit FA status")
+        for pid in missing:
+            rows = result[result["IDfg"] == pid]
+            contract = rows.loc[
+                (rows["contract_value"].notna() & (rows["contract_value"] > 0))
+                | rows["Status"].isin(["Signed", "Unknown"])
+            ]["Year"]
+            if len(contract):
+                result.loc[result["IDfg"] == pid, "FA_Year"] = contract.max() + 1
+
+    result["probable_fa_year"] = result["FA_Year"]
+
+    # --- Evaluate options year-by-year --------------------------------------
+    OPTION_TYPES = {"Player Option", "Team Option", "Mutual Option",
+                    "Vesting Option", "Opt-Out"}
+
+    option_min = (
+        result.loc[result["Status"].isin(OPTION_TYPES)]
+        .groupby("IDfg")["Year"]
+        .min()
+        .rename("earliest_fa_year")
+    )
+    result = result.merge(option_min, on="IDfg", how="left")
+    result["earliest_fa_year"] = result["earliest_fa_year"].fillna(result["FA_Year"])
+
+    for pid in result.loc[result["Status"].isin(OPTION_TYPES), "IDfg"].unique():
+        pdata = result[result["IDfg"] == pid].sort_values("Year")
+        probable_fa = pdata["FA_Year"].iloc[0]
+
+        for _, row in pdata[pdata["Status"].isin(OPTION_TYPES)].iterrows():
+            yr, status, surplus = row["Year"], row["Status"], row["surplus_value"]
+            if yr >= probable_fa:
                 break
-            
-            # Apply option-specific logic for THIS year only
-            option_declined = False
-            
-            if option_status in ['Player Option', 'Opt-Out']:
-                # Player opts out if they can get more value as FA (positive surplus)
-                if pd.notna(surplus) and surplus > 0:
-                    option_declined = True
-            elif option_status == 'Team Option':
-                # Team declines if player costs more than they're worth (negative surplus)
-                if pd.notna(surplus) and surplus < 0:
-                    option_declined = True
-            else:  # Mutual Option, Vesting Option
-                # Declined if negative surplus (both parties agree it's bad)
-                if pd.notna(surplus) and surplus < 0:
-                    option_declined = True
-            
-            # If option is declined, player becomes FA at this year
-            if option_declined:
-                probable_fa = option_year
-                break  # No need to check future options
-        
-        # Update probable_fa_year for this player
-        result.loc[result['IDfg'] == player_id, 'probable_fa_year'] = probable_fa
-    
-    # Clean up temporary column
-    result = result.drop('option_year', axis=1, errors='ignore')
-    
-    # Log examples at debug level
-    adjusted_fa_count = (result['FA_Year'] != result['probable_fa_year']).sum()
-    if adjusted_fa_count > 0:
-        logger.debug(f"Players with adjusted FA years: {adjusted_fa_count}")
-    
+
+            declined = False
+            if status in ("Player Option", "Opt-Out"):
+                declined = pd.notna(surplus) and surplus > 0
+            elif status == "Team Option":
+                declined = pd.notna(surplus) and surplus < 0
+            else:  # Mutual / Vesting
+                declined = pd.notna(surplus) and surplus < 0
+
+            if declined:
+                probable_fa = yr
+                break
+
+        result.loc[result["IDfg"] == pid, "probable_fa_year"] = probable_fa
+
     return result
 
+
+# ---------------------------------------------------------------------------
+# Core trade value calculation
+# ---------------------------------------------------------------------------
 
 def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Calculate trade values and handle prospect adjustments with arb floor.
-    
-    Args:
-        df: DataFrame with surplus values and contract information
-        
-    Returns:
-        DataFrame with trade_value column added
-    """
-    result_df = df.copy()
-    result_df['trade_value'] = None
-    
-    # Process each player's base trade value
-    for player_id in result_df['IDfg'].unique():
-        player_data = result_df[result_df['IDfg'] == player_id]
-        
-        # Get FA year
-        fa_year = player_data['probable_fa_year'].iloc[0]
-        if pd.isna(fa_year):
-            fa_year = player_data['FA_Year'].iloc[0]
-        
-        # Sum surplus values from current year to FA year (exclusive)
-        valid_surplus = player_data[
-            (player_data['Year'] >= CURRENT_YEAR) &
-            (player_data['Year'] < fa_year) &
-            (player_data['surplus_value'].notna())
-        ]['surplus_value']
-        
-        # Check if player is in arbitration
-        is_team_control = player_data['Status'].str.contains('Arb|Pre-Arb', regex=True).any()
-        
-        # Only assign trade value if we have valid surplus values
-        if not valid_surplus.empty:
-            trade_value = valid_surplus.sum()
-            
-            # Floor at 0 for arbitration players (can't have negative trade value in arb)
-            if is_team_control:
-                trade_value = max(0, trade_value)
-            # For non-arb players (Signed, Options), trade value can be negative
-            # but only if they have years remaining before FA
-            elif trade_value < 0 and (fa_year <= CURRENT_YEAR):
-                # Player is already FA or becomes FA this year - no trade value
-                trade_value = 0
-            
-            result_df.loc[
-                (result_df['IDfg'] == player_id) &
-                (result_df['Year'] >= CURRENT_YEAR),
-                'trade_value'
-            ] = trade_value
-        else:
-            # No controlled years with surplus - explicitly set to 0 or None
-            # This handles edge cases like option year = FA year
-            result_df.loc[
-                (result_df['IDfg'] == player_id) &
-                (result_df['Year'] >= CURRENT_YEAR),
-                'trade_value'
-            ] = None
-    
-    logger.info(f"Players with initial trade values: {result_df['trade_value'].notna().sum()}")
-    
-    # Try to load prospect data for adjustments
-    prospect_file = Config.Paths.PROSPECT_FILE
-    if prospect_file.exists():
-        result_df = _apply_prospect_adjustments(result_df, prospect_file)
-    else:
-        logger.warning(f"Prospect file not found: {prospect_file}")
-    
-    # Log statistics
-    total_with_values = result_df['trade_value'].notna().sum()
-    avg_value = result_df['trade_value'].mean()
-    median_value = result_df['trade_value'].median()
-    logger.info(f"Trade values calculated: {total_with_values} players, avg=${avg_value:,.0f}, median=${median_value:,.0f}")
-    
-    return result_df
+    Calculate trade value for every player.
 
+    Trade value = Σ(projected WAR dollars) – Σ(contract cost)
+    summed over each remaining team-control year (CURRENT_YEAR … FA_Year-1).
 
-def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.DataFrame:
-    """
-    Apply prospect value adjustments to trade values.
-    
-    Uses MLB.com prospect rankings and grades to adjust trade values for young players.
-    Players with high prospect grades get a bonus, especially if they haven't proven themselves yet.
-    """
-    
-    prospect_df = pd.read_csv(prospect_file)
-    logger.info(f"Loaded prospect data: {prospect_df.shape[0]} records, years {prospect_df['year'].min():.0f}-{prospect_df['year'].max():.0f}")
-    
-    # Normalize names for matching
-    result_df['name_normalized'] = result_df['Name'].str.lower().str.strip()
-    prospect_df['name_normalized'] = prospect_df['name'].str.lower().str.strip()
-    
-    # Get latest prospect ranking for each player (most recent year)
-    latest_prospect_data = (
-        prospect_df
-        .sort_values('year', ascending=False)
-        .groupby('name_normalized')
-        .first()
-        .reset_index()
-    )
-    
-    logger.info(f"Unique prospects in rankings: {len(latest_prospect_data)}")
-    
-    # Get latest pre-current-year MLB experience for each player
-    latest_mlb_experience = (
-        result_df[
-            (result_df['Year'] < CURRENT_YEAR) &
-            ((result_df['G_bat'].notna()) | (result_df['G_pit'].notna()) | (result_df['GS'].notna()))
-        ]
-        .groupby('name_normalized')
-        .agg({
-            'G_bat': 'sum',
-            'G_pit': 'sum',
-            'GS': 'sum',
-            'position_group': 'first'
-        })
-        .reset_index()
-    )
-    logger.info(f"Players with pre-{CURRENT_YEAR} MLB experience: {len(latest_mlb_experience)}")
-    
-    # Match prospects with trade values
-    prospects_with_values = result_df[
-        (result_df['Year'] >= CURRENT_YEAR) &
-        (result_df['name_normalized'].isin(latest_prospect_data['name_normalized'])) &
-        (result_df['trade_value'].notna())
-    ].copy()
-    
-    # Merge with prospect data
-    prospects_with_values = prospects_with_values.merge(
-        latest_prospect_data[['name_normalized', 'year', 'rank', 'grade_overall', 'top_100', 'organization']],
-        on='name_normalized',
-        how='left',
-        suffixes=('', '_prospect')
-    )
-    
-    matched_count = len(prospects_with_values.drop_duplicates('name_normalized'))
-    logger.info(f"Matched {matched_count} prospects with trade values")
-    
-    if len(prospects_with_values) == 0:
-        result_df = result_df.drop(columns=['name_normalized'], errors='ignore')
-        return result_df
-    
-    # Process each unique prospect
-    adjusted_count = 0
-    for name in prospects_with_values['name_normalized'].unique():
-        prospect_data = prospects_with_values[prospects_with_values['name_normalized'] == name].iloc[0]
-        
-        # Determine position type for experience threshold
-        position_group = prospect_data.get('position_group', 'batter')
-        if position_group == 'SP':
-            position_type = 'sp'
-        elif position_group == 'RP':
-            position_type = 'rp'
-        else:
-            position_type = 'batter'
-        
-        # Get MLB experience if exists
-        if name in latest_mlb_experience['name_normalized'].values:
-            career_stats = latest_mlb_experience[latest_mlb_experience['name_normalized'] == name].iloc[0]
-            
-            # Calculate MLB games based on position type
-            if position_type == 'sp':
-                games_played = career_stats.get('GS', 0) or 0
-            elif position_type == 'rp':
-                gs = career_stats.get('GS', 0) or 0
-                g_pit = career_stats.get('G_pit', 0) or 0
-                games_played = g_pit - gs  # RP appearances
-            else:
-                games_played = career_stats.get('G_bat', 0) or 0
-        else:
-            games_played = 0
-        
-        # Use centralized prospect weight calculation from config
-        # This properly diminishes prospect weight as players gain experience
-        prospect_weight = Config.Prospects.calculate_prospect_weight(games_played, position_type)
-        mlb_weight = 1.0 - prospect_weight
-        
-        # Skip prospect adjustment entirely for established players
-        if prospect_weight == 0.0:
-            logger.debug(f"Skipping {prospect_data['Name']}: established player ({games_played} games)")
-            continue
-        
-        # Calculate prospect value using FanGraphs methodology
-        fv = prospect_data.get('grade_overall', None)
-        org_rank = prospect_data.get('rank', None)
-        top_100_rank = prospect_data.get('top_100', None)
-        year = prospect_data.get('year', None)
-        
-        # For 2026, 'rank' is actually the top_100 value (no org lists yet)
-        if year == 2026 and pd.notna(org_rank):
-            top_100_rank = org_rank
-            org_rank = None
-        
-        # Only use top_100 rank for value calculation (org ranks not comparable)
-        # This ensures only true top 100 prospects get the rank bonus
-        rank = top_100_rank
-        
-        prospect_value = calculate_prospect_value_fangraphs(fv, rank)
-        
-        if prospect_value is None:
-            logger.debug(f"Skipping {prospect_data['Name']}: could not calculate prospect value")
-            continue
-        
-        # Calculate weighted value
-        # MLB component: value from projected performance * MLB experience weight
-        # Prospect component: value from prospect grade * prospect weight
-        mlb_component = prospect_data['trade_value'] * mlb_weight
-        prospect_component = prospect_value * prospect_weight
-        weighted_value = mlb_component + prospect_component
-        
-        # Sanity check: Don't apply prospect adjustment if it would create unrealistic value
-        # If MLB projection is negative and prospect value is pushing it way positive, skip it
-        if prospect_data['trade_value'] < 0 and weighted_value > abs(prospect_data['trade_value']) * 10:
-            logger.warning(
-                f"Skipping {prospect_data['Name']}: Prospect adjustment would create unrealistic value "
-                f"(MLB: ${prospect_data['trade_value']:,.0f}, prospect: ${prospect_value:,.0f}, "
-                f"weighted: ${weighted_value:,.0f})"
-            )
-            continue
-        
-        # Update trade values for all future years
-        mask = (result_df['name_normalized'] == name) & (result_df['Year'] >= CURRENT_YEAR)
-        if mask.sum() > 0:
-            result_df.loc[mask, 'trade_value'] = weighted_value
-            adjusted_count += 1
-            
-            # Log details at debug level
-            rank_display = f"top100={top_100_rank:.0f}" if pd.notna(top_100_rank) else f"org={org_rank:.0f}" if pd.notna(org_rank) else "no rank"
-            logger.debug(
-                f"  {prospect_data['Name']}: FV={fv}, {rank_display}, "
-                f"games={games_played}, prospect_wt={prospect_weight:.2f}, "
-                f"prospect_val=${prospect_value:,.0f}, final=${weighted_value:,.0f}"
-            )
-    
-    logger.info(f"Applied prospect adjustments to {adjusted_count} players")
-    
-    # Clean up temporary columns before returning
-    result_df = result_df.drop(columns=['name_normalized'], errors='ignore')
-    
-    return result_df
-
-
-def add_trade_ranking_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Add pre-calculated metrics needed for trade value rankings.
-    
-    Metrics added:
-        - contract_war: WAR while under team control
-        - contract_base_value: Dollar value of contract WAR
-        - avg_war: Average WAR per control year
-        - total_contract: Total contract cost
-        - avg_contract: Average annual cost
-        - total_surplus: Sum of surplus values under control
-        - years_control: Number of control years remaining
-        - control_through: Last year of team control
-        - total_future_war: All WAR from 2025 onward
-        - total_future_value: Dollar value of future WAR
-        - historical_war: Career WAR before 2025
-        - historical_value: Dollar value of historical WAR
-    
-    Args:
-        df: DataFrame with trade values calculated
-        
-    Returns:
-        DataFrame with ranking metrics added
+    Additional rules:
+        • Arb/Pre-Arb players are floored at 0 (team can non-tender).
+        • Signed players with ≤2 years left are floored at 0.
+        • Recent prospects get a blended value (see _apply_prospect_adjustments).
     """
     result = df.copy()
-    
-    # Group by player and calculate metrics
-    player_metrics = []
-    
-    for player_id in result['IDfg'].unique():
-        player_data = result[result['IDfg'] == player_id].sort_values('Year')
-        
-        # Get control years (2025 through FA year)
-        fa_year = player_data['probable_fa_year'].iloc[0]
+    result["trade_value"] = np.nan
+
+    for pid in result["IDfg"].unique():
+        pmask = result["IDfg"] == pid
+        pdata = result.loc[pmask]
+
+        fa_year = pdata["probable_fa_year"].iloc[0]
         if pd.isna(fa_year):
-            fa_year = player_data['FA_Year'].iloc[0]
-        
-        # Contract years data
-        control_years = player_data[
-            (player_data['Year'] >= CURRENT_YEAR) &
-            (player_data['Year'] < fa_year)
+            fa_year = pdata["FA_Year"].iloc[0]
+        if pd.isna(fa_year):
+            continue
+
+        control = pdata[
+            (pdata["Year"] >= CURRENT_YEAR)
+            & (pdata["Year"] < fa_year)
+            & pdata["Base_Value"].notna()
+            & pdata["contract_value"].notna()
         ]
-        
-        # Future years data (all years from current year onward)
-        future_years = player_data[player_data['Year'] >= CURRENT_YEAR]
-        
-        # Historical years data (before current year)
-        historical_years = player_data[player_data['Year'] < CURRENT_YEAR]
-        
-        # All career years
-        all_years = player_data
-        
-        years_control = len(control_years)
-        
-        metrics = {
-            'IDfg': player_id,
-            'contract_war': control_years['WAR'].sum() if years_control > 0 else 0,
-            'contract_base_value': control_years['Base_Value'].sum() if years_control > 0 else 0,
-            'avg_war': control_years['WAR'].mean() if years_control > 0 else 0,
-            'total_contract': control_years['contract_value'].sum() if years_control > 0 else 0,
-            'avg_contract': control_years['contract_value'].mean() if years_control > 0 else 0,
-            'total_surplus': control_years['surplus_value'].sum() if years_control > 0 else 0,
-            'years_control': years_control,
-            'control_through': fa_year - 1 if pd.notna(fa_year) else None,
-            'total_future_war': future_years[future_years['WAR'] > 0]['WAR'].sum(),
-            'total_future_value': future_years['Base_Value'].sum(),
-            'total_war': historical_years['WAR'].sum() + future_years[future_years['WAR'] > 0]['WAR'].sum(),
-            'total_value': all_years['Base_Value'].sum(),
-            'historical_war': historical_years['WAR'].sum(),
-            'historical_value': historical_years['Base_Value'].sum()
-        }
-        player_metrics.append(metrics)
-    
-    # Convert to DataFrame and merge back
-    metrics_df = pd.DataFrame(player_metrics)
-    result = result.merge(metrics_df, on='IDfg', how='left')
-    
-    # Round values for cleaner display
-    result['contract_war'] = result['contract_war'].round(1)
-    result['avg_war'] = result['avg_war'].round(2)
-    result['total_contract'] = result['total_contract'].round(1)
-    result['avg_contract'] = result['avg_contract'].round(2)
-    result['total_surplus'] = result['total_surplus'].round(1)
-    result['total_future_war'] = result['total_future_war'].round(1)
-    result['total_future_value'] = result['total_future_value'].round(1)
-    result['total_war'] = result['total_war'].round(1)
-    result['total_value'] = result['total_value'].round(1)
-    result['historical_war'] = result['historical_war'].round(1)
-    result['historical_value'] = result['historical_value'].round(1)
-    
+
+        if control.empty:
+            continue
+
+        war_dollars = control["Base_Value"].sum()
+        contract_cost = control["contract_value"].sum()
+        trade_value = war_dollars - contract_cost
+
+        # Arb/Pre-Arb players can be non-tendered, so floor at 0
+        is_team_control = pdata["Status"].str.contains("Arb|Pre-Arb", regex=True).any()
+        if is_team_control:
+            trade_value = max(0, trade_value)
+
+        result.loc[pmask & (result["Year"] >= CURRENT_YEAR), "trade_value"] = trade_value
+
+    logger.info(
+        f"Trade values: {result['trade_value'].notna().sum()} players, "
+        f"avg=${result['trade_value'].mean():,.0f}, "
+        f"median=${result['trade_value'].median():,.0f}"
+    )
+
+    # Prospect adjustments
+    prospect_file = Config.Paths.PROSPECT_FILE
+    if prospect_file.exists():
+        result = _apply_prospect_adjustments(result, prospect_file)
+    else:
+        logger.warning(f"Prospect file not found: {prospect_file}")
+
     return result
 
 
+# ---------------------------------------------------------------------------
+# Prospect blending
+# ---------------------------------------------------------------------------
+
+def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.DataFrame:
+    """
+    Blend prospect value with performance-based trade value for young players.
+
+    For a player with limited MLB experience their trade value is:
+        trade_value = (MLB weight × performance value) + (prospect weight × prospect value)
+
+    The prospect weight decays linearly from 1.0 (no MLB games) to 0.0 once the
+    player reaches the experience threshold defined in Config.Prospects.
+
+    Only prospects ranked within the last 3 years are considered.
+    """
+    prospect_df = pd.read_csv(prospect_file)
+    logger.info(
+        f"Loaded prospect data: {len(prospect_df)} records, "
+        f"years {prospect_df['year'].min():.0f}–{prospect_df['year'].max():.0f}"
+    )
+
+    # Extract MLB ID from prospect URL
+    prospect_df["prospect_mlb_id"] = prospect_df["prospect_url"].apply(
+        lambda u: int(u.split("-")[-1]) if pd.notna(u) and u else None
+    )
+
+    # Keep each prospect's most recent ranking
+    latest = (
+        prospect_df[prospect_df["prospect_mlb_id"].notna()]
+        .sort_values("year", ascending=False)
+        .drop_duplicates("prospect_mlb_id")
+    )
+    logger.info(f"Unique prospects: {len(latest)}")
+
+    # Only apply adjustments to recent prospects (ranked in last 3 years)
+    recent_cutoff = CURRENT_YEAR - 3
+    latest = latest[latest["year"] >= recent_cutoff]
+    logger.info(f"Recent prospects (since {recent_cutoff}): {len(latest)}")
+
+    if latest.empty:
+        return result_df
+
+    # Pre-compute career MLB games per player
+    career_games = (
+        result_df[
+            (result_df["Year"] < CURRENT_YEAR)
+            & (result_df["G_bat"].notna() | result_df["G_pit"].notna() | result_df["GS"].notna())
+        ]
+        .groupby("IDfg")
+        .agg(G_bat=("G_bat", "sum"), G_pit=("G_pit", "sum"),
+             GS=("GS", "sum"), position_group=("position_group", "first"))
+        .reset_index()
+    )
+
+    # Determine matching key
+    use_mlbam = "mlbam_id" in result_df.columns
+
+    if use_mlbam:
+        merge_cols = {"left_on": "mlbam_id", "right_on": "prospect_mlb_id"}
+    else:
+        logger.warning("mlbam_id not available — falling back to name matching")
+        _norm = lambda s: re.sub(r"[^A-Z]", "", s.upper()) if pd.notna(s) else None
+        result_df["_name_key"] = result_df["Name"].apply(_norm)
+        latest["_name_key"] = latest["name"].apply(_norm)
+        merge_cols = {"left_on": "_name_key", "right_on": "_name_key"}
+
+    # Identify prospect rows in current-year data that already have trade values
+    candidates = result_df[
+        (result_df["Year"] >= CURRENT_YEAR)
+        & result_df["trade_value"].notna()
+    ].drop_duplicates("IDfg" if use_mlbam else "_name_key")
+
+    matched = candidates.merge(
+        latest[["prospect_mlb_id", "name", "year", "rank", "grade_overall",
+                "top_100"] + (["_name_key"] if not use_mlbam else [])],
+        **merge_cols, how="inner"
+    )
+    logger.info(f"Matched {len(matched)} prospects with trade values")
+
+    adjusted = 0
+    for _, row in matched.iterrows():
+        pid = row["IDfg"]
+
+        # Determine position type
+        pos = row.get("position_group", "batter")
+        pos_type = "sp" if pos == "SP" else ("rp" if pos == "RP" else "batter")
+
+        # Career games
+        if pid in career_games["IDfg"].values:
+            cg = career_games[career_games["IDfg"] == pid].iloc[0]
+            gs = cg.get("GS", 0) or 0
+            g_pit = cg.get("G_pit", 0) or 0
+            if pos_type == "sp":
+                games = gs
+            elif pos_type == "rp":
+                games = g_pit - gs if gs < 50 else gs
+                if gs >= 50:
+                    pos_type = "sp"
+            else:
+                games = cg.get("G_bat", 0) or 0
+        else:
+            games = 0
+
+        prospect_wt = Config.Prospects.calculate_prospect_weight(games, pos_type)
+        if prospect_wt == 0.0:
+            continue  # established — no adjustment needed
+
+        # Determine which rank to use
+        prospect_year = row.get("year", None)
+        org_rank = row.get("rank", None)
+        top_100 = row.get("top_100", None)
+
+        # For current-year lists that only have top-100 (no org lists yet)
+        if prospect_year == CURRENT_YEAR and pd.notna(org_rank):
+            top_100 = org_rank
+            org_rank = None
+
+        prospect_val = _prospect_dollar_value(row.get("grade_overall"), top_100)
+        if prospect_val is None:
+            continue
+
+        perf_value = row["trade_value"]
+        blended = (1 - prospect_wt) * perf_value + prospect_wt * prospect_val
+
+        # Sanity: don't let a negative-value player jump to 10× their absolute value
+        if perf_value < 0 and blended > abs(perf_value) * 10:
+            logger.warning(
+                f"Skipping prospect adjustment for {row.get('Name', 'Unknown')}: "
+                f"would create unrealistic value (perf=${perf_value:,.0f}, blended=${blended:,.0f})"
+            )
+            continue
+
+        mask = (result_df["IDfg"] == pid) & (result_df["Year"] >= CURRENT_YEAR)
+        result_df.loc[mask, "trade_value"] = blended
+        adjusted += 1
+
+        logger.debug(
+            f"  {row.get('Name', f'ID{pid}')}: FV={row.get('grade_overall')}, "
+            f"games={games}, pw={prospect_wt:.2f}, "
+            f"prospect=${prospect_val:,.0f}, final=${blended:,.0f}"
+        )
+
+    logger.info(f"Applied prospect adjustments to {adjusted} players")
+
+    # Clean up temp column
+    result_df.drop("_name_key", axis=1, errors="ignore", inplace=True)
+
+    return result_df
+
+
+# ---------------------------------------------------------------------------
+# Trade ranking metrics
+# ---------------------------------------------------------------------------
+
+def add_trade_ranking_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add pre-computed ranking metrics for each player.
+
+    Metrics (all merged back on IDfg):
+        contract_war, avg_war, total_contract, avg_contract, total_surplus,
+        years_control, control_through, contract_base_value,
+        total_future_war, total_future_value,
+        total_war, total_value, historical_war, historical_value
+    """
+    result = df.copy()
+    rows = []
+
+    for pid in result["IDfg"].unique():
+        p = result[result["IDfg"] == pid].sort_values("Year")
+
+        fa_year = p["probable_fa_year"].iloc[0]
+        if pd.isna(fa_year):
+            fa_year = p["FA_Year"].iloc[0]
+
+        control = p[(p["Year"] >= CURRENT_YEAR) & (p["Year"] < fa_year)]
+        future = p[p["Year"] >= CURRENT_YEAR]
+        past = p[p["Year"] < CURRENT_YEAR]
+        n = len(control)
+
+        rows.append({
+            "IDfg": pid,
+            "contract_war": round(control["WAR"].sum(), 1),
+            "contract_base_value": round(control["Base_Value"].sum(), 1),
+            "avg_war": round(control["WAR"].mean(), 2) if n else 0,
+            "total_contract": round(control["contract_value"].sum(), 1),
+            "avg_contract": round(control["contract_value"].mean(), 2) if n else 0,
+            "total_surplus": round(control["surplus_value"].sum(), 1),
+            "years_control": n,
+            "control_through": fa_year - 1 if pd.notna(fa_year) else None,
+            "total_future_war": round(future.loc[future["WAR"] > 0, "WAR"].sum(), 1),
+            "total_future_value": round(future["Base_Value"].sum(), 1),
+            "total_war": round(past["WAR"].sum() + future.loc[future["WAR"] > 0, "WAR"].sum(), 1),
+            "total_value": round(p["Base_Value"].sum(), 1),
+            "historical_war": round(past["WAR"].sum(), 1),
+            "historical_value": round(past["Base_Value"].sum(), 1),
+        })
+
+    metrics = pd.DataFrame(rows)
+    return result.merge(metrics, on="IDfg", how="left")
+
+
+# ---------------------------------------------------------------------------
+# Update prospect histories with MLB-debut flags
+# ---------------------------------------------------------------------------
+
 def update_prospect_mlb_status(export_data: pd.DataFrame) -> None:
     """
-    Add MLB status to prospect data.
-    
-    Updates the prospect_histories.csv file (used by backend) with has_mlb flags
-    to indicate which prospects have reached the majors.
-    
-    Args:
-        export_data: Final export data with all players
+    Mark prospects who have reached the majors in prospect_histories.csv.
+
+    Adds a boolean ``has_mlb`` column so the web-app can distinguish
+    prospects who have debuted from those who have not.
     """
-    # Use prospect_histories.csv (the current/correct file, not the legacy player_histories.csv)
-    prospect_file = Config.Paths.GENERATED_DIR / 'MiLB' / 'prospect_histories.csv'
-    
-    if not prospect_file.exists():
-        logger.warning(f"Prospect file not found: {prospect_file}")
-        logger.info(f"Run generate_prospect_histories.py first to create this file")
+    path = Config.Paths.GENERATED_DIR / "MiLB" / "prospect_histories.csv"
+    if not path.exists():
+        logger.warning(f"Prospect file not found: {path} — run generate_prospect_histories.py first")
         return
-    
+
     try:
-        # Load prospect data
-        prospect_df = pd.read_csv(prospect_file)
-        
-        # Get unique IDfg values from export data
-        mlb_ids = export_data['IDfg'].unique()
-        
-        # Convert IDfg to string in both datasets for consistent comparison
-        prospect_df['IDfg'] = prospect_df['IDfg'].astype(str)
-        mlb_ids = [str(id) for id in mlb_ids]
-        
-        # Add has_mlb column
-        prospect_df['has_mlb'] = prospect_df['IDfg'].isin(mlb_ids)
-        
-        # Save updated prospect file
-        prospect_df.to_csv(prospect_file, index=False)
-        
-        # Log summary
-        total_prospects = len(prospect_df['IDfg'].unique())
-        mlb_prospects = len(prospect_df[prospect_df['has_mlb']]['IDfg'].unique())
-        pct_mlb = (mlb_prospects / total_prospects) * 100 if total_prospects > 0 else 0
-        
-        logger.info(f"Prospect MLB status: {mlb_prospects}/{total_prospects} ({pct_mlb:.1f}%) have MLB data")
-        
+        pf = pd.read_csv(path)
+        mlb_ids = set(str(i) for i in export_data["IDfg"].unique())
+        pf["IDfg"] = pf["IDfg"].astype(str)
+        pf["has_mlb"] = pf["IDfg"].isin(mlb_ids)
+        pf.to_csv(path, index=False)
+
+        total = pf["IDfg"].nunique()
+        debuted = pf.loc[pf["has_mlb"], "IDfg"].nunique()
+        logger.info(f"Prospect MLB status: {debuted}/{total} ({100*debuted/total:.1f}%) have MLB data")
+
     except Exception as e:
-        logger.error(f"Failed to update prospect MLB status: {str(e)}")
+        logger.error(f"Failed to update prospect MLB status: {e}")
         raise
