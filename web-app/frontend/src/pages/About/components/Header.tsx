@@ -8,7 +8,7 @@ const Header = () => {
         
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h1 className="text-6xl font-extrabold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400 pb-3">
+            <h1 className="text-6xl font-extrabold mb-6 bg-clip-text text-transparent bg-gradient-brand pb-3">
               LongBall
             </h1>
             <p className="text-2xl text-gray-300 font-light max-w-3xl mx-auto">
@@ -22,7 +22,7 @@ const Header = () => {
   
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
             <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-white/20 transition-all">
-              <div className="text-emerald-400 mb-4">
+              <div className="text-brand-400 mb-4">
                 <FaChartLine className="h-6 w-6" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">MLB Projections</h3>
@@ -32,7 +32,7 @@ const Header = () => {
             </div>
   
             <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-white/20 transition-all">
-              <div className="text-emerald-400 mb-4">
+              <div className="text-brand-400 mb-4">
                 <FaExchangeAlt className="h-6 w-6" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">Trade Analysis</h3>
@@ -42,7 +42,7 @@ const Header = () => {
             </div>
 
             <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-white/20 transition-all">
-              <div className="text-emerald-400 mb-4">
+              <div className="text-brand-400 mb-4">
                 <FaStar className="h-6 w-6" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">Prospect Values</h3>
@@ -52,7 +52,7 @@ const Header = () => {
             </div>
   
             <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-white/20 transition-all">
-              <div className="text-emerald-400 mb-4">
+              <div className="text-brand-400 mb-4">
                 <FaCode className="h-6 w-6" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">Open Source</h3>
@@ -67,7 +67,7 @@ const Header = () => {
               href="https://github.com/nielsjsc/LSTMLB" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="group px-8 py-3 rounded-md bg-emerald-500 hover:bg-emerald-400 transition-colors flex items-center gap-2"
+              className="group px-8 py-3 rounded-lg bg-brand-500 hover:bg-brand-400 text-surface-900 font-semibold transition-colors flex items-center gap-2"
             >
               <FaGithub className="text-xl" />
               <span>View on GitHub</span>
@@ -80,7 +80,7 @@ const Header = () => {
           <div className="space-y-12">
             {/* Introduction */}
             <div className="bg-gradient-to-r from-blue-500/10 to-emerald-500/10 backdrop-blur-sm rounded-3xl p-8 border border-white/10">
-              <h2 className="text-4xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+              <h2 className="text-4xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-brand">
                 The Story Behind LongBall Analytics
               </h2>
               <div className="prose prose-lg prose-invert max-w-none space-y-6">
@@ -170,9 +170,9 @@ const Header = () => {
             {/* Have Fun Section */}
             <div className="bg-emerald-500/10 backdrop-blur-sm rounded-3xl p-8 border border-emerald-500/20">
               <div className="flex items-start gap-4">
-                <FaLightbulb className="h-8 w-8 text-emerald-400 mt-1 flex-shrink-0" />
+                <FaLightbulb className="h-8 w-8 text-brand-400 mt-1 flex-shrink-0" />
                 <div>
-                  <h3 className="text-2xl font-bold text-emerald-400 mb-4">Have Fun!</h3>
+                  <h3 className="text-2xl font-bold text-brand-400 mb-4">Have Fun!</h3>
                   <div className="prose prose-lg prose-invert max-w-none space-y-4">
                     <p className="text-gray-300 leading-relaxed">
                       I hope you all are able to use this as a fun tool to get a glimpse into how my models project your favorite players will perform in the near/far future!

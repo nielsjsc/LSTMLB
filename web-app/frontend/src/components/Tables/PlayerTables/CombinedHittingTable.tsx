@@ -170,26 +170,26 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-slate-700/50">
-        <thead>
-          <tr>
+      <table className="min-w-full">
+        <thead className="sticky top-0 z-10">
+          <tr className="bg-surface-850 border-b border-white/[0.06]">
             {headers.map((header) => (
               <th
                 key={header.key}
                 onClick={() => handleSort(header.key)}
-                className="px-2 py-1 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-slate-700/50"
+                className="px-3 py-3 text-left text-[11px] font-semibold text-surface-400 uppercase tracking-wider cursor-pointer hover:text-white hover:bg-white/[0.04] select-none transition-colors"
               >
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center gap-1">
                   <span>{header.label}</span>
                   {sortKey === header.key && (
-                    <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    <span className="text-brand-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                   )}
                 </div>
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-700/50">
+        <tbody>
           {sortedData.map((row, i) => {
             const isProjYear = row.year >= CURRENT_YEAR;
             const isFirstProjYear = isProjYear && (!sortedData[i - 1] || sortedData[i - 1].year < CURRENT_YEAR);
@@ -200,21 +200,20 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
                   <tr>
                     <td 
                       colSpan={headers.length} 
-                      className="bg-emerald-900/20 text-emerald-400 text-xs font-semibold px-2 py-1 text-center border-y border-emerald-600/20"
+                      className="bg-brand-400/10 text-brand-400 text-xs font-semibold px-3 py-1.5 text-center border-y border-brand-400/20"
                     >
-                      Projected Stats
+                      ▾ Projected Stats
                     </td>
                   </tr>
                 )}
                 <tr 
                   className={`
-                    hover:bg-slate-700/30 
-                    text-xs text-gray-300
-                    ${isProjYear ? 'bg-slate-800/50' : ''}
+                    text-[13px] border-b border-white/[0.03] hover:bg-white/[0.04] transition-colors
+                    ${isProjYear ? 'bg-brand-400/[0.02]' : (i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]')}
                   `}
                 >
                   {headers.map((header) => (
-                    <td key={header.key} className="px-2 py-1 whitespace-nowrap">
+                    <td key={header.key} className="px-3 py-2.5 whitespace-nowrap text-surface-300 font-mono">
                       {formatCell(header.key, row[header.key])}
                     </td>
                   ))}

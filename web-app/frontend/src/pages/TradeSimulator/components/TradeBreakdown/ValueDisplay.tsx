@@ -45,7 +45,7 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
   };
 
   return (
-    <div className="mt-6 border-t border-slate-700 pt-6">
+    <div className="mt-6 border-t border-white/[0.06] pt-6">
       <TradeMeter 
         team1Name={team1Name}
         team2Name={team2Name}
@@ -53,29 +53,29 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
       />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[team1, team2].map((team, index) => (
-          <div key={index} className="border border-slate-700 rounded-lg p-4">
+          <div key={index} className="border border-white/[0.06] rounded-xl p-4">
             <h3 className="font-bold text-lg mb-4 text-white">
               {index === 0 ? team1Name : team2Name}
             </h3>
             
             <div className="space-y-4">
               {team.assets.map(asset => (
-                <div key={asset.name} className="border border-slate-700 p-4 rounded-lg">
+                <div key={asset.name} className="border border-white/[0.06] p-4 rounded-lg bg-white/[0.02]">
                   <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-semibold text-lg text-gray-300">{asset.name}</h4>
+                    <h4 className="font-semibold text-lg text-surface-200">{asset.name}</h4>
                   </div>
-                  <div className="text-gray-400">
+                  <div className="text-surface-400">
                     {renderAssetDetails(asset)}
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-4 pt-4 border-t border-slate-700">
-              <div className="grid grid-cols-2 gap-2 text-gray-300">
+            <div className="mt-4 pt-4 border-t border-white/[0.06]">
+              <div className="grid grid-cols-2 gap-2 text-surface-300 font-mono text-sm">
                 <p>Total Production: {formatValue(team.total_production)}</p>
                 <p>Total Contract: {formatValue(team.total_contract)}</p>
-                <p className="col-span-2 font-bold text-center text-white">
+                <p className="col-span-2 font-bold text-center text-white text-base">
                   Trade Value: {formatValue(team.total_surplus)}
                 </p>
               </div>
@@ -84,10 +84,10 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
         ))}
       </div>
 
-      <div className="mt-6 text-center p-4 border border-slate-700 rounded-lg">
-        <p className="text-lg font-semibold text-gray-300">
+      <div className="mt-6 text-center p-4 border border-white/[0.06] rounded-xl bg-white/[0.02]">
+        <p className="text-lg font-semibold text-surface-300">
           Trade Differential: 
-          <span className={`ml-2 ${tradeDifferential >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <span className={`ml-2 ${tradeDifferential >= 0 ? 'text-brand-400' : 'text-red-400'}`}>
             {formatValue(Math.abs(tradeDifferential))}
             {` in favor of ${tradeDifferential > 0 ? team1Name : team2Name}`}
           </span>

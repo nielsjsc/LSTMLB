@@ -140,14 +140,14 @@ const TradeAnalyzer = () => {
   const selectedTeams = [trade.teamA, trade.teamB].filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-surface-900 via-surface-800 to-surface-900">
       <div className="max-w-7xl mx-auto py-16 px-4">
         {/* Header */}
         <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400 pb-2">
+          <h1 className="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-brand pb-2">
             Trade Simulator
           </h1>
-          <p className="text-gray-400 max-w-2xl mx-auto">
+          <p className="text-surface-400 max-w-2xl mx-auto">
             Evaluate trades using our projection-based player valuations and prospect rankings
           </p>
         </div>
@@ -161,16 +161,16 @@ const TradeAnalyzer = () => {
         {/* Team Selection */}
         <div className="grid md:grid-cols-2 gap-8 mb-12">
           {/* Team A */}
-          <div className="rounded-xl p-6 border border-slate-700/50 bg-slate-800/50">
+          <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50">
             <h3 className="text-lg font-medium text-white mb-4">Select Team 1</h3>
             {trade.teamA ? (
-              <div className="flex items-center justify-between rounded-lg px-4 py-3 border border-emerald-500/20 bg-slate-700/50">
-                <span className="text-emerald-400 font-medium">
+              <div className="flex items-center justify-between rounded-lg px-4 py-3 border border-brand-500/20 bg-surface-700/50">
+                <span className="text-brand-400 font-medium">
                   {trade.teamA.toUpperCase()} - {teamDivisions[trade.teamA].name}
                 </span>
                 <button
                   onClick={() => handleTeamRemove(trade.teamA!)}
-                  className="text-emerald-400 hover:text-emerald-300"
+                  className="text-brand-400 hover:text-brand-300"
                 >
                   ×
                 </button>
@@ -178,15 +178,15 @@ const TradeAnalyzer = () => {
             ) : (
               <select
                 onChange={(e) => handleTeamAdd(e.target.value)}
-                className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 text-gray-300 
-                focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+                className="w-full bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-3 text-surface-300 
+                focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
                 value=""
               >
-                <option value="" className="bg-slate-800">Select team...</option>
+                <option value="" className="bg-surface-800">Select team...</option>
                 {sortTeamsByDivision(Object.keys(teamDivisions)
                   .filter(team => team !== trade.teamB))
                   .map((team) => (
-                    <option key={team} value={team} className="bg-slate-800">
+                    <option key={team} value={team} className="bg-surface-800">
                       {team.toUpperCase()} - {teamDivisions[team].name}
                     </option>
                 ))}
@@ -195,16 +195,16 @@ const TradeAnalyzer = () => {
           </div>
 
           {/* Team B */}
-          <div className="rounded-xl p-6 border border-slate-700/50 bg-slate-800/50">
+          <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50">
             <h3 className="text-lg font-medium text-white mb-4">Select Team 2</h3>
             {trade.teamB ? (
-              <div className="flex items-center justify-between rounded-lg px-4 py-3 border border-blue-500/20 bg-slate-700/50">
-                <span className="text-blue-400 font-medium">
+              <div className="flex items-center justify-between rounded-lg px-4 py-3 border border-accent-blue/20 bg-surface-700/50">
+                <span className="text-accent-blue font-medium">
                   {trade.teamB.toUpperCase()} - {teamDivisions[trade.teamB].name}
                 </span>
                 <button
                   onClick={() => handleTeamRemove(trade.teamB!)}
-                  className="text-blue-400 hover:text-blue-300"
+                  className="text-accent-blue hover:text-blue-300"
                 >
                   ×
                 </button>
@@ -212,15 +212,15 @@ const TradeAnalyzer = () => {
             ) : (
               <select
                 onChange={(e) => handleTeamAdd(e.target.value)}
-                className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 text-gray-300 
-                focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                className="w-full bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-3 text-surface-300 
+                focus:ring-2 focus:ring-accent-blue/40 focus:border-accent-blue/40"
                 value=""
               >
-                <option value="" className="bg-slate-800">Select team...</option>
+                <option value="" className="bg-surface-800">Select team...</option>
                 {sortTeamsByDivision(Object.keys(teamDivisions)
                   .filter(team => team !== trade.teamA))
                   .map((team) => (
-                    <option key={team} value={team} className="bg-slate-800">
+                    <option key={team} value={team} className="bg-surface-800">
                       {team.toUpperCase()} - {teamDivisions[team].name}
                     </option>
                 ))}
@@ -244,7 +244,7 @@ const TradeAnalyzer = () => {
                   otherTeam={trade.teamB}
                 />
               </div>
-              <div className="rounded-xl p-6 border border-slate-700/50 bg-slate-800/50">
+              <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50">
                 <TeamPlayerList
                   team={trade.teamB}
                   availablePlayers={players.filter(p => p.team?.toLowerCase() === trade.teamA?.toLowerCase())}
@@ -259,13 +259,13 @@ const TradeAnalyzer = () => {
             
             {loading && (
               <div className="text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent"></div>
-                <p className="mt-2 text-gray-400">Analyzing trade...</p>
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-400 border-t-transparent"></div>
+                <p className="mt-2 text-surface-400">Analyzing trade...</p>
               </div>
             )}
             
             {analysis && (
-              <div className="rounded-xl p-6 border border-slate-700/50 bg-slate-800/50">
+              <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50">
                 <ValueDisplay 
                   analysis={analysis} 
                   team1Name={trade.teamA?.toUpperCase() || ''} 

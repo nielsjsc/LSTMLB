@@ -64,23 +64,35 @@ const PlayerSearch = () => {
 
   return (
     <div className="relative">
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => handleSearch(e.target.value)}
-        placeholder="Search players..."
-        className="w-full p-2 border rounded text-black bg-white"
-      />
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => handleSearch(e.target.value)}
+          placeholder="Search players..."
+          className="w-full pl-9 pr-3 py-2 rounded-lg text-sm bg-white/[0.06] border border-white/[0.08] text-surface-200 placeholder-surface-500 
+                     focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40 focus:bg-white/[0.08]
+                     transition-all"
+        />
+      </div>
       {results.length > 0 && (
-        <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg">
+        <div className="absolute z-50 w-full mt-1.5 bg-surface-800 border border-white/[0.08] rounded-xl shadow-xl shadow-black/40 overflow-hidden max-h-80 overflow-y-auto">
           {results.map((player) => (
             <button
               key={player.id}
               onClick={() => handleSelect(player)}
-              className="w-full p-2 text-left text-gray-800 hover:bg-gray-100 flex justify-between items-center"
+              className="w-full px-4 py-2.5 text-left hover:bg-white/[0.06] flex justify-between items-center gap-3 transition-colors border-b border-white/[0.04] last:border-b-0"
             >
-              <span>{player.name} ({player.team.toUpperCase()} - {player.position})</span>
-              <span className="text-gray-600">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm font-medium text-white truncate">{player.name}</span>
+                <span className="text-xs text-surface-400 shrink-0">
+                  {player.team.toUpperCase()} · {player.position}
+                </span>
+              </div>
+              <span className="text-xs font-mono text-brand-400 shrink-0">
                 {formatWAR(player)} WAR
               </span>
             </button>

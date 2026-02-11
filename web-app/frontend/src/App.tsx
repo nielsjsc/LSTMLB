@@ -11,7 +11,7 @@ import TradeValues from './pages/TradeValues/TradeValues'
 function App() {
   return (
     <Router>
-      <div className="min-h-screen w-full bg-white dark:bg-slate-900">
+        <div className="min-h-screen w-full bg-surface-900">
         <Navbar />
         <div className="px-4 pt-20">
           <Routes>

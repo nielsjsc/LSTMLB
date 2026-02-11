@@ -39,11 +39,11 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
         {/* Selected Assets */}
         <div className="space-y-2">
           {receivingAssets.map(({ asset, isProspect }) => (
-            <div key={asset.name} className="flex justify-between items-center border border-slate-700 p-2 rounded">
-              <span className="text-gray-300">{formatAssetDisplay(asset)}</span>
+            <div key={asset.name} className="flex justify-between items-center border border-white/[0.06] p-3 rounded-lg bg-white/[0.02]">
+              <span className="text-surface-300 text-sm">{formatAssetDisplay(asset)}</span>
               <button 
                 onClick={() => onAssetRemove(asset)}
-                className="text-red-400 hover:text-red-300"
+                className="text-red-400 hover:text-red-300 text-sm font-medium"
               >
                 Remove
               </button>
@@ -57,14 +57,14 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
             const player = availablePlayers.find(p => p.name === e.target.value);
             if (player) onAssetSelect(player, false);
           }}
-          className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 text-gray-300"
+          className="w-full bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
           value=""
         >
-          <option value="" className="bg-slate-800">Add MLB player...</option>
+          <option value="" className="bg-surface-800">Add MLB player...</option>
           {availablePlayers
             .sort((a, b) => ((b.war_bat || b.war_pit || 0) - (a.war_bat || a.war_pit || 0)))
             .map(player => (
-              <option key={player.name} value={player.name} className="bg-slate-800">
+              <option key={player.name} value={player.name} className="bg-surface-800">
                 {formatAssetDisplay(player)}
               </option>
             ))}
@@ -75,14 +75,14 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
             const prospect = availableProspects.find(p => p.name === e.target.value);
             if (prospect) onAssetSelect(prospect, true);
           }}
-          className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 text-gray-300"
+          className="w-full bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
           value=""
         >
-          <option value="" className="bg-slate-800">Add prospect...</option>
+          <option value="" className="bg-surface-800">Add prospect...</option>
           {availableProspects
             .sort((a, b) => ((b.value || 0) - (a.value || 0)))
             .map(prospect => (
-              <option key={prospect.name} value={prospect.name} className="bg-slate-800">
+              <option key={prospect.name} value={prospect.name} className="bg-surface-800">
                 {formatAssetDisplay(prospect)}
               </option>
             ))}

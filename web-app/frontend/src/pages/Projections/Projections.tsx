@@ -80,20 +80,20 @@ const ProjectionsPage = () => {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-surface-900 via-surface-800 to-surface-900">
       <div className="max-w-7xl mx-auto py-16 px-4">
-        <h1 className="text-4xl font-bold mb-8 text-white">Player Projections</h1>
+        <h1 className="text-4xl font-bold mb-8 text-white tracking-tight">Player Projections</h1>
         
         {/* Controls Section */}
-        <div className="rounded-xl p-6 border border-slate-700/50 bg-slate-800/50 mb-8">
+        <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50 mb-8">
           <div className="flex flex-wrap gap-4 items-center">
             <select 
               value={year} 
               onChange={(e) => setYear(Number(e.target.value))}
-              className="bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 text-gray-300"
+              className="bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
             >
               {years.map(year => (
-                <option key={year} value={year} className="bg-slate-800">{year}</option>
+                <option key={year} value={year} className="bg-surface-800">{year}</option>
               ))}
             </select>
   
@@ -105,10 +105,10 @@ const ProjectionsPage = () => {
                 setSortBy('war_bat');  // Set default sort for hitters
                 setSortDirection('desc');
               }}
-              className={`px-4 py-3 rounded-lg font-medium ${
+              className={`px-4 py-2.5 rounded-lg text-sm font-medium ${
                 playerType === 'hitter'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-slate-700/50 text-gray-300 hover:bg-slate-600/50'
+                  ? 'bg-brand-500 text-surface-900'
+                  : 'bg-white/[0.04] text-surface-300 hover:bg-white/[0.08] border border-white/[0.06]'
               }`}
             >
               Hitters
@@ -120,10 +120,10 @@ const ProjectionsPage = () => {
                 setSortBy('war_pit');  // Set default sort for pitchers
                 setSortDirection('desc');
               }}
-              className={`px-4 py-3 rounded-lg font-medium ${
+              className={`px-4 py-2.5 rounded-lg text-sm font-medium ${
                 playerType === 'pitcher'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-slate-700/50 text-gray-300 hover:bg-slate-600/50'
+                  ? 'bg-brand-500 text-surface-900'
+                  : 'bg-white/[0.04] text-surface-300 hover:bg-white/[0.08] border border-white/[0.06]'
               }`}
             >
               Pitchers
@@ -133,27 +133,27 @@ const ProjectionsPage = () => {
             <select
               value={team || ''}
               onChange={(e) => setTeam(e.target.value || undefined)}
-              className="bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 text-gray-300"
+              className="bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
             >
-              <option value="" className="bg-slate-800">All Teams</option>
+              <option value="" className="bg-surface-800">All Teams</option>
               {teams.map(team => (
-                <option key={team} value={team} className="bg-slate-800">{team}</option>
+                <option key={team} value={team} className="bg-surface-800">{team}</option>
               ))}
             </select>
   
             <select
               value={position || ''}
               onChange={(e) => setPosition(e.target.value || undefined)}
-              className="bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 text-gray-300"
+              className="bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
             >
-              <option value="" className="bg-slate-800">All Positions</option>
+              <option value="" className="bg-surface-800">All Positions</option>
               {(playerType === 'hitter' ? hitterPositions : pitcherPositions).map(pos => (
-                <option key={pos} value={pos} className="bg-slate-800">{pos}</option>
+                <option key={pos} value={pos} className="bg-surface-800">{pos}</option>
               ))}
             </select>
   
             {loading && (
-              <div className="text-emerald-400 flex items-center">
+              <div className="text-brand-400 flex items-center">
                 <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -172,10 +172,10 @@ const ProjectionsPage = () => {
   
         {data && (
           <div>
-            <div className="text-sm text-gray-400 mb-4">
+            <div className="text-sm text-surface-400 mb-4">
               Found {data.total_count} players
             </div>
-            <div className="rounded-xl border border-slate-700/50 bg-slate-800/50">
+            <div className="rounded-xl border border-white/[0.06] bg-surface-800/50">
               <ProjectionsTable 
                 data={data}
                 playerType={playerType}

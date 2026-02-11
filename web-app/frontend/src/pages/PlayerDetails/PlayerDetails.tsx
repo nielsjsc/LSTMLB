@@ -10,24 +10,24 @@ const StatCard: React.FC<{
   const formatValue = (value: number) => `$${(value / 1000000).toFixed(1)}M`;
   
   return (
-    <div className="rounded-xl p-6 border border-slate-700/50 bg-slate-800/50">
-      <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">{title}</h3>
+    <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50">
+      <h3 className="text-sm font-medium text-surface-400 uppercase tracking-wider mb-4">{title}</h3>
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <span className="text-gray-400">WAR</span>
-          <span className={`text-lg font-semibold ${stats.war > 0 ? 'text-emerald-400' : 'text-gray-500'}`}>
+          <span className="text-surface-400">WAR</span>
+          <span className={`text-lg font-semibold font-mono ${stats.war > 0 ? 'text-brand-400' : 'text-surface-500'}`}>
             {stats.war.toFixed(1)}
           </span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-gray-400">Value</span>
-          <span className={`text-lg font-semibold ${stats.value >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <span className="text-surface-400">Value</span>
+          <span className={`text-lg font-semibold font-mono ${stats.value >= 0 ? 'text-brand-400' : 'text-red-400'}`}>
             {formatValue(stats.value)}
           </span>
         </div>
         {showSurplus && stats.contract !== undefined && (
           <div className="flex justify-between items-center">
-            <span className="text-gray-400">Contract</span>
+            <span className="text-surface-400">Contract</span>
             <span className="text-lg font-semibold text-red-400">
               {formatValue(stats.contract)}
             </span>
@@ -35,8 +35,8 @@ const StatCard: React.FC<{
         )}
         {showSurplus && stats.surplus !== undefined && (
           <div className="flex justify-between items-center">
-            <span className="text-gray-400">Surplus</span>
-            <span className={`text-lg font-semibold ${stats.surplus >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            <span className="text-surface-400">Surplus</span>
+            <span className={`text-lg font-semibold font-mono ${stats.surplus >= 0 ? 'text-brand-400' : 'text-red-400'}`}>
               {formatValue(stats.surplus)}
             </span>
           </div>
@@ -127,11 +127,11 @@ const PlayerDetails = () => {
   }, [player]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-surface-900 via-surface-800 to-surface-900">
       <div className="max-w-7xl mx-auto py-8 px-4">
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-4 border-emerald-400 border-t-transparent"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-4 border-brand-400 border-t-transparent"></div>
           </div>
         ) : error ? (
           <div className="rounded-lg px-4 py-2 border border-red-500/20 bg-red-500/10">
@@ -139,31 +139,31 @@ const PlayerDetails = () => {
           </div>
         ) : (
           <>
-            <div className="rounded-xl p-8 border border-slate-700/50 bg-slate-800/50 mb-8">
+            <div className="rounded-xl p-8 border border-white/[0.06] bg-surface-800/50 mb-8">
               <div className="flex flex-col md:flex-row justify-between items-start gap-6">
                 <div>
                   <div className="flex items-center gap-4 mb-4">
                     <h1 className="text-3xl font-bold text-white">{player?.name}</h1>
                     <div className="flex gap-2">
-                      <span className="px-3 py-1 rounded-full text-sm font-medium bg-emerald-400/10 text-emerald-400">
+                      <span className="px-3 py-1 rounded-full text-sm font-medium bg-brand-400/10 text-brand-400">
                         {getCurrentYearData()?.team?.toUpperCase()}
                       </span>
-                      <span className="px-3 py-1 rounded-full text-sm font-medium bg-slate-700/50 text-gray-300">
+                      <span className="px-3 py-1 rounded-full text-sm font-medium bg-surface-700/50 text-surface-300">
                         {player?.position}
                       </span>
                     </div>
                   </div>
-                  <div className="text-sm text-gray-400">
+                  <div className="text-sm text-surface-400">
                     FA Years: {getFAYears().earliest} (Early) - {getFAYears().probable} (Probable) - {getFAYears().latest} (Late)
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
-              <div className="rounded-xl p-6 border border-slate-700/50 bg-slate-800/50">
-                <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-2">Trade Value</h3>
-                <p className={`text-lg font-semibold ${
-                  (dataCurrentYear?.value?.trade_value || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+              <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50">
+                <h3 className="text-sm font-medium text-surface-400 uppercase tracking-wider mb-2">Trade Value</h3>
+                <p className={`text-lg font-semibold font-mono ${
+                  (dataCurrentYear?.value?.trade_value || 0) >= 0 ? 'text-brand-400' : 'text-red-400'
                 }`}>
                   {`$${((dataCurrentYear?.value?.trade_value || 0) / 1000000).toFixed(1)}M`}
                 </p>
@@ -198,8 +198,8 @@ const PlayerDetails = () => {
 
             <div className="space-y-8">
               {player && hasPitchingStats && hasCurrentYearStats(player.projections, 'pitching') && (
-                <section className="rounded-xl overflow-hidden border border-slate-700/50 bg-slate-800/50">
-                  <div className="p-6 border-b border-slate-700/50">
+                <section className="rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/50">
+                  <div className="p-6 border-b border-white/[0.06]">
                     <h2 className="text-xl font-semibold text-white">Pitching Stats</h2>
                   </div>
                   <CombinedPitchingTable 
@@ -209,8 +209,8 @@ const PlayerDetails = () => {
               )}
 
               {player && hasHittingStats && hasCurrentYearStats(player.projections, 'hitting') && (
-                <section className="rounded-xl overflow-hidden border border-slate-700/50 bg-slate-800/50">
-                  <div className="p-6 border-b border-slate-700/50">
+                <section className="rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/50">
+                  <div className="p-6 border-b border-white/[0.06]">
                     <h2 className="text-xl font-semibold text-white">Hitting Stats</h2>
                   </div>
                   <CombinedHittingTable 
