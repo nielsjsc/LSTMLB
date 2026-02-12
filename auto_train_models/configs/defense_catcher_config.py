@@ -31,13 +31,13 @@ class DefenseCatcherConfig:
             start_season=2002,
             min_pa=50,  # C_MIN_INNINGS from notebook (converted to min_pa for compatibility)
             train_ratio=0.7, 
-            valid_ratio=0.2,
-            random_seed=42
+            valid_ratio=0.29,
+            random_seed=10
         )
     
     # Model hyperparameters (actual values used internally by notebook's ImprovedLSTM)
     # NOTE: Notebook Config shows 512/6/8 but ImprovedLSTM internally divides by 2 and hardcodes layers
-    HIDDEN_SIZE = 64
+    HIDDEN_SIZE = 32
     NUM_LAYERS = 2  # Notebook hardcodes this in ImprovedLSTM.__init__
     NUM_HEADS = 4 # Notebook hardcodes this in attention layer
     DROPOUT = 0.15  # Notebook uses dropout/2 = 0.3/2 = 0.15
@@ -49,15 +49,14 @@ class DefenseCatcherConfig:
     LEARNING_RATE = 1e-3
     WEIGHT_DECAY = 1e-5
     GRADIENT_CLIP = 1.0
-    NUM_EPOCHS = 20
+    NUM_EPOCHS = 30
     EARLY_STOPPING_PATIENCE = 3
     
     # Position-specific weights for loss function
     FEATURE_WEIGHTS = {
         'Age': 1.0,
-        #'FRM/150': 1.5,
-        #'DRS/150': 1.5,
-        'sc_total_runs/150': 1,
+
+        'sc_total_runs/150': 1
     }
     
     # ============================================================================
