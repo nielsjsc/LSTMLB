@@ -93,7 +93,7 @@ class PitcherSPConfig:
     # ============================================================================
     # PRE-TRAINING CONFIGURATION (1950-2024, Classical only)
     # ============================================================================
-    SEQ_LENGTH = 2  # season sequences for pre-training
+    SEQ_LENGTH = 3  # season sequences for pre-training
     PRETRAIN_DATA_FILE = '../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv'
     PRETRAIN_SCALER_FILE = 'data/pitcher_sp_pretrain_scaler.pkl'
     PRETRAIN_CHECKPOINT_FILE = 'sp/pitcher_sp_pretrained.pth'
@@ -142,20 +142,20 @@ class PitcherSPConfig:
     # Model architecture - TUNED via backtest hyperparameter search (100 trials)
     # Trial #24: 37.90% skill score across 2023-2025 holdout years
     # This configuration directly optimizes for out-of-sample predictive performance
-    HIDDEN_SIZE = 128                # Best: 512
-    NUM_LAYERS = 1                 # Best: 2 (backtest-optimized)
-    NUM_HEADS = 8                 # Best: 4 (backtest-optimized)
+    HIDDEN_SIZE = 256                # Best: 512
+    NUM_LAYERS = 3                 # Best: 2 (backtest-optimized)
+    NUM_HEADS = 4                 # Best: 4 (backtest-optimized)
     BIDIRECTIONAL = True
-    DROPOUT = 0.2603902541101231           # Best: 0.253 (backtest-optimized)
+    DROPOUT = 0           # Best: 0.253 (backtest-optimized)
     GRADIENT_CLIP = 1.0
     
     # Training parameters - TUNED via backtest hyperparameter search (100 trials)
     # Trial #24: Achieves 37.90% average skill score (vs naive baseline)
     # Per-year: 24.87% (2023), 48.08% (2024), 40.76% (2025)
-    BATCH_SIZE = 16         # Best: 32 (backtest-optimized)
-    LEARNING_RATE = 0.001331121608073689       # Best: 4.19e-05 (backtest-optimized)
+    BATCH_SIZE = 128        # Best: 32 (backtest-optimized)
+    LEARNING_RATE = 1e-04      # Best: 4.19e-05 (backtest-optimized)
     WEIGHT_DECAY = 1.1527987128232402e-06        # Best: 3.70e-05 (backtest-optimized)
-    NUM_EPOCHS = 50
+    NUM_EPOCHS = 30
     EARLY_STOPPING_PATIENCE = 8
     
     # ============================================================================

@@ -78,8 +78,8 @@ class PitcherRPConfig:
     # Statcast era features (2020+) - the most predictive metrics
     # Research: "Pitching+ out-predicts any current projection system for relievers"
     STATCAST_FEATURES = [
-        'Stuff+',       # Pitch quality model - CRITICAL for relievers
-        'Location+',    # Command model
+        #'Stuff+',       # Pitch quality model - CRITICAL for relievers
+        #'Location+',    # Command model
         'Pitching+'    # Combined model - best for relievers per research
     ]
     
@@ -123,12 +123,12 @@ class PitcherRPConfig:
     NUM_LAYERS = 2
     NUM_HEADS = 2
     BIDIRECTIONAL = True
-    DROPOUT = 0.195
+    DROPOUT = 0
     GRADIENT_CLIP = 1.0
     
     # Training parameters
-    BATCH_SIZE = 32
-    LEARNING_RATE = 0.000027
+    BATCH_SIZE = 64
+    LEARNING_RATE = 1e-04
     WEIGHT_DECAY = 1e-5
     NUM_EPOCHS = 50
     EARLY_STOPPING_PATIENCE = 15

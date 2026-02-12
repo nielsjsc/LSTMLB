@@ -597,6 +597,21 @@ def preprocess_data(
         # Filter and clean data
         df = filter_data(df, config)
         
+        # Apply reliability regression for pitcher models
+        # This regresses rate stats toward the player's career mean (or league avg
+        # for rookies) based on sample size, so the model trains on true-talent
+        # estimates rather than noisy small-sample observations.
+        if model_type and model_type.startswith('pitcher'):
+            from core.reliability import regress_pitcher_stats, get_era_for_features
+            era = get_era_for_features(config.input_features)
+            # Pass the full filtered df as both data and league reference
+            df = regress_pitcher_stats(
+                df, 
+                features=config.input_features, 
+                era=era,
+                league_df=df,
+            )
+        
         # Scale features before sequence creation
         model_name = model_type or "unknown"
         df, scaler = scale_features(

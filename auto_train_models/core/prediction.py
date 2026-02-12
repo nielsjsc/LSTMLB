@@ -598,36 +598,49 @@ def predict_future_stats_baserunning(player_id: str, input_features: List[str], 
 def predict_future_stats_pitcher(player_id: str, input_features: List[str], model, 
                                 scaler, raw_df: pd.DataFrame, player_names: pd.DataFrame,
                                 role: str, future_years: int = 16, seq_length: int = 4,
-                                target_year: int = None) -> List[Dict]:
+                                target_year: int = None,
+                                league_priors: Optional[Dict[str, float]] = None) -> List[Dict]:
     """
-    Predict future stats for a pitcher with improved injury handling.
+    Predict future stats for a pitcher with reliability regression.
     
-    Key improvements over original:
-    1. Recency-weighted career averages with IP weighting (prevents peak and small-sample inflation)
-    2. Most-recent valid season substitution (not oldest peak year)
-    3. Stores player context for post-processing constraints
-    4. target_year parameter ensures projections start from correct year
+    Key design:
+    1. Reliability regression: each season's rate stats are regressed toward the
+       player's IP-weighted career mean (or league average for rookies) based on
+       sample size and stat-specific stabilization rates. This means a 75 IP season
+       keeps its K% mostly intact but its ERA gets pulled toward career norm.
+    2. Regressed career mean padding: when the sequence is shorter than seq_length,
+       padding uses the player's regressed career average — a principled true-talent
+       estimate rather than duplicating the earliest season.
+    3. Lower IP threshold for inclusion: since regression handles reliability, we
+       can include more seasons (≥20 IP for SP, ≥10 IP for RP) without worrying
+       about small-sample noise distorting the sequence.
     
     Args:
         model: Trained ImprovedLSTM model
         scaler: Fitted scaler
-        target_year: The year projections should start from (e.g., 2026). 
-                     If player's last season is before this, projections still start at target_year.
+        target_year: The year projections should start from (e.g., 2026).
+        league_priors: Pre-computed league average priors per feature (from caller).
+                      Used as fallback for rookies with <2 career seasons.
     """
+    from core.reliability import (
+        regress_player_sequence, 
+        compute_regressed_career_mean, 
+        get_era_for_features,
+    )
     
     # Get initial player data
     player_data = raw_df[raw_df['IDfg'] == player_id].sort_values('Season')
     if len(player_data) < 1:
         return []
     
-    # Check for required features - skip players with too many NaN values
+    # Check for required features — skip players with too many NaN values
     required_features = [f for f in input_features if f != 'Age']
     last_valid_season = player_data[player_data['IP'] >= 15].tail(1)
     if last_valid_season.empty:
         last_valid_season = player_data.tail(1)
     
     nan_count = last_valid_season[required_features].isna().sum().sum()
-    if nan_count > len(required_features) * 0.3:  # More than 30% NaN
+    if nan_count > len(required_features) * 0.3:
         logger.debug(f"Skipping player {player_id} - too many NaN features ({nan_count}/{len(required_features)})")
         return []
         
@@ -641,30 +654,27 @@ def predict_future_stats_pitcher(player_id: str, input_features: List[str], mode
     last_age = player_data[player_data['Season'] == last_season]['Age'].iloc[0]
     
     # Determine the projection start year
-    # If target_year is set, ensure projections start from there even if player missed time
     if target_year is not None and last_season < target_year:
-        # Player didn't play in target_year-1 season, adjust age accordingly
         years_missed = target_year - 1 - last_season
         last_age = last_age + years_missed
-        last_season = target_year - 1  # So first projection is target_year
+        last_season = target_year - 1
     
-    # Store player context for post-processing (IP history, velocity history, etc.)
+    # Store player context for post-processing
     player_context = {
         'career_high_ip': player_data['IP'].max(),
-        'recent_ip': player_data.tail(3)['IP'].mean(),  # Average of last 3 seasons
-        'last_fbv': None,  # For velocity constraints
+        'recent_ip': player_data.tail(3)['IP'].mean(),
+        'last_fbv': None,
         'last_age': last_age,
         'role': role,
-        'recent_surgery': False,  # Will be detected below
-        'recent_performance': {},  # Will store ERA/FIP/K% for post-surgery constraints
+        'recent_surgery': False,
+        'recent_performance': {},
     }
     
-    # Detect recent surgery/injury by checking for large IP drop in last 1-2 seasons
+    # Detect recent surgery/injury
     recent_surgery_detected = False
     if len(player_data) >= 2:
         recent_ip = player_data.tail(2)['IP'].values
         prior_avg = player_data.iloc[:-2]['IP'].mean() if len(player_data) > 2 else player_data.iloc[0]['IP']
-        # Check if there was a major injury (< 50 IP) followed by return
         if len(recent_ip) >= 2:
             if (recent_ip[-2] < 50 and prior_avg > 100) or (recent_ip[-1] >= 80 and prior_avg > 130):
                 recent_surgery_detected = True
@@ -673,7 +683,6 @@ def predict_future_stats_pitcher(player_id: str, input_features: List[str], mode
     
     player_context['recent_surgery'] = recent_surgery_detected
     
-    # If surgery detected, store most recent VALID season's performance for constraints
     if recent_surgery_detected:
         valid_seasons = player_data[player_data['IP'] >= 30]
         if not valid_seasons.empty:
@@ -685,7 +694,6 @@ def predict_future_stats_pitcher(player_id: str, input_features: List[str], mode
                 'recent_bb_pct': most_recent_valid.get('BB%', 0.09),
             }
     
-    # Extract velocity from most recent VALID season for constraints
     if 'FBv' in player_data.columns:
         valid_seasons = player_data[player_data['IP'] >= 30]
         if not valid_seasons.empty:
@@ -695,50 +703,91 @@ def predict_future_stats_pitcher(player_id: str, input_features: List[str], mode
         if not valid_seasons.empty:
             player_context['last_stuff'] = valid_seasons.iloc[-1]['Stuff+']
     
-    # Define IP thresholds
-    # SEQUENCE_THRESHOLD: Minimum IP for a season to be included in the input sequence
-    # This prevents tiny samples (2-10 IP) from polluting predictions
-    # QUALIFICATION_THRESHOLD: Minimum recent IP to generate predictions for this player
-    sequence_ip_threshold = 50 if role == 'SP' else 30
+    # =========================================================================
+    # QUALIFICATION & IP THRESHOLDS
+    # =========================================================================
+    # With reliability regression, we can include lower-IP seasons because
+    # their noisy rate stats get regressed toward the career mean. The
+    # regression itself handles reliability — we no longer need harsh cutoffs.
+    #
+    # SEQUENCE_THRESHOLD: Minimum IP for inclusion in the input sequence.
+    #   Lowered from 50/30 to 20/10 because regression handles sample size.
+    #   Still excludes truly meaningless appearances (1-5 IP rehab stints).
+    #
+    # QUALIFICATION_THRESHOLD: Minimum recent IP to generate predictions at all.
+    #   Unchanged — a player needs to have pitched meaningfully recently.
+    # =========================================================================
+    sequence_ip_threshold = 20 if role == 'SP' else 10
     qualification_ip_threshold = 45 if role == 'SP' else 15
     
-    # Check if player qualifies for predictions (has recent meaningful playing time)
-    recent_ip = player_data.tail(2)['IP'].max()  # Best of last 2 seasons
+    # Check if player qualifies for predictions
+    recent_ip = player_data.tail(2)['IP'].max()
     if recent_ip < qualification_ip_threshold:
         logger.debug(f"Skipping {player_name} - insufficient recent IP ({recent_ip:.1f} < {qualification_ip_threshold})")
         return []
     
-    # Build sequence using only seasons that meet sequence threshold
-    recent_seasons = player_data.tail(seq_length)
+    # =========================================================================
+    # RELIABILITY REGRESSION
+    # =========================================================================
+    # Regress each season's rate stats toward the player's career mean (or
+    # league average for rookies) based on BF and stat-specific stabilization
+    # rates. This transforms raw observations into true-talent estimates.
+    #
+    # Example (200→100→75→200 IP pitcher):
+    #   K% (stabilizes at 70 BF): barely changes for any season
+    #   ERA (stabilizes at 1320 BF): 75 IP season → heavy regression toward career avg
+    # =========================================================================
+    era = get_era_for_features(input_features)
+    player_data_regressed = regress_player_sequence(
+        player_data, input_features, era=era, league_priors=league_priors
+    )
+    
+    # Compute regressed career mean for padding
+    # This is the best available estimate of the player's true talent level,
+    # used when the sequence is shorter than seq_length.
+    career_mean = compute_regressed_career_mean(
+        player_data, input_features, era=era, league_priors=league_priors
+    )
+    
+    # Build sequence from regressed data
+    recent_seasons = player_data_regressed.tail(seq_length + 2)  # extra buffer for skipping
     sequence_data = []
     mask = []
     
-    # Process each season
     for idx, season in recent_seasons.iterrows():
         if season['IP'] >= sequence_ip_threshold:
-            # Valid season - use actual data (base features only, vs_career removed)
             base_features = season[input_features].values
             sequence_data.append(base_features)
             mask.append(1)
-        else:
-            # Low-IP season - SKIP it entirely, don't include in sequence
-            # This prevents 2-10 IP seasons from influencing predictions
-            continue
+    
+    # Keep only the most recent seq_length valid seasons
+    if len(sequence_data) > seq_length:
+        sequence_data = sequence_data[-seq_length:]
+        mask = mask[-seq_length:]
     
     # Check if we have any valid seasons at all
     if len(sequence_data) == 0:
         logger.debug(f"Skipping pitcher {player_name} - no seasons with IP >= {sequence_ip_threshold}")
         return []
     
-    # Pad if not enough seasons (use earliest valid season for padding)
+    # Pad with regressed career mean if not enough seasons
     if len(sequence_data) < seq_length:
-        first_valid_year = sequence_data[0]
-        # Pad at the beginning with the earliest valid season
-        sequence_data = [first_valid_year] * (seq_length - len(sequence_data)) + sequence_data
-        mask = [0] * (seq_length - len(mask)) + mask  # Padded seasons marked as invalid
+        # Build padding vector from regressed career mean
+        padding_vector = np.array(
+            [career_mean.get(f, 0.0) for f in input_features], dtype=np.float32
+        )
+        n_pad = seq_length - len(sequence_data)
+        sequence_data = [padding_vector] * n_pad + sequence_data
+        mask = [0] * n_pad + mask
     
-    current_sequence = np.array(sequence_data[-seq_length:])
+    # Ensure numeric array
+    current_sequence = np.array(sequence_data[-seq_length:], dtype=np.float32)
     mask = np.array(mask[-seq_length:], dtype=np.int64)
+    
+    # Final NaN/Inf safety check
+    if np.isnan(current_sequence).any() or np.isinf(current_sequence).any():
+        current_sequence = np.nan_to_num(current_sequence, nan=0.0, posinf=0.0, neginf=0.0)
+        logger.warning(f"NaN/Inf cleaned from sequence for {player_name}")
     
     device = next(model.parameters()).device
     predictions_list = []
@@ -760,6 +809,12 @@ def predict_future_stats_pitcher(player_id: str, input_features: List[str], mode
         
         # Inverse transform to get actual values
         prediction_constrained = scaler.inverse_transform(prediction)[0]
+        
+        # NOTE: Aging curves are applied through the age-adjusted regression
+        # prior (in regress_player_sequence / compute_regressed_career_mean),
+        # NOT as a post-model adjustment here. This lets the LSTM learn its
+        # own aging signal from the Age input feature while the regression
+        # prior anchors low-sample seasons to an age-appropriate baseline.
         
         # NOTE: Physical constraints removed for consistency with backtest
         # Previously applied velocity caps, IP limits, and post-surgery constraints
@@ -791,8 +846,15 @@ def predict_future_stats_pitcher(player_id: str, input_features: List[str], mode
         age_index = input_features.index('Age')
         next_sequence[age_index] = last_age + year + 1
         
-        # Scale the next prediction
-        next_sequence_scaled = scaler.transform(next_sequence.reshape(1, -1))[0]
+        # Safety check: ensure no NaN/Inf in prediction before adding to sequence
+        if np.isnan(next_sequence).any() or np.isinf(next_sequence).any():
+            logger.warning(f"NaN/Inf detected in prediction for {player_name} year {last_season + year} - replacing with last valid values")
+            # Use the last row of current_sequence as fallback
+            last_valid = current_sequence[-1].copy()
+            nan_mask = np.isnan(next_sequence) | np.isinf(next_sequence)
+            next_sequence[nan_mask] = last_valid[nan_mask]
+            # Update age regardless
+            next_sequence[age_index] = last_age + year + 1
         
         # Update sequence
         current_sequence = np.vstack([current_sequence[1:], next_sequence])
@@ -839,6 +901,20 @@ def predict_all_pitchers(
         DataFrame with predictions for all pitchers, or None if no predictions generated
     """
     logger.info(f"Starting predictions for pitchers from cutoff year {cutoff_year}")
+    
+    # Pre-compute league average priors for reliability regression.
+    # Done once here rather than per-player for efficiency.
+    # Used as fallback for rookies with <2 career seasons.
+    from core.reliability import compute_league_priors_from_df, get_era_for_features
+    sp_era = get_era_for_features(sp_input_features)
+    rp_era = get_era_for_features(rp_input_features)
+    sp_league_priors = compute_league_priors_from_df(
+        raw_df, sp_input_features, season=cutoff_year, window=3
+    )
+    rp_league_priors = compute_league_priors_from_df(
+        raw_df, rp_input_features, season=cutoff_year, window=3
+    )
+    logger.info(f"Computed league priors for SP ({len(sp_league_priors)} features) and RP ({len(rp_league_priors)} features)")
     
     # Get current year and previous year pitchers
     pitchers_current = raw_df[raw_df['Season'] == cutoff_year].copy()
@@ -913,7 +989,8 @@ def predict_all_pitchers(
             role='SP',
             seq_length=seq_length,
             future_years=future_years,
-            target_year=target_year
+            target_year=target_year,
+            league_priors=sp_league_priors
         )
         if predictions:
             all_predictions.extend(predictions)
@@ -937,7 +1014,8 @@ def predict_all_pitchers(
             role='RP',
             seq_length=seq_length,
             future_years=future_years,
-            target_year=target_year
+            target_year=target_year,
+            league_priors=rp_league_priors
         )
         if predictions:
             all_predictions.extend(predictions)

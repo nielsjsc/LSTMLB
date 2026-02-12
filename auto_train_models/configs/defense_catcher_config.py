@@ -29,19 +29,19 @@ class DefenseCatcherConfig:
             input_features=DefenseCatcherConfig.INPUT_FEATURES,
             seq_length=3,  # C_SEQ_LENGTH from notebook
             start_season=2002,
-            min_pa=50,  # C_MIN_INNINGS from notebook (converted to min_pa for compatibility)
+            min_pa=40,  # C_MIN_INNINGS from notebook (converted to min_pa for compatibility)
             train_ratio=0.7, 
             valid_ratio=0.29,
-            random_seed=10
+            random_seed=0
         )
     
     # Model hyperparameters (actual values used internally by notebook's ImprovedLSTM)
     # NOTE: Notebook Config shows 512/6/8 but ImprovedLSTM internally divides by 2 and hardcodes layers
-    HIDDEN_SIZE = 32
-    NUM_LAYERS = 2  # Notebook hardcodes this in ImprovedLSTM.__init__
-    NUM_HEADS = 4 # Notebook hardcodes this in attention layer
-    DROPOUT = 0.15  # Notebook uses dropout/2 = 0.3/2 = 0.15
-    BIDIRECTIONAL = True
+    HIDDEN_SIZE = 1024
+    NUM_LAYERS = 2 # Notebook hardcodes this in ImprovedLSTM.__init__
+    NUM_HEADS = 2 # Notebook hardcodes this in attention layer
+    DROPOUT = 0.6  
+    BIDIRECTIONAL = False
     GRADIENT_CLIP = 1.0
     
     # Training parameters (match notebook)
