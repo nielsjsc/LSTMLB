@@ -301,16 +301,12 @@ def calculate_woba_from_predictions(batter_df: pd.DataFrame, use_calculated_woba
 def calculate_baserunning_value(row: pd.Series, games: int) -> float:
     """
     Calculate baserunning value (BsR) from baserunning predictions.
-    Uses rate statistics (per 150 games) and scales by actual games played.
-    Now uses Statcast baserunning run values (XB + SBX components).
+    Uses the combined Statcast total baserunning run value (per 150 games)
+    and scales by actual games played.
     """
-    # Convert rates from per-150 to actual games
-    # rates are now per 150 games, so: (rate / 150) * actual_games
-    runner_runs_xb = row.get('sc_baserunning_runner_runs_XB_rate', 0) * (games / 150.0)
-    runner_runs_sbx = row.get('sc_baserunning_runner_runs_SBX_rate', 0) * (games / 150.0)
-    
-    # BsR = extra base advancement + stolen base runs
-    bsr = runner_runs_xb + runner_runs_sbx
+    # sc_baserunning_runner_runs_total is already the combined metric (XB + SBX)
+    # Rate is per 150 games, so: (rate / 150) * actual_games
+    bsr = row.get('sc_baserunning_runner_runs_total', 0) * (games / 150.0)
     
     return bsr
 
