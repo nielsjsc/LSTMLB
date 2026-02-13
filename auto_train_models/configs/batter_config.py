@@ -53,6 +53,15 @@ class BatterConfig:
     MIN_PA_CURRENT = 70  # Minimum PA in current year to generate predictions
     
     # ============================================================================
+    # RELIABILITY REGRESSION
+    # ============================================================================
+    # When enabled, applies Bayesian shrinkage to rate stats based on sample size.
+    # Each stat is regressed toward the player's career mean (or league average
+    # for rookies) proportional to how many PA they had.
+    # This reduces noise from small-sample seasons in both training and prediction.
+    ENABLE_RELIABILITY_REGRESSION = True
+    
+    # ============================================================================
     # TRANSFER LEARNING FEATURE SETS
     # ============================================================================
     

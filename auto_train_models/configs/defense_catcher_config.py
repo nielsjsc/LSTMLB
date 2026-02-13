@@ -19,7 +19,7 @@ class DefenseCatcherConfig:
     # Model-specific features
     INPUT_FEATURES = [
         'Age', #'Inn',#'DRS/150',  
-        'sc_total_runs/150',# 'sc_framing_runs/150', 'sc_throwing_runs/150', 'sc_blocking_runs/150'
+        'sc_total_runs/150', 'sc_framing_runs/150', 'sc_throwing_runs/150', 'sc_blocking_runs/150'
     ]
     
     # Data preprocessing config
@@ -27,7 +27,7 @@ class DefenseCatcherConfig:
     def get_data_config():
         return DataConfig(
             input_features=DefenseCatcherConfig.INPUT_FEATURES,
-            seq_length=3,  # C_SEQ_LENGTH from notebook
+            seq_length=4,  # C_SEQ_LENGTH from notebook
             start_season=2002,
             min_pa=40,  # C_MIN_INNINGS from notebook (converted to min_pa for compatibility)
             train_ratio=0.7, 
@@ -35,12 +35,19 @@ class DefenseCatcherConfig:
             random_seed=0
         )
     
+    # ============================================================================
+    # RELIABILITY REGRESSION
+    # ============================================================================
+    # When enabled, applies Bayesian shrinkage to catcher defensive metrics based on
+    # innings. Framing stabilizes at 1200 Inn, throwing/blocking at 1500 Inn.
+    ENABLE_RELIABILITY_REGRESSION = True
+    
     # Model hyperparameters (actual values used internally by notebook's ImprovedLSTM)
     # NOTE: Notebook Config shows 512/6/8 but ImprovedLSTM internally divides by 2 and hardcodes layers
-    HIDDEN_SIZE = 1024
+    HIDDEN_SIZE = 256
     NUM_LAYERS = 2 # Notebook hardcodes this in ImprovedLSTM.__init__
-    NUM_HEADS = 2 # Notebook hardcodes this in attention layer
-    DROPOUT = 0.6  
+    NUM_HEADS = 1 # Notebook hardcodes this in attention layer
+    DROPOUT = 0.4  
     BIDIRECTIONAL = False
     GRADIENT_CLIP = 1.0
     

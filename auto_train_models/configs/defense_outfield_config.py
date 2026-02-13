@@ -35,6 +35,14 @@ class DefenseOutfieldConfig:
             random_seed=42
         )
     
+    # ============================================================================
+    # RELIABILITY REGRESSION
+    # ============================================================================
+    # When enabled, applies Bayesian shrinkage to defensive run metrics based on
+    # innings played. Defensive metrics are notoriously noisy — sc_total_runs/150
+    # requires ~1000 innings to stabilize at 50% signal.
+    ENABLE_RELIABILITY_REGRESSION = True
+    
     # Model hyperparameters (actual values used internally by notebook's ImprovedLSTM)
     # NOTE: Notebook Config shows 512/6/8 but ImprovedLSTM internally divides by 2 and hardcodes layers
     HIDDEN_SIZE = 256  

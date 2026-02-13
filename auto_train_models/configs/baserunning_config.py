@@ -37,6 +37,15 @@ class BaserunningConfig:
             random_seed=42
         )
     
+    # ============================================================================
+    # RELIABILITY REGRESSION
+    # ============================================================================
+    # When enabled, applies Bayesian shrinkage to rate stats based on sample size.
+    # Each stat is regressed toward the player's career mean (or league average
+    # for rookies) proportional to how many games they played.
+    # Sprint speed stabilizes extremely fast (10 games); baserunning runs are noisier.
+    ENABLE_RELIABILITY_REGRESSION = True
+    
     # Model hyperparameters (actual values used by model)
     HIDDEN_SIZE = 128
     NUM_LAYERS = 2

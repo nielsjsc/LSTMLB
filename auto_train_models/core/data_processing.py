@@ -15,6 +15,54 @@ import torch
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def _get_reliability_model_type(model_type: str) -> str:
+    """
+    Map the training pipeline's model_type string to the reliability module's key.
+    
+    The training pipeline uses strings like 'pitcher_sp', 'pitcher_rp', 'defense_infield',
+    while the reliability module uses 'pitcher', 'batter', 'baserunning', 'defense_infield'.
+    """
+    if model_type.startswith('pitcher'):
+        return 'pitcher'
+    return model_type  # batter, baserunning, defense_infield, etc.
+
+
+def _is_reliability_regression_enabled(model_type: str) -> bool:
+    """
+    Check whether ENABLE_RELIABILITY_REGRESSION is True in the config for this model type.
+    
+    Imports the relevant config class and reads the toggle.
+    Returns False if the config can't be found or doesn't have the toggle.
+    """
+    config_map = {
+        'pitcher_sp': ('configs.pitcher_sp_config', 'PitcherSPConfig'),
+        'pitcher_rp': ('configs.pitcher_rp_config', 'PitcherRPConfig'),
+        'batter': ('configs.batter_config', 'BatterConfig'),
+        'baserunning': ('configs.baserunning_config', 'BaserunningConfig'),
+        'defense_infield': ('configs.defense_infield_config', 'DefenseInfieldConfig'),
+        'defense_outfield': ('configs.defense_outfield_config', 'DefenseOutfieldConfig'),
+        'defense_catcher': ('configs.defense_catcher_config', 'DefenseCatcherConfig'),
+    }
+    
+    entry = config_map.get(model_type)
+    if entry is None:
+        # Fallback: check if it starts with 'pitcher'
+        if model_type.startswith('pitcher'):
+            entry = config_map.get('pitcher_sp')
+        else:
+            logger.debug(f"No config mapping found for model_type '{model_type}'")
+            return False
+    
+    try:
+        import importlib
+        module = importlib.import_module(entry[0])
+        config_cls = getattr(module, entry[1])
+        return getattr(config_cls, 'ENABLE_RELIABILITY_REGRESSION', False)
+    except (ImportError, AttributeError) as e:
+        logger.debug(f"Could not check ENABLE_RELIABILITY_REGRESSION for {model_type}: {e}")
+        return False
+
    
 @dataclass
 class DataConfig:
@@ -597,20 +645,34 @@ def preprocess_data(
         # Filter and clean data
         df = filter_data(df, config)
         
-        # Apply reliability regression for pitcher models
+        # Apply reliability regression for all model types (when enabled in config)
         # This regresses rate stats toward the player's career mean (or league avg
         # for rookies) based on sample size, so the model trains on true-talent
         # estimates rather than noisy small-sample observations.
-        if model_type and model_type.startswith('pitcher'):
-            from core.reliability import regress_pitcher_stats, get_era_for_features
-            era = get_era_for_features(config.input_features)
-            # Pass the full filtered df as both data and league reference
-            df = regress_pitcher_stats(
-                df, 
-                features=config.input_features, 
-                era=era,
-                league_df=df,
-            )
+        if model_type:
+            # Check if reliability regression is enabled for this model type
+            regression_enabled = _is_reliability_regression_enabled(model_type)
+            
+            if regression_enabled:
+                from core.reliability import regress_stats, get_era_for_features
+                era = get_era_for_features(config.input_features)
+                
+                # Map model_type to the reliability module's model_type key
+                reliability_model_type = _get_reliability_model_type(model_type)
+                
+                logger.info(
+                    f"Reliability regression ENABLED for {model_type} "
+                    f"(reliability key: {reliability_model_type}, era: {era})"
+                )
+                df = regress_stats(
+                    df, 
+                    features=config.input_features,
+                    model_type=reliability_model_type,
+                    era=era,
+                    league_df=df,
+                )
+            else:
+                logger.info(f"Reliability regression DISABLED for {model_type}")
         
         # Scale features before sequence creation
         model_name = model_type or "unknown"

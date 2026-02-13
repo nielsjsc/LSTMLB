@@ -46,6 +46,15 @@ class PitcherRPConfig:
     MIN_IP_CURRENT = 15  # Minimum IP in current year to generate predictions
     
     # ============================================================================
+    # RELIABILITY REGRESSION
+    # ============================================================================
+    # When enabled, applies Bayesian shrinkage to rate stats based on sample size.
+    # Each stat is regressed toward the player's career mean (or league average
+    # for rookies) proportional to how much exposure they had (BF for pitchers).
+    # This reduces noise from small-sample seasons in both training and prediction.
+    ENABLE_RELIABILITY_REGRESSION = True
+    
+    # ============================================================================
     # TRANSFER LEARNING FEATURE SETS
     # ============================================================================
     

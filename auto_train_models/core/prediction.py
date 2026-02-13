@@ -487,13 +487,18 @@ def predict_future_stats(
     future_years: int = 16,
     extra_fields: Optional[Dict] = None,
     non_negative_features: Optional[List[str]] = None,
-    cutoff_year: Optional[int] = None
+    cutoff_year: Optional[int] = None,
+    model_type: Optional[str] = None,
+    league_priors: Optional[Dict[str, float]] = None,
 ) -> List[Dict]:
     """
     Unified prediction function for batters, fielders, and baserunners.
     
-    This replaces the separate predict_future_stats_batter, predict_future_stats_fielding,
-    and predict_future_stats_baserunning functions with a single, maintainable implementation.
+    When model_type is provided and ENABLE_RELIABILITY_REGRESSION is True
+    in the corresponding config, this function:
+    1. Applies reliability regression to the player's historical sequence
+    2. Uses regressed career mean for padding (instead of naive duplication)
+    3. Passes age-adjusted priors so padding reflects current talent
     
     Args:
         player_id: FanGraphs player ID
@@ -507,26 +512,221 @@ def predict_future_stats(
         extra_fields: Additional fields to add to each prediction (e.g., {'Position_Group': 'infield'})
         non_negative_features: Features that should be clipped to >= 0 (e.g., ['SB_rate', 'CS_rate'])
         cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
+        model_type: Model type for reliability regression ('batter', 'baserunning',
+                    'defense_infield', 'defense_outfield', 'defense_catcher').
+                    If None, regression is skipped (legacy behavior).
+        league_priors: Pre-computed league averages per feature (for regression fallback).
+                      If None and regression is enabled, uses player's own data.
         
     Returns:
         List of prediction dictionaries
     """
-    # Prepare player data and sequence
-    prep = _prepare_player_sequence(player_id, raw_df, player_names, input_features, seq_length, cutoff_year)
-    if prep is None:
+    # Check if reliability regression is enabled for this model type
+    use_regression = False
+    if model_type is not None:
+        try:
+            from core.data_processing import _is_reliability_regression_enabled
+            use_regression = _is_reliability_regression_enabled(model_type)
+        except ImportError:
+            pass
+    
+    if use_regression:
+        return _predict_with_regression(
+            player_id=player_id,
+            input_features=input_features,
+            model=model,
+            scaler=scaler,
+            raw_df=raw_df,
+            player_names=player_names,
+            seq_length=seq_length,
+            future_years=future_years,
+            extra_fields=extra_fields,
+            non_negative_features=non_negative_features,
+            cutoff_year=cutoff_year,
+            model_type=model_type,
+            league_priors=league_priors,
+        )
+    else:
+        # Legacy path: no regression
+        prep = _prepare_player_sequence(player_id, raw_df, player_names, input_features, seq_length, cutoff_year)
+        if prep is None:
+            return []
+        
+        return _run_prediction_loop(
+            model=model,
+            scaler=scaler,
+            sequence=prep['sequence'],
+            input_features=input_features,
+            seq_length=seq_length,
+            future_years=future_years,
+            latest_age=prep['latest_age'],
+            latest_season=prep['latest_season'],
+            player_name=prep['player_name'],
+            player_id=player_id,
+            extra_fields=extra_fields,
+            non_negative_features=non_negative_features
+        )
+
+
+def _predict_with_regression(
+    player_id: str,
+    input_features: List[str],
+    model: ImprovedLSTM,
+    scaler: Any,
+    raw_df: pd.DataFrame,
+    player_names: pd.DataFrame,
+    seq_length: int,
+    future_years: int,
+    extra_fields: Optional[Dict],
+    non_negative_features: Optional[List[str]],
+    cutoff_year: Optional[int],
+    model_type: str,
+    league_priors: Optional[Dict[str, float]],
+) -> List[Dict]:
+    """
+    Predict future stats with reliability regression applied to the input sequence.
+    
+    Mirrors the pitcher pipeline's approach:
+    1. Regress each season's rate stats toward career mean (age-adjusted)
+    2. Use regressed career mean for padding short sequences
+    3. Feed the regressed, properly-padded sequence to the LSTM
+    """
+    from core.reliability import (
+        regress_player_sequence,
+        compute_regressed_career_mean,
+        get_era_for_features,
+    )
+    
+    # Get player data
+    player_data = raw_df[raw_df['IDfg'] == player_id].copy()
+    if len(player_data) == 0:
         return []
+    
+    # Get player name
+    try:
+        player_name = player_names[player_names['IDfg'] == player_id]['Name'].iloc[0]
+    except IndexError:
+        logger.warning(f"Player name not found for ID {player_id}")
+        return []
+    
+    # Sort by season
+    player_data = player_data.sort_values('Season')
+    
+    # Determine latest season and age
+    if cutoff_year is not None:
+        latest_season = cutoff_year
+        actual_latest_season = player_data['Season'].max()
+        latest_age = player_data[player_data['Season'] == actual_latest_season]['Age'].iloc[-1]
+        if cutoff_year > actual_latest_season:
+            latest_age += (cutoff_year - actual_latest_season)
+    else:
+        latest_season = player_data['Season'].max()
+        latest_age = player_data['Age'].iloc[-1]
+    
+    # Map model_type to the reliability module's key
+    reliability_model_type = model_type
+    
+    # Apply reliability regression to the player's historical data
+    era = get_era_for_features(input_features)
+    player_data_regressed = regress_player_sequence(
+        player_data, input_features,
+        model_type=reliability_model_type,
+        era=era, league_priors=league_priors
+    )
+    
+    # Compute regressed career mean for padding
+    career_mean = compute_regressed_career_mean(
+        player_data, input_features,
+        model_type=reliability_model_type,
+        era=era, league_priors=league_priors
+    )
+    
+    # =========================================================================
+    # STATCAST METRIC SUBSTITUTION (batter only)
+    # =========================================================================
+    xwoba_substituted = False
+    xba_substituted = False
+    xslg_substituted = False
+    
+    if model_type == 'batter':
+        try:
+            from configs.batter_config import BatterConfig
+            
+            if (BatterConfig.USE_XWOBA_FOR_PREDICTIONS and
+                'wOBA' in input_features and
+                'xwOBA' in player_data.columns):
+                # Substitute xwOBA into the regressed data
+                for idx, row in player_data_regressed.iterrows():
+                    orig_idx = player_data.index[player_data['Season'] == row['Season']]
+                    if len(orig_idx) > 0 and not pd.isna(player_data.loc[orig_idx[0], 'xwOBA']):
+                        player_data_regressed.at[idx, 'wOBA'] = player_data.loc[orig_idx[0], 'xwOBA']
+                xwoba_substituted = True
+            
+            if (BatterConfig.USE_XBA_FOR_PREDICTIONS and
+                'AVG' in input_features and
+                'xBA' in player_data.columns):
+                for idx, row in player_data_regressed.iterrows():
+                    orig_idx = player_data.index[player_data['Season'] == row['Season']]
+                    if len(orig_idx) > 0 and not pd.isna(player_data.loc[orig_idx[0], 'xBA']):
+                        player_data_regressed.at[idx, 'AVG'] = player_data.loc[orig_idx[0], 'xBA']
+                xba_substituted = True
+            
+            if (BatterConfig.USE_XSLG_FOR_PREDICTIONS and
+                'SLG' in input_features and
+                'xSLG' in player_data.columns):
+                for idx, row in player_data_regressed.iterrows():
+                    orig_idx = player_data.index[player_data['Season'] == row['Season']]
+                    if len(orig_idx) > 0 and not pd.isna(player_data.loc[orig_idx[0], 'xSLG']):
+                        player_data_regressed.at[idx, 'SLG'] = player_data.loc[orig_idx[0], 'xSLG']
+                xslg_substituted = True
+                
+        except (ImportError, AttributeError):
+            pass
+    
+    # =========================================================================
+    # BUILD SEQUENCE (with regressed career mean padding)
+    # =========================================================================
+    recent_data = player_data_regressed[input_features].iloc[-seq_length:].copy().reset_index(drop=True)
+    
+    # Pad with regressed career mean if not enough seasons
+    num_seasons = len(recent_data)
+    if num_seasons < seq_length:
+        padding_vector = np.array(
+            [career_mean.get(f, 0.0) for f in input_features], dtype=np.float64
+        )
+        n_pad = seq_length - num_seasons
+        padding_df = pd.DataFrame(
+            [padding_vector] * n_pad,
+            columns=input_features
+        )
+        recent_data = pd.concat([padding_df, recent_data], ignore_index=True)
+    
+    # Check for NaN
+    if recent_data.isna().any().any():
+        logger.debug(f"NaN in sequence for player {player_id} — filling with career mean")
+        for feat in input_features:
+            if recent_data[feat].isna().any():
+                fill_val = career_mean.get(feat, 0.0)
+                recent_data[feat] = recent_data[feat].fillna(fill_val)
+    
+    sequence = recent_data.values.astype(np.float64)
+    
+    # Final NaN/Inf safety
+    if np.isnan(sequence).any() or np.isinf(sequence).any():
+        sequence = np.nan_to_num(sequence, nan=0.0, posinf=0.0, neginf=0.0)
+        logger.warning(f"NaN/Inf cleaned from sequence for player {player_id}")
     
     # Run prediction loop
     return _run_prediction_loop(
         model=model,
         scaler=scaler,
-        sequence=prep['sequence'],
+        sequence=sequence,
         input_features=input_features,
         seq_length=seq_length,
         future_years=future_years,
-        latest_age=prep['latest_age'],
-        latest_season=prep['latest_season'],
-        player_name=prep['player_name'],
+        latest_age=latest_age,
+        latest_season=latest_season,
+        player_name=player_name,
         player_id=player_id,
         extra_fields=extra_fields,
         non_negative_features=non_negative_features
@@ -540,7 +740,8 @@ def predict_future_stats(
 
 def predict_future_stats_batter(player_id: str, input_features: List[str], model: ImprovedLSTM,
                                scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                               seq_length: int = 5, future_years: int = 16, cutoff_year: Optional[int] = None) -> List[Dict]:
+                               seq_length: int = 5, future_years: int = 16, cutoff_year: Optional[int] = None,
+                               league_priors: Optional[Dict[str, float]] = None) -> List[Dict]:
     """Predict future stats for a batter. Wrapper around unified predict_future_stats."""
     return predict_future_stats(
         player_id=player_id,
@@ -551,14 +752,20 @@ def predict_future_stats_batter(player_id: str, input_features: List[str], model
         player_names=player_names,
         seq_length=seq_length,
         future_years=future_years,
-        cutoff_year=cutoff_year
+        cutoff_year=cutoff_year,
+        model_type='batter',
+        league_priors=league_priors,
     )
 
 
 def predict_future_stats_fielding(player_id: str, input_features: List[str], model: ImprovedLSTM,
                                  scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                                 position_group: str, seq_length: int = 5, future_years: int = 16, cutoff_year: Optional[int] = None) -> List[Dict]:
+                                 position_group: str, seq_length: int = 5, future_years: int = 16,
+                                 cutoff_year: Optional[int] = None,
+                                 league_priors: Optional[Dict[str, float]] = None) -> List[Dict]:
     """Predict future fielding stats. Wrapper around unified predict_future_stats."""
+    # Map position group to model_type for reliability regression
+    fielding_model_type = f'defense_{position_group}'
     return predict_future_stats(
         player_id=player_id,
         input_features=input_features,
@@ -569,13 +776,16 @@ def predict_future_stats_fielding(player_id: str, input_features: List[str], mod
         seq_length=seq_length,
         future_years=future_years,
         extra_fields={'Position_Group': position_group},
-        cutoff_year=cutoff_year
+        cutoff_year=cutoff_year,
+        model_type=fielding_model_type,
+        league_priors=league_priors,
     )
 
 
 def predict_future_stats_baserunning(player_id: str, input_features: List[str], model: ImprovedLSTM,
                                     scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                                    seq_length: int = 4, future_years: int = 16, cutoff_year: Optional[int] = None) -> List[Dict]:
+                                    seq_length: int = 4, future_years: int = 16, cutoff_year: Optional[int] = None,
+                                    league_priors: Optional[Dict[str, float]] = None) -> List[Dict]:
     """Predict future baserunning stats. Wrapper around unified predict_future_stats."""
     return predict_future_stats(
         player_id=player_id,
@@ -587,7 +797,9 @@ def predict_future_stats_baserunning(player_id: str, input_features: List[str], 
         seq_length=seq_length,
         future_years=future_years,
         non_negative_features=['SB_rate', 'CS_rate'],
-        cutoff_year=cutoff_year
+        cutoff_year=cutoff_year,
+        model_type='baserunning',
+        league_priors=league_priors,
     )
 
 
@@ -739,14 +951,16 @@ def predict_future_stats_pitcher(player_id: str, input_features: List[str], mode
     # =========================================================================
     era = get_era_for_features(input_features)
     player_data_regressed = regress_player_sequence(
-        player_data, input_features, era=era, league_priors=league_priors
+        player_data, input_features, model_type='pitcher', era=era,
+        league_priors=league_priors
     )
     
     # Compute regressed career mean for padding
     # This is the best available estimate of the player's true talent level,
     # used when the sequence is shorter than seq_length.
     career_mean = compute_regressed_career_mean(
-        player_data, input_features, era=era, league_priors=league_priors
+        player_data, input_features, model_type='pitcher', era=era,
+        league_priors=league_priors
     )
     
     # Build sequence from regressed data
@@ -909,10 +1123,12 @@ def predict_all_pitchers(
     sp_era = get_era_for_features(sp_input_features)
     rp_era = get_era_for_features(rp_input_features)
     sp_league_priors = compute_league_priors_from_df(
-        raw_df, sp_input_features, season=cutoff_year, window=3
+        raw_df, sp_input_features, model_type='pitcher',
+        season=cutoff_year, window=3
     )
     rp_league_priors = compute_league_priors_from_df(
-        raw_df, rp_input_features, season=cutoff_year, window=3
+        raw_df, rp_input_features, model_type='pitcher',
+        season=cutoff_year, window=3
     )
     logger.info(f"Computed league priors for SP ({len(sp_league_priors)} features) and RP ({len(rp_league_priors)} features)")
     
@@ -1089,6 +1305,20 @@ def predict_all_batters(
     except (ImportError, AttributeError):
         pass
 
+    # Pre-compute league priors for reliability regression (if enabled)
+    batter_league_priors = None
+    try:
+        from core.data_processing import _is_reliability_regression_enabled
+        if _is_reliability_regression_enabled('batter'):
+            from core.reliability import compute_league_priors_from_df
+            batter_league_priors = compute_league_priors_from_df(
+                raw_df, input_features, model_type='batter',
+                season=cutoff_year, window=3
+            )
+            logger.info(f"Computed league priors for batter regression ({len(batter_league_priors)} features)")
+    except ImportError:
+        pass
+
     all_predictions = []
     failed_count = 0
     error_sample = []
@@ -1108,24 +1338,6 @@ def predict_all_batters(
             
             if len(player_data) < 1:  # Skip if no valid seasons
                 continue
-                
-            # Check if xStat substitutions occurred for this player
-            prep = _prepare_player_sequence(
-                player_id=player_id,
-                raw_df=player_data,
-                player_names=player_names,
-                input_features=input_features,
-                seq_length=seq_length,
-                cutoff_year=cutoff_year
-            )
-            
-            if prep:
-                if prep.get('xwoba_substituted', False):
-                    xwoba_substitution_count += 1
-                if prep.get('xba_substituted', False):
-                    xba_substitution_count += 1
-                if prep.get('xslg_substituted', False):
-                    xslg_substitution_count += 1
             
             predictions = predict_future_stats_batter(
                 player_id=player_id,
@@ -1136,7 +1348,8 @@ def predict_all_batters(
                 player_names=player_names,
                 seq_length=seq_length,
                 future_years=future_years,
-                cutoff_year=cutoff_year  # Ensure predictions start from cutoff_year + 1
+                cutoff_year=cutoff_year,  # Ensure predictions start from cutoff_year + 1
+                league_priors=batter_league_priors,
             )
             
             if predictions:
@@ -1214,11 +1427,29 @@ def predict_all_fielders(
     
     all_predictions = []
     
+    # Pre-compute league priors for each position group's features
+    fielding_league_priors = {}
+    try:
+        from core.data_processing import _is_reliability_regression_enabled
+        from core.reliability import compute_league_priors_from_df
+        for model_key in input_features_map:
+            defense_type = f'defense_{model_key}'
+            if _is_reliability_regression_enabled(defense_type):
+                fielding_league_priors[model_key] = compute_league_priors_from_df(
+                    raw_df, input_features_map[model_key],
+                    model_type=defense_type,
+                    season=cutoff_year, window=3
+                )
+                logger.info(f"Computed league priors for {defense_type} regression ({len(fielding_league_priors[model_key])} features)")
+    except ImportError:
+        pass
+    
     # Process each position group (like the notebook does)
     for model_key, model in position_models.items():
         scaler = position_scalers[model_key]
         input_features = input_features_map[model_key]
         seq_length = seq_length_map[model_key]
+        group_league_priors = fielding_league_priors.get(model_key)
         
         # Get valid positions for this position group
         if model_key == 'infield':
@@ -1276,7 +1507,8 @@ def predict_all_fielders(
                     position_group=model_key,
                     seq_length=seq_length,
                     future_years=future_years,
-                    cutoff_year=cutoff_year  # Ensure predictions start from cutoff_year + 1
+                    cutoff_year=cutoff_year,  # Ensure predictions start from cutoff_year + 1
+                    league_priors=group_league_priors,
                 )
                 
                 if predictions:
@@ -1424,6 +1656,20 @@ def predict_all_baserunners(
     
     logger.info(f"Found {len(current_players)} unique players in {cutoff_year} data")
     
+    # Pre-compute league priors for reliability regression (if enabled)
+    baserunning_league_priors = None
+    try:
+        from core.data_processing import _is_reliability_regression_enabled
+        if _is_reliability_regression_enabled('baserunning'):
+            from core.reliability import compute_league_priors_from_df
+            baserunning_league_priors = compute_league_priors_from_df(
+                raw_df, input_features, model_type='baserunning',
+                season=cutoff_year, window=3
+            )
+            logger.info(f"Computed league priors for baserunning regression ({len(baserunning_league_priors)} features)")
+    except ImportError:
+        pass
+    
     for player_id in tqdm(current_players, desc="Generating baserunning predictions"):
         try:
             # Filter to historical data up to cutoff_year
@@ -1441,7 +1687,8 @@ def predict_all_baserunners(
                 player_names=player_names,
                 seq_length=seq_length,
                 future_years=future_years,
-                cutoff_year=cutoff_year  # Ensure predictions start from cutoff_year + 1
+                cutoff_year=cutoff_year,  # Ensure predictions start from cutoff_year + 1
+                league_priors=baserunning_league_priors,
             )
             
             if predictions:

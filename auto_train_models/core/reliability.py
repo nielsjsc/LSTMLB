@@ -1,5 +1,5 @@
 """
-Reliability Regression for Pitcher Statistics
+Reliability Regression for Player Statistics
 ==============================================
 
 Implements partial regression to the mean based on sample size, following
@@ -11,20 +11,26 @@ The core formula (James-Stein / Bayesian shrinkage):
 
 Where:
     observed = raw observed rate stat for a season
-    n        = batters faced (TBF) in that season
+    n        = batters faced / plate appearances / games / innings (model-dependent)
     prior    = player's IP-weighted career mean (or league avg for rookies)
-    n0       = stabilization point (stat-specific, in BF)
+    n0       = stabilization point (stat-specific, in the relevant unit)
 
-Stabilization points represent the number of batters faced required for a
-stat to become 50% signal / 50% noise. These are well-established from
-FanGraphs research (Russell Carleton, Tom Tango, et al).
+Stabilization points represent the sample size required for a stat to become
+50% signal / 50% noise. These are well-established from FanGraphs research
+(Russell Carleton, Tom Tango, et al).
+
+Supported model types:
+    - pitcher (SP/RP): regresses rate stats based on Batters Faced (TBF)
+    - batter: regresses rate stats based on Plate Appearances (PA)
+    - baserunning: regresses rate stats based on Games (G)
+    - defense (infield/outfield/catcher): regresses runs-based stats based on Innings (Inn)
 
 Usage:
     # In training pipeline (operates on full DataFrame):
-    df = regress_pitcher_stats(df, features, era='modern')
+    df = regress_stats(df, features, model_type='pitcher', era='modern')
 
     # In prediction pipeline (operates on per-player sequence):
-    sequence = regress_player_sequence(player_data, features, era='modern')
+    sequence = regress_player_sequence(player_data, features, model_type='pitcher', era='modern')
 """
 
 import numpy as np
@@ -35,92 +41,253 @@ from typing import List, Dict, Optional, Literal
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# STABILIZATION POINTS (in Batters Faced)
+# STABILIZATION POINTS
 # =============================================================================
 # Source: FanGraphs "How Long Does It Take To Stabilize?" research
 # (Russell Carleton, Pizza Cutter, Tom Tango)
 #
-# These represent the BF needed for a stat to be 50% true talent / 50% noise.
-# Lower = stabilizes faster = more trustworthy at small samples.
+# These represent the sample size needed for a stat to be 50% true talent /
+# 50% noise. Lower = stabilizes faster = more trustworthy at small samples.
 #
-# Three eras are defined because pitch-tracking data availability changed
-# the reliability of certain metrics across time periods.
+# PITCHER stabilization is in BATTERS FACED (BF)
+# BATTER stabilization is in PLATE APPEARANCES (PA)
+# BASERUNNING stabilization is in GAMES (G)
+# DEFENSE stabilization is in INNINGS (Inn)
+#
+# Three eras are defined for pitcher stats because pitch-tracking data
+# availability changed the reliability of certain metrics across time periods.
 
 STABILIZATION_POINTS: Dict[str, Dict[str, int]] = {
+    # =========================================================================
+    # PITCHER STATS (unit: Batters Faced)
+    # =========================================================================
     # Classical stats (available 1950+)
-    # K% and BB% are the fastest-stabilizing counting-derived rates
     'K%':       {'classical': 70,   'pitchfx': 70,   'statcast': 70},
     'BB%':      {'classical': 170,  'pitchfx': 170,  'statcast': 170},
     'ERA':      {'classical': 1320, 'pitchfx': 1320, 'statcast': 1320},
-    # FIP: True analytical stabilization is ~740 BF, but we match ERA's rate
-    # (1320 BF) so that ERA and FIP regress in lockstep. Otherwise a 75 IP
-    # pitcher gets FIP barely regressed but ERA heavily regressed, creating
-    # unrealistic divergence between the two run estimators.
     'FIP':      {'classical': 1320, 'pitchfx': 1320, 'statcast': 1320},
 
     # PITCHf/x era stats (2002+)
-    'FBv':      {'pitchfx': 50,   'statcast': 50},    # Physical measure, very stable
+    'FBv':      {'pitchfx': 50,   'statcast': 50},
     'SwStr%':   {'pitchfx': 200,  'statcast': 200},
     'CSW%':     {'pitchfx': 250,  'statcast': 250},
-    'GB%':      {'pitchfx': 70,   'statcast': 70},     # Batted ball profile, fast
+    'GB%':      {'pitchfx': 70,   'statcast': 70},
     'FB%':      {'pitchfx': 70,   'statcast': 70},
     'Contact%': {'pitchfx': 100,  'statcast': 100},
-    # xFIP and SIERA also matched to ERA's rate for consistency
     'xFIP':     {'pitchfx': 1320, 'statcast': 1320},
     'SIERA':    {'pitchfx': 1320, 'statcast': 1320},
 
     # Statcast era stats (2020+)
-    # Stuff+ stabilizes incredibly fast — 80 pitches ≈ ~20 BF
     'Stuff+':    {'statcast': 20},
     'Location+': {'statcast': 100},
     'Pitching+': {'statcast': 60},
     'xERA':      {'statcast': 1320},
 }
 
+# =========================================================================
+# BATTER STATS (unit: Plate Appearances)
+# =========================================================================
+# Source: Russell Carleton / Tom Tango stabilization research
+# wOBA and wRC+ stabilize around the same rate since wRC+ derives from wOBA
+BATTER_STABILIZATION_POINTS: Dict[str, int] = {
+    'BB%':   120,   # Walk rate (fast — plate discipline is a stable skill)
+    'K%':    60,    # Strikeout rate (very fast — contact ability is innate)
+    'AVG':   910,   # Batting average (very slow — BABIP-dependent)
+    'OBP':   460,   # On-base percentage (moderate — includes walks)
+    'SLG':   320,   # Slugging (moderate — power is fairly stable)
+    'wOBA':  700,   # Weighted on-base average (moderate)
+    'wRC+':  350,   # Weighted runs created plus (same basis as wOBA)
+    'ISO':   160,   # Isolated power (faster than SLG — pure power signal)
+    'HR':    170,   # Home runs per 150G (derived from ISO/power, ~170 PA)
+    '2B':    400,   # Doubles per 150G (gap power + speed, slower)
+    '3B':    500,   # Triples per 150G (rare event, very slow)
+    'RBI':   500,   # RBI per 150G (context-dependent, slow)
+    'R':     500,   # Runs per 150G (context-dependent, slow)
+    'HBP':   300,   # Hit-by-pitch per 150G (moderate)
+    'SF':    500,   # Sacrifice flies per 150G (rare, very slow)
+    # Statcast
+    'EV':    40,    # Exit velocity (physical measure, very fast)
+    'xwOBA': 60,    # Expected wOBA (Statcast, stabilizes very fast)
+}
+
+# =========================================================================
+# BASERUNNING STATS (unit: Games)
+# =========================================================================
+# Sprint speed is a physical measure that stabilizes almost immediately.
+# Baserunning runs are noisier and require more sample.
+BASERUNNING_STABILIZATION_POINTS: Dict[str, int] = {
+    'sc_sprint_speed':                     10,   # Physical measure, extremely stable
+    'wSB_rate':                            80,   # Stolen base runs per 150G
+    'SB_rate':                             80,   # Stolen bases per 150G
+    'CS_rate':                             80,   # Caught stealing per 150G
+    'sc_baserunning_runner_runs_tot_rate': 120,  # Total baserunning runs per 150G
+    'sc_baserunning_runner_runs_XB_rate':  120,  # Extra-base taking runs per 150G
+    'sc_baserunning_runner_runs_SBX_rate': 100,  # SB + extra-base runs per 150G
+}
+
+# =========================================================================
+# DEFENSE STATS (unit: Innings)
+# =========================================================================
+# Defensive metrics are notoriously noisy. Even advanced metrics like OAA
+# and DRS require large samples to stabilize. Framing is slightly more
+# stable because it's measured on every pitch.
+DEFENSE_STABILIZATION_POINTS: Dict[str, int] = {
+    # Infield + Outfield shared
+    'OAA/150':            700,
+    'DRS/150':            800,
+    'sc_total_runs/150':  1000,
+    'sc_range_runs/150':  800,
+    'sc_arm_runs/150':    800,
+    # Infield-specific
+    'sc_dp_runs/150':     1000,
+    # Outfield-specific (arm runs shared above)
+    # Catcher-specific
+    'sc_framing_runs/150':  1200,  # Framing more stable (every pitch)
+    'sc_throwing_runs/150': 1500,  # Throwing (SB attempts, sparse)
+    'sc_blocking_runs/150': 1500,  # Blocking (wild pitches, sparse)
+}
+
+
 # Maximum number of recent seasons to use when computing the career prior.
-# Prevents regression toward long-ago peak years (e.g., Kershaw 2011-2017
-# inflating his 2025 prior). A 4-season window captures the player's
-# current talent level while still smoothing year-to-year noise.
 PRIOR_MAX_SEASONS = 4
 
 # Features where regression should NOT be applied
-# Age is not a rate stat. IP is a volume stat, not a rate.
-SKIP_FEATURES = {'Age', 'IP'}
+SKIP_FEATURES = {'Age', 'IP', 'Inn', 'G', 'PA', 'TBF'}
 
 # Approximate BF per IP (used when TBF is not available)
 BF_PER_IP = 4.3
 
+# Approximate PA per game for batters
+PA_PER_GAME = 3.9
 
 
 
-def _get_stabilization_point(feature: str, era: str) -> Optional[int]:
+
+def _get_stabilization_point(feature: str, era: str = 'statcast', model_type: str = 'pitcher') -> Optional[int]:
     """
-    Get the stabilization point for a feature in a given era.
+    Get the stabilization point for a feature.
+
+    Looks up the correct stabilization table based on model_type:
+        - pitcher: STABILIZATION_POINTS (era-dependent, unit=BF)
+        - batter: BATTER_STABILIZATION_POINTS (unit=PA)
+        - baserunning: BASERUNNING_STABILIZATION_POINTS (unit=G)
+        - defense_*: DEFENSE_STABILIZATION_POINTS (unit=Inn)
 
     Args:
-        feature: Stat name (e.g., 'K%', 'ERA')
-        era: One of 'classical', 'pitchfx', 'statcast'
+        feature: Stat name (e.g., 'K%', 'ERA', 'wRC+', 'sc_total_runs/150')
+        era: One of 'classical', 'pitchfx', 'statcast' (pitcher only)
+        model_type: 'pitcher', 'batter', 'baserunning', 'defense_infield',
+                    'defense_outfield', 'defense_catcher'
 
     Returns:
-        Stabilization point in BF, or None if not applicable
+        Stabilization point in the appropriate unit, or None if not applicable
     """
     if feature in SKIP_FEATURES:
         return None
-    if feature not in STABILIZATION_POINTS:
+
+    # Route to the correct stabilization table
+    if model_type == 'pitcher':
+        if feature not in STABILIZATION_POINTS:
+            return None
+        era_points = STABILIZATION_POINTS[feature]
+        if era in era_points:
+            return era_points[era]
+        for fallback in ['statcast', 'pitchfx', 'classical']:
+            if fallback in era_points:
+                return era_points[fallback]
         return None
 
-    era_points = STABILIZATION_POINTS[feature]
+    elif model_type == 'batter':
+        return BATTER_STABILIZATION_POINTS.get(feature)
 
-    # Try exact era, then fall back to nearest available
-    if era in era_points:
-        return era_points[era]
+    elif model_type == 'baserunning':
+        return BASERUNNING_STABILIZATION_POINTS.get(feature)
 
-    # Fallback order: statcast -> pitchfx -> classical
-    for fallback in ['statcast', 'pitchfx', 'classical']:
-        if fallback in era_points:
-            return era_points[fallback]
+    elif model_type.startswith('defense'):
+        return DEFENSE_STABILIZATION_POINTS.get(feature)
 
     return None
+
+
+def _get_volume_column(model_type: str) -> str:
+    """
+    Get the name of the volume/exposure column for a model type.
+
+    This is the column used as the denominator 'n' in the Bayesian shrinkage
+    formula. Different model types use different exposure measures.
+
+    Args:
+        model_type: One of 'pitcher', 'batter', 'baserunning', 'defense_*'
+
+    Returns:
+        Column name string
+    """
+    if model_type == 'pitcher':
+        return 'TBF'
+    elif model_type == 'batter':
+        return 'PA'
+    elif model_type == 'baserunning':
+        return 'G'
+    elif model_type.startswith('defense'):
+        return 'Inn'
+    return 'PA'  # fallback
+
+
+def _get_weight_column(model_type: str) -> str:
+    """
+    Get the column used for IP-weighting career priors.
+
+    This determines how seasons are weighted when computing the career mean.
+    More playing time = more weight.
+
+    Args:
+        model_type: One of 'pitcher', 'batter', 'baserunning', 'defense_*'
+
+    Returns:
+        Column name string
+    """
+    if model_type == 'pitcher':
+        return 'IP'
+    elif model_type == 'batter':
+        return 'PA'
+    elif model_type == 'baserunning':
+        return 'G'
+    elif model_type.startswith('defense'):
+        return 'Inn'
+    return 'PA'  # fallback
+
+
+def _estimate_volume(row: pd.Series, model_type: str) -> float:
+    """
+    Estimate volume from available columns when the primary column is missing.
+
+    Args:
+        row: A DataFrame row
+        model_type: Model type string
+
+    Returns:
+        Estimated volume value
+    """
+    vol_col = _get_volume_column(model_type)
+
+    if vol_col in row.index and not np.isnan(row.get(vol_col, np.nan)):
+        return row[vol_col]
+
+    # Fallback estimations
+    if model_type == 'pitcher':
+        if 'IP' in row.index and not np.isnan(row.get('IP', np.nan)):
+            return row['IP'] * BF_PER_IP
+    elif model_type == 'batter':
+        if 'G' in row.index and not np.isnan(row.get('G', np.nan)):
+            return row['G'] * PA_PER_GAME
+    elif model_type == 'baserunning':
+        if 'PA' in row.index and not np.isnan(row.get('PA', np.nan)):
+            return row['PA'] / PA_PER_GAME
+    elif model_type.startswith('defense'):
+        if 'G' in row.index and not np.isnan(row.get('G', np.nan)):
+            return row['G'] * 8.5  # ~8.5 innings per game
+
+    return 0.0
 
 
 def _compute_career_prior(
@@ -132,7 +299,7 @@ def _compute_career_prior(
     model_type: str = 'pitcher',
 ) -> float:
     """
-    Compute an IP-weighted recent career mean for a single feature.
+    Compute a volume-weighted recent career mean for a single feature.
 
     Uses only the most recent `max_seasons` seasons up to and including
     current_season. This prevents regression toward long-ago peak years
@@ -144,31 +311,46 @@ def _compute_career_prior(
     This ensures the prior reflects the player's expected talent NOW,
     not what it was at a younger age.
 
+    The weight column is model-type-dependent:
+        - pitcher: IP (innings pitched)
+        - batter: PA (plate appearances)
+        - baserunning: G (games)
+        - defense_*: Inn (innings)
+
     Args:
         player_data: All rows for one player, sorted by Season
         feature: The stat column name
         current_season: The season being regressed
         max_seasons: Maximum number of recent seasons to include in the prior
         current_age: If provided, age-adjust each season to this age
-        model_type: 'pitcher', 'batter', etc. (used for aging curves)
+        model_type: 'pitcher', 'batter', etc. (used for aging curves and weight column)
 
     Returns:
-        IP-weighted recent career mean (optionally age-adjusted), or NaN
+        Volume-weighted recent career mean (optionally age-adjusted), or NaN
     """
+    weight_col = _get_weight_column(model_type)
+
     career = player_data[player_data['Season'] <= current_season].copy()
 
     # Limit to most recent max_seasons
     if len(career) > max_seasons:
         career = career.tail(max_seasons)
 
-    # Drop rows where the feature or IP is missing
-    valid = career.dropna(subset=[feature, 'IP'])
-    valid = valid[valid['IP'] > 0]
+    # Drop rows where the feature or weight column is missing
+    if weight_col not in career.columns:
+        # Fallback: unweighted mean
+        valid = career.dropna(subset=[feature])
+        if valid.empty:
+            return np.nan
+        return valid[feature].mean()
+
+    valid = career.dropna(subset=[feature, weight_col])
+    valid = valid[valid[weight_col] > 0]
 
     if valid.empty:
         return np.nan
 
-    weights = valid['IP'].values
+    weights = valid[weight_col].values
     values = valid[feature].values
 
     # Age-adjust if current_age is provided and Age column exists
@@ -190,39 +372,58 @@ def _compute_league_prior(
     feature: str,
     season: int,
     window: int = 3,
+    model_type: str = 'pitcher',
 ) -> float:
     """
     Compute a league-average prior for a feature using a rolling window.
 
-    Uses IP-weighted average over the last `window` seasons to smooth out
+    Uses volume-weighted average over the last `window` seasons to smooth out
     year-to-year noise while adapting to era shifts.
+
+    The weight column is model-type-dependent:
+        - pitcher: IP
+        - batter: PA
+        - baserunning: G
+        - defense_*: Inn
 
     Args:
         full_df: Full historical DataFrame (all players)
         feature: The stat column name
         season: The season to compute the prior for
         window: Number of seasons to average over
+        model_type: 'pitcher', 'batter', 'baserunning', 'defense_*'
 
     Returns:
-        IP-weighted league average for the feature
+        Volume-weighted league average for the feature
     """
+    weight_col = _get_weight_column(model_type)
+
     recent = full_df[
         (full_df['Season'] >= season - window + 1) &
         (full_df['Season'] <= season)
     ]
 
-    valid = recent.dropna(subset=[feature, 'IP'])
-    valid = valid[valid['IP'] > 0]
+    if weight_col in recent.columns:
+        valid = recent.dropna(subset=[feature, weight_col])
+        valid = valid[valid[weight_col] > 0]
+    else:
+        valid = recent.dropna(subset=[feature])
 
     if valid.empty:
         # Broader fallback
-        valid = full_df.dropna(subset=[feature, 'IP'])
-        valid = valid[valid['IP'] > 0]
+        if weight_col in full_df.columns:
+            valid = full_df.dropna(subset=[feature, weight_col])
+            valid = valid[valid[weight_col] > 0]
+        else:
+            valid = full_df.dropna(subset=[feature])
 
     if valid.empty:
         return np.nan
 
-    return np.average(valid[feature].values, weights=valid['IP'].values)
+    if weight_col in valid.columns:
+        return np.average(valid[feature].values, weights=valid[weight_col].values)
+    else:
+        return valid[feature].mean()
 
 
 def regress_single_value(
@@ -268,19 +469,43 @@ def regress_pitcher_stats(
     min_career_seasons: int = 2,
 ) -> pd.DataFrame:
     """
-    Apply reliability regression to all pitcher stats in a DataFrame.
+    Legacy wrapper — calls regress_stats with model_type='pitcher'.
+    Kept for backward compatibility.
+    """
+    return regress_stats(df, features, model_type='pitcher', era=era,
+                         league_df=league_df, min_career_seasons=min_career_seasons)
+
+
+def regress_stats(
+    df: pd.DataFrame,
+    features: List[str],
+    model_type: str = 'pitcher',
+    era: str = 'classical',
+    league_df: Optional[pd.DataFrame] = None,
+    min_career_seasons: int = 2,
+) -> pd.DataFrame:
+    """
+    Apply reliability regression to all player stats in a DataFrame.
 
     This is the main entry point for the TRAINING pipeline. It operates on
     the full DataFrame after filtering but BEFORE scaling.
 
     For each player-season:
-    1. Compute the player's IP-weighted career mean up to that season (prior)
+    1. Compute the player's volume-weighted career mean up to that season (prior)
     2. If the player has fewer than `min_career_seasons`, use league average
-    3. Regress each rate stat toward the prior based on BF and stabilization rate
+    3. Regress each rate stat toward the prior based on volume and stabilization rate
+
+    The volume column (n in the shrinkage formula) is model-type-dependent:
+        - pitcher: TBF (batters faced)
+        - batter: PA (plate appearances)
+        - baserunning: G (games)
+        - defense_*: Inn (innings)
 
     Args:
-        df: Filtered pitcher DataFrame with Season, IDfg, IP, TBF columns
+        df: Filtered player DataFrame with Season, IDfg, and volume columns
         features: List of model input features to regress
+        model_type: 'pitcher', 'batter', 'baserunning', 'defense_infield',
+                    'defense_outfield', 'defense_catcher'
         era: Data era for stabilization points ('classical', 'pitchfx', 'statcast')
         league_df: Full DataFrame for computing league priors (defaults to df itself)
         min_career_seasons: Minimum career seasons before using career prior
@@ -292,11 +517,14 @@ def regress_pitcher_stats(
     if league_df is None:
         league_df = df
 
+    vol_col = _get_volume_column(model_type)
+    weight_col = _get_weight_column(model_type)
+
     # Identify which features actually need regression
     regressable = []
     stab_points = {}
     for feat in features:
-        n0 = _get_stabilization_point(feat, era)
+        n0 = _get_stabilization_point(feat, era, model_type)
         if n0 is not None:
             regressable.append(feat)
             stab_points[feat] = n0
@@ -306,7 +534,8 @@ def regress_pitcher_stats(
         return df
 
     logger.info(f"Applying reliability regression to {len(regressable)} features: {regressable}")
-    logger.info(f"Era: {era}, min career seasons for career prior: {min_career_seasons}")
+    logger.info(f"Model type: {model_type}, era: {era}, volume column: {vol_col}")
+    logger.info(f"Min career seasons for career prior: {min_career_seasons}")
 
     # Pre-compute league priors for each (feature, season) combination
     seasons = df['Season'].unique()
@@ -314,14 +543,16 @@ def regress_pitcher_stats(
     for feat in regressable:
         league_priors[feat] = {}
         for season in seasons:
-            league_priors[feat][season] = _compute_league_prior(league_df, feat, season)
+            league_priors[feat][season] = _compute_league_prior(
+                league_df, feat, season, model_type=model_type
+            )
 
-    # Ensure TBF column exists; estimate from IP if needed
-    if 'TBF' not in df.columns:
-        logger.warning("TBF column not found — estimating from IP * 4.3")
-        df['TBF'] = df['IP'] * BF_PER_IP
-
+    # Ensure volume column exists; estimate from available data if needed
     df = df.copy()
+    if vol_col not in df.columns:
+        logger.warning(f"{vol_col} column not found — estimating from available data")
+        df[vol_col] = df.apply(lambda row: _estimate_volume(row, model_type), axis=1)
+
     df = df.sort_values(['IDfg', 'Season'])
 
     regressed_count = 0
@@ -334,7 +565,7 @@ def regress_pitcher_stats(
 
         for i, (idx, row) in enumerate(player_group.iterrows()):
             season = row['Season']
-            bf = row['TBF'] if not np.isnan(row.get('TBF', np.nan)) else row['IP'] * BF_PER_IP
+            volume = _estimate_volume(row, model_type)
             n_seasons_so_far = i + 1
 
             for feat in regressable:
@@ -350,13 +581,15 @@ def regress_pitcher_stats(
                 # Aging curves are only applied in the prediction pipeline's regression
                 # prior, so the model learns from unmodified historical relationships.
                 if n_seasons_so_far >= min_career_seasons:
-                    prior = _compute_career_prior(player_group, feat, season)
+                    prior = _compute_career_prior(
+                        player_group, feat, season, model_type=model_type
+                    )
                     if np.isnan(prior):
                         prior = league_priors[feat].get(season, observed)
                 else:
                     prior = league_priors[feat].get(season, observed)
 
-                regressed = regress_single_value(observed, bf, prior, n0)
+                regressed = regress_single_value(observed, volume, prior, n0)
                 df.at[idx, feat] = regressed
 
                 if abs(regressed - observed) > 1e-6:
@@ -378,6 +611,7 @@ def regress_pitcher_stats(
 def regress_player_sequence(
     player_data: pd.DataFrame,
     features: List[str],
+    model_type: str = 'pitcher',
     era: str = 'classical',
     league_priors: Optional[Dict[str, float]] = None,
     min_career_seasons: int = 2,
@@ -392,9 +626,17 @@ def regress_player_sequence(
     ALL available seasons (not just up-to-season), since at prediction time
     we want the best possible estimate of the player's true talent.
 
+    The volume column (n in the shrinkage formula) is model-type-dependent:
+        - pitcher: TBF (batters faced)
+        - batter: PA (plate appearances)
+        - baserunning: G (games)
+        - defense_*: Inn (innings)
+
     Args:
         player_data: One player's historical DataFrame, sorted by Season
         features: List of model input features to regress
+        model_type: 'pitcher', 'batter', 'baserunning', 'defense_infield',
+                    'defense_outfield', 'defense_catcher'
         era: Data era for stabilization points
         league_priors: Pre-computed league averages per feature.
                       If None, uses the player's own data (less accurate for rookies)
@@ -407,16 +649,18 @@ def regress_player_sequence(
         return player_data.copy()
 
     result = player_data.copy()
+    vol_col = _get_volume_column(model_type)
+    weight_col = _get_weight_column(model_type)
 
-    # Ensure TBF exists
-    if 'TBF' not in result.columns:
-        result['TBF'] = result['IP'] * BF_PER_IP
+    # Ensure volume column exists
+    if vol_col not in result.columns:
+        result[vol_col] = result.apply(lambda row: _estimate_volume(row, model_type), axis=1)
 
     # Identify regressable features
     regressable = []
     stab_points = {}
     for feat in features:
-        n0 = _get_stabilization_point(feat, era)
+        n0 = _get_stabilization_point(feat, era, model_type)
         if n0 is not None and feat in result.columns:
             regressable.append(feat)
             stab_points[feat] = n0
@@ -426,34 +670,53 @@ def regress_player_sequence(
 
     n_total_seasons = len(result)
 
-    # Compute age-adjusted IP-weighted means using only the most recent
+    # Compute age-adjusted volume-weighted means using only the most recent
     # PRIOR_MAX_SEASONS. Each historical season is age-adjusted to the
     # player's CURRENT age so the prior reflects where talent is NOW,
     # not where it was at a younger age.
     recent_data = result.tail(PRIOR_MAX_SEASONS)
     current_age = result['Age'].iloc[-1] if 'Age' in result.columns else None
+
+    # Determine the aging model_type key for lookup
+    # defense_infield → fielding_infield in aging_parameters.json
+    aging_key = model_type
+    if model_type.startswith('defense_'):
+        aging_key = model_type.replace('defense_', 'fielding_')
+
+    # Convert rate stat columns to float64 to avoid dtype warnings
+    for feat in regressable:
+        if feat in result.columns:
+            result[feat] = result[feat].astype('float64')
+
     career_means: Dict[str, float] = {}
     for feat in regressable:
         if current_age is not None and 'Age' in recent_data.columns:
             # Use age-adjusted career prior
             career_means[feat] = compute_age_adjusted_career_prior(
                 result, feat, current_age,
-                max_seasons=PRIOR_MAX_SEASONS, model_type='pitcher'
+                max_seasons=PRIOR_MAX_SEASONS, model_type=aging_key
             )
         else:
-            # Fallback: raw IP-weighted mean
-            valid = recent_data.dropna(subset=[feat, 'IP'])
-            valid = valid[valid['IP'] > 0]
-            if not valid.empty:
-                career_means[feat] = np.average(
-                    valid[feat].values, weights=valid['IP'].values
-                )
+            # Fallback: volume-weighted mean
+            if weight_col in recent_data.columns:
+                valid = recent_data.dropna(subset=[feat, weight_col])
+                valid = valid[valid[weight_col] > 0]
+                if not valid.empty:
+                    career_means[feat] = np.average(
+                        valid[feat].values, weights=valid[weight_col].values
+                    )
+                else:
+                    career_means[feat] = np.nan
             else:
-                career_means[feat] = np.nan
+                valid = recent_data.dropna(subset=[feat])
+                if not valid.empty:
+                    career_means[feat] = valid[feat].mean()
+                else:
+                    career_means[feat] = np.nan
 
     # Regress each season
     for idx, row in result.iterrows():
-        bf = row['TBF'] if not np.isnan(row.get('TBF', np.nan)) else row['IP'] * BF_PER_IP
+        volume = _estimate_volume(row, model_type)
 
         for feat in regressable:
             observed = row[feat]
@@ -471,7 +734,7 @@ def regress_player_sequence(
                 # Last resort: don't regress (keep observed)
                 continue
 
-            result.at[idx, feat] = regress_single_value(observed, bf, prior, n0)
+            result.at[idx, feat] = regress_single_value(observed, volume, prior, n0)
 
     return result
 
@@ -479,6 +742,7 @@ def regress_player_sequence(
 def compute_regressed_career_mean(
     player_data: pd.DataFrame,
     features: List[str],
+    model_type: str = 'pitcher',
     era: str = 'classical',
     league_priors: Optional[Dict[str, float]] = None,
 ) -> Dict[str, float]:
@@ -490,12 +754,19 @@ def compute_regressed_career_mean(
     seq_length.
 
     Unlike raw career averages, this applies regression to each season first,
-    then takes the IP-weighted mean of the regressed values. This prevents
+    then takes the volume-weighted mean of the regressed values. This prevents
     small-sample seasons from distorting the padding values.
+
+    The weight column is model-type-dependent:
+        - pitcher: IP
+        - batter: PA
+        - baserunning: G
+        - defense_*: Inn
 
     Args:
         player_data: One player's historical DataFrame
         features: List of features
+        model_type: 'pitcher', 'batter', 'baserunning', 'defense_*'
         era: Data era
         league_priors: Pre-computed league averages
 
@@ -505,9 +776,12 @@ def compute_regressed_career_mean(
     if len(player_data) == 0:
         return {}
 
+    weight_col = _get_weight_column(model_type)
+
     # First regress the player's data
     regressed = regress_player_sequence(
-        player_data, features, era=era, league_priors=league_priors
+        player_data, features, model_type=model_type, era=era,
+        league_priors=league_priors
     )
 
     result = {}
@@ -522,11 +796,15 @@ def compute_regressed_career_mean(
         # as the prior itself) so padding reflects current talent, not peak.
         recent = regressed.tail(PRIOR_MAX_SEASONS)
         valid = recent.dropna(subset=[feat])
-        valid_with_ip = valid[valid['IP'] > 0] if 'IP' in valid.columns else valid
 
-        if not valid_with_ip.empty and 'IP' in valid_with_ip.columns:
+        if weight_col in valid.columns:
+            valid_with_weight = valid[valid[weight_col] > 0]
+        else:
+            valid_with_weight = pd.DataFrame()  # force fallback
+
+        if not valid_with_weight.empty and weight_col in valid_with_weight.columns:
             result[feat] = np.average(
-                valid_with_ip[feat].values, weights=valid_with_ip['IP'].values
+                valid_with_weight[feat].values, weights=valid_with_weight[weight_col].values
             )
         elif not valid.empty:
             result[feat] = valid[feat].mean()
@@ -541,6 +819,7 @@ def compute_regressed_career_mean(
 def compute_league_priors_from_df(
     df: pd.DataFrame,
     features: List[str],
+    model_type: str = 'pitcher',
     season: Optional[int] = None,
     window: int = 3,
 ) -> Dict[str, float]:
@@ -553,24 +832,35 @@ def compute_league_priors_from_df(
     Args:
         df: Full historical DataFrame
         features: List of features to compute priors for
+        model_type: 'pitcher', 'batter', 'baserunning', 'defense_*'
         season: Target season (uses rolling window ending here)
         window: Number of seasons to average
 
     Returns:
         Dict mapping feature name to league average
     """
+    weight_col = _get_weight_column(model_type)
     priors = {}
     for feat in features:
         if feat in SKIP_FEATURES or feat not in df.columns:
             continue
         if season is not None:
-            priors[feat] = _compute_league_prior(df, feat, season, window)
+            priors[feat] = _compute_league_prior(
+                df, feat, season, window, model_type=model_type
+            )
         else:
             # Use all data
-            valid = df.dropna(subset=[feat, 'IP'])
-            valid = valid[valid['IP'] > 0]
-            if not valid.empty:
-                priors[feat] = np.average(valid[feat].values, weights=valid['IP'].values)
+            if weight_col in df.columns:
+                valid = df.dropna(subset=[feat, weight_col])
+                valid = valid[valid[weight_col] > 0]
+                if not valid.empty:
+                    priors[feat] = np.average(
+                        valid[feat].values, weights=valid[weight_col].values
+                    )
+            else:
+                valid = df.dropna(subset=[feat])
+                if not valid.empty:
+                    priors[feat] = valid[feat].mean()
 
     return priors
 
@@ -842,12 +1132,18 @@ def compute_age_adjusted_career_prior(
     model_type: str = 'pitcher',
 ) -> float:
     """
-    Compute an IP-weighted career mean with aging adjustment.
+    Compute a volume-weighted career mean with aging adjustment.
 
     Each historical season's stat value is age-adjusted to what it would
     be at the player's CURRENT age before averaging. This way the prior
     reflects where the player's talent should be NOW, not where it was
     in past years.
+
+    The weight column is model-type-dependent:
+        - pitcher: IP
+        - batter: PA
+        - baserunning: G
+        - defense_*: Inn
 
     Example (Chris Sale):
         Age 33: FIP 2.80 → age-adjusted to 37: ~3.86 (4 years × ~0.27/year)
@@ -861,15 +1157,22 @@ def compute_age_adjusted_career_prior(
         feature: The stat column name
         current_age: The player's age to adjust all seasons to
         max_seasons: Maximum number of recent seasons to include
-        model_type: 'pitcher', 'batter', etc.
+        model_type: 'pitcher', 'batter', 'baserunning', 'fielding_infield', etc.
 
     Returns:
-        IP-weighted, age-adjusted career mean (or NaN if no valid data)
+        Volume-weighted, age-adjusted career mean (or NaN if no valid data)
     """
+    weight_col = _get_weight_column(model_type)
     recent = player_data.tail(max_seasons)
 
-    valid = recent.dropna(subset=[feature, 'IP', 'Age'])
-    valid = valid[valid['IP'] > 0]
+    # Determine required columns for validation
+    required_cols = [feature, 'Age']
+    if weight_col in recent.columns:
+        required_cols.append(weight_col)
+        valid = recent.dropna(subset=required_cols)
+        valid = valid[valid[weight_col] > 0]
+    else:
+        valid = recent.dropna(subset=required_cols)
 
     if valid.empty:
         return np.nan
@@ -884,6 +1187,9 @@ def compute_age_adjusted_career_prior(
             observed, feature, obs_age, current_age, model_type
         )
         adjusted_values.append(adjusted)
-        weights.append(row['IP'])
+        if weight_col in row.index and not np.isnan(row.get(weight_col, np.nan)):
+            weights.append(row[weight_col])
+        else:
+            weights.append(1.0)  # equal weight fallback
 
     return np.average(adjusted_values, weights=weights)
