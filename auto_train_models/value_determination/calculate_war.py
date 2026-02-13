@@ -304,9 +304,9 @@ def calculate_baserunning_value(row: pd.Series, games: int) -> float:
     Uses the combined Statcast total baserunning run value (per 150 games)
     and scales by actual games played.
     """
-    # sc_baserunning_runner_runs_total is already the combined metric (XB + SBX)
+    # sc_baserunning_runner_runs_tot_rate is already the combined metric (XB + SBX)
     # Rate is per 150 games, so: (rate / 150) * actual_games
-    bsr = row.get('sc_baserunning_runner_runs_total', 0) * (games / 150.0)
+    bsr = row.get('sc_baserunning_runner_runs_tot_rate', 0) * (games / 150.0)
     
     return bsr
 
