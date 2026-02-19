@@ -441,8 +441,10 @@ def calculate_defensive_value(fielding_data: pd.DataFrame, player_id: int, year:
     
     # All positions use 150 games as baseline
     target_games = 150
-    
-    # The predictions are already per 150 games, scale to target games
+
+    # sc_total_runs/150 is per 1350 innings (= 150 games × 9 inn/game).
+    # Scale to target_games: value * target_games / 150 correctly recovers
+    # the raw run total for a player who played exactly 150 games.
     scaling_factor = target_games / 150.0
     
     # Map position for positional adjustment lookup
@@ -568,6 +570,179 @@ def calculate_war_components(row: pd.Series, baserunning_data: pd.DataFrame,
         **counting_stats
     }
 
+
+# =============================================================================
+# PARK FACTOR REAPPLICATION (post-prediction, pre-WAR)
+# =============================================================================
+
+def _apply_park_factors_to_batter_predictions(batter_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Reapply park factors to park-neutral batter predictions.
+    
+    When ENABLE_PARK_FACTOR_ADJUSTMENT is True in BatterConfig, the LSTM
+    received park-neutralized inputs and therefore outputs park-neutral
+    predictions.  Before computing wOBA/wRC+/WAR, we multiply the predicted
+    stats back by the player's current team park factor so that the final
+    numbers reflect their actual home environment.
+    
+    Stats excluded from adjustment: Age, wRC+ (already park-adjusted by formula).
+    
+    Args:
+        batter_df: DataFrame with park-neutral batter predictions and 'Team' column
+        
+    Returns:
+        DataFrame with park-adjusted predictions (or unchanged if toggle is off)
+    """
+    # Check if park factor adjustment is enabled
+    try:
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from configs.batter_config import BatterConfig
+        if not getattr(BatterConfig, 'ENABLE_PARK_FACTOR_ADJUSTMENT', False):
+            logger.info("Park factor reapplication DISABLED (ENABLE_PARK_FACTOR_ADJUSTMENT=False)")
+            return batter_df
+    except (ImportError, AttributeError):
+        logger.info("Park factor reapplication DISABLED (BatterConfig not available)")
+        return batter_df
+    
+    if 'Team' not in batter_df.columns:
+        logger.warning("No 'Team' column in batter predictions — skipping park factor reapplication")
+        return batter_df
+    
+    # Get the list of features to adjust (exclude Age, wRC+)
+    # Use the batter config's feature list to know which columns are model outputs
+    from configs.batter_config import BatterConfig
+    model_features = list(BatterConfig.FINETUNE_FEATURES) + list(BatterConfig.CLASSICAL_FEATURES)
+    # Deduplicate while preserving order
+    seen = set()
+    model_features = [f for f in model_features if f not in seen and not seen.add(f)]
+    
+    EXCLUDED = {'Age', 'wRC+'}
+    adjustable = [f for f in model_features if f in batter_df.columns and f not in EXCLUDED]
+    
+    if not adjustable:
+        logger.warning("No adjustable features found for park factor reapplication")
+        return batter_df
+    
+    df = batter_df.copy()
+    
+    # Build park factor series aligned to the DataFrame
+    pf_series = df['Team'].map(
+        lambda t: BALLPARK_FACTORS.get(str(t).upper().strip(), 100) / 100.0
+        if pd.notna(t) else 1.0
+    )
+    
+    # Multiply each adjustable feature by the park factor
+    n_adjusted = 0
+    for feat in adjustable:
+        df[feat] = df[feat] * pf_series
+        n_adjusted += 1
+    
+    logger.info(
+        f"Park factor reapplication applied to {n_adjusted} batter features "
+        f"(excluded: {EXCLUDED & set(model_features)})"
+    )
+    
+    return df
+
+
+def _apply_park_factors_to_pitcher_predictions(pitcher_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Reapply park factors to park-neutral pitcher predictions.
+    
+    When ENABLE_PARK_FACTOR_ADJUSTMENT is True in the pitcher config, the LSTM
+    received park-neutralized inputs and therefore outputs park-neutral
+    predictions.  Before computing pitcher WAR, we multiply the predicted
+    stats back by the player's current team park factor so that the final
+    numbers reflect their actual home environment.
+    
+    For pitchers, higher park factor means the park inflates runs — so a
+    pitcher's ERA/FIP in Coors should be higher than in Petco.  We multiply
+    by PF (same direction as batters) because PF > 1 means run-inflating park.
+    
+    Args:
+        pitcher_df: DataFrame with park-neutral pitcher predictions and 'Team' column
+        
+    Returns:
+        DataFrame with park-adjusted predictions (or unchanged if toggle is off)
+    """
+    # Check if park factor adjustment is enabled for either SP or RP
+    sp_enabled = False
+    rp_enabled = False
+    try:
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from configs.pitcher_sp_config import PitcherSPConfig
+        sp_enabled = getattr(PitcherSPConfig, 'ENABLE_PARK_FACTOR_ADJUSTMENT', False)
+    except (ImportError, AttributeError):
+        pass
+    try:
+        from configs.pitcher_rp_config import PitcherRPConfig
+        rp_enabled = getattr(PitcherRPConfig, 'ENABLE_PARK_FACTOR_ADJUSTMENT', False)
+    except (ImportError, AttributeError):
+        pass
+    
+    if not sp_enabled and not rp_enabled:
+        logger.info("Park factor reapplication DISABLED for pitchers")
+        return pitcher_df
+    
+    if 'Team' not in pitcher_df.columns:
+        logger.warning("No 'Team' column in pitcher predictions — skipping park factor reapplication")
+        return pitcher_df
+    
+    # Pitcher features that should be park-adjusted
+    # ERA and FIP are directly affected by park (run environment)
+    # K%, BB% are not park-affected (they're outcomes of pitcher skill)
+    # But we apply uniformly to be consistent with the neutralization step
+    EXCLUDED = {'Age', 'Stuff+', 'Location+', 'Pitching+'}
+    
+    # Collect all possible pitcher features from both configs
+    pitcher_features = set()
+    try:
+        from configs.pitcher_sp_config import PitcherSPConfig
+        pitcher_features.update(PitcherSPConfig.FINETUNE_FEATURES)
+        pitcher_features.update(PitcherSPConfig.CLASSICAL_FEATURES)
+    except (ImportError, AttributeError):
+        pass
+    try:
+        from configs.pitcher_rp_config import PitcherRPConfig
+        pitcher_features.update(PitcherRPConfig.FINETUNE_FEATURES)
+        pitcher_features.update(PitcherRPConfig.CLASSICAL_FEATURES)
+    except (ImportError, AttributeError):
+        pass
+    
+    adjustable = [f for f in pitcher_features if f in pitcher_df.columns and f not in EXCLUDED]
+    
+    if not adjustable:
+        logger.warning("No adjustable features found for pitcher park factor reapplication")
+        return pitcher_df
+    
+    df = pitcher_df.copy()
+    
+    # Apply park factors only to rows whose role has the toggle enabled
+    for idx, row in df.iterrows():
+        role = row.get('Role', 'SP')
+        if (role == 'SP' and not sp_enabled) or (role == 'RP' and not rp_enabled):
+            continue
+        
+        team = row.get('Team', '')
+        if pd.isna(team) or team == '':
+            continue
+        
+        pf = BALLPARK_FACTORS.get(str(team).upper().strip(), 100) / 100.0
+        if pf != 1.0:
+            for feat in adjustable:
+                if feat in df.columns and pd.notna(row[feat]):
+                    df.at[idx, feat] = row[feat] * pf
+    
+    logger.info(
+        f"Park factor reapplication applied to {len(adjustable)} pitcher features "
+        f"(excluded: {EXCLUDED & pitcher_features})"
+    )
+    
+    return df
+
+
 def process_predictions(data_dir: Path, output_dir: Path, target_year: Optional[int] = None) -> None:
     """
     Main processing function that combines all predictions and calculates comprehensive WAR.
@@ -604,6 +779,17 @@ def process_predictions(data_dir: Path, output_dir: Path, target_year: Optional[
     
     # Merge organization data with batter predictions
     batter_df = batter_df.merge(org_data, on='IDfg', how='left')
+    
+    # =========================================================================
+    # PARK FACTOR REAPPLICATION
+    # =========================================================================
+    # If park factor neutralization was enabled during predictions, the model's
+    # outputs are park-neutral. We now reapply park factors (multiply) so that
+    # wOBA/wRC+/WAR reflect the player's actual home environment.
+    #
+    # This step converts: park-neutral predictions → park-adjusted predictions
+    # BEFORE calculating wOBA from components and wRC+.
+    batter_df = _apply_park_factors_to_batter_predictions(batter_df)
     
     # Calculate wOBA (either from components or use LSTM direct prediction based on config)
     batter_df = calculate_woba_from_predictions(batter_df)

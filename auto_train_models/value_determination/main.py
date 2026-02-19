@@ -120,7 +120,14 @@ def calculate_pitcher_war_for_dataframe(pitcher_df: pd.DataFrame,
         
         pitcher_df.at[idx, 'WAR'] = war
         pitcher_df.at[idx, 'IP'] = default_ip
-    
+
+    # Compute pitcher counting stats from rate stats and IP
+    bf_per_ip = Config.WAR.BF_PER_IP
+    bf = pitcher_df['IP'] * bf_per_ip
+    pitcher_df['K_pit']  = (pitcher_df.get('K%',  pd.Series(0.0, index=pitcher_df.index)) * bf).round().astype(int)
+    pitcher_df['BB_pit'] = (pitcher_df.get('BB%', pd.Series(0.0, index=pitcher_df.index)) * bf).round().astype(int)
+    pitcher_df['ER_pit'] = (pitcher_df.get('ERA', pd.Series(0.0, index=pitcher_df.index)) * pitcher_df['IP'] / 9).round().astype(int)
+
     return pitcher_df
 
 
@@ -215,6 +222,20 @@ def main():
         # Load team data for park factors
         org_data = load_player_orgs()
         
+        # Merge team info for park factors
+        sp_data = sp_data.merge(org_data[['IDfg', 'Team']], on='IDfg', how='left')
+        rp_data = rp_data.merge(org_data[['IDfg', 'Team']], on='IDfg', how='left')
+        
+        # Apply park factors to park-neutral pitcher predictions (reverse neutralization)
+        # Only when ENABLE_PARK_FACTOR_ADJUSTMENT is enabled in the respective config.
+        from value_determination.calculate_war import _apply_park_factors_to_pitcher_predictions
+        
+        # Combine SP + RP for unified park factor application (respects per-role toggle)
+        combined_pitcher = pd.concat([sp_data, rp_data], ignore_index=True)
+        combined_pitcher = _apply_park_factors_to_pitcher_predictions(combined_pitcher)
+        sp_data = combined_pitcher[combined_pitcher['Role'] == 'SP'].copy()
+        rp_data = combined_pitcher[combined_pitcher['Role'] == 'RP'].copy()
+        
         # Calculate WAR for SP and RP using proper function
         sp_data = calculate_pitcher_war_for_dataframe(sp_data, org_data, role='SP')
         rp_data = calculate_pitcher_war_for_dataframe(rp_data, org_data, role='RP')
@@ -229,6 +250,11 @@ def main():
         
         # Merge org data with batter predictions for park factors
         batter_data = batter_data.merge(org_data, on='IDfg', how='left', suffixes=('', '_org'))
+        
+        # Reapply park factors to park-neutral batter predictions (reverse neutralization)
+        # Only when ENABLE_PARK_FACTOR_ADJUSTMENT is enabled in BatterConfig.
+        from value_determination.calculate_war import _apply_park_factors_to_batter_predictions
+        batter_data = _apply_park_factors_to_batter_predictions(batter_data)
         
         # Calculate wOBA (either from components or use LSTM direct prediction based on config)
         from .calculate_war import calculate_woba_from_predictions
@@ -274,7 +300,13 @@ def main():
         # Clean up duplicate columns
         columns_to_remove = [col for col in batter_data.columns if col.endswith('_old')]
         batter_data = batter_data.drop(columns=columns_to_remove)
-        
+
+        # Compute batter counting stats from rate stats and PA
+        if 'BB%' in batter_data.columns and 'PA' in batter_data.columns:
+            batter_data['BB_bat'] = (batter_data['BB%'] * batter_data['PA']).round().astype(int)
+        if 'K%' in batter_data.columns and 'PA' in batter_data.columns:
+            batter_data['K_bat'] = (batter_data['K%'] * batter_data['PA']).round().astype(int)
+
         logger.info(f"Calculated WAR components for {len(batter_data)} batters")
         logger.info(f"Batter WAR: avg={batter_data['WAR'].mean():.2f}")
         
@@ -306,7 +338,25 @@ def main():
         unmatched = salary_data_with_id[salary_data_with_id['IDfg'].isna()]
         if not unmatched.empty and Config.Pipeline.LOG_UNMATCHED_PLAYERS:
             logger.warning(f"{len(unmatched)} players could not be matched to predictions")
-        
+
+        # Attach canonical team from current_rosters.csv.
+        # Salary data is unreliable for team assignment: traded players appear under
+        # multiple teams in the Spotrac scrape (e.g. Devers under both Red Sox and
+        # Giants). The roster file is the single source of truth for current team.
+        # Free agents (not in roster) will have Team=NaN → displayed as 'FA' in output.
+        salary_data_with_id = salary_data_with_id.drop(columns=['Team'], errors='ignore')
+        salary_data_with_id = salary_data_with_id.merge(
+            org_data[['IDfg', 'Team']].drop_duplicates('IDfg'),
+            on='IDfg',
+            how='left'
+        )
+        roster_matched = salary_data_with_id['Team'].notna().sum()
+        logger.info(
+            f"Team assignment from roster: {roster_matched} players matched. "
+            f"Unmatched (free agents / not on 40-man): "
+            f"{salary_data_with_id['IDfg'].notna().sum() - roster_matched}"
+        )
+
         # ============================================================
         # Step 6: Normalize Contract Status & Generate Timeline
         # ============================================================

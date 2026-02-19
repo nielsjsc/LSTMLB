@@ -90,14 +90,13 @@ class Columns:
     
     # Output column sets
     HITTER_COLUMNS = [
-        'Name', 'Age', 'G', 'IDfg', 'BB%', 'K%', 'AVG', 'OBP', 'SLG', 'wOBA',
+        'Name', 'Age', 'G', 'PA', 'BB_bat', 'K_bat', 'IDfg', 'BB%', 'K%', 'AVG', 'OBP', 'SLG', 'wOBA',
         'wRC+', 'Off', 'BsR', 'Def', 'WAR', 'HR', '2B', '3B', 'SB', 'CS', 'R', 'RBI'
     ]
-    
+
     PITCHER_COLUMNS = [
-        'Name', 'Age', 'GS', 'G', 'IDfg', 'ERA', 'FIP', 'K%', 'BB%', 'WAR', 'SIERA'
+        'Name', 'Age', 'GS', 'G', 'IP', 'BB_pit', 'K_pit', 'ER_pit', 'IDfg', 'ERA', 'FIP', 'K%', 'BB%', 'WAR',
     ]
-    
     # ID column mappings (for transitioning from FG ID to MLB ID)
     # TODO: Complete migration to mlbam_id as primary identifier
     ID_COLUMNS = {
@@ -146,38 +145,39 @@ STATUS_MAPPINGS = {
 class WARConstants:
     """Constants for WAR (Wins Above Replacement) calculations."""
     
-    # Park factors by team (100 = neutral)
+    # Park factors by team (100 = neutral) — FanGraphs 5-year Basic park factors (2025)
+    # Updated to match core/park_factors.py for consistency across neutralization and WAR calc
     BALLPARK_FACTORS = {
-        'COL': 108,  # Coors Field
-        'BOS': 107,  # Fenway Park  
-        'CIN': 105,  # Great American Ball Park
-        'BAL': 104,  # Oriole Park at Camden Yards
-        'TEX': 104,  # Globe Life Field
-        'NYY': 103,  # Yankee Stadium
-        'MIN': 103,  # Target Field
-        'PHI': 103,  # Citizens Bank Park
-        'HOU': 102,  # Minute Maid Park
-        'TOR': 102,  # Rogers Centre
-        'ARI': 101,  # Chase Field
-        'ATL': 101,  # Truist Park
-        'WSH': 101,  # Nationals Park
-        'LAA': 100,  # Angel Stadium
-        'CLE': 100,  # Progressive Field
+        'LAA': 101,  # Angel Stadium
+        'BAL': 99,   # Oriole Park at Camden Yards
+        'BOS': 104,  # Fenway Park
+        'CHW': 100,  # Guaranteed Rate Field
+        'CLE': 99,   # Progressive Field
         'DET': 100,  # Comerica Park
-        'KC': 100,   # Kauffman Stadium
-        'LAD': 100,  # Dodger Stadium
-        'NYM': 100,  # Citi Field
-        'STL': 100,  # Busch Stadium
-        'CHW': 99,   # Guaranteed Rate Field
-        'OAK': 99,   # Oakland Coliseum
-        'PIT': 99,   # PNC Park
-        'SF': 98,    # Oracle Park
-        'MIA': 98,   # loanDepot park
-        'MIL': 97,   # American Family Field
-        'CHC': 97,   # Wrigley Field
-        'SD': 96,    # Petco Park
-        'TB': 96,    # Tropicana Field
-        'SEA': 91    # T-Mobile Park
+        'KC':  103,  # Kauffman Stadium
+        'MIN': 101,  # Target Field
+        'NYY': 99,   # Yankee Stadium
+        'OAK': 103,  # Oakland Coliseum
+        'SEA': 94,   # T-Mobile Park
+        'TB':  101,  # Tropicana Field
+        'TEX': 99,   # Globe Life Field
+        'TOR': 99,   # Rogers Centre
+        'ARI': 101,  # Chase Field
+        'ATL': 100,  # Truist Park
+        'CHC': 98,   # Wrigley Field
+        'CIN': 105,  # Great American Ball Park
+        'COL': 113,  # Coors Field
+        'MIA': 101,  # loanDepot park
+        'HOU': 99,   # Minute Maid Park
+        'LAD': 99,   # Dodger Stadium
+        'MIL': 99,   # American Family Field
+        'WSH': 100,  # Nationals Park
+        'NYM': 96,   # Citi Field
+        'PHI': 101,  # Citizens Bank Park
+        'PIT': 102,  # PNC Park
+        'STL': 98,   # Busch Stadium
+        'SD':  96,   # Petco Park
+        'SF':  97,   # Oracle Park
     }
     
     # League constants for offensive calculations (2025 season)
@@ -219,6 +219,7 @@ class WARConstants:
     # Default IP assumptions for projections
     DEFAULT_SP_IP = 180  # Standard full season for SP
     DEFAULT_RP_IP = 70   # Standard full season for RP
+    BF_PER_IP = 4.33     # Average batters faced per inning (MLB average)
     
     # Team name to abbreviation mapping (for roster data)
     TEAM_ABBREVIATIONS = {

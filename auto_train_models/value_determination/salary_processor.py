@@ -132,13 +132,41 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
         for key, value in stats.items():
             logger.info(f"{key}: {value:,.2f}" if isinstance(value, float) else f"{key}: {value}")
         
-        # Select output columns
+        # Deduplicate (player_id, Year) pairs — same player can appear multiple times because:
+        # (1) Traded players are scraped from both old and new team's Spotrac roster page
+        #     (e.g. Devers appears under both Red Sox and Giants after a mid-season trade).
+        # (2) Spotrac player pages contain multiple HTML contract tables that the scraper
+        #     can parse independently, producing two rows from one page.
+        #
+        # Strategy: group by (Spotrac player_id, Year), sum Payroll (prorated amounts
+        # across two teams correctly sum to the full-year salary obligation), and take
+        # the first non-null value for all categorical columns.
+        #
+        # Team is kept for name-disambiguation purposes in merge_salary_with_ids()
+        # (e.g. distinguishing Luis Garcia HOU vs Luis Garcia WSH). It is NOT the
+        # canonical team source — that comes from current_rosters.csv in main.py.
+        if 'IDfg' in cleaned_df.columns:  # IDfg here holds the raw Spotrac player_id
+            def _agg_salary_dupes(g):
+                return pd.Series({
+                    'Player Name': g['Player Name'].dropna().iloc[0] if g['Player Name'].notna().any() else np.nan,
+                    'Team': g['Team'].dropna().iloc[0] if g['Team'].notna().any() else np.nan,
+                    'Payroll': g['Payroll'].sum() if g['Payroll'].notna().any() else np.nan,
+                    'Status': g['Status'].dropna().iloc[0] if g['Status'].notna().any() else np.nan,
+                })
+            pre_dedup = len(cleaned_df)
+            cleaned_df = (
+                cleaned_df.groupby(['IDfg', 'Year'])
+                .apply(_agg_salary_dupes)
+                .reset_index()  # brings IDfg and Year back as columns
+            )
+            logger.info(
+                f"Deduplication: {pre_dedup} → {len(cleaned_df)} rows "
+                f"({pre_dedup - len(cleaned_df)} duplicates removed)"
+            )
+
         output_cols = ['Player Name', 'Year', 'Team', 'Payroll', 'Status']
-        if 'IDfg' in cleaned_df.columns:
-            output_cols.append('IDfg')
-            
         return cleaned_df[output_cols].copy()
-        
+
     except Exception as e:
         logger.error(f"Error cleaning salary data: {str(e)}")
         raise
@@ -183,17 +211,9 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
     
     # Normalize salary data names
     salary_df['Name_Normalized'] = salary_df['Player Name'].apply(normalize_name)
-    
-    # Debug: Check Luis Garcia names before modifications
-    print("\nBefore modifications:")
-    print("Salary DF Luis Garcia entries:")
-    luis_garcia_salary = salary_df[salary_df['Name_Normalized'].str.contains('LUIS GARCIA', na=False)]
-    print(luis_garcia_salary[['Name_Normalized', 'Team', 'Year']].to_string())
-    print("\nPlayer Ref Luis Garcia entries:")
-    luis_garcia_ref = player_ref[player_ref['Name_Normalized'].str.contains('LUIS GARCIA', na=False)]
-    print(luis_garcia_ref[['Name_Normalized', 'IDfg', 'position_group']].to_string())
-    
+
     # Fix Luis Garcia names - normalize team abbreviations
+    # Two different players share this name: IDfg 23735 (HOU pitcher) and Luis Garcia Jr. (WSH batter).
     salary_df['Team_lower'] = salary_df['Team'].str.lower()
     mask_garcia_hou = (salary_df['Name_Normalized'] == 'LUIS GARCIA') & (salary_df['Team_lower'].str.contains('hou|astros', na=False))
     mask_garcia_wsh = (salary_df['Name_Normalized'] == 'LUIS GARCIA') & (salary_df['Team_lower'].str.contains('wsh|washington|nationals', na=False))
@@ -226,19 +246,11 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
     
     # Clean up temp column
     salary_df = salary_df.drop('Team_lower', axis=1)
-    
-    # Debug: Check names after modifications
-    print("\nAfter modifications:")
-    print("Salary DF Luis Garcia entries:")
-    luis_garcia_salary = salary_df[salary_df['Name_Normalized'].str.contains('LUIS GARCIA', na=False)]
-    print(luis_garcia_salary[['Name_Normalized', 'Team', 'Year']].to_string())
-    print("\nPlayer Ref Luis Garcia entries:")
-    luis_garcia_ref = player_ref[player_ref['Name_Normalized'].str.contains('LUIS GARCIA', na=False)]
-    print(luis_garcia_ref[['Name_Normalized', 'IDfg', 'position_group']].to_string())
-    
+
     # Use OUTER merge to keep both prediction years AND salary-only years (for long contracts like Soto's 2031-2039)
+    # Team is intentionally excluded — canonical team assignment happens in main.py via current_rosters.csv.
     merged_df = player_ref.merge(
-        salary_df[['Name_Normalized', 'Year', 'Team', 'Payroll', 'Status']],
+        salary_df[['Name_Normalized', 'Year', 'Payroll', 'Status']],
         on=['Name_Normalized', 'Year'],
         how='outer'
     )
@@ -258,26 +270,19 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
                 merged_df.loc[idx, 'position_group'] = match.iloc[0]['position_group']
                 merged_df.loc[idx, 'Name'] = match.iloc[0]['Name']
     
-    print("\nMerged DF Info:")
-    print(f"Total rows: {len(merged_df)}")
-    print(f"Null Payroll: {merged_df['Payroll'].isna().sum()}")
-    print(f"Null Status: {merged_df['Status'].isna().sum()}")
-    print(f"Rows with predictions (IDfg): {merged_df['IDfg'].notna().sum()}")
-    
-    # Keep ALL rows that have predictions (IDfg not null)
-    # This includes Free Agents without salary data
-    # Also keep salary-only rows (for long contracts beyond prediction years)
+    logger.info(
+        f"Salary merge: {len(merged_df)} rows total, "
+        f"{merged_df['IDfg'].notna().sum()} with predictions, "
+        f"{merged_df['Payroll'].notna().sum()} with payroll data"
+    )
+
+    # Keep rows that have predictions (IDfg not null — includes FAs without salary)
+    # or rows with salary data (for long contracts beyond prediction years, e.g. Soto 2031-2039).
     has_prediction = merged_df['IDfg'].notna()
     has_payroll = merged_df['Payroll'].notna()
     has_status = merged_df['Status'].notna()
-    
-    print("\nCondition Counts:")
-    print(f"Rows with predictions (IDfg): {has_prediction.sum()}")
-    print(f"Rows with Payroll: {has_payroll.sum()}")
-    print(f"Rows with Status: {has_status.sum()}")
-    print(f"Rows meeting any condition: {(has_prediction | has_payroll | has_status).sum()}")
-    
-    # Keep rows with predictions OR salary data
     valid_data = merged_df[has_prediction | has_payroll | has_status]
-    
-    return valid_data.drop('Name_Normalized', axis=1)
+
+    # Drop the internal name-matching helper. Team is also dropped here — the canonical
+    # team source (current_rosters.csv) is attached in main.py after this function returns.
+    return valid_data.drop(columns=['Name_Normalized'], errors='ignore')
