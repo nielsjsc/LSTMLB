@@ -18,6 +18,40 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# PARK FACTOR TOGGLE HELPER
+# =============================================================================
+
+def _is_park_factor_enabled(model_type: str) -> bool:
+    """
+    Check if park factor adjustment is enabled for the given model type.
+    
+    Reads ENABLE_PARK_FACTOR_ADJUSTMENT from the appropriate config class.
+    Returns False (disabled) if the config cannot be loaded or the attribute
+    is missing, maintaining backward compatibility.
+    
+    Args:
+        model_type: One of 'batter', 'SP', 'RP', 'baserunning',
+                    'defense_infield', 'defense_outfield', 'defense_catcher'
+    """
+    try:
+        if model_type == 'batter':
+            from configs.batter_config import BatterConfig
+            return getattr(BatterConfig, 'ENABLE_PARK_FACTOR_ADJUSTMENT', False)
+        elif model_type == 'SP':
+            from configs.pitcher_sp_config import PitcherSPConfig
+            return getattr(PitcherSPConfig, 'ENABLE_PARK_FACTOR_ADJUSTMENT', False)
+        elif model_type == 'RP':
+            from configs.pitcher_rp_config import PitcherRPConfig
+            return getattr(PitcherRPConfig, 'ENABLE_PARK_FACTOR_ADJUSTMENT', False)
+        else:
+            # Fielding/baserunning inherit from batter config
+            from configs.batter_config import BatterConfig
+            return getattr(BatterConfig, 'ENABLE_PARK_FACTOR_ADJUSTMENT', False)
+    except (ImportError, AttributeError):
+        return False
+
+
+# =============================================================================
 # AGING CONSTRAINT ENFORCEMENT (POST-PREDICTION)
 # =============================================================================
 
@@ -272,20 +306,24 @@ def _prepare_player_sequence(
     else:
         recent_data = player_data[input_features].iloc[-seq_length:].copy().reset_index(drop=True)
     
-    # STATCAST METRIC SUBSTITUTION: Replace traditional metrics with xStats if configured
+    # =========================================================================
+    # STATCAST METRIC SUBSTITUTION (before park neutralization)
+    # =========================================================================
+    # x-stats replace traditional counterparts first so that park factor
+    # neutralization operates on the final values the model will see.
     xwoba_substituted = False
     xba_substituted = False
     xslg_substituted = False
-    
+
     try:
         from configs.batter_config import BatterConfig
-        
+
         # xwOBA substitution
-        if (BatterConfig.USE_XWOBA_FOR_PREDICTIONS and 
-            'wOBA' in input_features and 
-            'xwOBA' in player_data.columns):
+        if (BatterConfig.USE_XWOBA_FOR_PREDICTIONS and
+                'wOBA' in input_features and
+                'xwOBA' in player_data.columns):
             original_woba = recent_data['wOBA'].values.copy()
-            
+
             if num_seasons < seq_length:
                 xwoba_values = player_data['xwOBA'].copy()
                 while len(xwoba_values) < seq_length:
@@ -293,17 +331,17 @@ def _prepare_player_sequence(
                 recent_data['wOBA'] = xwoba_values.values
             else:
                 recent_data['wOBA'] = player_data['xwOBA'].iloc[-seq_length:].values
-            
+
             xwoba_substituted = True
             logger.debug(f"Player {player_id}: Substituted xwOBA → wOBA position. "
-                        f"Original wOBA: {original_woba}, New xwOBA: {recent_data['wOBA'].values}")
-        
+                         f"Original wOBA: {original_woba}, New xwOBA: {recent_data['wOBA'].values}")
+
         # xBA substitution (AVG → xBA)
-        if (BatterConfig.USE_XBA_FOR_PREDICTIONS and 
-            'AVG' in input_features and 
-            'xBA' in player_data.columns):
+        if (BatterConfig.USE_XBA_FOR_PREDICTIONS and
+                'AVG' in input_features and
+                'xBA' in player_data.columns):
             original_avg = recent_data['AVG'].values.copy()
-            
+
             if num_seasons < seq_length:
                 xba_values = player_data['xBA'].copy()
                 while len(xba_values) < seq_length:
@@ -311,17 +349,17 @@ def _prepare_player_sequence(
                 recent_data['AVG'] = xba_values.values
             else:
                 recent_data['AVG'] = player_data['xBA'].iloc[-seq_length:].values
-            
+
             xba_substituted = True
             logger.debug(f"Player {player_id}: Substituted xBA → AVG position. "
-                        f"Original AVG: {original_avg}, New xBA: {recent_data['AVG'].values}")
-        
+                         f"Original AVG: {original_avg}, New xBA: {recent_data['AVG'].values}")
+
         # xSLG substitution (SLG → xSLG)
-        if (BatterConfig.USE_XSLG_FOR_PREDICTIONS and 
-            'SLG' in input_features and 
-            'xSLG' in player_data.columns):
+        if (BatterConfig.USE_XSLG_FOR_PREDICTIONS and
+                'SLG' in input_features and
+                'xSLG' in player_data.columns):
             original_slg = recent_data['SLG'].values.copy()
-            
+
             if num_seasons < seq_length:
                 xslg_values = player_data['xSLG'].copy()
                 while len(xslg_values) < seq_length:
@@ -329,20 +367,55 @@ def _prepare_player_sequence(
                 recent_data['SLG'] = xslg_values.values
             else:
                 recent_data['SLG'] = player_data['xSLG'].iloc[-seq_length:].values
-            
+
             xslg_substituted = True
             logger.debug(f"Player {player_id}: Substituted xSLG → SLG position. "
-                        f"Original SLG: {original_slg}, New xSLG: {recent_data['SLG'].values}")
-                        
+                         f"Original SLG: {original_slg}, New xSLG: {recent_data['SLG'].values}")
+
     except (ImportError, AttributeError):
         # Config not available, skip substitution
         pass
+
+    # =========================================================================
+    # PARK FACTOR NEUTRALIZATION (after x-stat substitution)
+    # =========================================================================
+    # Applied to all adjustable features — including whichever positions now hold
+    # x-stat values — so every value in the sequence is park-neutral before the model.
+    park_factor_enabled = False
+    try:
+        from configs.batter_config import BatterConfig
+        park_factor_enabled = getattr(BatterConfig, 'ENABLE_PARK_FACTOR_ADJUSTMENT', False)
+    except (ImportError, AttributeError):
+        pass
+
+    if park_factor_enabled and 'Team' in player_data.columns:
+        from core.park_factors import get_park_factor, EXCLUDED_STATS
+        adjustable_features = [f for f in input_features if f not in EXCLUDED_STATS]
+
+        # Get the teams for the seasons in the sequence
+        if num_seasons < seq_length:
+            teams_for_seq = [player_data['Team'].iloc[-1]] * seq_length
+        else:
+            teams_for_seq = player_data['Team'].iloc[-seq_length:].tolist()
+
+        # Apply per-season neutralization to the DataFrame
+        for row_idx, team in enumerate(teams_for_seq):
+            pf = get_park_factor(team)
+            if pf != 1.0:
+                for feat in adjustable_features:
+                    if feat in recent_data.columns:
+                        recent_data.iloc[row_idx, recent_data.columns.get_loc(feat)] = (
+                            recent_data.iloc[row_idx][feat] / pf
+                        )
+
+        logger.debug(f"Player {player_id}: Park factor neutralization applied to {len(adjustable_features)} features")
     
     # Check for valid data (no NaN)
     if recent_data.isna().any().any():
         return None
     
     sequence = recent_data.values.astype(np.float64)
+    
     latest_age = recent_data['Age'].iloc[-1] if 'Age' in recent_data.columns else player_data['Age'].iloc[-1]
     
     # Use cutoff_year if provided (for consistent projection years),
@@ -526,7 +599,7 @@ def predict_future_stats(
     if model_type is not None:
         try:
             from core.data_processing import _is_reliability_regression_enabled
-            use_regression = _is_reliability_regression_enabled(model_type)
+            use_regression = _is_reliability_regression_enabled(model_type, context='prediction')
         except ImportError:
             pass
     
@@ -625,7 +698,47 @@ def _predict_with_regression(
     
     # Map model_type to the reliability module's key
     reliability_model_type = model_type
-    
+
+    # =========================================================================
+    # STATCAST METRIC SUBSTITUTION (batter only) — BEFORE REGRESSION
+    # xStats replace their traditional counterparts in player_data so that
+    # regression operates on the more-predictive expected metrics.
+    # Park neutralization (below) then applies to all adjustable features,
+    # including the positions now holding x-stat values.
+    # =========================================================================
+    if model_type == 'batter':
+        try:
+            from configs.batter_config import BatterConfig
+
+            if (BatterConfig.USE_XWOBA_FOR_PREDICTIONS and
+                    'wOBA' in input_features and
+                    'xwOBA' in player_data.columns):
+                mask = player_data['xwOBA'].notna()
+                player_data.loc[mask, 'wOBA'] = player_data.loc[mask, 'xwOBA']
+
+            elif (getattr(BatterConfig, 'USE_XWOBA_BLEND_FOR_PREDICTIONS', False) and
+                    'wOBA' in input_features and
+                    'xwOBA' in player_data.columns):
+                mask = player_data['xwOBA'].notna()
+                player_data.loc[mask, 'wOBA'] = (
+                    player_data.loc[mask, 'wOBA'] + player_data.loc[mask, 'xwOBA']
+                ) / 2
+
+            if (BatterConfig.USE_XBA_FOR_PREDICTIONS and
+                    'AVG' in input_features and
+                    'xBA' in player_data.columns):
+                mask = player_data['xBA'].notna()
+                player_data.loc[mask, 'AVG'] = player_data.loc[mask, 'xBA']
+
+            if (BatterConfig.USE_XSLG_FOR_PREDICTIONS and
+                    'SLG' in input_features and
+                    'xSLG' in player_data.columns):
+                mask = player_data['xSLG'].notna()
+                player_data.loc[mask, 'SLG'] = player_data.loc[mask, 'xSLG']
+
+        except (ImportError, AttributeError):
+            pass
+
     # Apply reliability regression to the player's historical data
     era = get_era_for_features(input_features)
     player_data_regressed = regress_player_sequence(
@@ -633,56 +746,14 @@ def _predict_with_regression(
         model_type=reliability_model_type,
         era=era, league_priors=league_priors
     )
-    
+
     # Compute regressed career mean for padding
     career_mean = compute_regressed_career_mean(
         player_data, input_features,
         model_type=reliability_model_type,
         era=era, league_priors=league_priors
     )
-    
-    # =========================================================================
-    # STATCAST METRIC SUBSTITUTION (batter only)
-    # =========================================================================
-    xwoba_substituted = False
-    xba_substituted = False
-    xslg_substituted = False
-    
-    if model_type == 'batter':
-        try:
-            from configs.batter_config import BatterConfig
-            
-            if (BatterConfig.USE_XWOBA_FOR_PREDICTIONS and
-                'wOBA' in input_features and
-                'xwOBA' in player_data.columns):
-                # Substitute xwOBA into the regressed data
-                for idx, row in player_data_regressed.iterrows():
-                    orig_idx = player_data.index[player_data['Season'] == row['Season']]
-                    if len(orig_idx) > 0 and not pd.isna(player_data.loc[orig_idx[0], 'xwOBA']):
-                        player_data_regressed.at[idx, 'wOBA'] = player_data.loc[orig_idx[0], 'xwOBA']
-                xwoba_substituted = True
-            
-            if (BatterConfig.USE_XBA_FOR_PREDICTIONS and
-                'AVG' in input_features and
-                'xBA' in player_data.columns):
-                for idx, row in player_data_regressed.iterrows():
-                    orig_idx = player_data.index[player_data['Season'] == row['Season']]
-                    if len(orig_idx) > 0 and not pd.isna(player_data.loc[orig_idx[0], 'xBA']):
-                        player_data_regressed.at[idx, 'AVG'] = player_data.loc[orig_idx[0], 'xBA']
-                xba_substituted = True
-            
-            if (BatterConfig.USE_XSLG_FOR_PREDICTIONS and
-                'SLG' in input_features and
-                'xSLG' in player_data.columns):
-                for idx, row in player_data_regressed.iterrows():
-                    orig_idx = player_data.index[player_data['Season'] == row['Season']]
-                    if len(orig_idx) > 0 and not pd.isna(player_data.loc[orig_idx[0], 'xSLG']):
-                        player_data_regressed.at[idx, 'SLG'] = player_data.loc[orig_idx[0], 'xSLG']
-                xslg_substituted = True
-                
-        except (ImportError, AttributeError):
-            pass
-    
+
     # =========================================================================
     # BUILD SEQUENCE (with regressed career mean padding)
     # =========================================================================
@@ -710,6 +781,30 @@ def _predict_with_regression(
                 recent_data[feat] = recent_data[feat].fillna(fill_val)
     
     sequence = recent_data.values.astype(np.float64)
+    
+    # Park factor neutralization: convert stats to park-neutral (true talent)
+    # Only applied when ENABLE_PARK_FACTOR_ADJUSTMENT is True in the relevant config.
+    # Applied to all adjustable features including x-stat-substituted positions.
+    park_factor_enabled = _is_park_factor_enabled(model_type)
+
+    if park_factor_enabled and 'Team' in player_data.columns:
+        from core.park_factors import get_park_factor, EXCLUDED_STATS
+        # Apply to all features except always-excluded ones (Age, wRC+, etc.)
+        adjustable_indices = [
+            i for i, f in enumerate(input_features) if f not in EXCLUDED_STATS
+        ]
+        # Get per-season teams for the sequence
+        num_actual = min(len(player_data_regressed), seq_length)
+        season_teams = player_data_regressed['Team'].iloc[-num_actual:].tolist() if 'Team' in player_data_regressed.columns else []
+        last_team = player_data['Team'].iloc[-1] if len(player_data) > 0 else None
+        n_pad = seq_length - len(season_teams)
+        all_teams = [last_team] * n_pad + season_teams
+        
+        for row_idx, team in enumerate(all_teams):
+            pf = get_park_factor(team)
+            if pf != 1.0:
+                for col_idx in adjustable_indices:
+                    sequence[row_idx, col_idx] = sequence[row_idx, col_idx] / pf
     
     # Final NaN/Inf safety
     if np.isnan(sequence).any() or np.isinf(sequence).any():
@@ -998,6 +1093,30 @@ def predict_future_stats_pitcher(player_id: str, input_features: List[str], mode
     current_sequence = np.array(sequence_data[-seq_length:], dtype=np.float32)
     mask = np.array(mask[-seq_length:], dtype=np.int64)
     
+    # Park factor neutralization: convert stats to park-neutral (true talent)
+    # Only applied when ENABLE_PARK_FACTOR_ADJUSTMENT is True in the relevant config
+    park_factor_enabled = _is_park_factor_enabled(role)
+    
+    if park_factor_enabled and 'Team' in player_data.columns:
+        from core.park_factors import get_park_factor, EXCLUDED_STATS
+        adjustable_indices = [
+            i for i, f in enumerate(input_features) if f not in EXCLUDED_STATS
+        ]
+        # Get the teams for the valid seasons used in the sequence
+        valid_seasons_with_team = recent_seasons[recent_seasons['IP'] >= sequence_ip_threshold].tail(seq_length)
+        season_teams = valid_seasons_with_team['Team'].tolist() if 'Team' in valid_seasons_with_team.columns else []
+        # For padded rows, use the earliest available team
+        last_team = player_data['Team'].iloc[-1] if len(player_data) > 0 else None
+        n_actual = len(season_teams)
+        n_pad = seq_length - n_actual
+        all_teams = [last_team] * n_pad + season_teams
+        
+        for row_idx, team in enumerate(all_teams):
+            pf = get_park_factor(team)
+            if pf != 1.0:
+                for col_idx in adjustable_indices:
+                    current_sequence[row_idx, col_idx] = current_sequence[row_idx, col_idx] / pf
+    
     # Final NaN/Inf safety check
     if np.isnan(current_sequence).any() or np.isinf(current_sequence).any():
         current_sequence = np.nan_to_num(current_sequence, nan=0.0, posinf=0.0, neginf=0.0)
@@ -1131,6 +1250,11 @@ def predict_all_pitchers(
         season=cutoff_year, window=3
     )
     logger.info(f"Computed league priors for SP ({len(sp_league_priors)} features) and RP ({len(rp_league_priors)} features)")
+    
+    # Log park factor adjustment status
+    sp_pf = _is_park_factor_enabled('SP')
+    rp_pf = _is_park_factor_enabled('RP')
+    logger.info(f"Park factor adjustment: SP={'ENABLED' if sp_pf else 'DISABLED'}, RP={'ENABLED' if rp_pf else 'DISABLED'}")
     
     # Get current year and previous year pitchers
     pitchers_current = raw_df[raw_df['Season'] == cutoff_year].copy()
@@ -1302,6 +1426,11 @@ def predict_all_batters(
         if BatterConfig.USE_XSLG_FOR_PREDICTIONS and 'xSLG' in raw_df.columns:
             xslg_available_count = raw_df[raw_df['IDfg'].isin(all_players)]['xSLG'].notna().sum()
             logger.info(f"xSLG substitution ENABLED - {xslg_available_count} player-seasons have xSLG data available")
+        # Log park factor adjustment status
+        if getattr(BatterConfig, 'ENABLE_PARK_FACTOR_ADJUSTMENT', False):
+            logger.info("Park factor adjustment ENABLED for batter predictions (neutralize → model → reapply)")
+        else:
+            logger.info("Park factor adjustment DISABLED for batter predictions")
     except (ImportError, AttributeError):
         pass
 
@@ -1309,7 +1438,7 @@ def predict_all_batters(
     batter_league_priors = None
     try:
         from core.data_processing import _is_reliability_regression_enabled
-        if _is_reliability_regression_enabled('batter'):
+        if _is_reliability_regression_enabled('batter', context='prediction'):
             from core.reliability import compute_league_priors_from_df
             batter_league_priors = compute_league_priors_from_df(
                 raw_df, input_features, model_type='batter',
@@ -1434,7 +1563,7 @@ def predict_all_fielders(
         from core.reliability import compute_league_priors_from_df
         for model_key in input_features_map:
             defense_type = f'defense_{model_key}'
-            if _is_reliability_regression_enabled(defense_type):
+            if _is_reliability_regression_enabled(defense_type, context='prediction'):
                 fielding_league_priors[model_key] = compute_league_priors_from_df(
                     raw_df, input_features_map[model_key],
                     model_type=defense_type,
@@ -1494,6 +1623,16 @@ def predict_all_fielders(
                 ].copy()
                 
                 # Skip if not enough historical data at this position
+                if len(player_historical_data) == 0:
+                    continue
+
+                # Drop seasons with NaN in the input features (e.g. Inn < 100 seasons
+                # that were excluded by calculate_rate_stats min_denominator filter).
+                # This mirrors what filter_data does during training so the model
+                # only sees reliable, full-sample defensive observations.
+                player_historical_data = player_historical_data.dropna(
+                    subset=[f for f in input_features if f in player_historical_data.columns]
+                )
                 if len(player_historical_data) == 0:
                     continue
                 
@@ -1660,7 +1799,7 @@ def predict_all_baserunners(
     baserunning_league_priors = None
     try:
         from core.data_processing import _is_reliability_regression_enabled
-        if _is_reliability_regression_enabled('baserunning'):
+        if _is_reliability_regression_enabled('baserunning', context='prediction'):
             from core.reliability import compute_league_priors_from_df
             baserunning_league_priors = compute_league_priors_from_df(
                 raw_df, input_features, model_type='baserunning',

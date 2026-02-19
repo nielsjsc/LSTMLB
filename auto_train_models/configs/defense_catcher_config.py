@@ -38,13 +38,18 @@ class DefenseCatcherConfig:
     # ============================================================================
     # RELIABILITY REGRESSION
     # ============================================================================
-    # When enabled, applies Bayesian shrinkage to catcher defensive metrics based on
-    # innings. Framing stabilizes at 1200 Inn, throwing/blocking at 1500 Inn.
-    ENABLE_RELIABILITY_REGRESSION = True
+    # Bayesian shrinkage of catcher defensive metrics toward a 0-baseline prior,
+    # weighted by innings (framing stabilizes at 1200 Inn, throwing/blocking at 1500).
+    # The two toggles are independent:
+    #
+    #   TRAINING   — applied to the historical DataFrame before the LSTM sees it.
+    #   PREDICTION — applied to each player's historical sequence at inference time.
+    ENABLE_RELIABILITY_REGRESSION_TRAINING   = True
+    ENABLE_RELIABILITY_REGRESSION_PREDICTION = True
     
     # Model hyperparameters (actual values used internally by notebook's ImprovedLSTM)
     # NOTE: Notebook Config shows 512/6/8 but ImprovedLSTM internally divides by 2 and hardcodes layers
-    HIDDEN_SIZE = 256
+    HIDDEN_SIZE = 128
     NUM_LAYERS = 2 # Notebook hardcodes this in ImprovedLSTM.__init__
     NUM_HEADS = 1 # Notebook hardcodes this in attention layer
     DROPOUT = 0.4  
@@ -57,7 +62,7 @@ class DefenseCatcherConfig:
     WEIGHT_DECAY = 1e-5
     GRADIENT_CLIP = 1.0
     NUM_EPOCHS = 30
-    EARLY_STOPPING_PATIENCE = 3
+    EARLY_STOPPING_PATIENCE = 8
     
     # Position-specific weights for loss function
     FEATURE_WEIGHTS = {

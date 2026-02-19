@@ -38,10 +38,14 @@ class DefenseOutfieldConfig:
     # ============================================================================
     # RELIABILITY REGRESSION
     # ============================================================================
-    # When enabled, applies Bayesian shrinkage to defensive run metrics based on
-    # innings played. Defensive metrics are notoriously noisy — sc_total_runs/150
-    # requires ~1000 innings to stabilize at 50% signal.
-    ENABLE_RELIABILITY_REGRESSION = True
+    # Bayesian shrinkage of defensive run metrics toward a 0-baseline prior,
+    # weighted by innings played (sc_total_runs/150 needs ~1000 Inn to stabilize).
+    # The two toggles are independent:
+    #
+    #   TRAINING   — applied to the historical DataFrame before the LSTM sees it.
+    #   PREDICTION — applied to each player's historical sequence at inference time.
+    ENABLE_RELIABILITY_REGRESSION_TRAINING   = True
+    ENABLE_RELIABILITY_REGRESSION_PREDICTION = True
     
     # Model hyperparameters (actual values used internally by notebook's ImprovedLSTM)
     # NOTE: Notebook Config shows 512/6/8 but ImprovedLSTM internally divides by 2 and hardcodes layers

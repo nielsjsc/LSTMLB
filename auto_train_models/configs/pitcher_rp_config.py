@@ -48,11 +48,29 @@ class PitcherRPConfig:
     # ============================================================================
     # RELIABILITY REGRESSION
     # ============================================================================
-    # When enabled, applies Bayesian shrinkage to rate stats based on sample size.
-    # Each stat is regressed toward the player's career mean (or league average
-    # for rookies) proportional to how much exposure they had (BF for pitchers).
-    # This reduces noise from small-sample seasons in both training and prediction.
-    ENABLE_RELIABILITY_REGRESSION = True
+    # Bayesian shrinkage of rate stats toward a career/league-average prior,
+    # weighted by sample size (BF for pitchers).  The two toggles are independent:
+    #
+    #   TRAINING   — applied to the historical DataFrame before the LSTM sees it.
+    #   PREDICTION — applied to each player's historical sequence at inference time.
+    ENABLE_RELIABILITY_REGRESSION_TRAINING   = True
+    ENABLE_RELIABILITY_REGRESSION_PREDICTION = True
+    
+    # ============================================================================
+    # PARK FACTOR ADJUSTMENT (PREDICTIONS ONLY)
+    # ============================================================================
+    # When enabled, each pitcher's historical stats are neutralized (divided by
+    # their home park factor) before being fed to the model.  This lets the LSTM
+    # operate in a park-neutral space so that a pitcher in Coors and one in Petco
+    # with identical true talent produce the same model output.
+    #
+    # In value_determination, park factors are reapplied (multiplied) to the
+    # model's FIP/ERA predictions before computing pitcher WAR, so the final
+    # numbers reflect the pitcher's actual home environment.
+    #
+    # NOTE: Only affects predictions, NOT training — historical data going back
+    # to 1950 does not have reliable park factors for all years.
+    ENABLE_PARK_FACTOR_ADJUSTMENT = True
     
     # ============================================================================
     # TRANSFER LEARNING FEATURE SETS

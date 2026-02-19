@@ -40,11 +40,13 @@ class BaserunningConfig:
     # ============================================================================
     # RELIABILITY REGRESSION
     # ============================================================================
-    # When enabled, applies Bayesian shrinkage to rate stats based on sample size.
-    # Each stat is regressed toward the player's career mean (or league average
-    # for rookies) proportional to how many games they played.
-    # Sprint speed stabilizes extremely fast (10 games); baserunning runs are noisier.
-    ENABLE_RELIABILITY_REGRESSION = False
+    # Bayesian shrinkage of rate stats toward a career/league-average prior,
+    # weighted by sample size (G for baserunning).  The two toggles are independent:
+    #
+    #   TRAINING   — applied to the historical DataFrame before the LSTM sees it.
+    #   PREDICTION — applied to each player's historical sequence at inference time.
+    ENABLE_RELIABILITY_REGRESSION_TRAINING   = False
+    ENABLE_RELIABILITY_REGRESSION_PREDICTION = False
     
     # Model hyperparameters (actual values used by model)
     HIDDEN_SIZE = 256

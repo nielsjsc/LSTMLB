@@ -450,7 +450,9 @@ class PlayingTimeAllocator:
                         player, pos, primary_defense
                     )
                 
-                # Convert from runs/150 games to runs/PA
+                # Convert from runs/150-games-equivalent to runs/PA.
+                # sc_total_runs/150 is per 1350 innings (= 150 games × 9 inn/game),
+                # so dividing by (150 × pa_per_game) correctly scales to per-PA.
                 defense_runs_per_pa = defense_runs_150 / (150 * pa_per_game)
                 
                 # Positional adjustment per PA

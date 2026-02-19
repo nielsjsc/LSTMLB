@@ -28,12 +28,18 @@ def _get_reliability_model_type(model_type: str) -> str:
     return model_type  # batter, baserunning, defense_infield, etc.
 
 
-def _is_reliability_regression_enabled(model_type: str) -> bool:
+def _is_reliability_regression_enabled(model_type: str, context: str = 'training') -> bool:
     """
-    Check whether ENABLE_RELIABILITY_REGRESSION is True in the config for this model type.
-    
-    Imports the relevant config class and reads the toggle.
-    Returns False if the config can't be found or doesn't have the toggle.
+    Check whether reliability regression is enabled for *context* ('training' or 'prediction').
+
+    Reads the granular flag from the model's config class:
+        ENABLE_RELIABILITY_REGRESSION_TRAINING   (training data processing)
+        ENABLE_RELIABILITY_REGRESSION_PREDICTION (inference / prediction pipeline)
+
+    Falls back to the legacy ENABLE_RELIABILITY_REGRESSION flag if the granular
+    flags are not present, so older configs stay compatible.
+
+    Returns False if the config can't be found or doesn't have any toggle.
     """
     config_map = {
         'pitcher_sp': ('configs.pitcher_sp_config', 'PitcherSPConfig'),
@@ -44,23 +50,33 @@ def _is_reliability_regression_enabled(model_type: str) -> bool:
         'defense_outfield': ('configs.defense_outfield_config', 'DefenseOutfieldConfig'),
         'defense_catcher': ('configs.defense_catcher_config', 'DefenseCatcherConfig'),
     }
-    
+
     entry = config_map.get(model_type)
     if entry is None:
-        # Fallback: check if it starts with 'pitcher'
         if model_type.startswith('pitcher'):
             entry = config_map.get('pitcher_sp')
         else:
             logger.debug(f"No config mapping found for model_type '{model_type}'")
             return False
-    
+
     try:
         import importlib
         module = importlib.import_module(entry[0])
         config_cls = getattr(module, entry[1])
+
+        # Try the granular context-specific flag first.
+        granular_attr = (
+            'ENABLE_RELIABILITY_REGRESSION_TRAINING'
+            if context == 'training'
+            else 'ENABLE_RELIABILITY_REGRESSION_PREDICTION'
+        )
+        if hasattr(config_cls, granular_attr):
+            return getattr(config_cls, granular_attr)
+
+        # Legacy fallback: single flag controls both contexts.
         return getattr(config_cls, 'ENABLE_RELIABILITY_REGRESSION', False)
     except (ImportError, AttributeError) as e:
-        logger.debug(f"Could not check ENABLE_RELIABILITY_REGRESSION for {model_type}: {e}")
+        logger.debug(f"Could not check reliability regression flag for {model_type} ({context}): {e}")
         return False
 
    
@@ -136,12 +152,22 @@ def calculate_rate_stats(df: pd.DataFrame) -> pd.DataFrame:
     
     # Configuration for rate stats - easily extensible
     rate_stat_configs = {
-        # Defensive stats (per 150 games)
+        # Defensive stats (per 1350 innings = per 150 games at 9 inn/game)
+        # NOTE: Using Inn as denominator so the rate is consistent regardless of
+        # how many innings-per-game a player averaged (pinch-defense, etc.).
+        # The multiplier 1350 = 150 games × 9 inn/game, so a full-season player
+        # gets a value almost identical to their raw run total, matching the
+        # conventional "per 150 games" scale used everywhere else.
+        #
+        # min_denominator = 100 innings (~11 games): seasons below this threshold
+        # are too noisy to include in LSTM sequences and are set to NaN rather
+        # than an unreliable scaled value.
         'defensive_per_150': {
-            'condition': lambda df: 'G' in df.columns and any(col in df.columns for col in ['DRS', 'OAA', 'FRM', 'RngR', 'ErrR', 'DPR', 'UZR', 'ARM', 'rSB', 'rCERA', 'sc_total_runs', 'sc_range_runs', 'sc_arm_runs', 'sc_dp_runs', 'sc_framing_runs', 'sc_throwing_runs', 'sc_blocking_runs']),
+            'condition': lambda df: 'Inn' in df.columns and any(col in df.columns for col in ['DRS', 'OAA', 'FRM', 'RngR', 'ErrR', 'DPR', 'UZR', 'ARM', 'rSB', 'rCERA', 'sc_total_runs', 'sc_range_runs', 'sc_arm_runs', 'sc_dp_runs', 'sc_framing_runs', 'sc_throwing_runs', 'sc_blocking_runs']),
             'stats': ['DRS', 'OAA', 'FRM', 'RngR', 'ErrR', 'DPR', 'UZR', 'ARM', 'rSB', 'rCERA', 'sc_total_runs', 'sc_range_runs', 'sc_arm_runs', 'sc_dp_runs', 'sc_framing_runs', 'sc_throwing_runs', 'sc_blocking_runs'],
-            'denominator': 'G',
-            'multiplier': 150,
+            'denominator': 'Inn',
+            'multiplier': 1350,
+            'min_denominator': 100,
             'suffix': '/150'
         },
         
@@ -155,9 +181,13 @@ def calculate_rate_stats(df: pd.DataFrame) -> pd.DataFrame:
         },
         
         # Batting stats (per 150 games) - changed from per game for easier post-processing
+        # NOTE: PA is intentionally excluded — it must stay as raw count because
+        # the reliability regression module uses it as the sample-size volume
+        # in the Bayesian shrinkage formula. Scaling PA to per-150 would make
+        # every player look like they had ~400-700 PA regardless of actual playing time.
         'batting_per_150': {
-            'condition': lambda df: 'G' in df.columns and any(col in df.columns for col in ['HR', '2B', '3B', 'RBI', 'R', 'HBP', 'SF', 'PA']),
-            'stats': ['HR', '2B', '3B', 'RBI', 'R', 'HBP', 'SF', 'PA'],
+            'condition': lambda df: 'G' in df.columns and any(col in df.columns for col in ['HR', '2B', '3B', 'RBI', 'R', 'HBP', 'SF']),
+            'stats': ['HR', '2B', '3B', 'RBI', 'R', 'HBP', 'SF'],
             'denominator': 'G', 
             'multiplier': 150,
             'suffix': ''
@@ -187,23 +217,50 @@ def calculate_rate_stats(df: pd.DataFrame) -> pd.DataFrame:
             for stat in config['stats']:
                 rate_col = f"{stat}{config['suffix']}"
                 
-                # Only calculate if stat exists and rate column doesn't already exist
-                if stat in df.columns and rate_col not in df.columns:
+                # When suffix is '' the rate column name equals the raw stat name,
+                # so we always overwrite (in-place per-150 scaling of counting stats).
+                # For non-empty suffixes we skip columns that are already computed.
+                already_exists = rate_col in df.columns and config['suffix'] != ''
+                if stat in df.columns and not already_exists:
                     denominator = config['denominator']
                     multiplier = config['multiplier']
-                    
-                    # Avoid division by zero
-                    df[rate_col] = np.where(
-                        df[denominator] > 0, 
-                        (df[stat] / df[denominator]) * multiplier, 
-                        0
-                    )
+
+                    min_denom = config.get('min_denominator', 0)
+
+                    if min_denom > 0:
+                        # Rows below the minimum threshold get NaN — they are
+                        # too noisy to use as training/prediction inputs and will
+                        # be excluded from LSTM sequences rather than propagating
+                        # unreliable scaled values.
+                        df[rate_col] = np.where(
+                            df[denominator] >= min_denom,
+                            (df[stat] / df[denominator]) * multiplier,
+                            np.nan
+                        )
+                    else:
+                        # Avoid division by zero
+                        df[rate_col] = np.where(
+                            df[denominator] > 0,
+                            (df[stat] / df[denominator]) * multiplier,
+                            0
+                        )
     
-    # Replace infinities and NaN with 0
-    # Get all possible rate column suffixes dynamically
+    # Replace infinities with 0 for all rate columns.
+    # NaN is intentionally preserved for defensive /150 columns where Inn < min_denominator
+    # (those are small-sample seasons that should be excluded from sequences).
+    # All other rate columns get NaN→0 so downstream code sees clean data.
     rate_suffixes = ['_rate', '/150', '_per_pa', '_per9', '_pct']
     rate_columns = [col for col in df.columns if any(col.endswith(suffix) for suffix in rate_suffixes)]
-    df[rate_columns] = df[rate_columns].replace([np.inf, -np.inf], 0).fillna(0)
+    defense_rate_cols = [c for c in rate_columns if c.endswith('/150') and any(
+        raw in c for raw in ['DRS', 'OAA', 'FRM', 'RngR', 'ErrR', 'DPR', 'UZR', 'ARM',
+                             'rSB', 'rCERA', 'sc_total_runs', 'sc_range_runs', 'sc_arm_runs',
+                             'sc_dp_runs', 'sc_framing_runs', 'sc_throwing_runs', 'sc_blocking_runs']
+    )]
+    other_rate_cols = [c for c in rate_columns if c not in defense_rate_cols]
+    # Defensive: replace inf but keep NaN (small-sample rows stay NaN)
+    df[defense_rate_cols] = df[defense_rate_cols].replace([np.inf, -np.inf], np.nan)
+    # All other rate stats: replace inf and fill NaN with 0
+    df[other_rate_cols] = df[other_rate_cols].replace([np.inf, -np.inf], 0).fillna(0)
     
     return df
 
@@ -328,8 +385,10 @@ def filter_data(df: pd.DataFrame, config: DataConfig) -> pd.DataFrame:
         df = df[df['G'] >= 10]  # minimum 10 games
         logger.info("Filtered by min games (10)")
     
-    # Calculate rate statistics
-    df = calculate_rate_stats(df)
+    # NOTE: calculate_rate_stats is NOT called here — it was already called in
+    # load_and_validate_data. Calling it again would double-convert counting stats
+    # that use suffix='' (HR, 2B, 3B, RBI, R) because the guard 'rate_col not in
+    # df.columns' is always False when suffix is empty, so every call overwrites.
     
     # Drop NaN values in input features early
     df = df.dropna(subset=config.input_features)
@@ -650,8 +709,8 @@ def preprocess_data(
         # for rookies) based on sample size, so the model trains on true-talent
         # estimates rather than noisy small-sample observations.
         if model_type:
-            # Check if reliability regression is enabled for this model type
-            regression_enabled = _is_reliability_regression_enabled(model_type)
+            # Check if reliability regression is enabled for training
+            regression_enabled = _is_reliability_regression_enabled(model_type, context='training')
             
             if regression_enabled:
                 from core.reliability import regress_stats, get_era_for_features

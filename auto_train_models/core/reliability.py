@@ -12,8 +12,17 @@ The core formula (James-Stein / Bayesian shrinkage):
 Where:
     observed = raw observed rate stat for a season
     n        = batters faced / plate appearances / games / innings (model-dependent)
-    prior    = player's IP-weighted career mean (or league avg for rookies)
+    prior    = blended prior (career mean ↔ league average, weighted by career volume)
     n0       = stabilization point (stat-specific, in the relevant unit)
+
+The prior is a continuous blend of the player's career mean and league average:
+
+    career_weight = total_career_volume / (total_career_volume + career_stabilization)
+    effective_prior = career_weight * career_mean + (1 - career_weight) * league_mean
+
+This ensures rookies/small-sample players regress heavily toward league average,
+while established veterans regress toward their own career mean, with a smooth
+transition in between.
 
 Stabilization points represent the sample size required for a stat to become
 50% signal / 50% noise. These are well-established from FanGraphs research
@@ -159,6 +168,46 @@ BF_PER_IP = 4.3
 
 # Approximate PA per game for batters
 PA_PER_GAME = 3.9
+
+# =============================================================================
+# CAREER STABILIZATION (for blending career vs league priors)
+# =============================================================================
+# When regressing a stat toward a prior, we blend the player's OWN career
+# mean with the LEAGUE average, weighted by total career volume.
+#
+# This replaces the old binary threshold (min_career_seasons) with a smooth
+# spectrum: rookies/small-sample players regress heavily toward league avg,
+# while established veterans regress toward their own career mean.
+#
+# Formula:
+#   career_weight = total_career_volume / (total_career_volume + career_stab)
+#   effective_prior = career_weight * career_mean + (1 - career_weight) * league_mean
+#
+# At career_stab volume, the blend is exactly 50/50.
+
+
+def _get_career_stabilization(model_type: str) -> int:
+    """
+    Get the career volume threshold for prior blending.
+
+    At this volume, career and league priors are weighted 50/50.
+    Below this, league average dominates. Above, career data dominates.
+
+    Args:
+        model_type: 'pitcher', 'batter', 'baserunning', 'defense_*'
+
+    Returns:
+        Career stabilization threshold in the appropriate volume unit
+    """
+    if model_type == 'pitcher':
+        return 1000   # ~230 IP worth of TBF
+    elif model_type == 'batter':
+        return 1200   # ~2 full seasons of PA
+    elif model_type == 'baserunning':
+        return 200    # ~200 games (~1.3 full seasons)
+    elif model_type.startswith('defense') or model_type.startswith('fielding'):
+        return 1500   # ~1500 innings (~2 seasons for a starter)
+    return 1200       # fallback
 
 
 
@@ -396,6 +445,11 @@ def _compute_league_prior(
     Returns:
         Volume-weighted league average for the feature
     """
+    # Statcast fielding metrics (FRV, OAA, DRS, framing, etc.) are all
+    # zero-sum by construction — the league average is exactly 0 by definition.
+    if model_type.startswith('defense_'):
+        return 0.0
+
     weight_col = _get_weight_column(model_type)
 
     recent = full_df[
@@ -491,9 +545,11 @@ def regress_stats(
     the full DataFrame after filtering but BEFORE scaling.
 
     For each player-season:
-    1. Compute the player's volume-weighted career mean up to that season (prior)
-    2. If the player has fewer than `min_career_seasons`, use league average
-    3. Regress each rate stat toward the prior based on volume and stabilization rate
+    1. Compute the player's volume-weighted career mean up to that season
+    2. Blend career mean with league average based on total career volume
+       (more career exposure → more trust in career mean)
+    3. Regress each rate stat toward the blended prior based on volume
+       and stabilization rate
 
     The volume column (n in the shrinkage formula) is model-type-dependent:
         - pitcher: TBF (batters faced)
@@ -508,8 +564,8 @@ def regress_stats(
                     'defense_outfield', 'defense_catcher'
         era: Data era for stabilization points ('classical', 'pitchfx', 'statcast')
         league_df: Full DataFrame for computing league priors (defaults to df itself)
-        min_career_seasons: Minimum career seasons before using career prior
-                           (below this, league average is used)
+        min_career_seasons: Deprecated — blended priors are now used instead.
+                           Kept for backward compatibility.
 
     Returns:
         DataFrame with regressed stat values (original columns overwritten)
@@ -535,7 +591,7 @@ def regress_stats(
 
     logger.info(f"Applying reliability regression to {len(regressable)} features: {regressable}")
     logger.info(f"Model type: {model_type}, era: {era}, volume column: {vol_col}")
-    logger.info(f"Min career seasons for career prior: {min_career_seasons}")
+    logger.info(f"Career stabilization: {_get_career_stabilization(model_type)} (blended priors)")
 
     # Pre-compute league priors for each (feature, season) combination
     seasons = df['Season'].unique()
@@ -561,12 +617,17 @@ def regress_stats(
     for player_id, player_group in df.groupby('IDfg'):
         player_idx = player_group.index
         player_seasons = player_group['Season'].values
-        n_seasons_so_far = 0
+        cumulative_volume = 0.0
+        career_stab = _get_career_stabilization(model_type)
 
         for i, (idx, row) in enumerate(player_group.iterrows()):
             season = row['Season']
             volume = _estimate_volume(row, model_type)
-            n_seasons_so_far = i + 1
+            cumulative_volume += volume
+
+            # Career weight increases smoothly with total career exposure.
+            # Replaces the old binary min_career_seasons threshold.
+            career_weight = cumulative_volume / (cumulative_volume + career_stab)
 
             for feat in regressable:
                 observed = row[feat]
@@ -576,18 +637,22 @@ def regress_stats(
                 n0 = stab_points[feat]
                 total_count += 1
 
-                # Choose prior: career mean if enough history, else league average
+                # Compute career and league priors, then blend them.
                 # NOTE: Training pipeline uses RAW career prior (no aging adjustment).
                 # Aging curves are only applied in the prediction pipeline's regression
                 # prior, so the model learns from unmodified historical relationships.
-                if n_seasons_so_far >= min_career_seasons:
-                    prior = _compute_career_prior(
-                        player_group, feat, season, model_type=model_type
-                    )
-                    if np.isnan(prior):
-                        prior = league_priors[feat].get(season, observed)
+                career_prior = _compute_career_prior(
+                    player_group, feat, season, model_type=model_type
+                )
+                league_prior = league_priors[feat].get(season, observed)
+
+                # Blend career and league priors based on total career exposure.
+                # Players with little career data regress toward league average;
+                # established players regress toward their own career mean.
+                if not np.isnan(career_prior):
+                    prior = career_weight * career_prior + (1 - career_weight) * league_prior
                 else:
-                    prior = league_priors[feat].get(season, observed)
+                    prior = league_prior
 
                 regressed = regress_single_value(observed, volume, prior, n0)
                 df.at[idx, feat] = regressed
@@ -626,6 +691,14 @@ def regress_player_sequence(
     ALL available seasons (not just up-to-season), since at prediction time
     we want the best possible estimate of the player's true talent.
 
+    Career vs league priors are blended based on total career volume:
+        career_weight = total_vol / (total_vol + career_stabilization)
+        effective_prior = career_weight * career_mean + (1 - career_weight) * league_mean
+
+    This ensures rookies and small-sample players regress heavily toward
+    league average, while established veterans regress toward their own
+    career mean.
+
     The volume column (n in the shrinkage formula) is model-type-dependent:
         - pitcher: TBF (batters faced)
         - batter: PA (plate appearances)
@@ -640,7 +713,8 @@ def regress_player_sequence(
         era: Data era for stabilization points
         league_priors: Pre-computed league averages per feature.
                       If None, uses the player's own data (less accurate for rookies)
-        min_career_seasons: Minimum seasons for career prior vs league prior
+        min_career_seasons: Deprecated — blended priors are now used instead.
+                           Kept for backward compatibility.
 
     Returns:
         DataFrame with regressed values (copy — does not modify input)
@@ -669,6 +743,16 @@ def regress_player_sequence(
         return result
 
     n_total_seasons = len(result)
+
+    # Compute total career volume for blending career vs league priors.
+    # More career exposure → more trust in the player's own career mean.
+    total_career_volume = sum(
+        _estimate_volume(row, model_type)
+        for _, row in result.iterrows()
+    )
+    career_stab = _get_career_stabilization(model_type)
+    career_weight = (total_career_volume / (total_career_volume + career_stab)
+                     if (total_career_volume + career_stab) > 0 else 0.0)
 
     # Compute age-adjusted volume-weighted means using only the most recent
     # PRIOR_MAX_SEASONS. Each historical season is age-adjusted to the
@@ -714,6 +798,25 @@ def regress_player_sequence(
                 else:
                     career_means[feat] = np.nan
 
+    # Compute blended priors (career mean ↔ league average)
+    blended_priors: Dict[str, float] = {}
+    for feat in regressable:
+        career_mean = career_means.get(feat, np.nan)
+        league_mean = league_priors.get(feat, np.nan) if league_priors else np.nan
+
+        if not np.isnan(career_mean) and not np.isnan(league_mean):
+            blended_priors[feat] = career_weight * career_mean + (1 - career_weight) * league_mean
+        elif not np.isnan(career_mean):
+            blended_priors[feat] = career_mean
+        elif not np.isnan(league_mean):
+            blended_priors[feat] = league_mean
+        # else: no prior available → will skip regression
+
+    logger.debug(
+        f"Prior blending: career_vol={total_career_volume:.0f}, "
+        f"career_stab={career_stab}, career_weight={career_weight:.3f}"
+    )
+
     # Regress each season
     for idx, row in result.iterrows():
         volume = _estimate_volume(row, model_type)
@@ -725,13 +828,8 @@ def regress_player_sequence(
 
             n0 = stab_points[feat]
 
-            # Choose prior
-            if n_total_seasons >= min_career_seasons and not np.isnan(career_means[feat]):
-                prior = career_means[feat]
-            elif league_priors and feat in league_priors:
-                prior = league_priors[feat]
-            else:
-                # Last resort: don't regress (keep observed)
+            prior = blended_priors.get(feat)
+            if prior is None or np.isnan(prior):
                 continue
 
             result.at[idx, feat] = regress_single_value(observed, volume, prior, n0)

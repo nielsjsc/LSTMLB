@@ -166,9 +166,7 @@ class ImprovedLSTM(nn.Module):
             }) for i in range(self.num_layers)
         ])
         
-        # No attention — sequences are 2-4 timesteps, attention adds parameters
-        # without meaningful benefit at this length. Mean pooling is used instead.
-        
+
         # Output projection
         self.output_projection = nn.Sequential(
             nn.Linear(self.hidden_size * self.directions, self.hidden_size * 2),
