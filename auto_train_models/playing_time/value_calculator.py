@@ -50,7 +50,7 @@ BALLPARK_FACTORS = {
     'NYM': 100,  # Citi Field
     'STL': 100,  # Busch Stadium
     'CHW': 99,   # Guaranteed Rate Field
-    'OAK': 99,   # Oakland Coliseum
+    'ATH': 99,   # Sutter Health Park (Sacramento)
     'PIT': 99,   # PNC Park
     'SF': 98,    # Oracle Park
     'MIA': 98,   # loanDepot park

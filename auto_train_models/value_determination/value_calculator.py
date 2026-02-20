@@ -16,7 +16,7 @@ from .config import Config, CURRENT_YEAR
 # Team name to abbreviation mapping (handles both full names and existing abbreviations)
 TEAM_NAME_TO_ABBREV = {
     # Full names from salary data
-    'Athletics': 'OAK',
+    'Athletics': 'ATH',
     'Pittsburgh Pirates': 'PIT',
     'San Diego Padres': 'SD',
     'Seattle Mariners': 'SEA',
@@ -47,7 +47,7 @@ TEAM_NAME_TO_ABBREV = {
     'Toronto Blue Jays': 'TOR',
     'Washington Nationals': 'WSH',
     # Already abbreviations (pass through)
-    'OAK': 'OAK', 'PIT': 'PIT', 'SD': 'SD', 'SEA': 'SEA', 'SF': 'SF',
+    'ATH': 'ATH', 'OAK': 'ATH', 'PIT': 'PIT', 'SD': 'SD', 'SEA': 'SEA', 'SF': 'SF',
     'ARI': 'ARI', 'ATL': 'ATL', 'BAL': 'BAL', 'BOS': 'BOS', 'CHC': 'CHC',
     'CHW': 'CHW', 'CIN': 'CIN', 'CLE': 'CLE', 'COL': 'COL', 'DET': 'DET',
     'HOU': 'HOU', 'KC': 'KC', 'LAA': 'LAA', 'LAD': 'LAD', 'MIA': 'MIA',

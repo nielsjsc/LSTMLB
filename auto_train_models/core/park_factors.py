@@ -43,7 +43,7 @@ PARK_FACTORS_5YR = {
     'KC':  103,
     'MIN': 101,
     'NYY': 99,
-    'OAK': 103,
+    'ATH': 103,
     'SEA': 94,
     'TB':  101,
     'TEX': 99,

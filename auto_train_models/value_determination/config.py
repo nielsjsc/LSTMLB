@@ -157,7 +157,7 @@ class WARConstants:
         'KC':  103,  # Kauffman Stadium
         'MIN': 101,  # Target Field
         'NYY': 99,   # Yankee Stadium
-        'OAK': 103,  # Oakland Coliseum
+        'ATH': 103,  # Sutter Health Park (Sacramento)
         'SEA': 94,   # T-Mobile Park
         'TB':  101,  # Tropicana Field
         'TEX': 99,   # Globe Life Field
@@ -223,7 +223,7 @@ class WARConstants:
     
     # Team name to abbreviation mapping (for roster data)
     TEAM_ABBREVIATIONS = {
-        'Athletics': 'OAK',
+        'Athletics': 'ATH',
         'Pittsburgh Pirates': 'PIT',
         'San Diego Padres': 'SD',
         'Seattle Mariners': 'SEA',

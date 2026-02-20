@@ -42,7 +42,7 @@ TEAM_ABBREVIATIONS = {
     'twins': 'MIN',
     'mets': 'NYM',
     'yankees': 'NYY',
-    'athletics': 'OAK',  # Backend uses OAK, not ATH
+    'athletics': 'ATH',  # Frontend/DB now uses ATH
     'phillies': 'PHI',
     'pirates': 'PIT',
     'padres': 'SDP', 'sdpadres': 'SDP',  # Backend uses SDP, not SD

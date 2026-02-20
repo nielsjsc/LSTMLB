@@ -28,7 +28,6 @@ def map_team_abbreviation(team: str) -> str:
         'SF': 'SFG',
         'SD': 'SDP',
         'KC': 'KCR',
-        'ATH': 'OAK',
         'TB': 'TBR'
     }
     return team_mapping.get(team.upper(), team.upper())
