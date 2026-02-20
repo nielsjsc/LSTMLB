@@ -150,6 +150,9 @@ def calculate_rate_stats(df: pd.DataFrame) -> pd.DataFrame:
     """Calculate rate statistics for all model types: defense, baserunning, batting, pitching"""
     df = df.copy()
     
+    # Import the master list of batting counting stats (single source of truth)
+    from core.rate_stats_config import BATTING_COUNTING_STATS as _batting_counting_stats
+    
     # Configuration for rate stats - easily extensible
     rate_stat_configs = {
         # Defensive stats (per 1350 innings = per 150 games at 9 inn/game)
@@ -186,8 +189,8 @@ def calculate_rate_stats(df: pd.DataFrame) -> pd.DataFrame:
         # in the Bayesian shrinkage formula. Scaling PA to per-150 would make
         # every player look like they had ~400-700 PA regardless of actual playing time.
         'batting_per_150': {
-            'condition': lambda df: 'G' in df.columns and any(col in df.columns for col in ['HR', '2B', '3B', 'RBI', 'R', 'HBP', 'SF']),
-            'stats': ['HR', '2B', '3B', 'RBI', 'R', 'HBP', 'SF'],
+            'condition': lambda df: 'G' in df.columns and any(col in df.columns for col in _batting_counting_stats),
+            'stats': _batting_counting_stats,
             'denominator': 'G', 
             'multiplier': 150,
             'suffix': ''

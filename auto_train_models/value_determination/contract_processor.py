@@ -66,8 +66,8 @@ def normalize_contract_status(df: pd.DataFrame) -> pd.DataFrame:
         if pd.isna(row['Status']):
             if pd.notna(row['Payroll']):
                 return 'Signed'
-            if row['Year'] == 2025:
-                return 'Free Agent'
+            # No status and no payroll — cannot determine from this row alone.
+            # Let generate_contract_timeline infer from the player's history.
             return None
         
         status = str(row['Status']).upper().strip()
@@ -151,6 +151,28 @@ def normalize_contract_status(df: pd.DataFrame) -> pd.DataFrame:
             # If they have a payroll, they're signed
             if pd.notna(row['Payroll']):
                 return 'Signed'
+            # Under team control but no payroll (e.g. league-minimum pre-arb players).
+            # Use years_of_service to determine the correct contract status.
+            yos = row.get('Years_of_Service')
+            if pd.notna(yos):
+                try:
+                    yos_float = float(yos)
+                    if yos_float < 3:
+                        return 'Pre-Arb'
+                    elif yos_float < 4:
+                        return 'Arb-1'
+                    elif yos_float < 5:
+                        return 'Arb-2'
+                    elif yos_float < 6:
+                        return 'Arb-3'
+                    else:
+                        return 'Signed'  # 6+ years service → FA-eligible but Active means signed
+                except (ValueError, TypeError):
+                    pass
+            # No payroll AND no usable service time → Spotrac uses explicit
+            # ARB/UFA tags for arb-eligible and FA players, so an Active/Injured
+            # status without payroll info strongly implies Pre-Arb.
+            return 'Pre-Arb'
         
         # If we still don't know but they have a payroll, assume signed
         if pd.notna(row['Payroll']):
@@ -216,8 +238,14 @@ def generate_contract_timeline(df: pd.DataFrame) -> pd.DataFrame:
         # Find the last row with a valid (non-None) status
         valid_status_mask = player_rows['Normalized_Status'].notna()
         if not valid_status_mask.any():
-            # All statuses are None - mark all as Free Agent
-            player_rows['Normalized_Status'] = 'Free Agent'
+            # All statuses are None — no salary/contract data matched.
+            # If the player is on an active roster (has Team), they are under
+            # team control and almost certainly Pre-Arb (young players not yet
+            # tracked in Spotrac). Otherwise assume Free Agent.
+            if 'Team' in player_rows.columns and player_rows['Team'].notna().any():
+                player_rows['Normalized_Status'] = 'Pre-Arb'
+            else:
+                player_rows['Normalized_Status'] = 'Free Agent'
             return player_rows
         
         last_valid_idx = player_rows[valid_status_mask].index[-1]

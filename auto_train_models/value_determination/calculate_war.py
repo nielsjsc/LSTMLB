@@ -179,123 +179,153 @@ def calculate_wrc_plus(woba: float, team: str, pa: float,
 
 def calculate_woba_from_predictions(batter_df: pd.DataFrame, use_calculated_woba: bool = None) -> pd.DataFrame:
     """
-    Calculate wOBA from batter prediction counting stats.
-    
-    Expects rate stats (HR_rate, 2B_rate, 3B_rate, HBP_rate, SF_rate) to be per 150 games.
-    Calculates actual counting stats, then applies the wOBA formula with 2025 weights.
-    
+    Calculate wOBA, OBP, and/or SLG from batter prediction counting stats.
+
+    Expects rate stats (HR, 2B, 3B per 150 games) and rate stats (BB%, AVG).
+    Each of the three stats is controlled independently by its BatterConfig toggle:
+        CALCULATE_WOBA_FROM_COMPONENTS
+        CALCULATE_OBP_FROM_COMPONENTS
+        CALCULATE_SLG_FROM_COMPONENTS
+
+    Formulas used:
+        OBP = (H + BB + HBP) / (AB + BB + HBP + SF)
+        SLG = (1B + 2*2B + 3*3B + 4*HR) / AB
+
     Args:
         batter_df: DataFrame with batter predictions (PA, rate stats, AVG, BB%, K%)
         use_calculated_woba: If True, calculate wOBA from components. If False, use LSTM's wOBA.
                             If None, reads from BatterConfig.CALCULATE_WOBA_FROM_COMPONENTS
-        
+
     Returns:
-        DataFrame with 'wOBA' column (calculated or original based on use_calculated_woba)
+        DataFrame with wOBA/OBP/SLG columns updated based on active toggles.
     """
     from .config import Config
-    
-    # Import batter config to check the toggle
+
+    # Load all three toggles from BatterConfig
+    use_calculated_obp = False
+    use_calculated_slg = False
     if use_calculated_woba is None:
         try:
-            # Try multiple import strategies to handle different execution contexts
             try:
                 from ..configs.batter_config import BatterConfig
             except (ImportError, ValueError):
-                # Relative import failed, try absolute from auto_train_models root
                 import sys
                 sys.path.insert(0, str(Path(__file__).parent.parent))
                 from configs.batter_config import BatterConfig
-            
+
             use_calculated_woba = BatterConfig.CALCULATE_WOBA_FROM_COMPONENTS
-            logger.info(f"Loaded BatterConfig.CALCULATE_WOBA_FROM_COMPONENTS = {use_calculated_woba}")
+            use_calculated_obp  = getattr(BatterConfig, 'CALCULATE_OBP_FROM_COMPONENTS', False)
+            use_calculated_slg  = getattr(BatterConfig, 'CALCULATE_SLG_FROM_COMPONENTS', False)
+            logger.info(
+                f"Loaded BatterConfig: wOBA={use_calculated_woba}, "
+                f"OBP={use_calculated_obp}, SLG={use_calculated_slg}"
+            )
         except (ImportError, AttributeError) as e:
-            # Default to True if config not available
             use_calculated_woba = True
-            logger.warning(f"Could not load BatterConfig.CALCULATE_WOBA_FROM_COMPONENTS (error: {e}), defaulting to True")
+            logger.warning(
+                f"Could not load BatterConfig component flags (error: {e}), defaulting wOBA=True"
+            )
     else:
         logger.info(f"Using provided use_calculated_woba parameter = {use_calculated_woba}")
-    
+
     df = batter_df.copy()
-    
-    # If not calculating wOBA from components, return original DataFrame
-    if not use_calculated_woba:
-        logger.info("Using LSTM's direct wOBA predictions (CALCULATE_WOBA_FROM_COMPONENTS=False)")
+
+    # Early exit if no component calculations are needed
+    if not (use_calculated_woba or use_calculated_obp or use_calculated_slg):
+        logger.info("All component calculations disabled — using LSTM's direct predictions.")
         return df
-    
-    # Force PA to 650 per 150 games for consistent wOBA calculation
-    # The model predicts varying PA, but for wOBA we want a standard baseline
+
+    # ------------------------------------------------------------------
+    # Build counting stats from rate stats (shared by wOBA / OBP / SLG)
+    # ------------------------------------------------------------------
+    # Force PA to 650 per 150 games for a consistent baseline
     df['PA'] = 650.0
-    
-    # PA is now standardized at 650 per 150 games
-    games_estimate = 150.0  # Since PA is per-150, games = 150
-    
-    # Calculate walks and strikeouts from percentages
-    # BB% and K% are already decimals (0.083 = 8.3%), not percentages, so don't divide by 100
+    games_estimate = 150.0
+
+    # Walks and strikeouts from rate stats (decimals, e.g. 0.083 = 8.3%)
     df['BB'] = df['BB%'] * df['PA']
     df['K'] = df['K%'] * df['PA']
-    
-    # Extra base hits, HBP, SF come directly from predictions (already per 150 games from preprocessing)
-    # Scale to actual games: stat is per 150, so (stat / 150) * games = stat * (games / 150)
+
+    # Extra-base hits are stored per 150 games in the model output
     df['HR_count'] = df['HR'] * (games_estimate / 150)
     df['2B_count'] = df['2B'] * (games_estimate / 150)
     df['3B_count'] = df['3B'] * (games_estimate / 150)
-    
-    # Calculate HBP and SF from predictions if available, otherwise estimate
+
+    # HBP and SF: use model-predicted per-150 values when available (preferred),
+    # falling back to league-average estimates only when the column is absent.
+    # HBP is predicted directly by the LSTM when it is in CLASSICAL_COUNTING_FEATURES.
     if 'HBP' in df.columns:
         df['HBP_count'] = df['HBP'] * (games_estimate / 150)
     else:
-        df['HBP_count'] = df['PA'] * 0.01  # ~1% of PA
-    
+        df['HBP_count'] = df['PA'] * 0.01  # fallback: ~1% of PA (league average)
+
     if 'SF' in df.columns:
         df['SF_count'] = df['SF'] * (games_estimate / 150)
     else:
-        df['SF_count'] = df['PA'] * 0.007  # ~0.7% of PA
-    
-    # Calculate AB and hits
+        df['SF_count'] = df['PA'] * 0.007  # fallback: ~0.7% of PA (league average)
+
+    # AB, hits, singles
     df['AB'] = df['PA'] - df['BB'] - df['HBP_count'] - df['SF_count']
     df['H'] = df['AVG'] * df['AB']
-    
-    # Calculate singles: 1B = H - 2B - 3B - HR
     df['1B'] = df['H'] - df['2B_count'] - df['3B_count'] - df['HR_count']
-    
-    # Estimate IBB as ~10% of BB (league average)
+
+    # IBB estimated at ~10% of BB (used only for wOBA)
     df['IBB'] = df['BB'] * 0.10
-    
-    # DEBUG: Log first player's values
+
+    # DEBUG log
     if len(df) > 0:
         first = df.iloc[0]
         logger.info(f"DEBUG - First player: {first.get('Name', 'Unknown')}")
         logger.info(f"  PA={first['PA']:.1f}, BB={first['BB']:.1f}, HBP={first['HBP_count']:.1f}, SF={first['SF_count']:.1f}")
         logger.info(f"  AB={first['AB']:.1f}, H={first['H']:.1f}, AVG={first['AVG']:.3f}")
         logger.info(f"  HR={first['HR_count']:.1f}, 2B={first['2B_count']:.1f}, 3B={first['3B_count']:.1f}, 1B={first['1B']:.1f}")
-    
-    # Calculate wOBA using the formula with 2025 weights
-    weights = Config.WAR.WOBA_WEIGHTS
-    
-    df['wOBA_calculated'] = df.apply(
-        lambda row: calculate_woba(
-            ab=row['AB'], bb=row['BB'], ibb=row['IBB'], hbp=row['HBP_count'], sf=row['SF_count'],
-            singles=row['1B'], doubles=row['2B_count'], triples=row['3B_count'], hr=row['HR_count'],
-            pa=row['PA'],
-            wbb=weights['wBB'], whbp=weights['wHBP'], w1b=weights['w1B'],
-            w2b=weights['w2B'], w3b=weights['w3B'], whr=weights['wHR']
-        ),
-        axis=1
-    )
-    
-    # Log comparison if wOBA already exists
-    if 'wOBA' in df.columns:
-        logger.info(f"Average wOBA - LSTM: {df['wOBA'].mean():.3f}, Calculated: {df['wOBA_calculated'].mean():.3f}")
-        # DEBUG: Show first player's calculation
-        if len(df) > 0:
-            first = df.iloc[0]
-            logger.info(f"  First player wOBA: LSTM={first.get('wOBA', 0):.4f}, Calculated={first['wOBA_calculated']:.4f}")
-    
-    # Replace or add wOBA column with calculated value
-    logger.info("Using calculated wOBA from component stats (CALCULATE_WOBA_FROM_COMPONENTS=True)")
-    df['wOBA'] = df['wOBA_calculated']
-    df = df.drop(columns=['wOBA_calculated'])
-    
+
+    # ------------------------------------------------------------------
+    # wOBA
+    # ------------------------------------------------------------------
+    if use_calculated_woba:
+        weights = Config.WAR.WOBA_WEIGHTS
+        df['wOBA_calculated'] = df.apply(
+            lambda row: calculate_woba(
+                ab=row['AB'], bb=row['BB'], ibb=row['IBB'], hbp=row['HBP_count'], sf=row['SF_count'],
+                singles=row['1B'], doubles=row['2B_count'], triples=row['3B_count'], hr=row['HR_count'],
+                pa=row['PA'],
+                wbb=weights['wBB'], whbp=weights['wHBP'], w1b=weights['w1B'],
+                w2b=weights['w2B'], w3b=weights['w3B'], whr=weights['wHR']
+            ),
+            axis=1
+        )
+        if 'wOBA' in df.columns:
+            logger.info(f"Average wOBA - LSTM: {df['wOBA'].mean():.3f}, Calculated: {df['wOBA_calculated'].mean():.3f}")
+        logger.info("Using calculated wOBA from component stats (CALCULATE_WOBA_FROM_COMPONENTS=True)")
+        df['wOBA'] = df['wOBA_calculated']
+        df = df.drop(columns=['wOBA_calculated'])
+
+    # ------------------------------------------------------------------
+    # OBP  =  (H + BB + HBP) / (AB + BB + HBP + SF)
+    # ------------------------------------------------------------------
+    if use_calculated_obp:
+        obp_num = df['H'] + df['BB'] + df['HBP_count']
+        obp_den = df['AB'] + df['BB'] + df['HBP_count'] + df['SF_count']
+        df['OBP_calculated'] = (obp_num / obp_den).clip(0, 1)
+        if 'OBP' in df.columns:
+            logger.info(f"Average OBP - LSTM: {df['OBP'].mean():.3f}, Calculated: {df['OBP_calculated'].mean():.3f}")
+        logger.info("Using calculated OBP from component stats (CALCULATE_OBP_FROM_COMPONENTS=True)")
+        df['OBP'] = df['OBP_calculated']
+        df = df.drop(columns=['OBP_calculated'])
+
+    # ------------------------------------------------------------------
+    # SLG  =  (1B + 2*2B + 3*3B + 4*HR) / AB
+    # ------------------------------------------------------------------
+    if use_calculated_slg:
+        slg_num = df['1B'] + 2 * df['2B_count'] + 3 * df['3B_count'] + 4 * df['HR_count']
+        df['SLG_calculated'] = (slg_num / df['AB']).clip(0, 4)
+        if 'SLG' in df.columns:
+            logger.info(f"Average SLG - LSTM: {df['SLG'].mean():.3f}, Calculated: {df['SLG_calculated'].mean():.3f}")
+        logger.info("Using calculated SLG from component stats (CALCULATE_SLG_FROM_COMPONENTS=True)")
+        df['SLG'] = df['SLG_calculated']
+        df = df.drop(columns=['SLG_calculated'])
+
     return df
 
 def calculate_baserunning_value(row: pd.Series, games: int) -> float:

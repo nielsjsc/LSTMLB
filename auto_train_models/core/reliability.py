@@ -101,10 +101,10 @@ STABILIZATION_POINTS: Dict[str, Dict[str, int]] = {
 BATTER_STABILIZATION_POINTS: Dict[str, int] = {
     'BB%':   120,   # Walk rate (fast — plate discipline is a stable skill)
     'K%':    60,    # Strikeout rate (very fast — contact ability is innate)
-    'AVG':   910,   # Batting average (very slow — BABIP-dependent)
+    'AVG':   300,   # Batting average (very slow — BABIP-dependent)
     'OBP':   460,   # On-base percentage (moderate — includes walks)
     'SLG':   320,   # Slugging (moderate — power is fairly stable)
-    'wOBA':  700,   # Weighted on-base average (moderate)
+    'wOBA':  200,   # Weighted on-base average (moderate)
     'wRC+':  350,   # Weighted runs created plus (same basis as wOBA)
     'ISO':   160,   # Isolated power (faster than SLG — pure power signal)
     'HR':    170,   # Home runs per 150G (derived from ISO/power, ~170 PA)

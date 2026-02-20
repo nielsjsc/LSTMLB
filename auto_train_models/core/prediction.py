@@ -52,6 +52,72 @@ def _is_park_factor_enabled(model_type: str) -> bool:
 
 
 # =============================================================================
+# COUNTING-STAT ADJUSTMENT FOR X-STAT CONSISTENCY
+# =============================================================================
+
+def _adjust_counting_stats_for_xstats(
+    data: pd.DataFrame,
+    orig_woba: np.ndarray | None,
+    orig_slg: np.ndarray | None,
+    orig_avg: np.ndarray | None,
+    input_features: list[str],
+) -> None:
+    """Adjust counting stats so they are consistent with x-stat substitutions.
+
+    When xwOBA / xSLG / xBA replace their actual counterparts, counting stats
+    (HR, 2B, 3B, RBI, R, HBP) still reflect actual outcomes.  This creates an
+    inconsistency that propagates into downstream wOBA / OBP / SLG calculations.
+
+    For each counting stat the adjustment is::
+
+        Δ = β_wOBA·(new_wOBA − orig_wOBA)
+          + β_SLG ·(new_SLG  − orig_SLG)
+          + β_AVG ·(new_AVG  − orig_AVG)
+        stat_adjusted = max(0, stat + Δ)
+
+    where the βs are OLS coefficients stored in
+    ``BatterConfig.XSTAT_COUNTING_ADJUSTMENT_COEFFICIENTS``.
+
+    Modifies *data* **in-place**.  No-op when no substitution deltas exist.
+    """
+    try:
+        from configs.batter_config import BatterConfig
+        coefficients = getattr(BatterConfig, 'XSTAT_COUNTING_ADJUSTMENT_COEFFICIENTS', {})
+    except (ImportError, AttributeError):
+        return
+
+    if not coefficients:
+        return
+
+    n = len(data)
+
+    # Compute per-row deltas (current value − original value).  If a stat was
+    # not substituted (or not present), delta is 0.
+    d_woba = (data['wOBA'].values - orig_woba) if ('wOBA' in data.columns and orig_woba is not None) else np.zeros(n)
+    d_slg  = (data['SLG'].values - orig_slg)  if ('SLG' in data.columns and orig_slg is not None)  else np.zeros(n)
+    d_avg  = (data['AVG'].values - orig_avg)  if ('AVG' in data.columns and orig_avg is not None)  else np.zeros(n)
+
+    # Short-circuit when nothing was substituted
+    if np.allclose(d_woba, 0) and np.allclose(d_slg, 0) and np.allclose(d_avg, 0):
+        return
+
+    adjusted_any = False
+    for stat, coefs in coefficients.items():
+        if stat not in data.columns or stat not in input_features:
+            continue
+        adjustment = (coefs['wOBA'] * d_woba +
+                      coefs['SLG'] * d_slg +
+                      coefs['AVG'] * d_avg)
+        data[stat] = np.maximum(0.0, data[stat].values + adjustment)
+        adjusted_any = True
+
+    if adjusted_any:
+        logger.debug("Counting stats adjusted for x-stat consistency "
+                     f"(Δ_wOBA mean={d_woba.mean():.4f}, Δ_SLG mean={d_slg.mean():.4f}, "
+                     f"Δ_AVG mean={d_avg.mean():.4f})")
+
+
+# =============================================================================
 # AGING CONSTRAINT ENFORCEMENT (POST-PREDICTION)
 # =============================================================================
 
@@ -311,6 +377,12 @@ def _prepare_player_sequence(
     # =========================================================================
     # x-stats replace traditional counterparts first so that park factor
     # neutralization operates on the final values the model will see.
+    #
+    # Save originals before substitution — needed by counting-stat adjustment.
+    _orig_woba = recent_data['wOBA'].values.copy() if 'wOBA' in recent_data.columns else None
+    _orig_slg  = recent_data['SLG'].values.copy() if 'SLG' in recent_data.columns else None
+    _orig_avg  = recent_data['AVG'].values.copy() if 'AVG' in recent_data.columns else None
+
     xwoba_substituted = False
     xba_substituted = False
     xslg_substituted = False
@@ -374,6 +446,21 @@ def _prepare_player_sequence(
 
     except (ImportError, AttributeError):
         # Config not available, skip substitution
+        pass
+
+    # =========================================================================
+    # COUNTING-STAT ADJUSTMENT FOR X-STAT CONSISTENCY
+    # =========================================================================
+    # When x-stats were substituted above, counting stats (HR, 2B, …) still
+    # reflect actual outcomes.  Adjust them so they are consistent with the
+    # substituted rate stats, using regression-derived coefficients.
+    try:
+        from configs.batter_config import BatterConfig
+        if getattr(BatterConfig, 'ADJUST_COUNTING_STATS_TO_XSTATS', False):
+            _adjust_counting_stats_for_xstats(
+                recent_data, _orig_woba, _orig_slg, _orig_avg, input_features
+            )
+    except (ImportError, AttributeError):
         pass
 
     # =========================================================================
@@ -707,6 +794,11 @@ def _predict_with_regression(
     # including the positions now holding x-stat values.
     # =========================================================================
     if model_type == 'batter':
+        # Save originals before substitution — needed by counting-stat adjustment
+        _orig_woba = player_data['wOBA'].values.copy() if 'wOBA' in player_data.columns else None
+        _orig_slg  = player_data['SLG'].values.copy() if 'SLG' in player_data.columns else None
+        _orig_avg  = player_data['AVG'].values.copy() if 'AVG' in player_data.columns else None
+
         try:
             from configs.batter_config import BatterConfig
 
@@ -736,6 +828,18 @@ def _predict_with_regression(
                 mask = player_data['xSLG'].notna()
                 player_data.loc[mask, 'SLG'] = player_data.loc[mask, 'xSLG']
 
+        except (ImportError, AttributeError):
+            pass
+
+        # -----------------------------------------------------------------
+        # COUNTING-STAT ADJUSTMENT FOR X-STAT CONSISTENCY
+        # -----------------------------------------------------------------
+        try:
+            from configs.batter_config import BatterConfig
+            if getattr(BatterConfig, 'ADJUST_COUNTING_STATS_TO_XSTATS', False):
+                _adjust_counting_stats_for_xstats(
+                    player_data, _orig_woba, _orig_slg, _orig_avg, input_features
+                )
         except (ImportError, AttributeError):
             pass
 
@@ -1372,6 +1476,64 @@ def predict_all_pitchers(
         return None
 
 
+# =============================================================================
+# STATCAST IMPUTATION HELPER
+# =============================================================================
+
+def _impute_statcast_from_xwoba(
+    df: pd.DataFrame,
+    input_features: List[str],
+) -> pd.DataFrame:
+    """
+    Fill missing statcast features using linear regressions on xwOBA.
+
+    Only modifies rows where (a) xwOBA is present and (b) the target statcast
+    column is NaN.  Existing values are never overwritten.  The function is a
+    no-op when the config toggle ``IMPUTE_STATCAST_FROM_XWOBA`` is ``False``
+    or when none of the statcast features appear in *input_features*.
+
+    Returns a **copy** of *df* with imputed values (the original is unchanged).
+    """
+    try:
+        from configs.batter_config import BatterConfig
+        if not getattr(BatterConfig, 'IMPUTE_STATCAST_FROM_XWOBA', False):
+            return df
+        coefficients = getattr(BatterConfig, 'STATCAST_IMPUTATION_COEFFICIENTS', {})
+    except (ImportError, AttributeError):
+        return df
+
+    if not coefficients:
+        return df
+
+    # Only impute features that are actually used by the model
+    features_to_impute = [f for f in coefficients if f in input_features and f in df.columns]
+    if not features_to_impute or 'xwOBA' not in df.columns:
+        return df
+
+    df = df.copy()
+    xwoba = df['xwOBA']
+    total_imputed = 0
+
+    for feat in features_to_impute:
+        coeff = coefficients[feat]
+        mask = df[feat].isna() & xwoba.notna()
+        n = mask.sum()
+        if n > 0:
+            df.loc[mask, feat] = coeff['slope'] * xwoba[mask] + coeff['intercept']
+            total_imputed += n
+            logger.info(
+                f"Statcast imputation: filled {n} missing '{feat}' values from xwOBA "
+                f"(y = {coeff['slope']:.4f}·xwOBA + {coeff['intercept']:.4f})"
+            )
+
+    if total_imputed > 0:
+        logger.info(f"Statcast imputation complete: {total_imputed} total values imputed across {len(features_to_impute)} features")
+    else:
+        logger.debug("Statcast imputation: no missing values needed filling")
+
+    return df
+
+
 def predict_all_batters(
     raw_df: pd.DataFrame, 
     player_names: pd.DataFrame,
@@ -1407,6 +1569,13 @@ def predict_all_batters(
     Returns:
         DataFrame with predictions for all batters, or None if no predictions generated
     """
+    # =========================================================================
+    # STATCAST IMPUTATION FROM xwOBA (prediction-only)
+    # =========================================================================
+    # Fill missing statcast features using linear regressions on xwOBA so that
+    # players are not excluded from the finetuned model due to absent columns.
+    raw_df = _impute_statcast_from_xwoba(raw_df, input_features)
+
     # Get only current year players (like fielding/baserunning)
     all_players = set(raw_df[
         (raw_df['Season'] == cutoff_year) & 

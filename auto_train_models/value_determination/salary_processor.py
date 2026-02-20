@@ -103,6 +103,16 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
         if status_col in cleaned_df.columns:
             cleaned_df.loc[is_fa_marker, status_col] = 'UFA'
         
+        # Clean years_of_service for downstream pre-arb / arb classification
+        yos_col = 'years_of_service' if 'years_of_service' in cleaned_df.columns else 'Years of Service'
+        if yos_col in cleaned_df.columns:
+            cleaned_df['Years_of_Service'] = pd.to_numeric(
+                cleaned_df[yos_col].astype(str).str.replace('-', '', regex=False).str.strip(),
+                errors='coerce'
+            )
+        else:
+            cleaned_df['Years_of_Service'] = np.nan
+        
         # Standardize column names
         cleaned_df['Player Name'] = cleaned_df[name_col]
         cleaned_df['Status'] = cleaned_df[status_col] if status_col in cleaned_df.columns else None
@@ -152,6 +162,7 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
                     'Team': g['Team'].dropna().iloc[0] if g['Team'].notna().any() else np.nan,
                     'Payroll': g['Payroll'].sum() if g['Payroll'].notna().any() else np.nan,
                     'Status': g['Status'].dropna().iloc[0] if g['Status'].notna().any() else np.nan,
+                    'Years_of_Service': g['Years_of_Service'].dropna().iloc[0] if g['Years_of_Service'].notna().any() else np.nan,
                 })
             pre_dedup = len(cleaned_df)
             cleaned_df = (
@@ -164,7 +175,7 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
                 f"({pre_dedup - len(cleaned_df)} duplicates removed)"
             )
 
-        output_cols = ['Player Name', 'Year', 'Team', 'Payroll', 'Status']
+        output_cols = ['Player Name', 'Year', 'Team', 'Payroll', 'Status', 'Years_of_Service']
         return cleaned_df[output_cols].copy()
 
     except Exception as e:
@@ -249,15 +260,19 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
 
     # Use OUTER merge to keep both prediction years AND salary-only years (for long contracts like Soto's 2031-2039)
     # Team is intentionally excluded — canonical team assignment happens in main.py via current_rosters.csv.
+    salary_merge_cols = ['Name_Normalized', 'Year', 'Payroll', 'Status']
+    if 'Years_of_Service' in salary_df.columns:
+        salary_merge_cols.append('Years_of_Service')
     merged_df = player_ref.merge(
-        salary_df[['Name_Normalized', 'Year', 'Payroll', 'Status']],
+        salary_df[salary_merge_cols],
         on=['Name_Normalized', 'Year'],
         how='outer'
     )
     
-    # For rows that came from salary but not predictions (salary-only years beyond 2030),
-    # fill in IDfg and position_group by matching on Name_Normalized
-    missing_id_mask = merged_df['IDfg'].isna() & merged_df['Payroll'].notna()
+    # For rows that came from salary but not predictions (salary-only years beyond 2030,
+    # or pre-arb players whose salary rows have Status but no Payroll),
+    # fill in IDfg and position_group by matching on Name_Normalized.
+    missing_id_mask = merged_df['IDfg'].isna() & (merged_df['Payroll'].notna() | merged_df['Status'].notna())
     if missing_id_mask.any():
         # Create lookup: Name_Normalized -> (IDfg, position_group, Name)
         id_lookup = player_ref[['Name_Normalized', 'IDfg', 'position_group', 'Name']].drop_duplicates('Name_Normalized')

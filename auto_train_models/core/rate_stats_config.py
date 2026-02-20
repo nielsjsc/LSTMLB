@@ -8,6 +8,21 @@ Add new rate stat types here without modifying the core data processing code.
 from typing import Dict, List, Callable
 import pandas as pd
 
+# =============================================================================
+# BATTING COUNTING STATS — per-150-games conversion
+# =============================================================================
+# Master list of ALL batting counting stats that require per-150-games scaling.
+# calculate_rate_stats() divides each by G and multiplies by 150, overwriting
+# the column in-place (no suffix).  This list is the single source of truth,
+# referenced by both the data processing pipeline and the batter config.
+#
+# To add a new counting stat for batters:
+#   1. Add it here
+#   2. Add it to CLASSICAL_COUNTING_FEATURES (or STATCAST_COUNTING_FEATURES)
+#      in configs/batter_config.py if you also want the model to train on it.
+BATTING_COUNTING_STATS = [
+    'HR', '2B', '3B', 'RBI', 'R', 'HBP', 'SF',
+]
 # Rate stat configurations
 RATE_STAT_CONFIGS = {
     # Defensive stats (per 150 games)

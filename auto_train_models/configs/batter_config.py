@@ -81,7 +81,7 @@ class BatterConfig:
     USE_XWOBA_BLEND_FOR_PREDICTIONS = False
     
     # Use xBA instead of AVG for predictions (more predictive for recent players)
-    USE_XBA_FOR_PREDICTIONS = True
+    USE_XBA_FOR_PREDICTIONS = False
     
     # Use xSLG instead of SLG for predictions (more predictive for recent players)
     USE_XSLG_FOR_PREDICTIONS = True
@@ -97,35 +97,128 @@ class BatterConfig:
     # when the model's wOBA predictions don't perfectly align with the counting stats.
     # Set to False to use the LSTM's direct wOBA prediction.
     CALCULATE_WOBA_FROM_COMPONENTS = True
+
+    # Calculate OBP from components: (H + BB + HBP) / (AB + BB + HBP + SF)
+    # Uses the same AVG, BB%, HR, 2B, 3B predictions as the wOBA calculation.
+    # HBP is taken directly from the model's predicted HBP (per-150) value;
+    # falls back to 1% of PA only when HBP is absent from predictions.
+    # Set to False to use the LSTM's direct OBP prediction.
+    CALCULATE_OBP_FROM_COMPONENTS = True
+
+    # Calculate SLG from components: (1B + 2*2B + 3*3B + 4*HR) / AB
+    # Uses the same AVG, HR, 2B, 3B predictions as the wOBA calculation.
+    # Set to False to use the LSTM's direct SLG prediction.
+    CALCULATE_SLG_FROM_COMPONENTS = True
+
+    # ============================================================================
+    # STATCAST IMPUTATION FROM xwOBA (PREDICTIONS ONLY)
+    # ============================================================================
+    # When enabled, players missing statcast features (sc_ev50, sc_anglesweetspot-
+    # percent, HardHit%, Barrel%) will have those values estimated from their xwOBA
+    # using linear regressions fit on 2015-2024 data (PA >= 100).  This prevents
+    # players from being excluded from the finetuned model's predictions solely
+    # because the advanced statcast columns are absent in some of their seasons.
+    #
+    # Only affects PREDICTIONS — training data is not modified.
+    # Only fills NaN cells; existing values are never overwritten.
+    IMPUTE_STATCAST_FROM_XWOBA = True
+
+    # Regression coefficients: y = slope * xwOBA + intercept
+    # Derived from 2015-2024 MLB statcast data (PA >= 100).
+    #   sc_ev50                   : R² = 0.41, RMSE = 1.98, n = 4 090
+    #   sc_anglesweetspotpercent  : R² = 0.20, RMSE = 3.72, n = 4 090
+    #   HardHit%                  : R² = 0.40, RMSE = 0.065, n = 4 836
+    #   Barrel%                   : R² = 0.40, RMSE = 0.032, n = 4 760
+    STATCAST_IMPUTATION_COEFFICIENTS = {
+        'sc_ev50':                  {'slope': 44.036147, 'intercept': 85.274046},
+        'sc_anglesweetspotpercent': {'slope': 49.275835, 'intercept': 17.830435},
+        'HardHit%':                 {'slope':  1.323041, 'intercept': -0.044321},
+        'Barrel%':                  {'slope':  0.667159, 'intercept': -0.135564},
+    }
+
+    # ============================================================================
+    # COUNTING-STAT ADJUSTMENT FOR X-STAT CONSISTENCY (PREDICTIONS ONLY)
+    # ============================================================================
+    # When x-stats (xwOBA, xSLG, xBA) are substituted for their actual
+    # counterparts, the counting stats (HR, 2B, 3B, etc.) still reflect actual
+    # outcomes.  This creates an internal inconsistency: a lucky hitter keeps
+    # inflated HR/RBI numbers even though xwOBA says he should be worse.
+    #
+    # When enabled, each counting stat is adjusted by:
+    #   adjustment = β_wOBA * (xwOBA – wOBA) + β_SLG * (xSLG – SLG) + β_AVG * (xBA – AVG)
+    #   stat_adjusted = max(0, stat + adjustment)
+    #
+    # The β coefficients come from OLS regressions of each per-150 counting stat
+    # on (wOBA, SLG, AVG) fitted on 2015-2024 statcast data (PA ≥ 100, n = 4 836).
+    # Validation: recalculated wOBA MAE vs xwOBA improved 45.5 % (0.0199 → 0.0109)
+    # and correlation rose from 0.846 to 0.980.
+    #
+    # Only affects PREDICTIONS — training data is not modified.
+    # Requires at least one of USE_XWOBA/USE_XSLG/USE_XBA to be True, and the
+    # corresponding x-stat columns to exist on the player-season row.
+    ADJUST_COUNTING_STATS_TO_XSTATS = True
+
+    # OLS coefficients: counting_stat_per150 ~ wOBA + SLG + AVG
+    # Keyed by the per-150 column name that appears after calculate_rate_stats().
+    XSTAT_COUNTING_ADJUSTMENT_COEFFICIENTS = {
+        'HR':  {'wOBA':   +2.575, 'SLG': +159.102, 'AVG': -163.902},  # R²=0.86
+        '2B':  {'wOBA':  -39.707, 'SLG':  +56.790, 'AVG':  +93.301},  # R²=0.40
+        '3B':  {'wOBA':  -17.878, 'SLG':   +8.405, 'AVG':  +18.513},  # R²=0.05
+        'RBI': {'wOBA':  -42.814, 'SLG': +279.536, 'AVG':  -76.336},  # R²=0.64
+        'R':   {'wOBA': +273.212, 'SLG':  +56.306, 'AVG':   -7.282},  # R²=0.56
+        'HBP': {'wOBA': +127.679, 'SLG':  -41.019, 'AVG':  -48.149},  # R²=0.13
+    }
+
     # ============================================================================
     # TRANSFER LEARNING FEATURE SETS
     # ============================================================================
+    #
+    # Features are split into RATE stats (already normalised: percentages,
+    # averages, indices — no per-150 conversion) and COUNTING stats (raw totals
+    # that are converted to per-150-games during preprocessing by
+    # calculate_rate_stats in core/data_processing.py).
+    #
+    # To add a new feature:
+    #   Rate stat    (BB%, AVG, wOBA, HardHit%, …)  → add to *_RATE_FEATURES
+    #   Counting stat (HR, RBI, HBP, SB, …)         → add to *_COUNTING_FEATURES
+    #       AND ensure it also appears in BATTING_COUNTING_STATS in
+    #       core/rate_stats_config.py so the per-150 conversion is applied.
+    # ============================================================================
     
-    # Classical features for pre-training (2000-2024, available all years)
-    # NOTE: HR, 2B, 3B, RBI, R, HBP, SF, PA are per 150 games (scaled during preprocessing)
-    CLASSICAL_FEATURES = [
-        'Age', 'BB%', 'K%', 'AVG', 'OBP', 'SLG', 'wOBA', #'wRC+',
-        'HR', '2B', '3B','RBI', 'R',
-        #'sc_ev50',
-        #'sc_anglesweetspotpercent',
-        #'HardHit%',
-        #'Barrel%',
-        #'LD+%',# 'BABIP', 'ISO'
+    # ---------- Classical rate stats (no per-150 conversion) ----------
+    CLASSICAL_RATE_FEATURES = [
+        'Age',
+        'BB%', 'K%',
+        'AVG', 'OBP', 'SLG', 'wOBA',
     ]
     
-    # Statcast features for fine-tuning (2015+ only)
-    # These are the most predictive metrics from statcast data
-    STATCAST_FEATURES = [
-        # Batted Ball Quality (most predictive)
+    # ---------- Classical counting stats (converted to per-150 games) ----------
+    CLASSICAL_COUNTING_FEATURES = [
+        'HR', '2B', '3B', 'RBI', 'R',
+        'HBP',  # hit-by-pitch per 150 games; used in OBP and wOBA calculations
+    ]
+    
+    CLASSICAL_FEATURES = CLASSICAL_RATE_FEATURES + CLASSICAL_COUNTING_FEATURES
+    
+    # ---------- Statcast rate stats (no per-150 conversion) ----------
+    STATCAST_RATE_FEATURES = [
         'sc_ev50',
         'sc_anglesweetspotpercent',
         'HardHit%',
         'Barrel%',
-        'LD+%',
-
-
-
+        #'Pull%+',
+        #'LD+%',
+        #'CSW%',
+        #'EV',
+        #'LA'
     ]
+    
+    # ---------- Statcast counting stats (converted to per-150 games) ----------
+    # (none currently — add counting Statcast features here if needed)
+    STATCAST_COUNTING_FEATURES = [
+    ]
+    
+    STATCAST_FEATURES = STATCAST_RATE_FEATURES + STATCAST_COUNTING_FEATURES
     
     # Combined features for fine-tuning (classical + statcast)
     # Total: 13 classical + 15 statcast = 28 features
@@ -173,24 +266,24 @@ class BatterConfig:
     FINETUNE_CHECKPOINT_FILE = 'batter_finetuned.pth'
     FINETUNE_START_SEASON = 2015  # Statcast era begins
     FINETUNE_MIN_PA = MIN_PA
-    FINETUNE_LEARNING_RATE = 1e-4  # 10x smaller than pre-training
+    FINETUNE_LEARNING_RATE = 1e-5  # 10x smaller than pre-training
     FREEZE_LSTM = True  # Freeze LSTM layers during fine-tuning
     
     # Model architecture (direct attributes for factory compatibility)
     # These are the ACTUAL values the model will use after removing hardcoded modifications
     HIDDEN_SIZE = 128  # Actual internal LSTM hidden size
-    NUM_LAYERS = 1   # Actual number of LSTM layers
+    NUM_LAYERS = 2   # Actual number of LSTM layers
     NUM_HEADS = 2   # Actual number of attention heads
     BIDIRECTIONAL = False
-    DROPOUT = 0.05   # Validated optimal dropout rate
+    DROPOUT = 0.1   # Validated optimal dropout rate
     
     # Training parameters
-    BATCH_SIZE = 256
+    BATCH_SIZE = 128
     LEARNING_RATE = 1e-3
     WEIGHT_DECAY = 1e-5
     GRADIENT_CLIP = 1.0
-    NUM_EPOCHS = 30
-    EARLY_STOPPING_PATIENCE = 5
+    NUM_EPOCHS = 100
+    EARLY_STOPPING_PATIENCE = 10
     
     # Stability settings - prevent NaN issues
     WARMUP_EPOCHS = 5  # Skip warmup - causes tiny LR (4e-5) that leads to NaN
