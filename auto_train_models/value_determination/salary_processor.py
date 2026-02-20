@@ -11,12 +11,13 @@ Key responsibilities:
 - Handle various payroll formats and FA markers
 
 TODO: mlbam_id Migration
-    - Current: Uses name matching to find IDfg
-    - Target: Use mlbam_id as primary match key
-    - Sportrac data includes player_id which may be MLBAM
-    - Need to validate and use this for direct matching
+    - Current: Uses name matching + roster fallback (fg_id bridge) to find IDfg
+    - Target: Use mlbam_id as primary match key once available in all data sources
+    - Sportrac player_id is Spotrac-internal (NOT MLBAM)
+    - Roster file bridges via fg_id (= FanGraphs IDfg)
 """
 
+import re
 import pandas as pd
 import numpy as np
 import unidecode
@@ -25,9 +26,26 @@ from typing import Tuple
 from .config import Config, logger
 
 
+# Common suffixes stripped during fuzzy matching (not in primary normalization)
+_SUFFIXES = re.compile(r'\s+(JR\.?|SR\.?|III|IV|II|V)\s*$')
+
+# Known name aliases: Spotrac name → FanGraphs/prediction name (both UPPERCASE, post-normalize)
+# Add entries here when salary data uses a different name variant than predictions.
+_NAME_ALIASES = {
+    'JAKE JUNIS': 'JAKOB JUNIS',
+    'CAM SCHLITTLER': 'CAMERON SCHLITTLER',
+}
+
+
 def normalize_name(name: str) -> str:
     """
     Normalize player names by removing accents and standardizing format.
+    
+    Handles:
+    - Accented characters (via unidecode)
+    - Periods in initials: "T.J." → "TJ"
+    - Hyphens: "Woods-Richardson" → "WOODS RICHARDSON"
+    - FA suffix removal
     
     Args:
         name: Raw player name
@@ -39,11 +57,31 @@ def normalize_name(name: str) -> str:
         return name
     normalized = unidecode.unidecode(str(name)).upper().strip()
     
+    # Remove periods (T.J. → TJ, A.J. → AJ)
+    normalized = normalized.replace('.', '')
+    
+    # Normalize hyphens to spaces (Woods-Richardson → WOODS RICHARDSON)
+    normalized = normalized.replace('-', ' ')
+    
+    # Collapse multiple spaces
+    normalized = ' '.join(normalized.split())
+    
     # Remove FA suffix that sometimes appears in salary data
     if normalized.endswith(' FA'):
         normalized = normalized[:-3].strip()
     
+    # Apply known name aliases (nickname → canonical name)
+    normalized = _NAME_ALIASES.get(normalized, normalized)
+    
     return normalized
+
+
+def normalize_name_no_suffix(name: str) -> str:
+    """Normalize name and strip common suffixes (Jr., III, etc.) for fuzzy matching."""
+    normalized = normalize_name(name)
+    if pd.isna(normalized):
+        return normalized
+    return _SUFFIXES.sub('', normalized).strip()
 
 
 def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -224,17 +262,18 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
     salary_df['Name_Normalized'] = salary_df['Player Name'].apply(normalize_name)
 
     # Fix Luis Garcia names - normalize team abbreviations
-    # Two different players share this name: IDfg 23735 (HOU pitcher) and Luis Garcia Jr. (WSH batter).
+    # Two different players share this name: IDfg 23735 (HOU pitcher, now NYM) and Luis Garcia Jr. (WSH batter).
     salary_df['Team_lower'] = salary_df['Team'].str.lower()
-    mask_garcia_hou = (salary_df['Name_Normalized'] == 'LUIS GARCIA') & (salary_df['Team_lower'].str.contains('hou|astros', na=False))
+    mask_garcia_pitcher = (salary_df['Name_Normalized'] == 'LUIS GARCIA') & (salary_df['Team_lower'].str.contains('hou|astros|nym|mets', na=False))
     mask_garcia_wsh = (salary_df['Name_Normalized'] == 'LUIS GARCIA') & (salary_df['Team_lower'].str.contains('wsh|washington|nationals', na=False))
     
-    salary_df.loc[mask_garcia_hou, 'Name_Normalized'] = 'LUIS GARCIA HOU'
-    salary_df.loc[mask_garcia_wsh, 'Name_Normalized'] = 'LUIS GARCIA JR.'
+    salary_df.loc[mask_garcia_pitcher, 'Name_Normalized'] = 'LUIS GARCIA HOU'
+    salary_df.loc[mask_garcia_wsh, 'Name_Normalized'] = 'LUIS GARCIA JR'
     
     # Update player reference - active players
     player_ref.loc[player_ref['IDfg'] == 23735, 'Name_Normalized'] = 'LUIS GARCIA HOU'
-    player_ref.loc[player_ref['Name_Normalized'] == 'LUIS GARCIA JR.', 'Name_Normalized'] = 'LUIS GARCIA JR.'
+    # normalize_name now strips periods, so "Luis Garcia Jr." → "LUIS GARCIA JR"
+    player_ref.loc[player_ref['Name_Normalized'] == 'LUIS GARCIA JR', 'Name_Normalized'] = 'LUIS GARCIA JR'
     
     # Handle FA players
     player_ref.loc[
@@ -284,6 +323,70 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
                 merged_df.loc[idx, 'IDfg'] = match.iloc[0]['IDfg']
                 merged_df.loc[idx, 'position_group'] = match.iloc[0]['position_group']
                 merged_df.loc[idx, 'Name'] = match.iloc[0]['Name']
+    
+    # ── Fallback matching via roster bridge + suffix stripping ──────────
+    # Some salary names don't match prediction names due to nickname differences
+    # (e.g. "Mike Burrows" vs "Michael Burrows") or missing suffixes
+    # (e.g. "Jazz Chisholm" vs "Jazz Chisholm Jr.").
+    # The roster file has mapped_name which resolves many of these.
+    still_missing = merged_df['IDfg'].isna() & (merged_df['Payroll'].notna() | merged_df['Status'].notna())
+    if still_missing.any():
+        matched_via_fallback = 0
+        try:
+            roster_df = pd.read_csv(Config.Paths.ROSTER_FILE)
+            
+            # Build roster lookups: normalized name → IDfg (using fg_id from roster)
+            roster_lookups = {}  # norm_name -> (fg_id, player_name)
+            for _, row in roster_df.iterrows():
+                fgid = row.get('fg_id')
+                if pd.isna(fgid):
+                    continue
+                fgid = int(fgid)
+                # Add mapped_name variant
+                mapped = row.get('mapped_name')
+                if pd.notna(mapped):
+                    roster_lookups[normalize_name(mapped)] = (fgid, str(mapped))
+                # Add player_name variant
+                pname = row.get('player_name')
+                if pd.notna(pname):
+                    roster_lookups[normalize_name(pname)] = (fgid, str(pname))
+                # Add suffix-stripped variants of both
+                if pd.notna(mapped):
+                    roster_lookups[normalize_name_no_suffix(mapped)] = (fgid, str(mapped))
+                if pd.notna(pname):
+                    roster_lookups[normalize_name_no_suffix(pname)] = (fgid, str(pname))
+            
+            # Also build a prediction lookup: IDfg -> (position_group, Name)
+            pred_lookup = player_ref[['IDfg', 'position_group', 'Name']].drop_duplicates('IDfg')
+            pred_lookup_dict = {
+                int(row['IDfg']): (row['position_group'], row['Name'])
+                for _, row in pred_lookup.iterrows()
+                if pd.notna(row['IDfg'])
+            }
+            
+            for idx in merged_df[still_missing].index:
+                name_norm = merged_df.loc[idx, 'Name_Normalized']
+                # Try exact roster match first, then suffix-stripped match
+                fgid_match = None
+                for try_name in [name_norm, _SUFFIXES.sub('', name_norm).strip() if name_norm else None]:
+                    if try_name and try_name in roster_lookups:
+                        fgid_match = roster_lookups[try_name]
+                        break
+                
+                if fgid_match is not None:
+                    fgid, display_name = fgid_match
+                    merged_df.loc[idx, 'IDfg'] = fgid
+                    if fgid in pred_lookup_dict:
+                        merged_df.loc[idx, 'position_group'] = pred_lookup_dict[fgid][0]
+                        merged_df.loc[idx, 'Name'] = pred_lookup_dict[fgid][1]
+                    else:
+                        merged_df.loc[idx, 'Name'] = display_name
+                    matched_via_fallback += 1
+            
+            if matched_via_fallback > 0:
+                logger.info(f"Roster fallback matching: resolved {matched_via_fallback} additional salary rows")
+        except FileNotFoundError:
+            logger.warning("Roster file not found — skipping fallback salary matching")
     
     logger.info(
         f"Salary merge: {len(merged_df)} rows total, "

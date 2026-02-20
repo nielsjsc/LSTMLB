@@ -169,10 +169,13 @@ def normalize_contract_status(df: pd.DataFrame) -> pd.DataFrame:
                         return 'Signed'  # 6+ years service → FA-eligible but Active means signed
                 except (ValueError, TypeError):
                     pass
-            # No payroll AND no usable service time → Spotrac uses explicit
-            # ARB/UFA tags for arb-eligible and FA players, so an Active/Injured
-            # status without payroll info strongly implies Pre-Arb.
-            return 'Pre-Arb'
+            # No payroll AND no usable service time → could be a Spotrac placeholder
+            # row beyond the actual contract (e.g. Active + NaN payroll for years
+            # after the last option year).  Return None so that
+            # generate_contract_timeline() infers the correct status from the last
+            # valid contract year.  Real pre-arb players are caught by the
+            # years_of_service check above or by ARB/UFA status tags.
+            return None
         
         # If we still don't know but they have a payroll, assume signed
         if pd.notna(row['Payroll']):
