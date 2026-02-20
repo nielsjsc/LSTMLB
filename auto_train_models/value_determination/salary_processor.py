@@ -105,6 +105,7 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
         # Handle different column naming conventions
         name_col = 'player_name' if 'player_name' in cleaned_df.columns else 'Player Name'
         payroll_col = 'payroll_annual' if 'payroll_annual' in cleaned_df.columns else 'Payroll'
+        luxury_col = 'luxury_tax' if 'luxury_tax' in cleaned_df.columns else None
         status_col = 'status' if 'status' in cleaned_df.columns else 'Status'
         year_col = 'year' if 'year' in cleaned_df.columns else 'Year'
         team_col = 'team' if 'team' in cleaned_df.columns else 'Team'
@@ -127,15 +128,27 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
         # Mark rows where payroll_annual contains FA indicators
         is_fa_marker = payroll_str.str.contains('UFA|RFA|FA', case=False, na=False, regex=True)
         
-        # Clean payroll values
-        # First remove parenthetical notes like "(Arb. Midpoint)"
-        payroll = payroll_str.str.split('(').str[0]
-        payroll = (payroll
-                  .str.replace('$', '', regex=False)
+        # Helper to parse dollar-string columns into numeric
+        def _parse_dollar_col(series: pd.Series) -> pd.Series:
+            s = series.astype(str).str.split('(').str[0]
+            s = (s.str.replace('$', '', regex=False)
                   .str.replace(',', '', regex=False)
                   .str.replace('-', '', regex=False))
+            return pd.to_numeric(s, errors='coerce')
         
-        cleaned_df['Payroll'] = pd.to_numeric(payroll, errors='coerce')
+        # Parse payroll_annual (used for FA detection & fallback)
+        cleaned_df['_payroll_annual'] = _parse_dollar_col(cleaned_df[payroll_col])
+        
+        # Parse luxury_tax — this is the preferred salary basis because it
+        # reflects the MLB-adjusted AAV that accounts for deferrals, signing
+        # bonuses, and other contract structure.
+        if luxury_col and luxury_col in cleaned_df.columns:
+            cleaned_df['_luxury_tax'] = _parse_dollar_col(cleaned_df[luxury_col])
+        else:
+            cleaned_df['_luxury_tax'] = np.nan
+        
+        # Use luxury_tax when available, fall back to payroll_annual
+        cleaned_df['Payroll'] = cleaned_df['_luxury_tax'].fillna(cleaned_df['_payroll_annual'])
         
         # Override Status for rows with FA markers in payroll column
         if status_col in cleaned_df.columns:
@@ -180,21 +193,45 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
         for key, value in stats.items():
             logger.info(f"{key}: {value:,.2f}" if isinstance(value, float) else f"{key}: {value}")
         
-        # Deduplicate (player_id, Year) pairs — same player can appear multiple times because:
-        # (1) Traded players are scraped from both old and new team's Spotrac roster page
-        #     (e.g. Devers appears under both Red Sox and Giants after a mid-season trade).
-        # (2) Spotrac player pages contain multiple HTML contract tables that the scraper
-        #     can parse independently, producing two rows from one page.
+        # ── Deduplication ─────────────────────────────────────────────────
+        # Same player can appear multiple times per year because:
+        # (1) Traded players are scraped from BOTH old and new team's Spotrac
+        #     page — e.g. Devers appears under Red Sox AND Giants with identical
+        #     salary figures → these are pure cross-team duplicates.
+        # (2) Spotrac splits salary into multiple rows on the same page — e.g.
+        #     base salary + signing-bonus amortization → these should be SUMMED.
         #
-        # Strategy: group by (Spotrac player_id, Year), sum Payroll (prorated amounts
-        # across two teams correctly sum to the full-year salary obligation), and take
-        # the first non-null value for all categorical columns.
+        # Strategy:
+        #   Step A: Drop cross-team duplicates.  Group by (player_id, Year,
+        #           Payroll) and keep only the first team.  Rows with the same
+        #           dollar amount on multiple teams are the same contract line
+        #           scraped twice.
+        #   Step B: Sum the remaining rows per (player_id, Year).  This
+        #           correctly adds base salary + bonus amortization rows.
         #
         # Team is kept for name-disambiguation purposes in merge_salary_with_ids()
         # (e.g. distinguishing Luis Garcia HOU vs Luis Garcia WSH). It is NOT the
         # canonical team source — that comes from current_rosters.csv in main.py.
         if 'IDfg' in cleaned_df.columns:  # IDfg here holds the raw Spotrac player_id
-            def _agg_salary_dupes(g):
+            pre_dedup = len(cleaned_df)
+            
+            # Step A: Drop cross-team duplicates.
+            # Rows that share (player_id, Year, Payroll) across different teams
+            # are the same contract line scraped from multiple team pages.
+            # Keep only the first occurrence.
+            # Handle NaN Payroll separately to avoid dropping distinct NaN rows.
+            cleaned_df['_payroll_key'] = cleaned_df['Payroll'].fillna(-9999)
+            cleaned_df = cleaned_df.drop_duplicates(
+                subset=['IDfg', 'Year', '_payroll_key'],
+                keep='first'
+            )
+            cross_team_dupes = pre_dedup - len(cleaned_df)
+            
+            # Step B: Sum within-player-year rows.
+            # After removing cross-team duplicates, remaining multiple rows for the
+            # same (player_id, Year) are distinct contract components (base salary +
+            # signing-bonus amortization).  Sum the salary and take first categorical.
+            def _agg_salary_components(g):
                 return pd.Series({
                     'Player Name': g['Player Name'].dropna().iloc[0] if g['Player Name'].notna().any() else np.nan,
                     'Team': g['Team'].dropna().iloc[0] if g['Team'].notna().any() else np.nan,
@@ -202,15 +239,18 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
                     'Status': g['Status'].dropna().iloc[0] if g['Status'].notna().any() else np.nan,
                     'Years_of_Service': g['Years_of_Service'].dropna().iloc[0] if g['Years_of_Service'].notna().any() else np.nan,
                 })
-            pre_dedup = len(cleaned_df)
+            pre_agg = len(cleaned_df)
             cleaned_df = (
                 cleaned_df.groupby(['IDfg', 'Year'])
-                .apply(_agg_salary_dupes)
+                .apply(_agg_salary_components)
                 .reset_index()  # brings IDfg and Year back as columns
             )
+            components_merged = pre_agg - len(cleaned_df)
+            
             logger.info(
                 f"Deduplication: {pre_dedup} → {len(cleaned_df)} rows "
-                f"({pre_dedup - len(cleaned_df)} duplicates removed)"
+                f"({cross_team_dupes} cross-team dupes dropped, "
+                f"{components_merged} component rows merged)"
             )
 
         output_cols = ['Player Name', 'Year', 'Team', 'Payroll', 'Status', 'Years_of_Service']
