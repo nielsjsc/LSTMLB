@@ -105,7 +105,6 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
         # Handle different column naming conventions
         name_col = 'player_name' if 'player_name' in cleaned_df.columns else 'Player Name'
         payroll_col = 'payroll_annual' if 'payroll_annual' in cleaned_df.columns else 'Payroll'
-        luxury_col = 'luxury_tax' if 'luxury_tax' in cleaned_df.columns else None
         status_col = 'status' if 'status' in cleaned_df.columns else 'Status'
         year_col = 'year' if 'year' in cleaned_df.columns else 'Year'
         team_col = 'team' if 'team' in cleaned_df.columns else 'Team'
@@ -136,19 +135,13 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
                   .str.replace('-', '', regex=False))
             return pd.to_numeric(s, errors='coerce')
         
-        # Parse payroll_annual (used for FA detection & fallback)
+        # Parse payroll_annual — the primary salary basis, reflecting the
+        # actual cash  value of the contract year-by-year.
         cleaned_df['_payroll_annual'] = _parse_dollar_col(cleaned_df[payroll_col])
         
-        # Parse luxury_tax — this is the preferred salary basis because it
-        # reflects the MLB-adjusted AAV that accounts for deferrals, signing
-        # bonuses, and other contract structure.
-        if luxury_col and luxury_col in cleaned_df.columns:
-            cleaned_df['_luxury_tax'] = _parse_dollar_col(cleaned_df[luxury_col])
-        else:
-            cleaned_df['_luxury_tax'] = np.nan
-        
-        # Use luxury_tax when available, fall back to payroll_annual
-        cleaned_df['Payroll'] = cleaned_df['_luxury_tax'].fillna(cleaned_df['_payroll_annual'])
+        # Use payroll_annual directly as the player's salary for all downstream
+        # calculations (contract value, surplus, trade value).
+        cleaned_df['Payroll'] = cleaned_df['_payroll_annual']
         
         # Override Status for rows with FA markers in payroll column
         if status_col in cleaned_df.columns:
