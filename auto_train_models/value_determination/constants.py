@@ -69,5 +69,10 @@ BASE_YEAR = Config.Contracts.BASE_YEAR
 MIN_SALARY = Config.Contracts.MIN_SALARY
 ARB_PERCENT = Config.Contracts.ARB_PERCENT
 
+# Convex model exports
+ConvexModel = Config.ConvexModel
+CONVEX_ALPHA_DEFAULT = Config.ConvexModel.ALPHA_DEFAULT
+CONVEX_BETA_DEFAULT = Config.ConvexModel.BETA_DEFAULT
+
 # Type alias
 PathLike = str

@@ -397,16 +397,21 @@ def _prepare_player_sequence(
             original_woba = recent_data['wOBA'].values.copy()
 
             if num_seasons < seq_length:
-                xwoba_values = player_data['xwOBA'].copy()
-                while len(xwoba_values) < seq_length:
-                    xwoba_values = pd.concat([xwoba_values.iloc[:1], xwoba_values], ignore_index=True)
-                recent_data['wOBA'] = xwoba_values.values
+                xwoba_candidate = player_data['xwOBA'].copy()
+                while len(xwoba_candidate) < seq_length:
+                    xwoba_candidate = pd.concat([xwoba_candidate.iloc[:1], xwoba_candidate], ignore_index=True)
+                xwoba_candidate = xwoba_candidate.values
             else:
-                recent_data['wOBA'] = player_data['xwOBA'].iloc[-seq_length:].values
+                xwoba_candidate = player_data['xwOBA'].iloc[-seq_length:].values
 
-            xwoba_substituted = True
-            logger.debug(f"Player {player_id}: Substituted xwOBA → wOBA position. "
-                         f"Original wOBA: {original_woba}, New xwOBA: {recent_data['wOBA'].values}")
+            # Only substitute if all values are valid — avoids introducing NaN for pre-Statcast seasons
+            if not pd.isna(xwoba_candidate).any():
+                recent_data['wOBA'] = xwoba_candidate
+                xwoba_substituted = True
+                logger.debug(f"Player {player_id}: Substituted xwOBA → wOBA position. "
+                             f"Original wOBA: {original_woba}, New xwOBA: {recent_data['wOBA'].values}")
+            else:
+                logger.debug(f"Player {player_id}: Skipped xwOBA substitution — NaN values present for this sequence")
 
         # xBA substitution (AVG → xBA)
         if (BatterConfig.USE_XBA_FOR_PREDICTIONS and
@@ -415,16 +420,21 @@ def _prepare_player_sequence(
             original_avg = recent_data['AVG'].values.copy()
 
             if num_seasons < seq_length:
-                xba_values = player_data['xBA'].copy()
-                while len(xba_values) < seq_length:
-                    xba_values = pd.concat([xba_values.iloc[:1], xba_values], ignore_index=True)
-                recent_data['AVG'] = xba_values.values
+                xba_candidate = player_data['xBA'].copy()
+                while len(xba_candidate) < seq_length:
+                    xba_candidate = pd.concat([xba_candidate.iloc[:1], xba_candidate], ignore_index=True)
+                xba_candidate = xba_candidate.values
             else:
-                recent_data['AVG'] = player_data['xBA'].iloc[-seq_length:].values
+                xba_candidate = player_data['xBA'].iloc[-seq_length:].values
 
-            xba_substituted = True
-            logger.debug(f"Player {player_id}: Substituted xBA → AVG position. "
-                         f"Original AVG: {original_avg}, New xBA: {recent_data['AVG'].values}")
+            # Only substitute if all values are valid — avoids introducing NaN for pre-Statcast seasons
+            if not pd.isna(xba_candidate).any():
+                recent_data['AVG'] = xba_candidate
+                xba_substituted = True
+                logger.debug(f"Player {player_id}: Substituted xBA → AVG position. "
+                             f"Original AVG: {original_avg}, New xBA: {recent_data['AVG'].values}")
+            else:
+                logger.debug(f"Player {player_id}: Skipped xBA substitution — NaN values present for this sequence")
 
         # xSLG substitution (SLG → xSLG)
         if (BatterConfig.USE_XSLG_FOR_PREDICTIONS and
@@ -433,16 +443,21 @@ def _prepare_player_sequence(
             original_slg = recent_data['SLG'].values.copy()
 
             if num_seasons < seq_length:
-                xslg_values = player_data['xSLG'].copy()
-                while len(xslg_values) < seq_length:
-                    xslg_values = pd.concat([xslg_values.iloc[:1], xslg_values], ignore_index=True)
-                recent_data['SLG'] = xslg_values.values
+                xslg_candidate = player_data['xSLG'].copy()
+                while len(xslg_candidate) < seq_length:
+                    xslg_candidate = pd.concat([xslg_candidate.iloc[:1], xslg_candidate], ignore_index=True)
+                xslg_candidate = xslg_candidate.values
             else:
-                recent_data['SLG'] = player_data['xSLG'].iloc[-seq_length:].values
+                xslg_candidate = player_data['xSLG'].iloc[-seq_length:].values
 
-            xslg_substituted = True
-            logger.debug(f"Player {player_id}: Substituted xSLG → SLG position. "
-                         f"Original SLG: {original_slg}, New xSLG: {recent_data['SLG'].values}")
+            # Only substitute if all values are valid — avoids introducing NaN for pre-Statcast seasons
+            if not pd.isna(xslg_candidate).any():
+                recent_data['SLG'] = xslg_candidate
+                xslg_substituted = True
+                logger.debug(f"Player {player_id}: Substituted xSLG → SLG position. "
+                             f"Original SLG: {original_slg}, New xSLG: {recent_data['SLG'].values}")
+            else:
+                logger.debug(f"Player {player_id}: Skipped xSLG substitution — NaN values present for this sequence")
 
     except (ImportError, AttributeError):
         # Config not available, skip substitution

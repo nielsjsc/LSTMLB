@@ -204,8 +204,8 @@ class BatterConfig:
     STATCAST_RATE_FEATURES = [
         'sc_ev50',
         'sc_anglesweetspotpercent',
-        'HardHit%',
-        'Barrel%',
+        #'HardHit%',
+        #'Barrel%',
         #'Pull%+',
         #'LD+%',
         #'CSW%',
@@ -266,7 +266,7 @@ class BatterConfig:
     FINETUNE_CHECKPOINT_FILE = 'batter_finetuned.pth'
     FINETUNE_START_SEASON = 2015  # Statcast era begins
     FINETUNE_MIN_PA = MIN_PA
-    FINETUNE_LEARNING_RATE = 1e-5  # 10x smaller than pre-training
+    FINETUNE_LEARNING_RATE = 1e-3  # 10x smaller than pre-training
     FREEZE_LSTM = True  # Freeze LSTM layers during fine-tuning
     
     # Model architecture (direct attributes for factory compatibility)
@@ -283,7 +283,7 @@ class BatterConfig:
     WEIGHT_DECAY = 1e-5
     GRADIENT_CLIP = 1.0
     NUM_EPOCHS = 100
-    EARLY_STOPPING_PATIENCE = 10
+    EARLY_STOPPING_PATIENCE = 15
     
     # Stability settings - prevent NaN issues
     WARMUP_EPOCHS = 5  # Skip warmup - causes tiny LR (4e-5) that leads to NaN

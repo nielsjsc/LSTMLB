@@ -1,0 +1,745 @@
+trade_id,trade_year,side_A_team,side_A_players,side_A_n,side_A_surplus,side_A_war_value,side_A_salary,side_B_team,side_B_players,side_B_n,side_B_surplus,side_B_war_value,side_B_salary,imbalance
+642337,2022,Washington Nationals,"Josh Bell, Juan Soto",2,144586417.0,203734349.0,59147932.0,San Diego Padres,"CJ Abrams, James Wood, Robert Hassell III, MacKenzie Gore, Jarlin Susana, Luke Voit",6,381389776.2036615,27360290.0,9174915.0,236803359.2036615
+251466,2015,Arizona Diamondbacks,"Ender Inciarte, Aaron Blair, Dansby Swanson",3,261336391.35997438,74171859.0,13032945.0,Atlanta Braves,Shelby Miller,1,33387117.0,45456416.0,12069299.0,227949274.35997438
+606110,2022,Athletics,Matt Olson,1,-87918418.0,80081582.0,168000000.0,Atlanta Braves,"Cristian Pache, Ryan Cusick, Shea Langeliers, Joey Estes",4,132920221.21533956,,,220838639.21533954
+212887,2014,Los Angeles Dodgers,"Miguel Rojas, Dan Haren, Dee Strange-Gordon",3,10246868.0,39311816.0,29064948.0,Miami Marlins,"Austin Barnes, Enrique Hernández, Chris Hatcher, Andrew Heaney",4,230803653.43455517,138955801.0,26736177.0,220556785.43455517
+294482,2016,Boston Red Sox,"Yoán Moncada, Luis Alexander Basabe, Michael Kopech, Victor Diaz",4,274652424.71287704,,,Chicago White Sox,Chris Sale,1,54447888.0,60947888.0,6500000.0,220204536.71287704
+384506,2018,Arizona Diamondbacks,Paul Goldschmidt,1,-76442453.0,42057547.0,118500000.0,St. Louis Cardinals,"Luke Weaver, Andrew Young, Carson Kelly",3,140717021.0060852,82401570.0,15921612.0,217159474.0060852
+338499,2017,Miami Marlins,Giancarlo Stanton,1,-165670204.0,84329796.0,250000000.0,New York Yankees,"Starlin Castro, Jorge Guzmán, José Devers",3,44388997.056165054,738429.0,17142857.0,210059201.05616504
+461349,2021,Colorado Rockies,Nolan Arenado,1,-156541543.0,38458457.0,195000000.0,St. Louis Cardinals,"Elehuris Montero, Tony Locey, Mateo Gil, Austin Gomber",4,45590934.83921998,,,202132477.83922
+421037,2019,Arizona Diamondbacks,Zack Greinke,1,-65091362.0,38158638.0,103250000.0,Houston Astros,"J.B. Bukauskas, Corbin Martin, Seth Beer",3,121778687.14250736,,,186870049.14250737
+384366,2018,New York Mets,"Gerson Bautista, Jarred Kelenic, Justin Dunn, Jay Bruce, Anthony Swarzak",5,152077449.07400137,23797405.0,33000000.0,Seattle Mariners,"Edwin Díaz, Robinson Canó",2,-26521075.0,101651740.0,128172815.0,178598524.07400137
+240245,2015,Texas Rangers,"Jorge Alfaro, Jerad Eickhoff, Nick Williams, Alec Asher, Jake Thompson",5,173656840.34289348,,,Philadelphia Phillies,"Cole Hamels, Jake Diekman",2,-3936200.0,99563800.0,103500000.0,177593040.34289348
+338994,2017,San Francisco Giants,"Christian Arroyo, Matt Krook, Denard Span",3,118222805.07502976,136342984.0,29080532.0,Tampa Bay Rays,Evan Longoria,1,-49240779.0,34092554.0,83333333.0,167463584.07502976
+613042,2022,Arizona Diamondbacks,Jeferson Espinal,1,4274020.955148629,,,Texas Rangers,Yonny Hernández,1,170805941.0,201114579.0,30308638.0,166531920.04485136
+198981,2014,Chicago Cubs,"Jason Hammel, Jeff Samardzija",2,16817331.0,31173083.0,14355752.0,Athletics,"Billy McKinney, Addison Russell, Dan Straily",3,183335927.5016866,34037911.0,8564585.0,166518596.5016866
+860233,2025,Athletics,"JP Sears, Mason Miller",2,44923708.0,62285391.0,17361684.0,San Diego Padres,"Leo De Vries, Henry Baez, Eduarniel Núñez, Braden Nett",4,202377777.7777778,,,157454069.7777778
+331253,2017,Detroit Tigers,Justin Verlander,1,-32790181.0,44352676.0,77142857.0,Houston Astros,"Daz Cameron, Franklin Pérez, Jake Rogers",3,109603530.75029758,,,142393711.75029758
+808135,2024,Boston Red Sox,"Wikelman González, Chase Meidroth, Braden Montgomery, Kyle Teel",4,178767521.36752135,,,Chicago White Sox,Garrett Crochet,1,39601922.0,58692844.0,19090921.0,139165599.36752135
+438093,2020,Boston Red Sox,"Mookie Betts, David Price",2,284746149.0,404746149.0,120000000.0,Los Angeles Dodgers,"Jeter Downs, Connor Wong, Alex Verdugo",3,146420156.9268268,79014459.0,12721402.0,138325992.0731732
+733200,2023,Atlanta Braves,"Michael Soroka, Jared Shuster, Braden Shewmake, Nicky Lopez",4,149720586.77320728,97619171.0,20841263.0,Chicago White Sox,Aaron Bummer,1,16462226.0,20462226.0,4000000.0,133258360.77320728
+213238,2014,Los Angeles Dodgers,"Tim Federowicz, Matt Kemp",2,-89114999.0,19400001.0,108515000.0,San Diego Padres,"Yasmani Grandal, Joe Wieland, Zach Eflin",3,40090308.28541892,10941779.0,8007500.0,129205307.28541893
+641258,2022,Cincinnati Reds,Luis Castillo,1,26065616.0,38636453.0,12570837.0,Seattle Mariners,"Noelvi Marte, Edwin Arroyo, Levi Stoudt",3,154703325.93113658,,,128637709.93113658
+508097,2021,Toronto Blue Jays,"Simeon Woods Richardson, Austin Martin",2,137635562.89586103,,,Minnesota Twins,José Berríos,1,9772050.0,16286750.0,6514700.0,127863512.89586103
+250121,2015,Boston Red Sox,"Javy Guerra, Logan Allen, Carlos Asuaje, Manuel Margot",4,128461242.60666189,,,San Diego Padres,Craig Kimbrel,1,1909798.0,22909798.0,21000000.0,126551444.60666189
+642568,2022,Los Angeles Angels,Noah Syndergaard,1,137765958.50091195,,,Philadelphia Phillies,Mickey Moniak,1,12822062.865445886,,,124943895.63546607
+508180,2021,Los Angeles Dodgers,"Donovan Casey, Keibert Ruiz, Josiah Gray, Gerardo Carrillo",4,161010223.15407607,,,Washington Nationals,"Trea Turner, Max Scherzer",2,39681150.0,92487981.0,52806831.0,121329073.15407607
+281408,2016,Cleveland Guardians,"Justus Sheffield, Clint Frazier",2,109499916.94888897,,,New York Yankees,Andrew Miller,1,-5363985.0,21636015.0,27000000.0,114863901.94888897
+450329,2020,San Diego Padres,"Andrés Muñoz, Taylor Trammell, Luis Torrens, Ty France",4,145287534.81228215,99016876.0,19412110.0,Seattle Mariners,"Dan Altavilla, Austin Nola, Austin Adams",3,30607568.200079355,18213960.0,16834000.0,114679966.6122028
+326926,2017,Athletics,Sonny Gray,1,30202121.0,41185615.0,10983493.0,New York Yankees,"James Kaprielian, Jorge Mateo, Dustin Fowler",3,144270721.5876139,,,114068600.58761391
+240065,2015,Detroit Tigers,David Price,1,1616223.0,21366223.0,19750000.0,Toronto Blue Jays,"Jairo Labourt, Daniel Norris, Matthew Boyd",3,113509792.89981917,,,111893569.89981917
+450407,2020,Arizona Diamondbacks,Archie Bradley,1,4930708.0,11430708.0,6500000.0,Cincinnati Reds,"Josh VanMeter, Stuart Fairchild",2,115881321.60139027,117001486.0,13449071.0,110950613.60139027
+735804,2023,Cleveland Guardians,Cody Morris,1,13868343.195266271,,,New York Yankees,Estevan Florial,1,123561115.0,143570936.0,20009821.0,109692771.80473372
+860098,2025,Minnesota Twins,Jhoan Duran,1,16591528.0,24337570.0,7746042.0,Philadelphia Phillies,"Eduardo Tait, Mick Abel",2,124691686.09168607,,,108100158.09168607
+715847,2023,New York Mets,Max Scherzer,1,-36070557.0,50596109.0,86666666.0,Texas Rangers,Luisangel Acuña,1,71321573.72541986,,,107392130.72541986
+372130,2018,Pittsburgh Pirates,"Tyler Glasnow, Austin Meadows",2,132870780.495272,85642447.0,15304459.0,Tampa Bay Rays,Chris Archer,1,25583095.0,37886372.0,12303277.0,107287685.495272
+755205,2024,San Diego Padres,"Drew Thorpe, Jairo Iriarte, Samuel Zavala, Steven Wilson",4,135526522.39393938,19372583.0,8240000.0,Chicago White Sox,Dylan Cease,1,28926378.0,43072877.0,14146499.0,106600144.39393938
+281544,2016,Los Angeles Dodgers,"Frankie Montas, Grant Holmes, Jharel Cotton",3,112616847.19400233,,,Athletics,Josh Reddick,1,7579800.0,14154800.0,6575000.0,105037047.19400233
+323836,2017,Chicago Cubs,"Dylan Cease, Eloy Jiménez",2,157031967.69315362,,,Chicago White Sox,Jose Quintana,1,55070368.0,66232150.0,11161783.0,101961599.69315362
+331194,2017,Los Angeles Angels,Grayson Long,1,10960353.075029759,,,Detroit Tigers,Justin Upton,1,-89658280.0,20966720.0,110625000.0,100618633.07502976
+877331,2025,Los Angeles Angels,Taylor Ward,1,30396712.528082527,,,Baltimore Orioles,Grayson Rodriguez,1,130485700.19723862,,,100088987.6691561
+860048,2025,New York Mets,"Blade Tidwell, José Buttó, Drew Gilbert",3,100193079.1010101,15092069.0,7500000.0,San Francisco Giants,Tyler Rogers,1,457088.0,5707088.0,5250000.0,99735991.1010101
+280440,2016,Chicago Cubs,"Gleyber Torres, Adam Warren, Billy McKinney",3,96229686.00983006,13930585.0,7500000.0,New York Yankees,Aroldis Chapman,1,-1811862.0,9513138.0,11325000.0,98041548.00983006
+214433,2015,Texas Rangers,"Corey Knebel, Luis Sardinas, Marcos Diplán",3,91775101.28541891,67565510.0,12946438.0,Milwaukee Brewers,Yovani Gallardo,1,-3659159.0,10340841.0,14000000.0,95434260.28541891
+281582,2016,Cincinnati Reds,Jay Bruce,1,-2101130.0,6398870.0,8500000.0,New York Mets,"Max Wotell, Dilson Herrera",2,93298969.03368247,96956248.0,14196079.0,95400099.03368247
+240185,2015,Houston Astros,"Brett Phillips, Josh Hader, Adrian Houser, Domingo Santana",4,136559496.42971596,,,Milwaukee Brewers,Carlos Gómez,1,42827007.0,58827007.0,16000000.0,93732489.42971596
+213015,2014,Arizona Diamondbacks,Wade Miley,1,19019887.0,38269887.0,19250000.0,Boston Red Sox,"Rubby De La Rosa, Allen Webster",2,112306305.0,135762523.0,23456218.0,93286418.0
+860112,2025,Boston Red Sox,Blaze Jordan,1,5000000.0,,,St. Louis Cardinals,Steven Matz,1,97409747.62836276,,,92409747.62836276
+459097,2020,San Diego Padres,"Cole Wilcox, Luis Patiño, Francisco Mejía, Blake Hunt",4,115021194.59446435,,,Tampa Bay Rays,Blake Snell,1,23609435.0,53609435.0,30000000.0,91411759.59446435
+281598,2016,San Francisco Giants,"Matt Duffy, Lucius Fox, Michael Santos",3,127279097.45683569,105057788.0,16420962.0,Tampa Bay Rays,Matt Moore,1,36506611.0,43636840.0,7130229.0,90772486.45683569
+385410,2018,Cincinnati Reds,"Josiah Gray, Jeter Downs, Homer Bailey",3,90958621.60222042,8314588.0,28000000.0,Los Angeles Dodgers,"Kyle Farmer, Matt Kemp, Yasiel Puig, Alex Wood",4,427238.0,48966238.0,48539000.0,90531383.60222042
+739097,2024,Baltimore Orioles,"DL Hall, Joey Ortiz",2,104627591.19735819,38650233.0,9720000.0,Milwaukee Brewers,Corbin Burnes,1,14429108.0,24048513.0,9619405.0,90198483.19735819
+269369,2016,San Diego Padres,James Shields,1,-35681345.0,20568655.0,56250000.0,Chicago White Sox,Erik Johnson,1,53196085.29854583,,,88877430.29854584
+385950,2019,Houston Astros,J.D. Davis,1,104353966.0,118434254.0,14080288.0,New York Mets,"Luis Santana, Ross Adolph",2,15806290.514602916,,,88547675.48539709
+860295,2025,San Diego Padres,Brandon Valenzuela,1,14423076.923076922,,,Toronto Blue Jays,Will Wagner,1,102701327.0,114361873.0,11660546.0,88278250.07692307
+383220,2018,Cleveland Guardians,"Tahnaj Thomas, Erik González",2,3799717.8859521877,0.0,8055000.0,Pittsburgh Pirates,"Max Moroff, Jordan Luplow",2,91664302.07502976,91935715.0,11231766.0,87864584.18907757
+212888,2014,Los Angeles Angels,Howie Kendrick,1,4985199.0,13360199.0,8375000.0,Los Angeles Dodgers,Andrew Heaney,1,91561463.68152325,,,86576264.68152325
+806845,2024,Cincinnati Reds,"Jonathan India, Joey Wiemer",2,108657229.13220966,60359048.0,19545568.0,Kansas City Royals,Brady Singer,1,22798157.0,33762760.0,10964602.0,85859072.13220966
+736054,2023,Boston Red Sox,Chris Sale,1,-2889214.0,14110786.0,17000000.0,Atlanta Braves,Vaughn Grissom,1,82574582.0,101281288.0,18706706.0,85463796.0
+735227,2023,Los Angeles Dodgers,"Jonny DeLuca, Ryan Pepiot",2,54728124.43966289,,,Tampa Bay Rays,"Tyler Glasnow, Manuel Margot",2,139795087.0,149295223.0,9500136.0,85066962.56033711
+601101,2021,Boston Red Sox,Hunter Renfroe,1,18837127.0,27326051.0,8488924.0,Milwaukee Brewers,"Alex Binelas, Jackie Bradley Jr., David Hamilton",3,103690178.82034011,,,84853051.82034011
+641912,2022,Athletics,"Frankie Montas, Lou Trivino",2,32353462.0,52731916.0,20378454.0,New York Yankees,"Cooper Bowman, Luis Medina, Ken Waldichuk, JP Sears",4,115569526.62721892,,,83216064.62721892
+821529,2025,Cleveland Guardians,Tyler Freeman,1,94686931.0,120714262.0,26027331.0,Colorado Rockies,Nolan Jones,1,13152416.0,21412416.0,8260000.0,81534515.0
+448638,2020,New York Mets,Jordan Humphreys,1,4109635.5337967584,,,San Francisco Giants,Billy Hamilton,1,85614766.78003871,,,81505131.24624196
+860330,2025,Houston Astros,Matt Mikulski,1,4444981.793354574,,,Minnesota Twins,Carlos Correa,1,-76049054.0,57284279.0,133333333.0,80494035.79335457
+740419,2024,Minnesota Twins,Nick Gordon,1,87774339.0,110894538.0,23120199.0,Miami Marlins,Steven Okert,1,8012841.0,15512841.0,7500000.0,79761498.0
+641361,2022,St. Louis Cardinals,Edmundo Sosa,1,79082704.0,95220212.0,16137508.0,Philadelphia Phillies,JoJo Romero,1,0.0,,,79082704.0
+605978,2022,Minnesota Twins,"Ben Rortvedt, Isiah Kiner-Falefa, Josh Donaldson",3,123327960.0,200485139.0,77157178.0,New York Yankees,"Gary Sánchez, Gio Urshela",2,44330651.75303194,28846809.0,11538723.0,78997308.24696806
+878291,2025,Washington Nationals,Jose A. Ferrer,1,4622781.065088757,,,Seattle Mariners,Harry Ford,1,82882828.28282829,,,78260047.21773952
+642442,2022,Boston Red Sox,Jay Groome,1,13334945.380063722,,,San Diego Padres,"Eric Hosmer, Max Ferguson",2,-64861727.20664543,2693291.0,72000000.0,78196672.58670916
+736422,2024,Seattle Mariners,José Caballero,1,70799267.0,85713079.0,14913811.0,Tampa Bay Rays,Luke Raley,1,-7291107.0,1708893.0,9000000.0,78090374.0
+251775,2015,Houston Astros,"Vince Velasquez, Mark Appel, Brett Oberholtzer, Thomas Eshelman",4,115815883.64483902,94052000.0,19824992.0,Philadelphia Phillies,"Ken Giles, Jonathan Araúz",2,38216962.03368246,36316505.0,8638344.0,77598921.61115655
+281603,2016,Texas Rangers,"Luis Ortiz, Lewis Brinson",2,115769261.61768028,,,Milwaukee Brewers,"Jeremy Jeffress, Jonathan Lucroy",2,38699462.0,53797648.0,15098187.0,77069799.61768028
+294520,2016,Washington Nationals,"Dane Dunning, Lucas Giolito, Reynaldo López",3,154256821.05597436,,,Chicago White Sox,Adam Eaton,1,77210586.0,93185137.0,15974550.0,77046235.05597436
+662366,2022,Seattle Mariners,"Jesse Winker, Abraham Toro",2,77908394.0,104117459.0,26209064.0,Milwaukee Brewers,Kolten Wong,1,1596687.0,11596687.0,10000000.0,76311707.0
+281571,2016,San Francisco Giants,"Andrew Susac, Phil Bickford",2,89937012.49051814,49772354.0,9016413.0,Milwaukee Brewers,Will Smith,1,14377219.0,22384719.0,8007500.0,75559793.49051814
+270213,2016,Chicago Cubs,Arismendy Alcántara,1,75105990.82052629,,,Athletics,Chris Coghlan,1,576279.0,5376279.0,4800000.0,74529711.82052629
+878210,2025,Boston Red Sox,Jhostynxon Garcia,1,74369696.96969697,,,Pittsburgh Pirates,Johan Oviedo,1,0.0,,,74369696.96969697
+791130,2024,Baltimore Orioles,"Connor Norby, Kyle Stowers",2,74021392.80837505,,,Miami Marlins,Trevor Rogers,1,0.0,,,74021392.80837505
+212242,2014,Athletics,Josh Donaldson,1,68015882.0,82742720.0,14726838.0,Toronto Blue Jays,"Franklin Barreto, Sean Nolin, Brett Lawrie, Kendall Graveman",4,141133232.59488228,56941792.0,15026416.0,73117350.59488228
+212889,2014,Cincinnati Reds,Alfredo Simon,1,4095648.0,9645648.0,5550000.0,Detroit Tigers,"Jonathon Crawford, Eugenio Suárez",2,75850257.53238697,77804427.0,12087633.0,71754609.53238697
+507564,2021,Houston Astros,"Joe Smith, Abraham Toro",2,84515383.0,109155814.0,24640431.0,Seattle Mariners,"Rafael Montero, Kendall Graveman",2,13049589.53238698,9416127.0,6500000.0,71465793.46761303
+808976,2024,Philadelphia Phillies,"Starlyn Caba, Emaarion Boyd",2,74807692.3076923,,,Miami Marlins,"Jesús Luzardo, Paul McIntosh",2,4622781.065088757,,,70184911.24260354
+790860,2024,Houston Astros,"Will Wagner, Jake Bloss, Joey Loperfido",3,57692307.69230768,,,Toronto Blue Jays,Yusei Kikuchi,1,-11574761.0,425239.0,12000000.0,69267068.69230768
+826399,2025,Boston Red Sox,Quinn Priester,1,73335051.70043631,,,Milwaukee Brewers,Yophery Rodriguez,1,5000000.0,,,68335051.70043631
+860370,2025,Tampa Bay Rays,Taj Bradley,1,82009042.0,102474674.0,20465633.0,Minnesota Twins,Griffin Jax,1,14447584.0,21983067.0,7535482.0,67561458.0
+324840,2017,Chicago White Sox,"Todd Frazier, David Robertson, Tommy Kahnle",3,2151295.0,45186295.0,43035000.0,New York Yankees,"Blake Rutherford, Tyler Clippard, Ian Clarkin",3,69652106.36001433,3531773.0,6125000.0,67500811.36001433
+860399,2025,Arizona Diamondbacks,Merrill Kelly,1,3331273.0,10331273.0,7000000.0,Texas Rangers,"David Hagaman, Mitch Bratt, Kohl Drake",3,70000000.0,,,66668727.0
+736617,2024,Chicago Cubs,"Jackson Ferris, Zyhir Hope",2,105769230.76923075,,,Los Angeles Dodgers,"Yency Almonte, Michael Busch",2,39149459.0,55775987.0,16626528.0,66619771.76923075
+734714,2023,San Diego Padres,"Trent Grisham, Juan Soto",2,55019589.0,102488893.0,47469304.0,New York Yankees,"Kyle Higashioka, Jhony Brito, Drew Thorpe, Michael King, Randy Vásquez",5,121262922.93240093,57761368.0,22430847.0,66243333.93240093
+670144,2023,Athletics,A.J. Puk,1,12997408.0,21217408.0,8220000.0,Miami Marlins,JJ Bleday,1,78816933.0,94015420.0,15198487.0,65819525.0
+460795,2021,New York Mets,Steven Matz,1,97409747.62836276,,,Toronto Blue Jays,"Josh Winckowski, Yennsy Díaz, Sean Reid-Foley",3,31612581.029205833,,,65797166.59915693
+369701,2018,Cleveland Guardians,Francisco Mejía,1,67648037.24999781,,,San Diego Padres,Brad Hand,1,2215815.0,21965815.0,19750000.0,65432222.24999781
+790595,2024,Chicago Cubs,Christopher Morel,1,98287887.0,115107075.0,16819188.0,Tampa Bay Rays,Isaac Paredes,1,33850272.0,43535943.0,9685671.0,64437615.0
+459122,2020,Chicago Cubs,"Yu Darvish, Victor Caratini",2,3987670.0,79639046.0,75651377.0,San Diego Padres,"Yeison Santana, Ismael Mena, Owen Caissie, Zach Davies, Reginald Preciado",5,68055631.28237806,8301296.0,8630000.0,64067961.28237806
+456868,2020,Cincinnati Reds,"Robert Stephenson, Jameson Hannah",2,66873948.19182497,,,Colorado Rockies,"Case Williams, Jeff Hoffman",2,4088729.0,12159229.0,8070500.0,62785219.19182497
+202532,2014,Kansas City Royals,Danny Valencia,1,-6185770.0,1814230.0,8000000.0,Toronto Blue Jays,"Liam Hendriks, Erik Kratz",2,56209952.0,73505322.0,17295371.0,62395722.0
+642071,2022,Pittsburgh Pirates,"Chris Stratton, Jose Quintana",2,4056708.0,12556708.0,8500000.0,St. Louis Cardinals,"Malcom Nuñez, Johan Oviedo",2,65501925.38006372,64469933.0,12302952.0,61445217.38006372
+201169,2014,Los Angeles Angels,"Taylor Lindsey, R.J. Alvarez, José Rondon",3,61710188.49851045,,,San Diego Padres,Huston Street,1,528537.0,7528537.0,7000000.0,61181651.49851045
+281576,2016,Los Angeles Dodgers,Mike Bolsinger,1,67721208.0,78898891.0,11177683.0,Toronto Blue Jays,Jesse Chavez,1,6954557.0,11590928.0,4636371.0,60766651.0
+809599,2025,Cincinnati Reds,Mike Sirota,1,78527272.72727273,,,Los Angeles Dodgers,Gavin Lux,1,19489822.0,28856032.0,9366210.0,59037450.727272734
+240120,2015,Los Angeles Dodgers,Zack Bird,1,27022566.753031943,,,Atlanta Braves,"Jim Johnson, Alex Wood, José Peraza, Luis Avilán, Bronson Arroyo",5,85643002.22948638,58987841.0,29872500.0,58620435.47645444
+294475,2016,Boston Red Sox,"Josh Pennington, Travis Shaw, Mauricio Dubón",3,65729259.27510911,34155359.0,8614062.0,Milwaukee Brewers,Tyler Thornburg,1,7869420.0,15369420.0,7500000.0,57859839.27510911
+385930,2019,New York Mets,"Adam Hill, Bobby Wahl",2,7903145.257301458,,,Milwaukee Brewers,Keon Broxton,1,65588327.0,79718173.0,14129846.0,57685181.74269854
+326976,2017,Los Angeles Dodgers,"Willie Calhoun, Brendon Davis",2,65735547.89726938,,,Texas Rangers,Yu Darvish,1,8673629.0,18006962.0,9333333.0,57061918.89726938
+213329,2014,San Diego Padres,"Jace Peterson, Max Fried, Dustin Peterson, Mallex Smith",4,73272729.08033662,,,Atlanta Braves,"Justin Upton, Aaron Northcraft",2,16389125.973449018,15187078.0,8541666.0,56883603.106887594
+324438,2017,Washington Nationals,"Jesús Luzardo, Sheldon Neuse, Blake Treinen",3,68683589.4001587,18263373.0,8035000.0,Athletics,"Ryan Madson, Sean Doolittle",2,12087009.0,33253675.0,21166666.0,56596580.4001587
+860302,2025,Los Angeles Dodgers,James Outman,1,67931722.0,79113042.0,11181320.0,Minnesota Twins,Brock Stewart,1,11877003.0,19377003.0,7500000.0,56054719.0
+791279,2024,San Diego Padres,"Robby Snelling, Adam Mazur, Graham Pauley",3,65423465.42346542,,,Miami Marlins,"Tanner Scott, Bryan Hoeing",2,9903114.0,24603114.0,14700000.0,55520351.42346542
+296423,2017,Seattle Mariners,"Ryan Yarbrough, Mallex Smith",2,70841851.07502976,74869840.0,14988342.0,Tampa Bay Rays,Drew Smyly,1,16211129.0,24102960.0,7891831.0,54630722.07502976
+609975,2022,Toronto Blue Jays,Reese McGuire,1,36352215.0,46075472.0,9723256.0,Chicago White Sox,Zack Collins,1,90877064.0,108074485.0,17197421.0,54524849.0
+278718,2016,Boston Red Sox,Anderson Espinoza,1,58649669.69869264,,,San Diego Padres,Drew Pomeranz,1,4645878.0,12145878.0,7500000.0,54003791.69869264
+178809,2014,Washington Nationals,Nate Karns,1,9743713.973449018,,,Tampa Bay Rays,"Felipe Vázquez, Drew Vettleson, Jose Lobatón",3,63181505.18110313,50794684.0,9968605.0,53437791.20765412
+250104,2015,Los Angeles Angels,"Erick Aybar, Sean Newcomb, Chris Ellis",3,69363435.3718924,6421201.0,8750000.0,Atlanta Braves,"Andrelton Simmons, José Briceño",2,16073729.212892286,53837194.0,41428571.0,53289706.159000106
+387608,2019,Philadelphia Phillies,"Jorge Alfaro, Sixto Sánchez, Will Stewart",3,78155500.40633559,14971930.0,8618500.0,Miami Marlins,J.T. Realmuto,1,25127803.0,36616371.0,11488567.0,53027697.40633559
+715903,2023,St. Louis Cardinals,"Jordan Montgomery, Chris Stratton",2,9357501.0,23357501.0,14000000.0,Texas Rangers,"Thomas Saggese, Tekoah Roby, John King",3,62378703.71597633,19748112.0,8220000.0,53021202.71597633
+508285,2021,Chicago Cubs,Kris Bryant,1,-5169986.0,14330014.0,19500000.0,San Francisco Giants,"Alexander Canario, Caleb Kilian",2,47014230.50663492,,,52184216.50663492
+220105,2015,San Diego Padres,"Cameron Maybin, Matt Wisler, Jordan Paroubeck, Carlos Quentin",4,53268267.97421117,8753334.0,18000000.0,Atlanta Braves,Craig Kimbrel,1,1093168.0,32593168.0,31500000.0,52175099.97421117
+736413,2024,Seattle Mariners,Robbie Ray,1,27022566.753031943,,,San Francisco Giants,"Anthony DeSclafani, Mitch Haniger",2,-25150267.0,15849733.0,41000000.0,52172833.75303194
+296815,2017,Cincinnati Reds,Dan Straily,1,20509927.0,28568524.0,8058597.0,Miami Marlins,"Austin Brice, Luis Castillo, Zeek White",3,72647468.4588511,,,52137541.4588511
+791219,2024,St. Louis Cardinals,Dylan Carlson,1,54247436.0,74151086.0,19903651.0,Tampa Bay Rays,Shawn Armstrong,1,2360016.0,6360016.0,4000000.0,51887420.0
+239656,2015,Los Angeles Angels,Josh Rutledge,1,41845197.0,52564364.0,10719166.0,Boston Red Sox,Shane Victorino,1,-9747705.0,3252295.0,13000000.0,51592902.0
+369676,2018,Baltimore Orioles,Manny Machado,1,13557532.0,29557532.0,16000000.0,Los Angeles Dodgers,"Yusniel Díaz, Breyvic Valera",2,64593014.12217537,,,51035482.12217537
+508284,2021,Chicago Cubs,Jake Marisnick,1,50881215.06970219,,,San Diego Padres,Anderson Espinoza,1,0.0,,,50881215.06970219
+450197,2020,Los Angeles Angels,Tommy La Stella,1,8691281.0,14485469.0,5794187.0,Athletics,Franklin Barreto,1,59373376.61735312,,,50682095.61735312
+325285,2017,Seattle Mariners,Tyler O'Neill,1,61429642.18415669,,,St. Louis Cardinals,Marco Gonzales,1,10960353.075029759,,,50469289.10912693
+254334,2016,Arizona Diamondbacks,"Isan Díaz, Aaron Hill, Chase Anderson",3,87155941.49051814,58841628.0,20866758.0,Milwaukee Brewers,"Jean Segura, Tyler Wagner",2,37372499.03368246,37074839.0,10241142.0,49783442.45683568
+508184,2021,Cleveland Guardians,"Phil Maton, Yainer Diaz",2,6682866.0,14182866.0,7500000.0,Houston Astros,Myles Straw,1,55599669.0,69448938.0,13849269.0,48916803.0
+218503,2015,Washington Nationals,Jerry Blevins,1,357310.0,4357310.0,4000000.0,New York Mets,Matthew den Dekker,1,49200364.0,59008781.0,9808418.0,48843054.0
+281572,2016,Texas Rangers,Dillon Tate,1,33752550.65063554,,,New York Yankees,Carlos Beltrán,1,-15000000.0,0.0,15000000.0,48752550.65063554
+434844,2019,San Diego Padres,"Hunter Renfroe, Xavier Edwards",2,73104886.37402713,17926492.0,8063500.0,Tampa Bay Rays,"Tommy Pham, Jake Cronenworth",2,24574015.0,35725218.0,11151203.0,48530871.37402713
+281120,2016,San Diego Padres,"Tayron Guerrero, Colin Rea, Andrew Cashner",3,45782441.45683568,14290171.0,7150000.0,Miami Marlins,"Josh Naylor, Carter Capps, Jarred Cosart",3,93973703.49051814,61219346.0,16426714.0,48191262.03368246
+326873,2017,Chicago Cubs,"Jeimer Candelario, Isaac Paredes",2,63854943.20803195,,,Detroit Tigers,"Alex Avila, Justin Wilson",2,15985585.0,24485585.0,8500000.0,47869358.20803195
+325095,2017,Seattle Mariners,"Pablo López, Brayan Hernandez, Brandon Miller",3,51148314.35013887,,,Miami Marlins,David Phelps,1,3297901.0,9797901.0,6500000.0,47850413.35013887
+293243,2016,Houston Astros,"Jorge Guzmán, Albert Abreu",2,58455216.40015871,,,New York Yankees,Brian McCann,1,11152865.0,45152865.0,34000000.0,47302351.40015871
+201839,2014,Detroit Tigers,"Jake Thompson, Corey Knebel",2,51966474.525061436,,,Texas Rangers,Joakim Soria,1,4722082.0,8722082.0,4000000.0,47244392.525061436
+606164,2022,Cincinnati Reds,"Eugenio Suárez, Jesse Winker",2,55034415.262530714,43551178.0,14500000.0,Seattle Mariners,"Jake Fraley, Brandon Williamson, Justin Dunn",3,102027882.3468366,88706350.0,22238322.0,46993467.08430588
+666598,2023,Boston Red Sox,Josh Taylor,1,11960755.0,19461936.0,7501181.0,Kansas City Royals,Adalberto Mondesi,1,58927865.658639014,,,46967110.658639014
+642038,2022,Arizona Diamondbacks,Luke Weaver,1,16938824.0,25176371.0,8237547.0,Kansas City Royals,Emmanuel Rivera,1,63898489.0,75717431.0,11818942.0,46959665.0
+212809,2014,Athletics,"Michael Ynoa, Jeff Samardzija",2,17482850.662532546,16572639.0,9800000.0,Chicago White Sox,"Chris Bassitt, Rangel Ravelo, Marcus Semien",3,64333087.06477396,53549764.0,9483602.0,46850236.40224142
+254152,2016,Los Angeles Angels,Kody Eaves,1,3377820.844128993,,,Detroit Tigers,Jefry Marte,1,49946504.0,59472994.0,9526490.0,46568683.155871004
+296987,2017,Los Angeles Dodgers,José De León,1,61863627.88167301,,,Tampa Bay Rays,Logan Forsythe,1,15540922.0,20665922.0,5125000.0,46322705.88167301
+715137,2023,New York Mets,David Robertson,1,-4560119.0,5439881.0,10000000.0,Miami Marlins,"Marco Vargas, Ronald Hernandez",2,41605029.585798815,,,46165148.585798815
+808646,2024,Chicago Cubs,Cody Bellinger,1,-41554625.0,11778708.0,53333333.0,New York Yankees,Cody Poteet,1,4444981.793354574,,,45999606.79335457
+212905,2014,Boston Red Sox,"Yoenis Cespedes, Alex Wilson",2,47209926.0,65743977.0,18534051.0,Detroit Tigers,Rick Porcello,1,1315460.0,13815460.0,12500000.0,45894466.0
+663543,2022,Colorado Rockies,Connor Joe,1,45818516.0,55256681.0,9438165.0,Pittsburgh Pirates,Nick Garcia,1,0.0,,,45818516.0
+339921,2018,Houston Astros,"Jason Martin, Michael Feliz, Colin Moran, Joe Musgrove",4,69924469.72611347,44773990.0,16645000.0,Pittsburgh Pirates,Gerrit Cole,1,24249308.0,35978225.0,11728917.0,45675161.72611347
+642630,2022,Los Angeles Angels,Raisel Iglesias,1,-30148752.0,27851248.0,58000000.0,Atlanta Braves,"Tucker Davidson, Jesse Chavez",2,15348191.380063722,3263246.0,1250000.0,45496943.38006372
+420455,2019,New York Mets,"Anthony Kay, Simeon Woods Richardson",2,63225162.058411665,,,Toronto Blue Jays,Marcus Stroman,1,18101496.0,26829756.0,8728260.0,45123666.058411665
+436209,2020,St. Louis Cardinals,"Randy Arozarena, José A. Martínez",2,20641646.601390272,16455095.0,8142355.0,Tampa Bay Rays,Matthew Liberatore,1,65520043.84973182,,,44878397.248341545
+790837,2024,Cleveland Guardians,"José Tena, Rafael Ramirez Jr., Alex Clemmey",3,48076923.07692307,,,Washington Nationals,Lane Thomas,1,3306037.0,9806037.0,6500000.0,44770886.07692307
+860425,2025,Boston Red Sox,"Zach Ehrhard, James Tibbs III",2,55000000.0,,,Los Angeles Dodgers,Dustin May,1,10366010.0,17276683.0,6910673.0,44633990.0
+716550,2023,Houston Astros,"Ryan Clifford, Drew Gilbert",2,101701183.43195266,,,New York Mets,Justin Verlander,1,57082672.0,57082758.0,86.0,44618511.431952655
+293413,2016,Seattle Mariners,Dylan Thompson,1,10538801.033682458,,,Tampa Bay Rays,"Richie Shaffer, Taylor Motter",2,54518036.03368246,53621116.0,9641881.0,43979235.0
+240314,2015,Texas Rangers,Tomás Telis,1,64161496.0,78077415.0,13915919.0,Miami Marlins,Sam Dyson,1,20784003.0,29834003.0,9050000.0,43377493.0
+239491,2015,Cincinnati Reds,Johnny Cueto,1,8203949.0,18203949.0,10000000.0,Kansas City Royals,Brandon Finnegan,1,51578983.09582507,,,43375034.09582507
+791291,2024,Detroit Tigers,Jack Flaherty,1,28612.0,14028612.0,14000000.0,Los Angeles Dodgers,"Thayron Liranzo, Trey Sweeney",2,43269230.76923076,,,43240618.76923076
+733290,2023,Boston Red Sox,Luis Urías,1,68476363.01826307,,,Seattle Mariners,Isaiah Campbell,1,25292915.0,35012915.0,9720000.0,43183448.01826307
+340647,2018,Kansas City Royals,"Ryan Buchter, Brandon Moss",2,8241211.0,24536211.0,16295000.0,Athletics,"Jesse Hahn, Heath Fillmyer",2,50724469.19803095,49376058.0,10050355.0,42483258.19803095
+371924,2018,Houston Astros,"Hector Perez, David Paulino, Ken Giles",3,56396403.726113476,22256917.0,7655993.0,Toronto Blue Jays,Roberto Osuna,1,14272307.0,21847672.0,7575365.0,42124096.726113476
+211534,2014,St. Louis Cardinals,"Tyrell Jenkins, Shelby Miller",2,66162813.75303194,49515235.0,10374988.0,Atlanta Braves,"Jordan Walden, Jason Heyward",2,24099138.0,39077875.0,14978737.0,42063675.75303194
+420995,2019,Detroit Tigers,Shane Greene,1,1037896.0,7537896.0,6500000.0,Atlanta Braves,"Joey Wentz, Travis Demeritte",2,43011348.22723678,,,41973452.22723678
+202206,2014,Boston Red Sox,Jake Peavy,1,-4984127.0,9515873.0,14500000.0,San Francisco Giants,"Heath Hembree, Edwin Escobar",2,36614055.70009442,,,41598182.70009442
+734480,2023,Seattle Mariners,"Jarred Kelenic, Marco Gonzales, Evan White",3,52850509.0,72019198.0,19168689.0,Atlanta Braves,"Cole Phillips, Jackson Kowar",2,11291974.307692308,16204282.0,9720000.0,41558534.692307696
+325627,2017,Toronto Blue Jays,Ryan McBroom,1,10538801.033682458,,,New York Yankees,Rob Refsnyder,1,51975145.0,61531438.0,9556292.0,41436343.96631754
+716108,2023,Cleveland Guardians,Aaron Civale,1,30194191.0,41242673.0,11048482.0,Tampa Bay Rays,Kyle Manzardo,1,70955486.82087143,,,40761295.82087143
+339931,2018,Pittsburgh Pirates,Andrew McCutchen,1,8611359.0,23361359.0,14750000.0,San Francisco Giants,"Bryan Reynolds, Kyle Crick",2,49076082.52808253,27842870.0,9163500.0,40464723.52808253
+213284,2014,San Diego Padres,"Jake Bauers, Burch Smith, René Rivera",3,27811068.06477396,15044143.0,7500000.0,Tampa Bay Rays,"José Castillo, Ryan Hanigan, Wil Myers",3,68268022.53238699,73887096.0,15752536.0,40456954.46761303
+371509,2018,Houston Astros,"Gilberto Celestino, Jorge Alcala",2,41795479.726113476,,,Minnesota Twins,Ryan Pressly,1,1414462.0,7914462.0,6500000.0,40381017.726113476
+507897,2021,Texas Rangers,"Joey Gallo, Joely Rodríguez",2,45690961.53238698,51933056.0,16375557.0,New York Yankees,"Josh Smith, Glenn Otto Jr., Ezequiel Duran, Trevor Hauver",4,85480419.10297258,,,39789457.5705856
+476481,2021,Texas Rangers,Rougned Odor,1,4109957.0,28776290.0,24666333.0,New York Yankees,"Josh Stowers, Antonio Cabello",2,43467298.91515802,,,39357341.91515802
+384245,2018,Seattle Mariners,Alex Colomé,1,2339583.0,9664583.0,7325000.0,Chicago White Sox,Omar Narváez,1,41672503.0,52691716.0,11019213.0,39332920.0
+859337,2025,Tampa Bay Rays,Danny Jansen,1,43876688.0,52376688.0,8500000.0,Milwaukee Brewers,Jadher Areinamo,1,5000000.0,,,38876688.0
+326569,2017,New York Mets,"Ricardo Cespedes, Merandy Gonzalez",2,40187961.27510911,,,Miami Marlins,AJ Ramos,1,1899015.0,5899015.0,4000000.0,38288946.27510911
+337250,2017,Athletics,Ryon Healy,1,-5223609.0,3376391.0,8600000.0,Seattle Mariners,"Emilio Pagán, Alexander Campos",2,32741683.19803095,30506416.0,9163500.0,37965292.19803095
+251376,2015,Boston Red Sox,"Wade Miley, Jonathan Aro",2,26105855.033682458,28400387.0,12833333.0,Seattle Mariners,"Roenis Elías, Carson Smith",2,63884391.0,81385481.0,17501089.0,37778535.96631754
+460405,2021,Pittsburgh Pirates,Jameson Taillon,1,22162312.0,32778784.0,10616472.0,New York Yankees,"Roansy Contreras, Miguel Yajure, Canaan Smith-Njigba",3,59836293.3720808,,,37673981.3720808
+421027,2019,Houston Astros,Derek Fisher,1,-9189000.0,0.0,9189000.0,Toronto Blue Jays,"Cal Stevenson, Aaron Sanchez, Joe Biagini",3,28198536.88595219,31067899.0,14724080.0,37387536.88595219
+636211,2022,Athletics,Christian Bethancourt,1,49171518.057827674,,,Tampa Bay Rays,Cal Stevenson,1,11854717.885952188,,,37316800.171875484
+879478,2025,Boston Red Sox,"Hunter Dobbins, Yhoiker Fajardo",2,19807692.307692308,,,St. Louis Cardinals,Willson Contreras,1,57119591.91898763,,,37311899.61129533
+716164,2023,Chicago Cubs,Nelson Velázquez,1,54370067.0,68857063.0,14486997.0,Kansas City Royals,Jose Cuas,1,17434066.0,27154066.0,9720000.0,36936001.0
+458037,2020,Tampa Bay Rays,Nathaniel Lowe,1,-2353900.0,5716600.0,8070500.0,Texas Rangers,"Heriberto Hernández, Osleivis Basabe",2,34192167.64118903,,,36546067.64118903
+715920,2023,Los Angeles Angels,"Mason Albright, Jake Madden",2,18313324.988620844,,,Colorado Rockies,"C.J. Cron, Randal Grichuk",2,-17650000.0,0.0,17650000.0,35963324.98862085
+790348,2024,Miami Marlins,Jazz Chisholm Jr.,1,45974219.0,62244970.0,16270750.0,New York Yankees,"Agustín Ramírez, Jared Serna",2,81730769.23076923,,,35756550.23076923
+877413,2025,Houston Astros,Mauricio Dubón,1,0.0,,,Atlanta Braves,Nick Allen,1,35559854.34683659,,,35559854.34683659
+716146,2023,Arizona Diamondbacks,"Dominic Canzone, Josh Rojas, Ryan Bliss",3,40410581.98862084,30639919.0,8542662.0,Seattle Mariners,Paul Sewald,1,4901130.0,11401130.0,6500000.0,35509451.98862084
+240216,2015,Cincinnati Reds,Mike Leake,1,2855818.0,12630818.0,9775000.0,San Francisco Giants,"Adam Duvall, Keury Mella",2,38239491.8178059,0.0,9050000.0,35383673.8178059
+716628,2023,Cleveland Guardians,Josh Bell,1,-17956814.0,15043186.0,33000000.0,Miami Marlins,"Kahlil Watson, Jean Segura",2,17257470.19526627,20389127.0,17000000.0,35214284.19526627
+860111,2025,Chicago Cubs,"Ronny Cruz, Christian Franklin",2,30000000.0,,,Washington Nationals,Michael Soroka,1,-5052810.0,3947190.0,9000000.0,35052810.0
+860359,2025,Tampa Bay Rays,José Caballero,1,49240588.0,60901819.0,11661231.0,New York Yankees,Everson Pereira,1,14423076.923076922,,,34817511.07692308
+606317,2022,Athletics,Matt Chapman,1,14417028.0,39417028.0,25000000.0,Toronto Blue Jays,"Gunnar Hoglund, Kevin Smith, Zach Logue",3,48894799.72690031,,,34477771.72690031
+293965,2016,Arizona Diamondbacks,"Jean Segura, Mitch Haniger",2,89401733.0,113116709.0,23714976.0,Seattle Mariners,"Taijuan Walker, Ketel Marte",2,54964571.0,73060914.0,18096343.0,34437162.0
+421004,2019,San Francisco Giants,Mark Melancon,1,-19061019.0,11938981.0,31000000.0,Atlanta Braves,"Tristan Beck, Dan Winkler",2,15340853.885952188,9986136.0,6500000.0,34401872.88595219
+371977,2018,Cincinnati Reds,Adam Duvall,1,-6985530.0,1059470.0,8045000.0,Atlanta Braves,"Matt Wisler, Preston Tucker, Lucas Sims",3,27227200.607416738,14733385.0,8600000.0,34212730.607416734
+281332,2016,Washington Nationals,"Taylor Hearn, Felipe Vázquez",2,31556447.033682458,29560146.0,8542500.0,Pittsburgh Pirates,Mark Melancon,1,-2641992.0,7008008.0,9650000.0,34198439.03368246
+612875,2022,San Diego Padres,"Emilio Pagán, Chris Paddack",2,33998767.0,50571312.0,16572545.0,Minnesota Twins,"Brent Rooker, Taylor Rogers",2,-195947.0,16764053.0,16960000.0,34194714.0
+658742,2022,Texas Rangers,Kolby Allard,1,31612581.029205833,,,Atlanta Braves,Jake Odorizzi,1,-2509427.0,9990573.0,12500000.0,34122008.02920583
+281644,2016,Pittsburgh Pirates,"Harold Ramírez, Reese McGuire, Francisco Liriano",3,63312810.35473886,32384833.0,26000000.0,Toronto Blue Jays,Drew Hutchison,1,29435394.0,40520936.0,11085542.0,33877416.35473886
+859368,2025,Tampa Bay Rays,Matthew Etzel,1,5000000.0,,,Miami Marlins,Nick Fortes,1,38611969.0,49383431.0,10771462.0,33611969.0
+450368,2020,Cleveland Guardians,"Greg Allen, Mike Clevinger",2,70761199.0,96102943.0,25341744.0,San Diego Padres,"Austin Hedges, Joey Cantillo, Gabriel Arias, Cal Quantrill, Josh Naylor, Owen Miller",6,104214870.1421384,52299795.0,26168000.0,33453671.142138407
+213271,2014,Los Angeles Dodgers,"Tom Windle, Zach Eflin",2,37156029.28541892,,,Philadelphia Phillies,Jimmy Rollins,1,3722195.0,14722195.0,11000000.0,33433834.28541892
+326919,2017,Boston Red Sox,"Stephen Nogosek, Gerson Bautista, Jamie Callahan",3,31664420.123508535,,,New York Mets,Addison Reed,1,-1604360.0,6145640.0,7750000.0,33268780.123508535
+450426,2020,Baltimore Orioles,Miguel Castro,1,164193.0,7664193.0,7500000.0,New York Mets,Kevin Smith,1,32877084.270374067,,,32712891.270374067
+383416,2018,Houston Astros,Trent Thornton,1,11854717.885952188,,,Toronto Blue Jays,Aledmys Díaz,1,44390351.0,54678452.0,10288101.0,32535633.11404781
+214091,2015,Athletics,"John Jaso, Boog Powell, Daniel Robertson",3,39332469.53238698,47140893.0,17941887.0,Tampa Bay Rays,"Ben Zobrist, Yunel Escobar",2,6856717.0,27356717.0,20500000.0,32475752.53238698
+294308,2016,St. Louis Cardinals,Jaime García,1,-3011939.0,8988061.0,12000000.0,Atlanta Braves,"Chris Ellis, John Gant",2,29462494.07502976,27637141.0,9135000.0,32474433.07502976
+860348,2025,Toronto Blue Jays,"Kendry Rojas, Alan Roden",2,54423076.92307692,,,Minnesota Twins,"Ty France, Louis Varland",2,22360450.0,36060450.0,13700000.0,32062626.92307692
+790862,2024,San Francisco Giants,"Jorge Soler, Luke Jackson",2,-22796767.0,24953233.0,47750000.0,Atlanta Braves,"Tyler Matzek, Sabin Ceballos",2,9147382.307692308,8339690.0,4000000.0,31944149.307692308
+789801,2024,Arizona Diamondbacks,"Andrew Pintar, Deyvison De Los Santos",2,43084319.52662721,,,Miami Marlins,A.J. Puk,1,11452832.0,18952832.0,7500000.0,31631487.526627213
+417404,2019,Kansas City Royals,Homer Bailey,1,-19685412.0,8314588.0,28000000.0,Athletics,Kevin Merrell,1,11854717.885952188,,,31540129.88595219
+250090,2015,San Diego Padres,Joaquín Benoit,1,-3409506.0,4590494.0,8000000.0,Seattle Mariners,Enyel De Los Santos,1,28103469.42315322,,,31512975.42315322
+294881,2016,Los Angeles Angels,Jett Bandy,1,55083205.0,66950710.0,11867505.0,Milwaukee Brewers,"Drew Gagnon, Martín Maldonado",2,23765296.53238698,20961668.0,7329834.0,31317908.46761302
+371468,2018,New York Mets,Asdrúbal Cabrera,1,-875544.0,7374456.0,8250000.0,Philadelphia Phillies,Franklyn Kilome,1,30396712.528082527,,,31272256.528082527
+490060,2021,Tampa Bay Rays,"Trevor Richards, Willy Adames",2,31247504.19803095,27919237.0,8070500.0,Milwaukee Brewers,Drew Rasmussen,1,0.0,,,31247504.19803095
+202825,2014,San Diego Padres,Chris Denorfia,1,2751151.0,4876151.0,2125000.0,Seattle Mariners,Abraham Almonte,1,33952740.0,43062741.0,9110001.0,31201589.0
+860218,2025,Cincinnati Reds,Adam Serwinowski,1,40000000.0,,,Tampa Bay Rays,Zack Littell,1,8804866.0,14674776.0,5869910.0,31195134.0
+505056,2021,Chicago Cubs,Joc Pederson,1,31112672.0,38112672.0,7000000.0,Atlanta Braves,Bryce Ball,1,0.0,,,31112672.0
+642039,2022,Boston Red Sox,Jake Diekman,1,5796830.0,13796830.0,8000000.0,Chicago White Sox,Reese McGuire,1,36352215.0,46075472.0,9723256.0,30555385.0
+326062,2017,Chicago White Sox,Anthony Swarzak,1,-1304504.0,2695496.0,4000000.0,Milwaukee Brewers,Ryan Cordell,1,29227608.200079355,,,30532112.200079355
+228679,2015,Arizona Diamondbacks,"Mark Trumbo, Vidal Nuño",2,36813086.0,52466966.0,15653880.0,Seattle Mariners,"Welington Castillo, Dominic Leone, Gabriel Guerrero, Jack Reinheimer",4,67242320.06477396,65487600.0,18512206.0,30429234.064773962
+392215,2019,Los Angeles Angels,Williams Jerez,1,15003255.0,24192255.0,9189000.0,San Francisco Giants,Chris Stratton,1,45414173.0,54998886.0,9584712.0,30410918.0
+213311,2014,Miami Marlins,"Nathan Eovaldi, Garrett Jones, Domingo Germán",3,29118414.53238698,34075934.0,15090981.0,New York Yankees,"David Phelps, Martín Prado",2,-1278251.0,26729249.0,28007500.0,30396665.53238698
+461748,2021,Athletics,"Khris Davis, Jonah Heim",2,-10027162.0,6722838.0,16750000.0,Texas Rangers,"Aramis Garcia, Elvis Andrus",2,20277923.62865073,46326351.0,30000000.0,30305085.62865073
+860094,2025,New York Mets,"Jesus Baez, Nate Dohm",2,30000000.0,,,St. Louis Cardinals,Ryan Helsley,1,-210982.0,7989017.0,8199999.0,30210982.0
+239664,2015,New York Mets,Casey Meisner,1,27022566.753031943,,,Athletics,Tyler Clippard,1,-3159920.0,5140080.0,8300000.0,30182486.753031943
+768021,2024,San Diego Padres,"Jakob Marsee, Dillon Head, Nathan Martorella",3,57692307.69230768,,,Miami Marlins,Luis Arraez,1,27516954.0,40279780.0,12762826.0,30175353.69230768
+738596,2024,Seattle Mariners,"Anthony DeSclafani, Darren Bowen, Justin Topa, Gabriel Gonzalez",4,54957118.82284382,28134275.0,19500000.0,Minnesota Twins,Jorge Polanco,1,24851758.0,36101758.0,11250000.0,30105360.82284382
+371204,2018,Toronto Blue Jays,J.A. Happ,1,-2652138.0,9347862.0,12000000.0,New York Yankees,"Brandon Drury, Billy McKinney",2,27428980.19803095,24095870.0,8065657.0,30081118.19803095
+252625,2015,Cincinnati Reds,Aroldis Chapman,1,-1811862.0,9513138.0,11325000.0,New York Yankees,Rookie Davis,1,28103469.42315322,,,29915331.42315322
+642353,2022,Cincinnati Reds,Tyler Mahle,1,23496190.0,35007223.0,11511032.0,Minnesota Twins,"Spencer Steer, Christian Encarnacion-Strand, Steve Hajjar",3,53339781.52025489,,,29843591.520254888
+338819,2017,St. Louis Cardinals,"Magneuris Sierra, Sandy Alcantara, Zac Gallen",3,53194246.924144424,,,Miami Marlins,Marcell Ozuna,1,23441678.0,33912732.0,10471054.0,29752568.924144424
+770088,2024,Pittsburgh Pirates,Rodolfo Nolasco,1,4444981.793354574,,,San Francisco Giants,Daulton Jefferies,1,34192167.64118903,,,29747185.847834457
+733589,2023,Arizona Diamondbacks,"Seby Zavala, Carlos Vargas",2,-3617218.9349112427,0.0,8240000.0,Seattle Mariners,Eugenio Suárez,1,25983237.262530718,,,29600456.19744196
+202819,2014,Boston Red Sox,John Lackey,1,-7264019.0,9235981.0,16500000.0,St. Louis Cardinals,"Joe Kelly, Allen Craig",2,22078601.0,55386101.0,33307500.0,29342620.0
+716711,2023,Pittsburgh Pirates,Rodolfo Castro,1,37412150.0,47600258.0,10188108.0,Philadelphia Phillies,Bailey Falter,1,66749330.0,81411578.0,14662247.0,29337180.0
+371329,2018,Chicago Cubs,Eddie Butler,1,19161036.0,27761036.0,8600000.0,Texas Rangers,Cole Hamels,1,-10087841.0,13912159.0,24000000.0,29248877.0
+508141,2021,Chicago Cubs,Craig Kimbrel,1,-5064058.0,9269275.0,14333333.0,Chicago White Sox,"Nick Madrigal, Codi Heuer",2,24170606.0,42431606.0,18261000.0,29234664.0
+860333,2025,Los Angeles Dodgers,"Sean Paul Liñan, Eriq Swan",2,20000000.0,,,Washington Nationals,Alex Call,1,-8980000.0,0.0,8980000.0,28980000.0
+218698,2015,Seattle Mariners,Erasmo Ramírez,1,38550119.0,48638147.0,10088028.0,Tampa Bay Rays,Mike Montgomery,1,10133462.53238698,,,28416656.46761302
+212902,2014,Cincinnati Reds,Mat Latos,1,8820847.0,18220847.0,9400000.0,Miami Marlins,"Anthony DeSclafani, Chad Wallach",2,37156029.28541892,,,28335182.28541892
+338836,2017,San Diego Padres,Enyel De Los Santos,1,30396712.528082527,,,Philadelphia Phillies,Freddy Galvis,1,2183197.0,9008197.0,6825000.0,28213515.528082527
+790901,2024,Cincinnati Reds,Frankie Montas,1,51148314.35013887,,,Milwaukee Brewers,"Jakob Junis, Joey Wiemer",2,79361762.0,101748280.0,22386518.0,28213447.649861127
+202836,2014,Baltimore Orioles,Eduardo Rodriguez,1,28854516.208511382,,,Boston Red Sox,Andrew Miller,1,736021.0,4736021.0,4000000.0,28118495.208511382
+446823,2020,Kansas City Royals,Tim Hill,1,14671617.0,23305617.0,8634000.0,San Diego Padres,"Ronald Bolaños, Franchy Cordero",2,42725619.1294728,,,28054002.1294728
+178232,2014,San Diego Padres,"Brad Boxberger, Logan Forsythe",2,26233667.0,43259202.0,17025535.0,Tampa Bay Rays,"Alex Torres, Jesse Hahn",2,53789637.53378515,33068266.0,9015000.0,27555970.53378515
+608909,2022,Philadelphia Phillies,Adam Haseley,1,31612581.029205833,,,Chicago White Sox,McKinley Moore,1,4444981.793354574,,,27167599.235851258
+715896,2023,St. Louis Cardinals,Jordan Hicks,1,489118.0,4489118.0,4000000.0,Toronto Blue Jays,"Adam Kloffenstein, Sem Robberse",2,27203288.575329993,,,26714170.575329993
+434780,2019,Seattle Mariners,Omar Narváez,1,30661763.0,41196469.0,10534706.0,Milwaukee Brewers,Adam Hill,1,3951572.628650729,,,26710190.37134927
+808997,2024,Washington Nationals,Robert Garcia,1,25069062.0,34057729.0,8988667.0,Texas Rangers,Nathaniel Lowe,1,-1604615.0,8695385.0,10300000.0,26673677.0
+609796,2022,Texas Rangers,Jose Trevino,1,39205488.0,49993203.0,10787716.0,New York Yankees,Albert Abreu,1,12644880.0,22304880.0,9660000.0,26560608.0
+661501,2022,Los Angeles Angels,"Elvis Peguero, Janson Junk",2,18313324.988620844,,,Milwaukee Brewers,Hunter Renfroe,1,-8162230.0,3737770.0,11900000.0,26475554.988620844
+497766,2021,Toronto Blue Jays,Joe Panik,1,18142276.0,19992276.0,1850000.0,Miami Marlins,Corey Dickerson,1,-8320485.0,429515.0,8750000.0,26462761.0
+240110,2015,Los Angeles Dodgers,"Jeff Brigham, Victor Araujo",2,20266925.06477396,,,Miami Marlins,"Michael Morse, Mat Latos",2,-6022534.0,19377466.0,25400000.0,26289459.06477396
+508266,2021,Texas Rangers,"Hans Crouse, Kyle Gibson",2,29922940.64118903,14397439.0,18666666.0,Philadelphia Phillies,"Kevin Gowdy, Spencer Howard",2,3951572.628650729,,,25971368.012538303
+508055,2021,Boston Red Sox,Aldo Ramirez,1,12822062.865445886,,,Washington Nationals,Kyle Schwarber,1,38423648.0,50527633.0,12103985.0,25601585.134554114
+362528,2018,Kansas City Royals,Kelvin Herrera,1,-2524860.0,5412640.0,7937500.0,Washington Nationals,"Blake Perkins, Kelvin Gutiérrez",2,22797534.396061897,,,25322394.396061897
+434485,2019,Athletics,Jurickson Profar,1,15675085.0,26125141.0,10450057.0,San Diego Padres,Austin Allen,1,-9334000.0,0.0,9334000.0,25009085.0
+878919,2025,Boston Red Sox,Luis Perales,1,40000000.0,,,Washington Nationals,Jake Bennett,1,15000000.0,,,25000000.0
+331043,2017,Seattle Mariners,Rayder Ascanio,1,10538801.033682458,,,St. Louis Cardinals,Mike Leake,1,-14449428.0,49550572.0,64000000.0,24988229.033682458
+370198,2018,New York Mets,Jeurys Familia,1,-2592905.0,5332095.0,7925000.0,Athletics,"Will Toffey, Bobby Wahl",2,22359120.27306071,,,24952025.27306071
+211406,2014,Detroit Tigers,Devon Travis,1,27022566.753031943,,,Toronto Blue Jays,Anthony Gose,1,51974115.0,64178278.0,12204163.0,24951548.246968057
+716586,2023,Chicago White Sox,Jake Burger,1,12034028.0,21754028.0,9720000.0,Miami Marlins,Jake Eder,1,36982248.52071006,,,24948220.52071006
+254276,2016,Colorado Rockies,"Kevin Padlo, Corey Dickerson",2,31366824.033682458,29263855.0,8435833.0,Tampa Bay Rays,"Germán Márquez, Jake McGee",2,56258151.49051814,13577080.0,6500000.0,24891327.45683568
+240252,2015,Baltimore Orioles,Zach Davies,1,27022566.753031943,,,Milwaukee Brewers,Gerardo Parra,1,2217401.0,8454401.0,6237000.0,24805165.753031943
+789807,2024,Seattle Mariners,"Brody Hopkins, Aidan Smith",2,52884615.38461538,,,Tampa Bay Rays,Randy Arozarena,1,28186330.0,37445638.0,9259308.0,24698285.384615377
+232868,2015,Arizona Diamondbacks,"Bronson Arroyo, Touki Toussaint",2,42066688.76949507,5313911.0,11750000.0,Atlanta Braves,Phil Gosselin,1,17482029.0,26532029.0,9050000.0,24584659.76949507
+665172,2023,Los Angeles Dodgers,Jacob Amaya,1,13868343.195266271,,,Miami Marlins,Miguel Rojas,1,38381106.0,38381111.0,5.0,24512762.80473373
+239772,2015,Kansas City Royals,Sean Manaea,1,30925826.395136558,,,Athletics,Ben Zobrist,1,6501268.0,14001268.0,7500000.0,24424558.395136558
+213355,2014,Boston Red Sox,Will Middlebrooks,1,10733725.0,18741225.0,8007500.0,San Diego Padres,Ryan Hanigan,1,34742328.0,41908994.0,7166666.0,24008603.0
+860392,2025,Pittsburgh Pirates,David Bednar,1,6077323.0,12577323.0,6500000.0,New York Yankees,"Rafael Flores Jr., Edgleen Perez",2,30000000.0,,,23922677.0
+206585,2014,Athletics,Nolan Sanburn,1,9743713.973449018,,,Chicago White Sox,Adam Dunn,1,-14000000.0,0.0,14000000.0,23743713.973449018
+824764,2025,Los Angeles Dodgers,Carlos Duran,1,13334945.380063722,,,Athletics,Esteury Ruiz,1,36982248.52071006,,,23647303.14064634
+437251,2020,Arizona Diamondbacks,"Liover Peguero, Brennan Malone",2,65754168.540748134,,,Pittsburgh Pirates,Starling Marte,1,42134045.0,54634045.0,12500000.0,23620123.540748134
+450323,2020,Baltimore Orioles,Mychal Givens,1,1050812.0,7550812.0,6500000.0,Colorado Rockies,"Tyler Nevin, Terrin Vavra",2,24657813.20278055,,,23607001.20278055
+250155,2015,Seattle Mariners,Tom Wilhelmsen,1,1290017.0,7790017.0,6500000.0,Texas Rangers,"Leonys Martin, Anthony Bass",2,24855967.0,38069363.0,13213397.0,23565950.0
+734546,2023,Boston Red Sox,Alex Verdugo,1,11996348.0,20696348.0,8700000.0,New York Yankees,"Richard Fitts, Greg Weissert",2,35462383.92307692,30759307.0,9720000.0,23466035.92307692
+384370,2018,Seattle Mariners,"Jean Segura, Juan Nicasio, James Pazos",3,16094697.0,88649697.0,72555000.0,Philadelphia Phillies,"J.P. Crawford, Carlos Santana",2,39558829.0,90965388.0,51406559.0,23464132.0
+739236,2024,Arizona Diamondbacks,Dominic Fletcher,1,-9000000.0,0.0,9000000.0,Chicago White Sox,Cristian Mena,1,14423076.923076922,,,23423076.92307692
+806499,2024,New York Mets,Eric Orze,1,4444981.793354574,,,Tampa Bay Rays,Jose Siri,1,27859652.0,37165651.0,9305998.0,23414670.206645425
+254781,2016,Athletics,"Jacob Nottingham, Bubba Derby",2,38642270.45683568,,,Milwaukee Brewers,Khris Davis,1,15419211.0,23446467.0,8027256.0,23223059.45683568
+285981,2016,Arizona Diamondbacks,Michael Bourn,1,-12342716.0,1657284.0,14000000.0,Baltimore Orioles,Jason Heinrich,1,10538801.033682458,,,22881517.033682458
+661208,2022,Cincinnati Reds,Dauri Moreta,1,21492383.0,31212383.0,9720000.0,Pittsburgh Pirates,Kevin Newman,1,-1008302.0,5491698.0,6500000.0,22500685.0
+214769,2015,Boston Red Sox,Anthony Ranaudo,1,27022566.753031943,,,Texas Rangers,Robbie Ross Jr.,1,4604917.0,12104917.0,7500000.0,22417649.753031943
+326944,2017,Los Angeles Dodgers,"Angel German, Oneil Cruz",2,21499154.10871222,,,Pittsburgh Pirates,Tony Watson,1,-739928.0,4860072.0,5600000.0,22239082.10871222
+642338,2022,Los Angeles Dodgers,Clayton Beeter,1,35559854.34683659,,,New York Yankees,Joey Gallo,1,13339737.0,23614737.0,10275000.0,22220117.34683659
+640739,2022,Kansas City Royals,Andrew Benintendi,1,4507091.0,13007091.0,8500000.0,New York Yankees,"Beck Way, T.J. Sikkema",2,26669890.760127444,,,22162799.760127444
+372119,2018,Baltimore Orioles,"Kevin Gausman, Darren O'Day",2,21957143.0,47905967.0,25948824.0,Atlanta Braves,Brett Cumberland,1,0.0,,,21957143.0
+326218,2017,Tampa Bay Rays,Casey Gillaspie,1,29227608.200079355,,,Chicago White Sox,Dan Jennings,1,7307371.0,14807371.0,7500000.0,21920237.200079355
+386152,2019,Los Angeles Dodgers,"Ronny Brito, Andrew Sopko",2,22359120.27306071,,,Toronto Blue Jays,Russell Martin,1,517038.0,16917038.0,16400000.0,21842082.27306071
+212532,2014,Seattle Mariners,Michael Saunders,1,21457771.0,31422671.0,9964900.0,Toronto Blue Jays,J.A. Happ,1,-367237.0,6332763.0,6700000.0,21825008.0
+457449,2020,Los Angeles Angels,Garrett Stallings,1,0.0,,,Baltimore Orioles,Jose Iglesias,1,21761897.0,25261897.0,3500000.0,21761897.0
+276143,2016,San Diego Padres,Fernando Rodney,1,6343066.0,8343066.0,2000000.0,Miami Marlins,Chris Paddack,1,28103469.42315322,,,21760403.42315322
+202732,2014,Cleveland Guardians,Justin Masterson,1,4327169.0,14089669.0,9762500.0,St. Louis Cardinals,James Ramsey,1,25983237.262530718,,,21656068.262530718
+202803,2014,Athletics,Tommy Milone,1,20517470.0,28453736.0,7936267.0,Minnesota Twins,Sam Fuld,1,-1010840.0,6489160.0,7500000.0,21528310.0
+607011,2022,Los Angeles Dodgers,Luke Raley,1,-9660000.0,0.0,9660000.0,Tampa Bay Rays,Tanner Dodson,1,11854717.885952188,,,21514717.88595219
+858548,2025,Colorado Rockies,Ryan McMahon,1,-1375604.0,33624396.0,35000000.0,New York Yankees,"Josh Grosz, Griffin Herring",2,20000000.0,,,21375604.0
+377266,2018,Washington Nationals,Gio Gonzalez,1,1333128.0,13333128.0,12000000.0,Milwaukee Brewers,"K.J. Harrison, Gilbert Lara",2,22359120.27306071,,,21025992.27306071
+809266,2024,Chicago Cubs,Matt Mervis,1,14423076.923076922,,,Miami Marlins,Vidal Bruján,1,-6500000.0,0.0,6500000.0,20923076.92307692
+608755,2022,San Francisco Giants,Will Toffey,1,11854717.885952188,,,Philadelphia Phillies,Luke Williams,1,-9000442.0,659558.0,9660000.0,20855159.88595219
+295342,2016,Boston Red Sox,Clay Buchholz,1,-9688898.0,3811102.0,13500000.0,Philadelphia Phillies,Josh Tobias,1,10960353.075029759,,,20649251.07502976
+202865,2014,Chicago Cubs,"Emilio Bonifácio, James Russell",2,5455902.0,16201399.0,10745497.0,Atlanta Braves,Victor Caratini,1,25983237.262530718,,,20527335.262530718
+214946,2015,Colorado Rockies,José Briceño,1,3665106.212892287,,,Atlanta Braves,"David Hale, Gus Schlosser",2,24114538.0,41144538.0,17030000.0,20449431.787107714
+371715,2018,St. Louis Cardinals,Luke Voit,1,2892631.0,12056131.0,9163500.0,New York Yankees,"Chasen Shreve, Giovanny Gallegos",2,23339114.0,40547614.0,17208500.0,20446483.0
+212225,2014,Kansas City Royals,Aaron Crow,1,-4321.0,6495679.0,6500000.0,Miami Marlins,"Brian Flynn, Reid Redman",2,20266925.06477396,,,20271246.06477396
+251636,2015,Los Angeles Angels,Trevor Gott,1,21497311.0,30584811.0,9087500.0,Washington Nationals,Yunel Escobar,1,1260315.0,7760315.0,6500000.0,20236996.0
+860374,2025,San Diego Padres,Brandon Lockridge,1,4444981.793354574,,,Milwaukee Brewers,"Jorge Quintana, Nestor Cortes",2,24587731.0,17187731.0,7600000.0,20142749.206645425
+507905,2021,Cleveland Guardians,César Hernández,1,20080904.0,25080904.0,5000000.0,Chicago White Sox,Konnor Pilkington,1,0.0,,,20080904.0
+395807,2019,San Francisco Giants,Malique Ziegler,1,11398767.198030949,,,Minnesota Twins,Tyler Austin,1,-8618500.0,0.0,8618500.0,20017267.19803095
+420827,2019,Texas Rangers,Chris Martin,1,11662915.0,20281415.0,8618500.0,Atlanta Braves,Kolby Allard,1,31612581.029205833,,,19949666.029205833
+397514,2019,Arizona Diamondbacks,Marcus Wilson,1,11854717.885952188,,,Boston Red Sox,Blake Swihart,1,-8055000.0,0.0,8055000.0,19909717.88595219
+297790,2017,Cincinnati Reds,Brandon Phillips,1,-6936965.0,5146368.0,12083333.0,Atlanta Braves,Andrew McKirahan,1,12930982.0,21510982.0,8580000.0,19867947.0
+715375,2023,Houston Astros,Korey Lee,1,13868343.195266271,,,Chicago White Sox,Kendall Graveman,1,-5976122.0,10023878.0,16000000.0,19844465.19526627
+450399,2020,Los Angeles Angels,Brian Goodwin,1,-7500000.0,0.0,7500000.0,Cincinnati Reds,Packy Naughton,1,12328906.601390274,,,19828906.601390272
+434322,2019,San Diego Padres,"Luis Urías, Eric Lauer",2,135227434.0,165654507.0,30427074.0,Milwaukee Brewers,"Trent Grisham, Zach Davies",2,115430451.0,137981871.0,22551420.0,19796983.0
+716560,2023,Arizona Diamondbacks,Andrew Chafin,1,6806828.0,13056828.0,6250000.0,Milwaukee Brewers,Peter Strzelecki,1,26470249.0,36190249.0,9720000.0,19663421.0
+281388,2016,San Diego Padres,Matt Kemp,1,-71653547.0,8346453.0,80000000.0,Atlanta Braves,Héctor Olivera,1,-52083333.0,0.0,52083333.0,19570214.0
+202809,2014,Boston Red Sox,"Jonny Gomes, Jon Lester",2,3161263.0,21161263.0,18000000.0,Athletics,Yoenis Cespedes,1,22677695.0,40677695.0,18000000.0,19516432.0
+272791,2016,Los Angeles Dodgers,Zach Lee,1,10538801.033682458,,,Seattle Mariners,Chris Taylor,1,-8960440.0,127060.0,9087500.0,19499241.033682458
+803353,2024,Los Angeles Angels,Griffin Canning,1,1108391.0,5358391.0,4250000.0,Atlanta Braves,Jorge Soler,1,-18297661.0,9702339.0,28000000.0,19406052.0
+506551,2021,Tampa Bay Rays,"Joe Ryan, Drew Strotman",2,12822062.865445886,,,Minnesota Twins,Nelson Cruz,1,-6538419.0,6461581.0,13000000.0,19360481.865445886
+225948,2015,Chicago Cubs,Welington Castillo,1,27526929.0,37524134.0,9997206.0,Seattle Mariners,Yoervis Medina,1,8167924.0,16175424.0,8007500.0,19359005.0
+664773,2023,Detroit Tigers,"Kody Clemens, Gregory Soto",2,61383195.0,79898729.0,18515534.0,Philadelphia Phillies,"Donny Sands, Matt Vierling, Nick Maton",3,80669553.79335457,101350383.0,25125811.0,19286358.79335457
+250380,2015,Seattle Mariners,Ramón Flores,1,10133462.53238698,,,Milwaukee Brewers,Luis Sardinas,1,-9087500.0,0.0,9087500.0,19220962.53238698
+213889,2015,Atlanta Braves,David Carpenter,1,7850244.0,15350244.0,7500000.0,New York Yankees,Manny Banuelos,1,27022566.753031943,,,19172322.753031943
+860373,2025,Tampa Bay Rays,Curtis Mead,1,30778378.0,40983173.0,10204795.0,Chicago White Sox,Adrian Houser,1,11854717.885952188,,,18923660.11404781
+605802,2022,New York Mets,J.T. Ginn,1,35559854.34683659,,,Athletics,Chris Bassitt,1,16638059.0,25438059.0,8800000.0,18921795.34683659
+253126,2016,Washington Nationals,Drew Storen,1,-2393780.0,5981220.0,8375000.0,Toronto Blue Jays,Ben Revere,1,16461971.0,24461513.0,7999542.0,18855751.0
+250068,2015,San Diego Padres,Ronald Herrera,1,9743713.973449018,,,New York Yankees,José Pirela,1,-9087500.0,0.0,9087500.0,18831213.973449018
+326804,2017,Kansas City Royals,A.J. Puckett,1,10960353.075029759,,,Chicago White Sox,Melky Cabrera,1,-7802031.0,6197969.0,14000000.0,18762384.07502976
+501369,2021,Toronto Blue Jays,Rowdy Tellez,1,30061047.0,38938567.0,8877520.0,Milwaukee Brewers,Trevor Richards,1,11398767.198030949,,,18662279.80196905
+790742,2024,Boston Red Sox,Nick Yorke,1,38461538.46153846,,,Pittsburgh Pirates,Quinn Priester,1,57034506.0,69609538.0,12575032.0,18572967.538461544
+296408,2017,Seattle Mariners,Luiz Gohara,1,51148314.35013887,,,Atlanta Braves,"Mallex Smith, Shae Simmons",2,69625211.97344902,74869840.0,14988342.0,18476897.62331015
+808316,2024,Chicago Cubs,"Isaac Paredes, Hayden Wesneski",2,46681913.0,66892918.0,20211006.0,Houston Astros,Kyle Tucker,1,28208317.0,47013862.0,18805545.0,18473596.0
+716140,2023,Chicago Cubs,"DJ Herz, Kevin Made",2,27736686.390532542,,,Washington Nationals,Jeimer Candelario,1,9286050.0,15476750.0,6190700.0,18450636.390532542
+281579,2016,New York Mets,Antonio Bastardo,1,-1571259.0,10428741.0,12000000.0,Pittsburgh Pirates,Jonathon Niese,1,16878516.0,21982416.0,5103900.0,18449775.0
+715914,2023,Kansas City Royals,Nicky Lopez,1,24795950.0,34114801.0,9318851.0,Atlanta Braves,Taylor Hearn,1,6418475.0,13918475.0,7500000.0,18377475.0
+372015,2018,Cleveland Guardians,Willi Castro,1,30396712.528082527,,,Detroit Tigers,Leonys Martin,1,12076465.0,18822088.0,6745623.0,18320247.528082527
+790354,2024,Los Angeles Angels,Carlos Estévez,1,10538801.033682458,,,Philadelphia Phillies,"Sam Aldegheri, George Klassen",2,28846153.846153844,,,18307352.812471386
+600896,2021,Tampa Bay Rays,Joey Wendle,1,-4886638.0,1613362.0,6500000.0,Miami Marlins,Kameron Misner,1,13334945.380063722,,,18221583.38006372
+213858,2014,Cincinnati Reds,Ben Lively,1,10133462.53238698,,,Philadelphia Phillies,Marlon Byrd,1,-8000000.0,0.0,8000000.0,18133462.53238698
+752065,2024,Los Angeles Dodgers,"Rayne Doncon, Manuel Margot",2,22928850.92307692,18005774.0,9500000.0,Minnesota Twins,Noah Miller,1,4807692.307692307,,,18121158.615384612
+476488,2021,Atlanta Braves,"Chad Sobotka, Patrick Weigel",2,11854717.885952188,,,Milwaukee Brewers,Orlando Arcia,1,29897929.0,44429564.0,14531636.0,18043211.11404781
+432172,2019,Toronto Blue Jays,Chad Spanberger,1,11398767.198030949,,,Milwaukee Brewers,Chase Anderson,1,-6620769.0,2379231.0,9000000.0,18019536.19803095
+324802,2017,Arizona Diamondbacks,"Sergio Alcántara, Dawel Lugo",2,21920706.150059517,,,Detroit Tigers,J.D. Martinez,1,3991265.0,13241265.0,9250000.0,17929441.150059517
+402255,2019,Seattle Mariners,Anthony Swarzak,1,-3410285.0,3589715.0,7000000.0,Atlanta Braves,"Arodys Vizcaíno, Jesse Biddle",2,14456435.0,27874935.0,13418500.0,17866720.0
+249192,2015,Seattle Mariners,"Danny Farquhar, Logan Morrison, Brad Miller",3,52929839.0,76649438.0,23719598.0,Tampa Bay Rays,"Nate Karns, Boog Powell",2,35126933.03368246,33355872.0,8767741.0,17802905.966317542
+715384,2023,Los Angeles Dodgers,"Trayce Thompson, Nick Nastrini",2,29482248.52071006,0.0,7500000.0,Chicago White Sox,"Lance Lynn, Joe Kelly",2,11846218.0,39346218.0,27500000.0,17636030.52071006
+280853,2016,Texas Rangers,Travis Demeritte,1,28103469.42315322,,,Atlanta Braves,Dario Alvarez,1,10538801.033682458,,,17564668.389470764
+449814,2020,Boston Red Sox,"Heath Hembree, Brandon Workman",2,3081193.0,13581193.0,10500000.0,Philadelphia Phillies,"Connor Seabold, Nick Pivetta",2,20594226.601390272,16328820.0,8063500.0,17513033.601390272
+642262,2022,Toronto Blue Jays,Jordan Groshans,1,38282517.942281246,,,Miami Marlins,"Anthony Bass, Zach Pop",2,20788617.0,32208617.0,11420000.0,17493900.942281246
+860206,2025,Arizona Diamondbacks,Eugenio Suárez,1,25983237.262530718,,,Seattle Mariners,"Hunter Cranton, Tyler Locklear",2,43461538.46153846,,,17478301.19900774
+251150,2015,Athletics,"Drew Pomeranz, José Torres",2,15184679.033682458,12145878.0,7500000.0,San Diego Padres,"Marc Rzepczynski, Yonder Alonso",2,-2254085.0,8245915.0,10500000.0,17438764.033682458
+642405,2022,Cincinnati Reds,Brandon Drury,1,-4000000.0,0.0,4000000.0,San Diego Padres,Victor Acosta,1,13334945.380063722,,,17334945.38006372
+666799,2023,Baltimore Orioles,Darell Hernaiz,1,13868343.195266271,,,Athletics,Cole Irvin,1,31200291.0,40021969.0,8821679.0,17331947.80473373
+739238,2024,Seattle Mariners,"Zach DeLoach, Prelander Berroa",2,9615384.615384614,,,Chicago White Sox,Gregory Santos,1,26757737.0,35826347.0,9068609.0,17142352.384615384
+277586,2016,Boston Red Sox,Wendell Rijo,1,10538801.033682458,,,Milwaukee Brewers,Aaron Hill,1,-6577679.0,5088987.0,11666666.0,17116480.033682458
+371984,2018,Pittsburgh Pirates,Taylor Hearn,1,30396712.528082527,,,Texas Rangers,Keone Kela,1,13332036.0,21377036.0,8045000.0,17064676.528082527
+438021,2020,San Diego Padres,Manuel Margot,1,30116847.0,40855069.0,10738223.0,Tampa Bay Rays,Emilio Pagán,1,13158697.0,21222197.0,8063500.0,16958150.0
+791280,2024,Los Angeles Angels,Luis García,1,10795435.0,18295435.0,7500000.0,Boston Red Sox,"Niko Kavadas, Matthew Lugo, Ryan Zeferjahn",3,27736686.390532542,,,16941251.390532542
+326339,2017,New York Mets,Lucas Duda,1,-5910215.0,1339785.0,7250000.0,Tampa Bay Rays,Drew Smith,1,10960353.075029759,,,16870568.07502976
+371968,2018,Minnesota Twins,Lance Lynn,1,-5415122.0,6584878.0,12000000.0,New York Yankees,Tyler Austin,1,11398767.198030949,,,16813889.19803095
+372134,2018,Baltimore Orioles,Jonathan Schoop,1,10208663.0,18708663.0,8500000.0,Milwaukee Brewers,"Jonathan Villar, Luis Ortiz, Jean Carmona",3,26933210.528082527,4036498.0,7500000.0,16724547.528082527
+331258,2017,Los Angeles Angels,Tony Sanchez,1,9743713.973449018,,,Atlanta Braves,Brandon Phillips,1,-6936965.0,5146368.0,12083333.0,16680678.973449018
+240326,2015,Detroit Tigers,Yoenis Cespedes,1,30620359.0,40639410.0,10019051.0,New York Mets,Michael Fulmer,1,47289491.8178059,,,16669132.817805901
+371004,2018,Arizona Diamondbacks,Brian Shaffer,1,11398767.198030949,,,Tampa Bay Rays,Matt Andriese,1,28046422.0,36475303.0,8428881.0,16647654.801969051
+214338,2015,Houston Astros,"Andrew Thurman, Rio Ruiz, Mike Foltynewicz",3,54179032.28541893,26073003.0,9050000.0,Atlanta Braves,"Evan Gattis, James Hoyt",2,70743051.53238697,74790858.0,14181269.0,16564019.246968046
+735582,2023,New York Mets,Coleman Crow,1,4807692.307692307,,,Milwaukee Brewers,"Tyrone Taylor, Adrian Houser",2,21356234.0,34247266.0,12891032.0,16548541.692307692
+371446,2018,Arizona Diamondbacks,"Jhoan Duran, Gabriel Maciel",2,22797534.396061897,,,Minnesota Twins,Eduardo Escobar,1,6320799.0,11170799.0,4850000.0,16476735.396061897
+320595,2017,Chicago Cubs,Zac Rosscup,1,4109652.0,11609652.0,7500000.0,Colorado Rockies,Matt Carasiti,1,20571673.0,29151673.0,8580000.0,16462021.0
+507890,2021,Washington Nationals,Brad Hand,1,-3567192.0,6932808.0,10500000.0,Toronto Blue Jays,Riley Adams,1,12822062.865445886,,,16389254.865445886
+508061,2021,Washington Nationals,Daniel Hudson,1,-3440308.0,2059692.0,5500000.0,San Diego Padres,Mason Thompson,1,12822062.865445886,,,16262370.865445886
+480506,2021,San Francisco Giants,Wandy Peralta,1,1492892.0,8992892.0,7500000.0,New York Yankees,Mike Tauchman,1,17747323.0,25961612.0,8214289.0,16254431.0
+211405,2014,Pittsburgh Pirates,Justin Wilson,1,11950718.0,19958218.0,8007500.0,New York Yankees,Francisco Cervelli,1,28186399.0,41047507.0,12861107.0,16235681.0
+808939,2024,Boston Red Sox,Cam Booser,1,31129052.0,40842710.0,9713658.0,Chicago White Sox,Yhoiker Fajardo,1,15000000.0,,,16129052.0
+858240,2025,Arizona Diamondbacks,Josh Naylor,1,3879315.0,14779315.0,10900000.0,Seattle Mariners,"Ashton Izzi, Brandyn Garcia",2,20000000.0,,,16120685.0
+371978,2018,Los Angeles Angels,Ian Kinsler,1,6721750.0,17721750.0,11000000.0,Boston Red Sox,"Ty Buttrey, Williams Jerez",2,22797534.396061897,,,16075784.396061897
+450307,2020,Boston Red Sox,Mitch Moreland,1,8680067.0,11680067.0,3000000.0,San Diego Padres,"Jeisson Rosario, Hudson Potts",2,24657813.20278055,,,15977746.202780548
+808937,2024,Arizona Diamondbacks,Slade Cecconi,1,19823784.0,29523784.0,9700000.0,Cleveland Guardians,Josh Naylor,1,3879315.0,14779315.0,10900000.0,15944469.0
+663461,2022,Boston Red Sox,Jacob Wallace,1,0.0,,,Kansas City Royals,Wyatt Mills,1,15942610.0,25662610.0,9720000.0,15942610.0
+394206,2019,San Francisco Giants,"Alen Hanson, Derek Law, Juan De Paula",3,6990373.662333187,0.0,7500000.0,Toronto Blue Jays,Kevin Pillar,1,22866389.0,33494905.0,10628515.0,15876015.337666813
+660380,2022,Tampa Bay Rays,"Xavier Edwards, JT Chargois",2,43579486.52071006,14097238.0,7500000.0,Miami Marlins,"Marcus Johnson, Santiago Suarez",2,27736686.390532542,,,15842800.130177516
+662601,2022,Colorado Rockies,Chad Smith,1,29689199.0,39409199.0,9720000.0,Athletics,Jeff Criswell,1,13868343.195266271,,,15820855.804733729
+181445,2014,Los Angeles Angels,Andrew Romine,1,-6067964.0,2439536.0,8507500.0,Detroit Tigers,Jose Alvarez,1,9743713.973449018,,,15811677.973449018
+507290,2021,Pittsburgh Pirates,Clay Holmes,1,3951572.628650729,,,New York Yankees,"Hoy Park, Diego Castillo",2,19755122.033682458,17286821.0,8070500.0,15803549.40503173
+371510,2018,Kansas City Royals,Mike Moustakas,1,21895107.0,28395107.0,6500000.0,Milwaukee Brewers,"Jorge López, Brett Phillips",2,6136853.198030949,3901586.0,9163500.0,15758253.801969051
+641364,2022,Chicago Cubs,Chris Martin,1,6042624.0,12542624.0,6500000.0,Los Angeles Dodgers,Zach McKinstry,1,-9660000.0,0.0,9660000.0,15702624.0
+790472,2024,San Diego Padres,"J.D. Gonzalez, Dylan Lesko, Homer Bush Jr.",3,26121794.87179487,,,Tampa Bay Rays,Jason Adam,1,10426771.0,17926771.0,7500000.0,15695023.871794868
+239881,2015,Washington Nationals,Nick Pivetta,1,10133462.53238698,,,Philadelphia Phillies,Jonathan Papelbon,1,-5560386.0,6939614.0,12500000.0,15693848.53238698
+434970,2019,Texas Rangers,Nomar Mazara,1,17310889.0,25426968.0,8116079.0,Chicago White Sox,Steele Walker,1,32877084.270374067,,,15566195.270374067
+610433,2022,Detroit Tigers,Isaac Paredes,1,18401283.0,27321283.0,8920000.0,Tampa Bay Rays,Austin Meadows,1,33917362.0,45831068.0,11913706.0,15516079.0
+642505,2022,St. Louis Cardinals,Harrison Bader,1,6593780.0,16993780.0,10400000.0,New York Yankees,Jordan Montgomery,1,22061324.0,32702210.0,10640886.0,15467544.0
+779538,2024,Los Angeles Dodgers,Braydon Fisher,1,11854717.885952188,,,Toronto Blue Jays,Cavan Biggio,1,-3574899.0,2925101.0,6500000.0,15429616.885952188
+240294,2015,Toronto Blue Jays,Alberto Tirado,1,10133462.53238698,,,Philadelphia Phillies,Ben Revere,1,25524846.0,35281437.0,9756591.0,15391383.46761302
+879302,2025,Kansas City Royals,Jonathan Bowlan,1,13868343.195266271,,,Philadelphia Phillies,Matt Strahm,1,29227608.200079355,,,15359265.004813084
+662795,2022,Detroit Tigers,Joe Jiménez,1,29227608.200079355,,,Atlanta Braves,Justyn-Henry Malloy,1,13868343.195266271,,,15359265.004813084
+600812,2021,Pittsburgh Pirates,Jacob Stallings,1,31983007.0,43545367.0,11562360.0,Miami Marlins,"Zach Thompson, Kyle Nicolas, Connor Scott",3,47143957.24550961,30646949.0,9660000.0,15160950.24550961
+642410,2022,New York Mets,"J.D. Davis, Thomas Szapucki",2,8538772.95514863,12604106.0,8339355.0,San Francisco Giants,Darin Ruf,1,-6500000.0,0.0,6500000.0,15038772.95514863
+789940,2024,Baltimore Orioles,Austin Hays,1,-488472.0,6011528.0,6500000.0,Philadelphia Phillies,"Seranthony Domínguez, Cristian Pache",2,14521398.0,26761398.0,12240000.0,15009870.0
+372007,2018,St. Louis Cardinals,Tommy Pham,1,26817924.0,35275660.0,8457736.0,Tampa Bay Rays,"Justin Williams, Génesis Cabrera",2,41795479.726113476,,,14977555.726113476
+328025,2017,Athletics,Yonder Alonso,1,-4000000.0,0.0,4000000.0,Seattle Mariners,Boog Powell,1,10960353.075029759,,,14960353.075029759
+642605,2022,Kansas City Royals,Cam Gallagher,1,14358686.0,21858686.0,7500000.0,San Diego Padres,Brent Rooker,1,-573470.0,9086530.0,9660000.0,14932156.0
+212886,2014,Los Angeles Angels,Jairo Díaz,1,27022566.753031943,,,Colorado Rockies,Josh Rutledge,1,41845197.0,52564364.0,10719166.0,14822630.246968057
+251176,2015,Baltimore Orioles,Steve Clevenger,1,6846313.0,14853813.0,8007500.0,Seattle Mariners,Mark Trumbo,1,-7897420.0,1252580.0,9150000.0,14743733.0
+251483,2015,New York Mets,Jonathon Niese,1,16878516.0,21982416.0,5103900.0,Pittsburgh Pirates,Neil Walker,1,2243287.0,12793287.0,10550000.0,14635229.0
+309621,2017,Chicago Cubs,Matt Szczur,1,-4470976.0,4109024.0,8580000.0,San Diego Padres,Justin Hancock,1,10133462.53238698,,,14604438.53238698
+660456,2022,Seattle Mariners,"Erik Swanson, Adam Macko",2,14623424.065088756,17500643.0,7500000.0,Toronto Blue Jays,Teoscar Hernández,1,29227608.200079355,,,14604184.134990599
+281587,2016,Los Angeles Angels,Héctor Santiago,1,1699073.0,8199073.0,6500000.0,Minnesota Twins,"Ricky Nolasco, Alex Meyer",2,16225119.033682458,30186318.0,24500000.0,14526046.033682458
+409189,2019,Seattle Mariners,Edwin Encarnación,1,-2669654.0,17330346.0,20000000.0,New York Yankees,Juan Then,1,11854717.885952188,,,14524371.885952188
+734793,2023,Boston Red Sox,Nick Robertson,1,25364605.0,35084605.0,9720000.0,St. Louis Cardinals,Tyler O'Neill,1,10924365.0,18207276.0,7282910.0,14440240.0
+384926,2018,Cleveland Guardians,Yonder Alonso,1,-3437098.0,4562902.0,8000000.0,Chicago White Sox,Alex Call,1,10960353.075029759,,,14397451.075029759
+294514,2016,Chicago Cubs,Jorge Soler,1,10912421.0,24245754.0,13333333.0,Kansas City Royals,Wade Davis,1,-3473779.0,6526221.0,10000000.0,14386200.0
+326763,2017,Minnesota Twins,Jaime García,1,-3011939.0,8988061.0,12000000.0,New York Yankees,Zack Littell,1,10960353.075029759,,,13972292.075029759
+807993,2024,Cleveland Guardians,Spencer Horwitz,1,12062499.0,21762499.0,9700000.0,Pittsburgh Pirates,"Michael Kennedy, Luis Ortiz, Josh Hartle",3,25988049.92307692,14064973.0,7500000.0,13925550.92307692
+372140,2018,Los Angeles Dodgers,"Luke Raley, Logan Forsythe",2,23350974.19803095,20952207.0,9000000.0,Minnesota Twins,Brian Dozier,1,9437552.0,15729253.0,6291701.0,13913422.198030949
+860412,2025,San Francisco Giants,Camilo Doval,1,15902315.0,23587985.0,7685669.0,New York Yankees,"Jesus Rodriguez, Trystan Vrieling, Carlos De La Rosa, Parks Harber",4,29807692.307692308,,,13905377.307692308
+508287,2021,Los Angeles Angels,Tony Watson,1,2346562.0,3346562.0,1000000.0,San Francisco Giants,"Sam Selman, José Marte",2,16218199.628650729,21037127.0,8770500.0,13871637.628650729
+664860,2023,San Francisco Giants,Yunior Marte,1,18306227.0,28026227.0,9720000.0,Philadelphia Phillies,Erik Miller,1,4444981.793354574,,,13861245.206645425
+606790,2022,San Diego Padres,Justin Lange,1,4444981.793354574,,,New York Yankees,Luke Voit,1,18185375.0,27360290.0,9174915.0,13740393.206645425
+281419,2016,Arizona Diamondbacks,Tyler Clippard,1,-3786487.0,8463513.0,12250000.0,New York Yankees,Jose Campos,1,9743713.973449018,,,13530200.973449018
+384742,2018,Cincinnati Reds,Tanner Rainey,1,11854717.885952188,,,Washington Nationals,Tanner Roark,1,-1575664.0,8424336.0,10000000.0,13430381.885952188
+790245,2024,Chicago Cubs,"Josh Rivera, Yohendrick Pinango",2,18142637.687756028,,,Toronto Blue Jays,Nate Pearson,1,4870930.0,12370930.0,7500000.0,13271707.687756028
+281575,2016,Houston Astros,Scott Feldman,1,-2692983.0,7307017.0,10000000.0,Toronto Blue Jays,Lupe Chavez,1,10538801.033682458,,,13231784.033682458
+860122,2025,Cleveland Guardians,Shane Bieber,1,53194246.924144424,,,Toronto Blue Jays,Khal Stephen,1,40000000.0,,,13194246.924144424
+613264,2022,Miami Marlins,Alex Jackson,1,-8920000.0,0.0,8920000.0,Milwaukee Brewers,Hayden Cantrelle,1,4274020.955148629,,,13194020.95514863
+605757,2022,Texas Rangers,"Ronny Henriquez, Isiah Kiner-Falefa",2,26287552.793354575,32778313.0,10935742.0,Minnesota Twins,Mitch Garver,1,39462399.0,57137573.0,17675174.0,13174846.206645425
+226944,2015,Los Angeles Dodgers,"Chris Withrow, Juan Uribe",2,12028854.0,28043854.0,16015000.0,Atlanta Braves,"Juan Jaime, Ian Thomas, Eric Stults, Alberto Callaspo",4,25197963.505835995,14820787.0,9500000.0,13169109.505835995
+292927,2016,Los Angeles Dodgers,Howie Kendrick,1,-6621936.0,3378064.0,10000000.0,Philadelphia Phillies,"Darnell Sweeney, Darin Ruf",2,6538801.033682458,0.0,4000000.0,13160737.033682458
+860358,2025,Kansas City Royals,Yunior Marte,1,3839267.0,11339267.0,7500000.0,San Francisco Giants,Mike Yastrzemski,1,-9250000.0,0.0,9250000.0,13089267.0
+326186,2017,Colorado Rockies,Jose Gomez,1,10960353.075029759,,,Philadelphia Phillies,Pat Neshek,1,-2094879.0,4405121.0,6500000.0,13055232.075029759
+435129,2019,Cleveland Guardians,Corey Kluber,1,10780829.0,29280829.0,18500000.0,Texas Rangers,"Delino DeShields, Emmanuel Clase",2,23667238.0,37001238.0,13334000.0,12886409.0
+507632,2021,Cincinnati Reds,"Noah Davis, Case Williams",2,12822062.865445886,,,Colorado Rockies,Mychal Givens,1,-24325.0,4025675.0,4050000.0,12846387.865445886
+450429,2020,Chicago Cubs,Zack Short,1,12328906.601390274,,,Detroit Tigers,Cameron Maybin,1,-435261.0,1064739.0,1500000.0,12764167.601390274
+421063,2019,San Francisco Giants,"Ray Black, Drew Pomeranz",2,18862213.0,29551213.0,10689000.0,Milwaukee Brewers,Mauricio Dubón,1,31612581.029205833,,,12750368.029205833
+214432,2015,Chicago Cubs,Luis Valbuena,1,20563348.0,29840032.0,9276685.0,Houston Astros,Dexter Fowler,1,7880550.0,17380550.0,9500000.0,12682798.0
+626055,2022,Kansas City Royals,Yohanse Morel,1,0.0,,,Texas Rangers,Albert Abreu,1,12644880.0,22304880.0,9660000.0,12644880.0
+211508,2014,Arizona Diamondbacks,"Justin Williams, Andrew Velazquez",2,20266925.06477396,,,Tampa Bay Rays,Jeremy Hellickson,1,7628187.0,14128187.0,6500000.0,12638738.064773958
+292950,2016,Athletics,Danny Valencia,1,-1650324.0,3899676.0,5550000.0,Seattle Mariners,Paul Blackburn,1,10960353.075029759,,,12610677.075029759
+791245,2024,Detroit Tigers,Mark Canha,1,-7905712.0,3594288.0,11500000.0,San Francisco Giants,Eric Silva,1,4622781.065088757,,,12528493.065088756
+358355,2018,Arizona Diamondbacks,Elvis Luciano,1,11398767.198030949,,,Kansas City Royals,Jon Jay,1,-1101757.0,1898243.0,3000000.0,12500524.198030949
+716701,2023,Kansas City Royals,Ryan Yarbrough,1,323041.0,6823041.0,6500000.0,Los Angeles Dodgers,Devin Mann,1,12822062.865445886,,,12499021.865445886
+660400,2022,Cleveland Guardians,Nolan Jones,1,24535463.0,34255463.0,9720000.0,Colorado Rockies,Juan Brito,1,36982248.52071006,,,12446785.520710059
+450189,2020,Cincinnati Reds,Cody Reed,1,0.0,,,Tampa Bay Rays,Riley O'Brien,1,12328906.601390274,,,12328906.601390274
+450091,2020,Kansas City Royals,Brett Phillips,1,209828.0,8843828.0,8634000.0,Tampa Bay Rays,Lucius Fox,1,12328906.601390274,,,12119078.601390274
+436484,2020,Boston Red Sox,Sam Travis,1,-1997935.0,5502065.0,7500000.0,Texas Rangers,Jeffrey Springs,1,10091728.0,18725728.0,8634000.0,12089663.0
+613432,2022,Cleveland Guardians,Bradley Zimmer,1,2482134.0,9982134.0,7500000.0,Toronto Blue Jays,Anthony Castro,1,14533586.0,23453586.0,8920000.0,12051452.0
+642135,2022,Houston Astros,Jake Odorizzi,1,8603952.0,18728952.0,10125000.0,Atlanta Braves,Will Smith,1,-3425220.0,9908113.0,13333333.0,12029172.0
+281410,2016,St. Louis Cardinals,Charlie Tilson,1,10538801.033682458,,,Chicago White Sox,Zach Duke,1,-1446948.0,8553052.0,10000000.0,11985749.033682458
+821670,2025,Los Angeles Angels,José Suarez,1,11854717.885952188,,,Atlanta Braves,Ian Anderson,1,0.0,,,11854717.885952188
+508250,2021,Boston Red Sox,Alex Scherff,1,11854717.885952188,,,Minnesota Twins,Hansel Robles,1,55436.0,4055436.0,4000000.0,11799281.885952188
+621211,2022,Seattle Mariners,Stuart Fairchild,1,4274020.955148629,,,San Francisco Giants,Alex Blandino,1,-7500000.0,0.0,7500000.0,11774020.95514863
+251470,2015,Seattle Mariners,Freddy Peralta,1,10538801.033682458,,,Milwaukee Brewers,Adam Lind,1,-1223328.0,6776672.0,8000000.0,11762129.033682458
+808917,2024,Cincinnati Reds,"Alex Jackson, Fernando Cruz",2,15396396.0,27753775.0,12357378.0,New York Yankees,Jose Trevino,1,27012753.0,41937753.0,14925000.0,11616357.0
+467671,2021,Los Angeles Dodgers,"Cody Thomas, Adam Kolarek",2,11571902.95514863,15368382.0,8070500.0,Athletics,"Gus Varland, Sheldon Neuse",2,0.0,,,11571902.95514863
+642482,2022,Los Angeles Dodgers,"Alex De Jesus, Mitch White",2,24372769.38006372,19237824.0,8200000.0,Toronto Blue Jays,Nick Frasso,1,12822062.865445886,,,11550706.514617834
+198985,2014,Los Angeles Angels,Zach Borenstein,1,12639270.18656892,,,Arizona Diamondbacks,Joe Thatcher,1,1090269.0,5090269.0,4000000.0,11549001.18656892
+605916,2022,Cincinnati Reds,Sonny Gray,1,24029451.0,34196117.0,10166666.0,Minnesota Twins,Chase Petty,1,35559854.34683659,,,11530403.34683659
+239033,2015,Houston Astros,Daniel Mengden,1,10133462.53238698,,,Athletics,Scott Kazmir,1,-1385547.0,9614453.0,11000000.0,11519009.53238698
+326574,2017,Baltimore Orioles,"Hyun Soo Kim, Garrett Cleavinger",2,3619855.0750297587,1239502.0,8580000.0,Philadelphia Phillies,Jeremy Hellickson,1,-7891396.0,9308604.0,17200000.0,11511251.075029759
+213360,2014,San Francisco Giants,Kendry Flores,1,10133462.53238698,,,Miami Marlins,Casey McGehee,1,-1297554.0,3502446.0,4800000.0,11431016.53238698
+508245,2021,Chicago Cubs,"Trevor Williams, Javier Báez",2,11419874.0,29569874.0,18150000.0,New York Mets,Pete Crow-Armstrong,1,0.0,,,11419874.0
+461560,2021,Los Angeles Angels,Jahmai Jones,1,0.0,,,Baltimore Orioles,Alex Cobb,1,-11406896.0,2843104.0,14250000.0,11406896.0
+458975,2020,Washington Nationals,"Eddy Yean, Wil Crowe",2,12822062.865445886,,,Pittsburgh Pirates,Josh Bell,1,1422286.0,7922286.0,6500000.0,11399776.865445886
+642167,2022,Baltimore Orioles,Jorge López,1,11398767.198030949,,,Minnesota Twins,Cade Povich,1,0.0,,,11398767.198030949
+773973,2024,Baltimore Orioles,Garrett Stallings,1,0.0,,,Milwaukee Brewers,Thyago Vieira,1,11398767.198030949,,,11398767.198030949
+332113,2017,St. Louis Cardinals,Eliezer Álvarez,1,10960353.075029759,,,Philadelphia Phillies,Juan Nicasio,1,-433967.0,3566033.0,4000000.0,11394320.075029759
+294793,2016,Los Angeles Angels,"Austin Adams, Kyle McGowin",2,12341703.0,21476703.0,9135000.0,Washington Nationals,Danny Espinosa,1,950871.0,6375871.0,5425000.0,11390832.0
+338547,2017,San Diego Padres,Jabari Blash,1,9557383.0,18157383.0,8600000.0,New York Yankees,"Chase Headley, Bryan Mitchell",2,-1793006.0,19251994.0,21045000.0,11350389.0
+641867,2022,San Diego Padres,"Taylor Rogers, Esteury Ruiz, Robert Gasser, Dinelson Lamet",4,16051802.380063722,16516857.0,13800000.0,Milwaukee Brewers,Josh Hader,1,4732945.0,15732945.0,11000000.0,11318857.380063722
+420503,2019,Pittsburgh Pirates,Jordan Lyles,1,91207.0,2141206.0,2049999.0,Milwaukee Brewers,Cody Ponce,1,11398767.198030949,,,11307560.198030949
+213240,2014,Athletics,"Derek Norris, Seth Streich",2,77107058.53238697,83567939.0,16594344.0,San Diego Padres,"Jesse Hahn, R.J. Alvarez",2,88410830.53238697,91772955.0,13495588.0,11303772.0
+240180,2015,Detroit Tigers,Joakim Soria,1,-1160324.0,5839676.0,7000000.0,Pittsburgh Pirates,JaCoby Jones,1,10133462.53238698,,,11293786.53238698
+202822,2014,Arizona Diamondbacks,Gerardo Parra,1,20969588.0,30592010.0,9622421.0,Milwaukee Brewers,Mitch Haniger,1,9743713.973449018,,,11225874.026550982
+508017,2021,Seattle Mariners,"JT Chargois, Austin Shenton",2,20185701.865445886,14863639.0,7500000.0,Tampa Bay Rays,Diego Castillo,1,9216321.0,17286821.0,8070500.0,10969380.865445886
+299260,2017,Los Angeles Dodgers,Chase De Jong,1,10960353.075029759,,,Seattle Mariners,"Drew Jackson, Aneurys Zabala",2,21920706.150059517,,,10960353.075029759
+294123,2016,Seattle Mariners,Alex Jackson,1,10960353.075029759,,,Atlanta Braves,"Rob Whalen, Max Povse",2,21920706.150059517,,,10960353.075029759
+213000,2014,Washington Nationals,Ross Detwiler,1,-803604.0,3196396.0,4000000.0,Texas Rangers,Christopher Bostick,1,10133462.53238698,,,10937066.53238698
+879312,2025,Baltimore Orioles,"Caden Bodine, Austin Overn, Slater de Brun, Michael Forret",4,135000000.0,,,Tampa Bay Rays,Shane Baz,1,124084136.19582255,,,10915863.804177448
+507636,2021,Athletics,Jesús Luzardo,1,0.0,,,Miami Marlins,Starling Marte,1,10891531.0,23391531.0,12500000.0,10891531.0
+284213,2016,Detroit Tigers,"Kade Scivicque, Mike Aviles",2,8538801.033682458,0.0,2000000.0,Atlanta Braves,Erick Aybar,1,-2328799.0,6421201.0,8750000.0,10867600.033682458
+239731,2015,Colorado Rockies,"LaTroy Hawkins, Troy Tulowitzki",2,85414014.0,202521156.0,117107142.0,Toronto Blue Jays,"Jeff Hoffman, Miguel Castro, José Reyes",3,74601188.15685876,50604615.0,53000000.0,10812825.843141243
+279784,2016,Chicago Cubs,"Daniel Vogelbach, Paul Blackburn",2,28103469.42315322,,,Seattle Mariners,Mike Montgomery,1,38843910.0,48098732.0,9254822.0,10740440.576846778
+860277,2025,Kansas City Royals,Freddy Fermin,1,35448445.0,44673694.0,9225250.0,San Diego Padres,"Ryan Bergert, Stephen Kolek",2,24767758.307692308,28940066.0,8980000.0,10680686.692307692
+326946,2017,Washington Nationals,Tyler Watson,1,10960353.075029759,,,Minnesota Twins,Brandon Kintzler,1,295325.0,4295325.0,4000000.0,10665028.075029759
+281532,2016,Boston Red Sox,Pat Light,1,10538801.033682458,,,Minnesota Twins,Fernando Abad,1,-94907.0,6405093.0,6500000.0,10633708.033682458
+210997,2014,Los Angeles Angels,Hank Conger,1,26600260.0,36257098.0,9656838.0,Houston Astros,"Carlos Pérez, Nick Tropeano",2,37156029.28541892,,,10555769.28541892
+384286,2018,Cleveland Guardians,Yan Gomes,1,12709416.0,16542749.0,3833333.0,Washington Nationals,"Jefry Rodriguez, Daniel Johnson",2,23253485.08398314,,,10544069.083983138
+240306,2015,Pittsburgh Pirates,Adrian Sampson,1,10133462.53238698,,,Seattle Mariners,J.A. Happ,1,-367237.0,6332763.0,6700000.0,10500699.53238698
+714800,2023,Cleveland Guardians,Amed Rosario,1,14295765.0,23826275.0,9530510.0,Los Angeles Dodgers,Noah Syndergaard,1,3860745.0,16860745.0,13000000.0,10435020.0
+757413,2024,Miami Marlins,Jon Berti,1,15229391.0,22688878.0,7459488.0,New York Yankees,John Cruz,1,4807692.307692307,,,10421698.692307692
+716640,2023,Baltimore Orioles,"Drew Rom, César Prieto",2,18491124.26035503,,,St. Louis Cardinals,Jack Flaherty,1,8110249.0,13517082.0,5406833.0,10380875.26035503
+878606,2025,Tampa Bay Rays,Yoniel Curet,1,15000000.0,,,Philadelphia Phillies,Tommy McCollum,1,4622781.065088757,,,10377218.934911244
+436446,2020,Los Angeles Angels,Jeremy Beasley,1,11854717.885952188,,,Arizona Diamondbacks,Matt Andriese,1,1563550.0,8063550.0,6500000.0,10291167.885952188
+493940,2021,San Francisco Giants,Matt Wisler,1,2051531.0,8551531.0,6500000.0,Tampa Bay Rays,Michael Plassmeyer,1,12328906.601390274,,,10277375.601390274
+791218,2024,New York Mets,Wilfredo Lara,1,4807692.307692307,,,Miami Marlins,Huascar Brazobán,1,15069671.0,24069671.0,9000000.0,10261978.692307692
+270011,2016,New York Mets,Akeel Morris,1,10538801.033682458,,,Atlanta Braves,Kelly Johnson,1,301651.0,2301651.0,2000000.0,10237150.033682458
+808309,2024,New York Yankees,Nestor Cortes,1,9587731.0,17187731.0,7600000.0,Milwaukee Brewers,Devin Williams,1,-618094.0,7981906.0,8600000.0,10205825.0
+326935,2017,Cleveland Guardians,"Thomas Pannone, Samad Taylor",2,10960353.075029759,,,Toronto Blue Jays,Joe Smith,1,808943.0,3808943.0,3000000.0,10151410.075029759
+331241,2017,Texas Rangers,Ti'Quan Forbes,1,10538801.033682458,,,Chicago White Sox,Miguel González,1,463077.0,6363077.0,5900000.0,10075724.033682458
+791293,2024,Baltimore Orioles,Seth Johnson,1,14423076.923076922,,,Philadelphia Phillies,Gregory Soto,1,4392691.0,10892691.0,6500000.0,10030385.923076922
+421024,2019,Tampa Bay Rays,"Jesús Sánchez, Ryne Stanek",2,76287701.05595022,18933299.0,8618500.0,Miami Marlins,Trevor Richards,1,86262077.0,101645956.0,15383878.0,9974375.944049776
+507240,2021,Pittsburgh Pirates,Adam Frazier,1,24237967.0,35097837.0,10859870.0,San Diego Padres,Tucupita Marcano,1,34192167.64118903,,,9954200.641189031
+716528,2023,Detroit Tigers,Michael Lorenzen,1,3924282.0,12424282.0,8500000.0,Philadelphia Phillies,Hao-Yu  Lee,1,13868343.195266271,,,9944061.195266271
+337904,2017,Arizona Diamondbacks,Curtis Taylor,1,10960353.075029759,,,Tampa Bay Rays,Brad Boxberger,1,1099259.0,7599259.0,6500000.0,9861094.075029759
+371920,2018,Seattle Mariners,Chase De Jong,1,11398767.198030949,,,Minnesota Twins,Zach Duke,1,1570973.0,3720973.0,2150000.0,9827794.198030949
+420985,2019,Los Angeles Dodgers,Tony Cingrani,1,20200.0,4020200.0,4000000.0,St. Louis Cardinals,Jedd Gyorko,1,9733842.0,15652325.0,5918483.0,9713642.0
+450386,2020,Arizona Diamondbacks,Robbie Ray,1,1428639.0,10858639.0,9430000.0,Toronto Blue Jays,Travis Bergen,1,11088342.0,19722342.0,8634000.0,9659703.0
+420932,2019,Chicago Cubs,Martín Maldonado,1,883892.0,3383892.0,2500000.0,Houston Astros,Tony Kemp,1,-8618500.0,0.0,8618500.0,9502392.0
+211000,2014,Los Angeles Angels,Mark Sappington,1,9743713.973449018,,,Tampa Bay Rays,Cesár Ramos,1,265256.0,6765256.0,6500000.0,9478457.973449018
+326894,2017,Arizona Diamondbacks,Jeferson Mejia,1,10133462.53238698,,,Athletics,Adam Rosales,1,660375.0,1910375.0,1250000.0,9473087.53238698
+244142,2015,Boston Red Sox,Alejandro De Aza,1,702843.0,5702843.0,5000000.0,San Francisco Giants,Luis Ysla,1,10133462.53238698,,,9430619.53238698
+808365,2024,Athletics,"Will Simpson, Jacob Watters, Joe Boyle",3,23853550.29585799,,,Tampa Bay Rays,Jacob Lopez,1,14423076.923076922,,,9430473.372781066
+859983,2025,Los Angeles Angels,Jake Eder,1,4807692.307692307,,,Washington Nationals,"Luis García, Andrew Chafin",2,14217070.53238698,10583608.0,6500000.0,9409378.224694673
+296227,2017,Kansas City Royals,Jarrod Dyson,1,9688882.0,16148136.0,6459254.0,Seattle Mariners,Nate Karns,1,341658.0,6841658.0,6500000.0,9347224.0
+660333,2022,San Francisco Giants,Tristan Peters,1,13868343.195266271,,,Tampa Bay Rays,Brett Wisely,1,4622781.065088757,,,9245562.130177513
+734875,2023,Los Angeles Dodgers,"Jorbit Vivas, Victor González",2,13966123.307692308,16658431.0,7500000.0,New York Yankees,Trey Sweeney,1,4807692.307692307,,,9158431.0
+790038,2024,Baltimore Orioles,"Jackson Baumeister, Mac Horvath",2,28846153.846153844,,,Tampa Bay Rays,Zach Eflin,1,19704778.0,46371444.0,26666666.0,9141375.846153844
+420304,2019,Minnesota Twins,Lewin Díaz,1,11398767.198030949,,,Miami Marlins,Sergio Romo,1,2280473.0,4780473.0,2500000.0,9118294.198030949
+252114,2015,Pittsburgh Pirates,Trey Supak,1,0.0,,,Milwaukee Brewers,Jason Rogers,1,-9087500.0,0.0,9087500.0,9087500.0
+281589,2016,Baltimore Orioles,Jonah Heim,1,10538801.033682458,,,Tampa Bay Rays,Steve Pearce,1,1455165.0,6205165.0,4750000.0,9083636.033682458
+790353,2024,Boston Red Sox,"Eddinson Paulino, Cutter Coffey",2,9430473.372781064,,,Toronto Blue Jays,Danny Jansen,1,18497884.0,30829806.0,12331922.0,9067410.627218936
+609864,2022,Athletics,Sean Manaea,1,4302196.0,14052196.0,9750000.0,San Diego Padres,"Adrián Martinez, Euribiel Angeles",2,13334945.380063722,,,9032749.380063722
+860327,2025,Cincinnati Reds,Kenya Huggins,1,5000000.0,,,Athletics,Miguel Andujar,1,-4000000.0,0.0,4000000.0,9000000.0
+240246,2015,St. Louis Cardinals,Malik Collymore,1,10133462.53238698,,,Milwaukee Brewers,Jonathan Broxton,1,1140527.0,8140527.0,7000000.0,8992935.53238698
+212877,2014,Pittsburgh Pirates,Joely Rodríguez,1,10133462.53238698,,,Philadelphia Phillies,Antonio Bastardo,1,1276035.0,5276035.0,4000000.0,8857427.53238698
+327004,2017,Cincinnati Reds,Tony Cingrani,1,5073805.0,12573805.0,7500000.0,Los Angeles Dodgers,Scott Van Slyke,1,-3758455.0,3741545.0,7500000.0,8832260.0
+714762,2023,Minnesota Twins,Jorge López,1,11398767.198030949,,,Miami Marlins,Dylan Floro,1,2612550.0,6612550.0,4000000.0,8786217.198030949
+340151,2018,St. Louis Cardinals,Randal Grichuk,1,14540400.0,22228407.0,7688007.0,Toronto Blue Jays,"Conner Greene, Dominic Leone",2,23212747.19803095,19858980.0,8045000.0,8672347.198030949
+508247,2021,Kansas City Royals,Jorge Soler,1,8647689.0,16697689.0,8050000.0,Atlanta Braves,Kasey Kalich,1,0.0,,,8647689.0
+733256,2023,Cleveland Guardians,Enyel De Los Santos,1,8501516.0,16001516.0,7500000.0,San Diego Padres,Scott Barlow,1,-104066.0,6595934.0,6700000.0,8605582.0
+773444,2024,Baltimore Orioles,Mike Baumann,1,13398733.0,22398733.0,9000000.0,Seattle Mariners,Blake Hunt,1,4807692.307692307,,,8591040.692307692
+371181,2018,Chicago White Sox,Joakim Soria,1,2849725.0,11183058.0,8333333.0,Milwaukee Brewers,Kodi Medeiros,1,11398767.198030949,,,8549042.198030949
+450340,2020,Los Angeles Angels,Jason Castro,1,11886344.0,18736344.0,6850000.0,San Diego Padres,Gerardo Reyes,1,20342489.0,29676489.0,9334000.0,8456145.0
+296143,2017,Baltimore Orioles,Yovani Gallardo,1,3699654.0,14699654.0,11000000.0,Seattle Mariners,Seth Smith,1,-4625570.0,2374430.0,7000000.0,8325224.0
+738082,2024,Texas Rangers,J.P. Martínez,1,12494154.184042942,,,Atlanta Braves,Tyler Owens,1,4274020.955148629,,,8220133.228894313
+204472,2014,Kansas City Royals,Jason Adam,1,9743713.973449018,,,Minnesota Twins,Josh Willingham,1,1534918.0,8534918.0,7000000.0,8208795.973449018
+809527,2025,Texas Rangers,Grant Anderson,1,13076445.0,22056445.0,8980000.0,Milwaukee Brewers,Mason Molina,1,5000000.0,,,8076445.0
+212890,2014,Chicago White Sox,André Rienzo,1,5550014.0,14600014.0,9050000.0,Miami Marlins,Dan Jennings,1,13597937.0,22112937.0,8515000.0,8047923.0
+250032,2015,Arizona Diamondbacks,Daniel Palka,1,10538801.033682458,,,Minnesota Twins,Chris Herrmann,1,2561977.0,10569477.0,8007500.0,7976824.033682458
+782353,2024,Athletics,J.D. Davis,1,5929467.0,9929467.0,4000000.0,New York Yankees,Jordan Groshans,1,13868343.195266271,,,7938876.195266271
+508248,2021,Pittsburgh Pirates,Richard Rodríguez,1,7786797.0,15286797.0,7500000.0,Atlanta Braves,Bryse Wilson,1,0.0,,,7786797.0
+251650,2015,San Diego Padres,Casey Kelly,1,10133462.53238698,,,Atlanta Braves,Christian Bethancourt,1,2354980.0,10897480.0,8542500.0,7778482.532386979
+214778,2015,Baltimore Orioles,Stephen Tarpley,1,10133462.53238698,,,Pittsburgh Pirates,Travis Snider,1,2360621.0,8860621.0,6500000.0,7772841.532386979
+381829,2018,Los Angeles Dodgers,Manny Banuelos,1,3653451.0250099194,,,Chicago White Sox,Justin Yurchak,1,11398767.198030949,,,7745316.17302103
+805959,2024,Athletics,Nick Allen,1,-3197837.0,5782163.0,8980000.0,Atlanta Braves,Jared Johnson,1,4444981.793354574,,,7642818.793354574
+218483,2015,New York Mets,Cory Mazzoni,1,10133462.53238698,,,San Diego Padres,Alex Torres,1,17772971.0,26287971.0,8515000.0,7639508.467613021
+240116,2015,Seattle Mariners,Dustin Ackley,1,12749778.0,20288303.0,7538525.0,New York Yankees,"José Ramírez, Ramón Flores",2,20266925.06477396,,,7517147.064773958
+383508,2018,Seattle Mariners,James Paxton,1,22474142.0,33280936.0,10806794.0,New York Yankees,"Dom Thompson-Williams, Erik Swanson, Justus Sheffield",3,29809226.975039773,,,7335084.975039773
+340471,2018,Miami Marlins,Christian Yelich,1,133225885.0,161551599.0,28325714.0,Milwaukee Brewers,"Jordan Yamamoto, Lewis Brinson, Monte Harrison, Isan Díaz",4,140534134.2548349,,,7308249.25483489
+469178,2021,Los Angeles Dodgers,Dylan Floro,1,7294602.0,14794602.0,7500000.0,Miami Marlins,Alex Vesia,1,0.0,,,7294602.0
+212819,2014,Arizona Diamondbacks,Miguel Montero,1,2909889.0,38909889.0,36000000.0,Chicago Cubs,Jeferson Mejia,1,10133462.53238698,,,7223573.532386979
+858881,2025,Arizona Diamondbacks,Randal Grichuk,1,6672554.0,11672554.0,5000000.0,Kansas City Royals,Andrew Hoffmann,1,13868343.195266271,,,7195789.195266271
+790406,2024,Washington Nationals,Jesse Winker,1,7308839.0,9308839.0,2000000.0,New York Mets,Tyler Stuart,1,14423076.923076922,,,7114237.923076922
+213818,2014,San Diego Padres,Seth Smith,1,-1256635.0,11743365.0,13000000.0,Seattle Mariners,Brandon Maurer,1,5849004.0,14364004.0,8515000.0,7105639.0
+292060,2016,Los Angeles Dodgers,Carlos Ruiz,1,8717366.0,13217366.0,4500000.0,Seattle Mariners,Vidal Nuño,1,1627097.0,9127097.0,7500000.0,7090269.0
+786876,2024,Kansas City Royals,Cayden Wallace,1,14423076.923076922,,,Washington Nationals,Hunter Harvey,1,7598620.0,14098620.0,6500000.0,6824456.923076922
+421002,2019,Chicago Cubs,"Alex Lange, Paul Richan",2,15806290.514602916,,,Detroit Tigers,Nick Castellanos,1,9021676.0,18971676.0,9950000.0,6784614.514602916
+339713,2018,San Diego Padres,Yangervis Solarte,1,4631284.0,11131284.0,6500000.0,Toronto Blue Jays,Edward Olivares,1,11398767.198030949,,,6767483.198030949
+667269,2023,Boston Red Sox,Matt Barnes,1,2266937.0,11641937.0,9375000.0,Miami Marlins,Richard Bleier,1,9025789.0,12025789.0,3000000.0,6758852.0
+214012,2015,Los Angeles Angels,Ricardo Sánchez,1,27022566.753031943,,,Atlanta Braves,"Kyle Kubitza, Nate Hyatt",2,20266925.06477396,,,6755641.688257985
+706373,2023,Los Angeles Angels,"Coleman Crow, Landon Marceaux",2,9245562.130177515,,,New York Mets,Eduardo Escobar,1,2584927.0,12584927.0,10000000.0,6660635.130177515
+242837,2015,Los Angeles Dodgers,"John Richy, Darnell Sweeney",2,37156029.28541892,,,Philadelphia Phillies,Chase Utley,1,30502469.0,44002469.0,13500000.0,6653560.28541892
+287995,2016,Washington Nationals,Christopher Bostick,1,3512933.6778941527,,,Pittsburgh Pirates,Taylor Gushue,1,10133462.53238698,,,6620528.854492826
+250800,2015,Houston Astros,Jed Lowrie,1,3989788.0,19323121.0,15333333.0,Athletics,Brendan McCurry,1,10538801.033682458,,,6549013.033682458
+733277,2023,Kansas City Royals,Jackson Kowar,1,6484282.0,16204282.0,9720000.0,Atlanta Braves,Kyle Wright,1,0.0,,,6484282.0
+241393,2015,Arizona Diamondbacks,Cliff Pennington,1,3654879.0,7654879.0,4000000.0,Toronto Blue Jays,Dawel Lugo,1,10133462.53238698,,,6478583.532386979
+859312,2025,Detroit Tigers,Enrique Jimenez,1,5000000.0,,,Minnesota Twins,Chris Paddack,1,11454127.0,15629127.0,4175000.0,6454127.0
+240280,2015,Tampa Bay Rays,Kevin Jepsen,1,3683576.0,10183576.0,6500000.0,Minnesota Twins,Chih-Wei Hu,1,10133462.53238698,,,6449886.532386979
+508246,2021,Washington Nationals,Jon Lester,1,5477973.0,10477973.0,5000000.0,St. Louis Cardinals,Lane Thomas,1,11854717.885952188,,,6376744.885952188
+508230,2021,Miami Marlins,John Curtiss,1,18702499.0,27472999.0,8770500.0,Milwaukee Brewers,Payton Henry,1,12328906.601390274,,,6373592.398609726
+716722,2023,San Diego Padres,Ryan Weathers,1,0.0,,,Miami Marlins,"Garrett Cooper, Sean Reynolds",2,6336566.065088757,5913785.0,4200000.0,6336566.065088757
+450413,2020,Arizona Diamondbacks,Starling Marte,1,42134045.0,54634045.0,12500000.0,Miami Marlins,"Caleb Smith, Humberto Mejía",2,35850312.0,46161022.0,10310710.0,6283733.0
+807992,2024,Cleveland Guardians,"Nick Sandlin, Andrés Giménez",2,18315246.0,35777156.0,17461910.0,Toronto Blue Jays,Spencer Horwitz,1,12062499.0,21762499.0,9700000.0,6252747.0
+611449,2022,San Diego Padres,Victor Caratini,1,19549110.0,29140873.0,9591763.0,Milwaukee Brewers,Korry Howell,1,13334945.380063722,,,6214164.619936278
+203913,2014,Los Angeles Angels,Mike Clevinger,1,12473922.313080085,,,Cleveland Guardians,Vinnie Pestano,1,6266499.0,14266499.0,8000000.0,6207423.313080085
+716527,2023,Pittsburgh Pirates,"Ji Man Choi, Rich Hill",2,11779536.53238698,9646074.0,8000000.0,San Diego Padres,"Alfonso Rivas III, Jackson Wolf",2,5648343.195266271,0.0,8220000.0,6131193.337120708
+434736,2019,Los Angeles Angels,Kyle Bradish,1,4109635.5337967584,,,Baltimore Orioles,Dylan Bundy,1,10049890.0,16549890.0,6500000.0,5940254.466203242
+355162,2018,Seattle Mariners,Andrew Moore,1,12525031.0,21688531.0,9163500.0,Tampa Bay Rays,"Alex Colomé, Denard Span",2,18437350.0,36270683.0,17833333.0,5912319.0
+806683,2024,Chicago Cubs,Alfonsin Rosario,1,15000000.0,,,Cleveland Guardians,Eli Morgan,1,9099700.0,16599700.0,7500000.0,5900300.0
+342261,2018,Pittsburgh Pirates,Daniel Hudson,1,-630202.0,3869798.0,4500000.0,Tampa Bay Rays,Corey Dickerson,1,-6500000.0,0.0,6500000.0,5869798.0
+338798,2017,Athletics,"Yairo Muñoz, Max Schrock",2,41795479.726113476,,,St. Louis Cardinals,Stephen Piscotty,1,35995953.0,63912619.0,27916666.0,5799526.726113476
+240397,2015,Los Angeles Dodgers,Michael Morse,1,-14843381.0,1156619.0,16000000.0,Pittsburgh Pirates,Jose Tabata,1,-9083667.0,0.0,9083667.0,5759714.0
+291840,2016,Los Angeles Angels,Victor Alcántara,1,10960353.075029759,,,Detroit Tigers,Cameron Maybin,1,5205290.0,14205290.0,9000000.0,5755063.075029759
+457671,2020,Los Angeles Angels,Noé Ramirez,1,3834233.0,4118507.0,284274.0,Cincinnati Reds,Raisel Iglesias,1,-1838050.0,6203616.0,8041666.0,5672283.0
+281084,2016,San Francisco Giants,Adalberto Mejía,1,28103469.42315322,,,Minnesota Twins,Eduardo Núñez,1,22498386.0,33133302.0,10634917.0,5605083.423153222
+508153,2021,St. Louis Cardinals,John Gant,1,1425000.0,7925000.0,6500000.0,Minnesota Twins,J.A. Happ,1,-4143430.0,3856570.0,8000000.0,5568430.0
+450262,2020,Kansas City Royals,Trevor Rosenthal,1,5366254.0,7366254.0,2000000.0,San Diego Padres,Edward Olivares,1,0.0,,,5366254.0
+338870,2017,San Francisco Giants,Matt Moore,1,6054272.0,15804272.0,9750000.0,Texas Rangers,Sam Wolff,1,11398767.198030949,,,5344495.198030949
+346248,2018,Los Angeles Angels,Carlos Pérez,1,10133462.53238698,,,Atlanta Braves,Ryan Schimpf,1,15416845.0,24016845.0,8600000.0,5283382.467613021
+860190,2025,Baltimore Orioles,Andrew Kittredge,1,-281601.0,9718399.0,10000000.0,Chicago Cubs,Wilfri De La Cruz,1,5000000.0,,,5281601.0
+859933,2025,Chicago White Sox,Austin Slater,1,10267251.0,12017251.0,1750000.0,New York Yankees,Gage Ziehl,1,5000000.0,,,5267251.0
+790316,2024,Colorado Rockies,Nick Mears,1,10026071.0,18266071.0,8240000.0,Milwaukee Brewers,Bradley Blalock,1,4807692.307692307,,,5218378.692307693
+877330,2025,Tampa Bay Rays,Everson Pereira,1,14423076.923076922,,,Chicago White Sox,"Yoendrys Gómez, Steven Wilson",2,9252674.10104688,,,5170402.822030041
+860004,2025,Cincinnati Reds,"Sammy Stafura, Taylor Rogers",2,35494530.0,6494530.0,11000000.0,Pittsburgh Pirates,Ke'Bryan Hayes,1,30350268.0,74100268.0,43750000.0,5144262.0
+385424,2018,Seattle Mariners,Ben Gamel,1,-8055000.0,0.0,8055000.0,Milwaukee Brewers,Domingo Santana,1,-2917893.0,4582107.0,7500000.0,5137107.0
+716686,2023,Los Angeles Angels,Jeremiah Jackson,1,4622781.065088757,,,New York Mets,Dominic Leone,1,9743713.973449018,,,5120932.908360261
+785757,2024,Cincinnati Reds,Alex Young,1,1448019.0,8948019.0,7500000.0,San Francisco Giants,Austin Slater,1,6552649.0,10921081.0,4368432.0,5104630.0
+341976,2018,Tampa Bay Rays,Jake Odorizzi,1,5439592.0,11939592.0,6500000.0,Minnesota Twins,Jermaine Palacios,1,10538801.033682458,,,5099209.033682458
+469911,2021,Boston Red Sox,Jeffrey Springs,1,9284742.0,17355242.0,8070500.0,Tampa Bay Rays,Ronaldo Hernández,1,4274020.955148629,,,5010721.044851371
+609890,2022,New York Mets,Miguel Castro,1,-2034128.0,1965872.0,4000000.0,New York Yankees,Joely Rodríguez,1,2955169.0,9455169.0,6500000.0,4989297.0
+790106,2024,New York Mets,Rhylan Thomas,1,4807692.307692307,,,Seattle Mariners,Ryne Stanek,1,-165902.0,3834098.0,4000000.0,4973594.307692307
+384722,2018,St. Louis Cardinals,Patrick Wisdom,1,10538801.033682458,,,Texas Rangers,Drew Robinson,1,5575610.0,14194110.0,8618500.0,4963191.033682458
+858482,2025,Baltimore Orioles,Gregory Soto,1,65893.0,5415893.0,5350000.0,New York Mets,Wellington Aracena,1,5000000.0,,,4934107.0
+846932,2025,Chicago White Sox,Andrew Vaughn,1,5363787.0,11863787.0,6500000.0,Milwaukee Brewers,Aaron Civale,1,437474.0,8437474.0,8000000.0,4926313.0
+860371,2025,Baltimore Orioles,"Ryan O'Hearn, Ramón Laureano",2,15122763.198030949,11723996.0,8000000.0,San Diego Padres,"Cobb Hightower, Boston Bateman",2,20000000.0,,,4877236.801969051
+508041,2021,Chicago Cubs,Anthony Rizzo,1,8013073.0,24513073.0,16500000.0,New York Yankees,"Kevin Alcántara, Alexander Vizcaíno",2,12822062.865445886,,,4808989.865445886
+732884,2023,Philadelphia Phillies,Oliver Dunn,1,4807692.307692307,,,Milwaukee Brewers,"Hendry Mendez, Robert Moore",2,9615384.615384614,,,4807692.307692307
+791254,2024,Pittsburgh Pirates,"Jun-Seok Shim, Garret Forrester",2,19230769.23076923,,,Miami Marlins,Bryan De La Cruz,1,23970659.0,32752916.0,8782257.0,4739889.769230772
+741825,2024,Boston Red Sox,John Schreiber,1,9732771.0,17232771.0,7500000.0,Kansas City Royals,David Sandlin,1,14423076.923076922,,,4690305.923076922
+338718,2017,Los Angeles Angels,Troy Montgomery,1,11398767.198030949,,,Detroit Tigers,Ian Kinsler,1,6721750.0,17721750.0,11000000.0,4677017.198030949
+752233,2024,Chicago Cubs,Bailey Horn,1,0.0,,,Chicago White Sox,Matthew Thompson,1,4622781.065088757,,,4622781.065088757
+668630,2023,Cincinnati Reds,Justin Boyd,1,4622781.065088757,,,Cleveland Guardians,Will Benson,1,0.0,,,4622781.065088757
+664813,2023,Seattle Mariners,Joseph Hernandez,1,4622781.065088757,,,Milwaukee Brewers,Justin Topa,1,0.0,,,4622781.065088757
+642543,2022,Kansas City Royals,Whit Merrifield,1,20442729.0,24576652.0,4133923.0,Toronto Blue Jays,"Samad Taylor, Max Castillo",2,15843748.991385523,,,4598980.008614477
+358975,2018,Tampa Bay Rays,Brad Miller,1,14648775.0,21584912.0,6936137.0,Milwaukee Brewers,Ji Man Choi,1,10133462.53238698,,,4515312.467613021
+300088,2017,Seattle Mariners,Pat Venditte,1,5665346.0,13700346.0,8035000.0,Philadelphia Phillies,Joey Curletta,1,10133462.53238698,,,4468116.532386979
+642388,2022,Los Angeles Angels,Brandon Marsh,1,66681601.0,78794133.0,12112531.0,Philadelphia Phillies,Logan O'Hoppe,1,62229745.10696403,,,4451855.893035971
+600412,2021,Houston Astros,Garrett Stubbs,1,0.0,,,Philadelphia Phillies,Logan Cerny,1,4444981.793354574,,,4444981.793354574
+791039,2024,Chicago Cubs,Mark Leiter Jr.,1,9251461.0,16751461.0,7500000.0,New York Yankees,Jack Neely,1,4807692.307692307,,,4443768.692307693
+860252,2025,Minnesota Twins,Harrison Bader,1,19436407.0,25686407.0,6250000.0,Philadelphia Phillies,Hendry Mendez,1,15000000.0,,,4436407.0
+600691,2021,San Diego Padres,Adam Frazier,1,70325.0,8070325.0,8000000.0,Seattle Mariners,Ray Kerr,1,4444981.793354574,,,4374656.793354574
+374070,2018,Philadelphia Phillies,McKenzie Mills,1,11398767.198030949,,,Miami Marlins,Justin Bour,1,7062084.0,15209198.0,8147115.0,4336683.198030949
+436409,2020,Chicago Cubs,Tony Kemp,1,-4318228.0,3745272.0,8063500.0,Athletics,Alfonso Rivas III,1,0.0,,,4318228.0
+790034,2024,Seattle Mariners,Jonatan Clase,1,14423076.923076922,,,Toronto Blue Jays,Yimi García,1,10133462.53238698,,,4289614.390689943
+436482,2020,Miami Marlins,James Nelson,1,11854717.885952188,,,New York Yankees,Stephen Tarpley,1,16093478.0,25427478.0,9334000.0,4238760.114047812
+641760,2022,Washington Nationals,Ehire Adrianza,1,209873.0,1709873.0,1500000.0,Atlanta Braves,Trey Harris,1,4444981.793354574,,,4235108.793354574
+734795,2023,Los Angeles Angels,"David Fletcher, Max Stassi",2,4232619.532386979,8099157.0,14000000.0,Atlanta Braves,Evan White,1,0.0,,,4232619.532386979
+714663,2023,Seattle Mariners,Mason McCoy,1,0.0,,,Toronto Blue Jays,Trent Thornton,1,4128320.0,11628320.0,7500000.0,4128320.0
+714803,2023,Los Angeles Angels,"Edgar Quero, Ky Bush",2,64718934.9112426,,,Chicago White Sox,"Lucas Giolito, Reynaldo López",2,68826782.09160769,19099097.0,10400000.0,4107847.180365093
+420188,2019,Kansas City Royals,Jake Diekman,1,8010317.0,8010319.0,2.0,Athletics,Dairon Blanco,1,3951572.628650729,,,4058744.371349271
+791255,2024,San Diego Padres,Enyel De Los Santos,1,8501516.0,16001516.0,7500000.0,New York Yankees,Brandon Lockridge,1,4444981.793354574,,,4056534.2066454263
+371119,2018,Colorado Rockies,"Chad Spanberger, Forrest Wall",2,22797534.396061897,,,Toronto Blue Jays,Seunghwan Oh,1,18747917.0,26806229.0,8058311.0,4049617.3960618973
+434775,2019,Houston Astros,Jake Marisnick,1,-4000000.0,0.0,4000000.0,New York Mets,Blake Taylor,1,0.0,,,4000000.0
+212409,2014,Cincinnati Reds,Chris Heisey,1,5802587.0,12302587.0,6500000.0,Los Angeles Dodgers,Matt Magill,1,9743713.973449018,,,3941126.973449018
+860311,2025,Colorado Rockies,Jake Bird,1,16062836.0,24322836.0,8260000.0,New York Yankees,"Ben Shields, Roc Riggio",2,20000000.0,,,3937164.0
+254484,2016,Pittsburgh Pirates,Yoervis Medina,1,6488124.0,13988124.0,7500000.0,Philadelphia Phillies,Jesse Biddle,1,10133462.53238698,,,3645338.532386979
+420964,2019,Tampa Bay Rays,Jake Faria,1,7346841.0,15401841.0,8055000.0,Milwaukee Brewers,Jesús Aguilar,1,3705901.0,11760901.0,8055000.0,3640940.0
+859669,2025,Baltimore Orioles,Seranthony Domínguez,1,11398767.198030949,,,Toronto Blue Jays,Juaron Watts-Brown,1,15000000.0,,,3601232.8019690514
+436440,2020,St. Louis Cardinals,Diowill Burgos,1,0.0,,,Miami Marlins,Austin Dean,1,-3588791.0,5745209.0,9334000.0,3588791.0
+855929,2025,Texas Rangers,Dane Dunning,1,405484.0,3065484.0,2660000.0,Atlanta Braves,José Ruiz,1,3951572.628650729,,,3546088.628650729
+214337,2015,Washington Nationals,Tyler Clippard,1,-3159920.0,5140080.0,8300000.0,Athletics,Yunel Escobar,1,355449.0,13355449.0,13000000.0,3515369.0
+791111,2024,Kansas City Royals,"Mason Barnett, Will Klein",2,28846153.846153844,,,Athletics,Lucas Erceg,1,32326880.0,42084436.0,9757556.0,3480726.153846156
+807999,2024,Texas Rangers,"Echedry Vargas, Maximo Acosta",2,29423076.92307692,,,Miami Marlins,Jake Burger,1,32870855.0,42028405.0,9157550.0,3447778.07692308
+609405,2022,Los Angeles Dodgers,AJ Pollock,1,-7944428.0,5805572.0,13750000.0,Chicago White Sox,Craig Kimbrel,1,-11371177.0,4628823.0,16000000.0,3426749.0
+202841,2014,Cleveland Guardians,Asdrúbal Cabrera,1,6327708.0,14577708.0,8250000.0,Washington Nationals,Zach Walters,1,9743713.973449018,,,3416005.973449018
+666427,2023,Minnesota Twins,Luis Arraez,1,23019228.0,31767380.0,8748152.0,Miami Marlins,"Pablo López, Jose Salas",2,26404494.19526627,20893584.0,8357434.0,3385266.195266269
+201583,2014,San Diego Padres,Chase Headley,1,7633028.0,18158028.0,10525000.0,New York Yankees,Jose Rafael De Paula,1,10930675.49385099,,,3297647.4938509893
+508103,2021,Atlanta Braves,Alex Jackson,1,0.0,,,Miami Marlins,Adam Duvall,1,3247179.0,9747179.0,6500000.0,3247179.0
+877644,2025,New York Mets,Brandon Nimmo,1,29227608.200079355,,,Texas Rangers,Marcus Semien,1,25983237.262530718,,,3244370.9375486374
+326028,2017,Boston Red Sox,Shaun Anderson,1,10960353.075029759,,,San Francisco Giants,Eduardo Núñez,1,7719103.0,12865172.0,5146069.0,3241250.0750297587
+733209,2023,New York Yankees,Jake Bauers,1,1442732.0,8942732.0,7500000.0,Milwaukee Brewers,Jace Avina,1,4622781.065088757,,,3180049.0650887573
+250491,2015,Athletics,Jesse Chavez,1,6954557.0,11590928.0,4636371.0,Toronto Blue Jays,Liam Hendriks,1,9959995.0,17967495.0,8007500.0,3005438.0
+197738,2014,Los Angeles Angels,Ernesto Frieri,1,5731927.0,13231927.0,7500000.0,Pittsburgh Pirates,Jason Grilli,1,2739279.0,6114279.0,3375000.0,2992648.0
+438099,2020,Los Angeles Dodgers,Kenta Maeda,1,8872401.0,21372401.0,12500000.0,Minnesota Twins,"Brusdar Graterol, Luke Raley",2,11854717.885952188,,,2982316.8859521877
+251546,2015,Athletics,Brett Lawrie,1,13463032.0,20012192.0,6549160.0,Chicago White Sox,Zack Erwin,1,10538801.033682458,,,2924230.966317542
+458255,2020,Seattle Mariners,Jose Corniell,1,0.0,,,Texas Rangers,Rafael Montero,1,2916127.0,9416127.0,6500000.0,2916127.0
+372120,2018,Seattle Mariners,Bryson Brigman,1,11398767.198030949,,,Miami Marlins,Cameron Maybin,1,14283903.0,17533903.0,3250000.0,2885135.8019690514
+251416,2015,Chicago Cubs,Starlin Castro,1,3568314.0,37854028.0,34285714.0,New York Yankees,Adam Warren,1,6430585.0,13930585.0,7500000.0,2862271.0
+629631,2022,San Francisco Giants,Michael Plassmeyer,1,12328906.601390274,,,Philadelphia Phillies,Austin Wynns,1,15040484.0,23031443.0,7990958.0,2711577.3986097258
+417715,2019,Chicago Cubs,Mike Montgomery,1,3574798.0,11074798.0,7500000.0,Kansas City Royals,Martín Maldonado,1,883892.0,3383892.0,2500000.0,2690906.0
+507341,2021,Chicago Cubs,Andrew Chafin,1,10133462.53238698,,,Athletics,Greg Deichmann,1,12822062.865445886,,,2688600.3330589067
+326409,2017,Seattle Mariners,Steve Cishek,1,-628865.0,4371135.0,5000000.0,Tampa Bay Rays,Erasmo Ramírez,1,2038714.0,9538714.0,7500000.0,2667579.0
+250427,2015,Detroit Tigers,Ian Krol,1,6952087.0,14959587.0,8007500.0,Atlanta Braves,Cameron Maybin,1,4335369.0,9335369.0,5000000.0,2616718.0
+281334,2016,Kansas City Royals,Brett Eibner,1,10538801.033682458,,,Athletics,Billy Burns,1,13119729.0,21662229.0,8542500.0,2580927.966317542
+608516,2022,Chicago Cubs,Harold Ramírez,1,-2555147.0,5644853.0,8200000.0,Tampa Bay Rays,Esteban Quiroz,1,0.0,,,2555147.0
+666496,2023,Kansas City Royals,Michael A. Taylor,1,2098721.0,6598721.0,4500000.0,Minnesota Twins,Steven Cruz,1,4622781.065088757,,,2524060.0650887573
+660950,2022,Arizona Diamondbacks,Cooper Hummel,1,2500293.0,12220293.0,9720000.0,Seattle Mariners,Kyle Lewis,1,0.0,,,2500293.0
+858887,2025,Washington Nationals,Amed Rosario,1,7264428.0,9264428.0,2000000.0,New York Yankees,Clayton Beeter,1,4807692.307692307,,,2456735.692307693
+420970,2019,Washington Nationals,Taylor Guilbeau,1,3951572.628650729,,,Seattle Mariners,"Roenis Elías, Hunter Strickland",2,6359095.0,21359095.0,15000000.0,2407522.371349271
+790617,2024,Detroit Tigers,Carson Kelly,1,6665216.0,11108694.0,4443478.0,Texas Rangers,Tyler Owens,1,4274020.955148629,,,2391195.044851371
+606330,2022,Cincinnati Reds,Amir Garrett,1,1622416.0,8122416.0,6500000.0,Kansas City Royals,Mike Minor,1,3976907.0,12976907.0,9000000.0,2354491.0
+229679,2015,Washington Nationals,Tony Renda,1,10133462.53238698,,,New York Yankees,David Carpenter,1,7850244.0,15350244.0,7500000.0,2283218.532386979
+420654,2019,Chicago Cubs,Thomas Hatch,1,3951572.628650729,,,Toronto Blue Jays,David Phelps,1,1704135.0,4204135.0,2500000.0,2247437.628650729
+189929,2014,Baltimore Orioles,Troy Patton,1,4138837.0,11638837.0,7500000.0,San Diego Padres,Nick Hundley,1,6323910.0,10323910.0,4000000.0,2185073.0
+457768,2020,Texas Rangers,Lance Lynn,1,-2009934.0,7990066.0,10000000.0,Chicago White Sox,Dane Dunning,1,0.0,,,2009934.0
+860375,2025,St. Louis Cardinals,Phil Maton,1,3118817.0,5118817.0,2000000.0,Texas Rangers,Mason Molina,1,5000000.0,,,1881183.0
+382830,2018,Seattle Mariners,"Guillermo Heredia, Mike Zunino",2,37227170.0,52076725.0,14849555.0,Tampa Bay Rays,"Jake Fraley, Mallex Smith",2,35357569.0,45677030.0,10319461.0,1869601.0
+791135,2024,Detroit Tigers,Andrew Chafin,1,6671890.0,11421890.0,4750000.0,Texas Rangers,Joseph Montalvo,1,4807692.307692307,,,1864197.692307693
+616312,2022,Chicago Cubs,Jesse Chavez,1,2013246.0,3263246.0,1250000.0,Atlanta Braves,Sean Newcomb,1,3840562.0,11340562.0,7500000.0,1827316.0
+251533,2015,Detroit Tigers,Chad Green,1,10133462.53238698,,,New York Yankees,Justin Wilson,1,8313886.0,15813886.0,7500000.0,1819576.532386979
+352970,2018,Cincinnati Reds,Devin Mesoraco,1,4483190.0,11483190.0,7000000.0,New York Mets,Matt Harvey,1,2664773.0,8289773.0,5625000.0,1818417.0
+791251,2024,Philadelphia Phillies,William Bergolla Jr.,1,14423076.923076922,,,Chicago White Sox,Tanner Banks,1,16182757.0,25182757.0,9000000.0,1759680.076923078
+327873,2017,Pittsburgh Pirates,Connor Joe,1,10133462.53238698,,,Atlanta Braves,Sean Rodríguez,1,8385779.0,19885779.0,11500000.0,1747683.532386979
+664119,2022,Atlanta Braves,Indigo Diaz,1,4444981.793354574,,,New York Yankees,Lucas Luetge,1,6192305.0,12692305.0,6500000.0,1747323.2066454263
+508100,2021,Cleveland Guardians,Eddie Rosario,1,892942.0,8892942.0,8000000.0,Atlanta Braves,Pablo Sandoval,1,-824927.0,175073.0,1000000.0,1717869.0
+713941,2023,Colorado Rockies,Pierce Johnson,1,10960353.075029759,,,Atlanta Braves,"Tanner Gordon, Victor Vodnik",2,9245562.130177515,,,1714790.944852244
+791292,2024,Los Angeles Dodgers,Ryan Yarbrough,1,-1091792.0,2908208.0,4000000.0,Toronto Blue Jays,Kevin Kiermaier,1,-2802157.0,7697843.0,10500000.0,1710365.0
+461667,2021,San Francisco Giants,Shaun Anderson,1,10279536.0,19050036.0,8770500.0,Minnesota Twins,LaMonte Wade Jr.,1,11854717.885952188,,,1575181.8859521877
+848336,2025,Boston Red Sox,Rafael Devers,1,100851485.85038492,,,San Francisco Giants,"Jordan Hicks, James Tibbs III, Kyle Harrison",3,99281800.0,111147187.0,51865387.0,1569685.8503849208
+860062,2025,Pittsburgh Pirates,Caleb Ferguson,1,3461702.0,6461702.0,3000000.0,Seattle Mariners,Jeter Martinez,1,5000000.0,,,1538298.0
+377108,2018,San Francisco Giants,Andrew McCutchen,1,8611359.0,23361359.0,14750000.0,New York Yankees,Abiatal Avelino,1,10133462.53238698,,,1522103.532386979
+384555,2018,Los Angeles Angels,Jose Alvarez,1,3693424.0,10193424.0,6500000.0,Philadelphia Phillies,Luis García,1,2300200.0,8800200.0,6500000.0,1393224.0
+254569,2016,Baltimore Orioles,Jean Cosme,1,10538801.033682458,,,San Diego Padres,Odrisamer Despaigne,1,9156577.0,17699077.0,8542500.0,1382224.033682458
+211885,2014,Los Angeles Dodgers,José Domínguez,1,10133462.53238698,,,Tampa Bay Rays,Joel Peralta,1,11400924.0,13900924.0,2500000.0,1267461.467613021
+391588,2019,Cincinnati Reds,Connor Joe,1,10133462.53238698,,,San Francisco Giants,Jordan Johnson,1,11398767.198030949,,,1265304.6656439696
+860377,2025,Chicago Cubs,Ryan Gallagher,1,15000000.0,,,Minnesota Twins,Willi Castro,1,13762681.0,22937801.0,9175121.0,1237319.0
+664908,2023,Pittsburgh Pirates,Zach Thompson,1,13050389.0,22010389.0,8960000.0,Toronto Blue Jays,Chavez Young,1,11854717.885952188,,,1195671.1140478123
+251430,2015,Athletics,Evan Scribner,1,11251692.0,19259192.0,8007500.0,Seattle Mariners,Trey Cochran-Gill,1,10133462.53238698,,,1118229.467613021
+326941,2017,Houston Astros,"Norichika Aoki, Teoscar Hernández",2,-4679834.0,10955166.0,15635000.0,Toronto Blue Jays,Francisco Liriano,1,-3639551.0,9360449.0,13000000.0,1040283.0
+608212,2022,Colorado Rockies,Raimel Tapia,1,-5417714.0,1082286.0,6500000.0,Toronto Blue Jays,Randal Grichuk,1,-6455929.0,14344071.0,20800000.0,1038215.0
+280710,2016,Seattle Mariners,Joaquín Benoit,1,-3409506.0,4590494.0,8000000.0,Toronto Blue Jays,Drew Storen,1,-2393780.0,5981220.0,8375000.0,1015726.0
+210534,2014,Toronto Blue Jays,Adam Lind,1,55720.0,8055720.0,8000000.0,Milwaukee Brewers,Marco Estrada,1,-902872.0,3097128.0,4000000.0,958592.0
+506316,2021,Los Angeles Dodgers,Carlos Rincon,1,10960353.075029759,,,New York Mets,Billy McKinney,1,11854717.885952188,,,894364.810922429
+507950,2021,Chicago Cubs,Ryan Tepera,1,-885141.0,3114859.0,4000000.0,Chicago White Sox,Bailey Horn,1,0.0,,,885141.0
+391854,2019,Baltimore Orioles,Mike Yastrzemski,1,10538801.033682458,,,San Francisco Giants,Tyler Herb,1,11398767.198030949,,,859966.1643484905
+377265,2018,Toronto Blue Jays,Curtis Granderson,1,11799924.0,16799924.0,5000000.0,Milwaukee Brewers,Demi Orimoloye,1,10960353.075029759,,,839570.9249702413
+325780,2017,Kansas City Royals,"Travis Wood, Matt Strahm",2,23070764.0,44205764.0,21135000.0,San Diego Padres,"Trevor Cahill, Ryan Buchter, Brandon Maurer",3,23801385.0,41631385.0,17830000.0,730621.0
+716712,2023,Kansas City Royals,Scott Barlow,1,5347987.0,11847987.0,6500000.0,San Diego Padres,Henry Williams,1,4622781.065088757,,,725205.9349112427
+860285,2025,Baltimore Orioles,Cedric Mullins,1,4119674.0,12844674.0,8725000.0,New York Mets,Raimon Gomez,1,4807692.307692307,,,688018.307692307
+733235,2023,Tampa Bay Rays,"Calvin Faucher, Vidal Bruján",2,8966348.0,26186348.0,17220000.0,Miami Marlins,"Erick Lara, Andrew Lindsey",2,9615384.615384614,,,649036.6153846141
+663938,2022,Arizona Diamondbacks,Daulton Varsho,1,53157937.0,65759292.0,12601355.0,Toronto Blue Jays,"Lourdes Gurriel Jr., Gabriel Moreno",2,52530704.0,69304632.0,16773928.0,627233.0
+202861,2014,Houston Astros,Jarred Cosart,1,44262535.0,53615141.0,9352606.0,Miami Marlins,"Jake Marisnick, Colin Moran",2,43666669.69213614,0.0,9015000.0,595865.3078638613
+285232,2016,Los Angeles Dodgers,A.J. Ellis,1,8833444.0,14722407.0,5888963.0,Philadelphia Phillies,Carlos Ruiz,1,8256281.0,16922947.0,8666666.0,577163.0
+239278,2015,New York Mets,Rob Whalen,1,10133462.53238698,,,Atlanta Braves,"Kelly Johnson, Juan Uribe",2,10697187.0,19697187.0,9000000.0,563724.4676130209
+386459,2019,Cincinnati Reds,Shed Long Jr.,1,11854717.885952188,,,New York Yankees,Sonny Gray,1,12383477.0,19883477.0,7500000.0,528759.1140478123
+338884,2017,Los Angeles Dodgers,"Adrián González, Scott Kazmir, Brandon McCarthy",3,-36395979.0,15627830.0,52023809.0,Atlanta Braves,Matt Kemp,1,-35868951.0,4131049.0,40000000.0,527028.0
+250070,2015,Minnesota Twins,Aaron Hicks,1,44285948.0,55933576.0,11647627.0,New York Yankees,John Ryan Murphy,1,44811107.0,54005285.0,9194178.0,525159.0
+698031,2023,Pittsburgh Pirates,Robert Stephenson,1,454473.0,4454473.0,4000000.0,Tampa Bay Rays,Alika Williams,1,0.0,,,454473.0
+325746,2017,Minnesota Twins,Huascar Ynoa,1,10960353.075029759,,,Atlanta Braves,"Anthony Recker, Jaime García",2,10517007.0,30493839.0,19976832.0,443346.07502975874
+346898,2018,Baltimore Orioles,Jesús Liranzo,1,11398767.198030949,,,Los Angeles Dodgers,Luis Ysla,1,10960353.075029759,,,438414.1230011899
+346261,2018,Los Angeles Dodgers,Johan Mieses,1,10960353.075029759,,,St. Louis Cardinals,Breyvic Valera,1,11398767.198030949,,,438414.1230011899
+294682,2016,Texas Rangers,Luke Jackson,1,10960353.075029759,,,Atlanta Braves,Tyrell Jenkins,1,10538801.033682458,,,421552.04134730063
+211531,2014,Chicago Cubs,Arodys Vizcaíno,1,27022566.753031943,,,Atlanta Braves,Tommy La Stella,1,27406921.0,36456921.0,9050000.0,384354.246968057
+371347,2018,Seattle Mariners,Seth Elledge,1,11398767.198030949,,,St. Louis Cardinals,Sam Tuivailala,1,11763432.0,20363432.0,8600000.0,364664.80196905136
+877083,2025,Los Angeles Dodgers,Robinson Ortiz,1,4274020.955148629,,,Seattle Mariners,Tyler Gough,1,4622781.065088757,,,348760.1099401284
+213106,2014,Los Angeles Angels,Kevin Jepsen,1,3683576.0,10183576.0,6500000.0,Tampa Bay Rays,Matt Joyce,1,3361277.0,8111277.0,4750000.0,322299.0
+633466,2022,Kansas City Royals,Carlos Santana,1,4181891.0,12931891.0,8750000.0,Seattle Mariners,Wyatt Mills,1,4444981.793354574,,,263090.79335457366
+240308,2015,Baltimore Orioles,Tommy Hunter,1,-1690062.0,2959938.0,4650000.0,Chicago Cubs,Junior Lake,1,-1482580.0,7032420.0,8515000.0,207482.0
+661052,2022,Los Angeles Angels,Alejandro Hidalgo,1,4622781.065088757,,,Minnesota Twins,Gio Urshela,1,4498552.0,12898552.0,8400000.0,124229.06508875731
+716162,2023,Cincinnati Reds,Joe Boyle,1,13334945.380063722,,,Athletics,Sam Moll,1,13450488.0,22410488.0,8960000.0,115542.61993627809
+860341,2025,Houston Astros,"Esmil Valencia, Chase Jaworsky",2,9807692.307692308,,,Miami Marlins,Jesús Sánchez,1,9726111.0,16210185.0,6484074.0,81581.30769230798
+523047,2021,Cincinnati Reds,Tucker Barnhart,1,-65591.0,7434409.0,7500000.0,Detroit Tigers,Nick Quintana,1,0.0,,,65591.0
+251402,2015,San Diego Padres,Jedd Gyorko,1,-843041.0,22830892.0,23673933.0,St. Louis Cardinals,Jon Jay,1,-804987.0,4682513.0,5487500.0,38054.0
+285937,2016,Seattle Mariners,Jio Orozco,1,10538801.033682458,,,New York Yankees,Ben Gamel,1,10538801.033682458,,,0.0
+716510,2023,Baltimore Orioles,Eduard Bazardo,1,0.0,,,Seattle Mariners,Logan Rinehart,1,0.0,,,0.0
+372135,2018,Cleveland Guardians,Conner Capel,1,11398767.198030949,,,St. Louis Cardinals,Óscar Mercado,1,11398767.198030949,,,0.0
+756271,2024,Colorado Rockies,Joe Rock,1,4807692.307692307,,,Tampa Bay Rays,Greg Jones,1,4807692.307692307,,,0.0
+476408,2021,Chicago Cubs,James Norwood,1,0.0,,,San Diego Padres,Dauris Valdez,1,0.0,,,0.0
+293447,2016,Seattle Mariners,Zack Littell,1,10960353.075029759,,,New York Yankees,James Pazos,1,10960353.075029759,,,0.0
+642075,2022,San Francisco Giants,Jeremy Walker,1,0.0,,,Tampa Bay Rays,Ford Proctor,1,0.0,,,0.0
+386460,2019,Seattle Mariners,Josh Stowers,1,11854717.885952188,,,New York Yankees,Shed Long Jr.,1,11854717.885952188,,,0.0
+297652,2017,Chicago Cubs,Donnie Dewees,1,10960353.075029759,,,Kansas City Royals,Alec Mills,1,10960353.075029759,,,0.0
+500631,2021,New York Mets,Will Toffey,1,11854717.885952188,,,San Francisco Giants,Anthony Banda,1,11854717.885952188,,,0.0
+337587,2017,Houston Astros,Ramón Laureano,1,11398767.198030949,,,Athletics,Brandon Bailey,1,11398767.198030949,,,0.0
+337317,2017,Seattle Mariners,Juan Then,1,11398767.198030949,,,New York Yankees,Nick Rumbelow,1,11398767.198030949,,,0.0
+600369,2021,Cleveland Guardians,Junior Caminero,1,13334945.380063722,,,Tampa Bay Rays,Tobias Myers,1,13334945.380063722,,,0.0
+879767,2025,Cincinnati Reds,Ethan O'Donnell,1,4807692.307692307,,,Miami Marlins,Dane Myers,1,4807692.307692307,,,0.0

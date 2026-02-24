@@ -1,0 +1,165 @@
+
+==========================================================================
+  HIGHLIGHTED TRADES
+==========================================================================
+
+  > MOST BALANCED TRADES (top 3)
+
+  ----------------------------------------------------------------------
+  [Balanced]
+  2021 | Trade #500631
+  San Francisco Giants traded LHP Anthony Banda to New York Mets for 3B Will Toffey.
+  >> New York Mets sent ($11.9M total):
+  |   Will Toffey [FV 45] ($11.9M)
+  << San Francisco Giants sent ($11.9M total):
+      Anthony Banda [FV 45] ($11.9M)
+  Imbalance: $0 (0%)
+
+  ----------------------------------------------------------------------
+  [Balanced]
+  2021 | Trade #476408
+  Chicago Cubs traded P James Norwood to San Diego Padres for P Dauris Valdez.
+  >> Chicago Cubs sent ($0 total):
+  |   James Norwood ($0)
+  << San Diego Padres sent ($0 total):
+      Dauris Valdez ($0)
+  Imbalance: $0 (0%)
+
+  ----------------------------------------------------------------------
+  [Balanced]
+  2017 | Trade #337317
+  Seattle Mariners traded LHP JP Sears and RHP Juan Then to New York Yankees for RHP Nick Rumbelow.
+  >> Seattle Mariners sent ($11.4M total):
+  |   Juan Then [FV 45] ($11.4M)
+  << New York Yankees sent ($11.4M total):
+      Nick Rumbelow [FV 45] ($11.4M)
+  Imbalance: $0 (0%)
+
+  > BIGGEST IMBALANCES (top 3)
+
+  ----------------------------------------------------------------------
+  [Big imbalance]
+  2020 | Trade #438093
+  Los Angeles Dodgers traded CF Alex Verdugo, C Connor Wong and SS Jeter Downs to Boston Red Sox for RF Mookie Betts, LHP David Price and cash.
+  >> Boston Red Sox sent ($524.3M total):
+  |   Mookie Betts ($573.0M)
+  |   David Price ($-48.8M)
+  << Los Angeles Dodgers sent ($175.6M total):
+      Jeter Downs [FV 55, Top-100 #44] ($67.8M)
+      Connor Wong [FV 45] ($12.3M)
+      Alex Verdugo ($95.5M)
+  Imbalance: $348.7M (67%)
+
+  ----------------------------------------------------------------------
+  [Big imbalance]
+  2022 | Trade #613042
+  Arizona Diamondbacks traded CF Jeferson Espinal to Texas Rangers for 2B Yonny Hernandez.
+  >> Arizona Diamondbacks sent ($4.3M total):
+  |   Jeferson Espinal [FV 40] ($4.3M)
+  << Texas Rangers sent ($287.6M total):
+      Yonny Hernández ($287.6M)
+  Imbalance: $283.3M (99%)
+
+  ----------------------------------------------------------------------
+  [Big imbalance]
+  2014 | Trade #212887
+  Los Angeles Dodgers traded 2B Dee Gordon, RHP Dan Haren, SS Miguel Rojas and cash to Miami Marlins for LHP Andrew Heaney, RHP Chris Hatcher, 2B Enrique Hernandez and C Austin Barnes.
+  >> Los Angeles Dodgers sent ($25.7M total):
+  |   Miguel Rojas ($-9.1M)
+  |   Dan Haren ($525K)
+  |   Dee Strange-Gordon ($34.2M)
+  << Miami Marlins sent ($294.5M total):
+      Austin Barnes [FV 50] ($27.0M)
+      Enrique Hernández ($160.2M)
+      Chris Hatcher ($15.8M)
+      Andrew Heaney [FV 60, Top-100 #25] ($91.6M)
+  Imbalance: $268.8M (91%)
+
+  > TRADES INVOLVING TOP-25 PROSPECTS (3 shown)
+
+  ----------------------------------------------------------------------
+  [Top prospect]
+  2022 | Trade #642337
+  Washington Nationals traded LF Juan Soto and 1B Josh Bell to San Diego Padres for 1B Luke Voit, LHP MacKenzie Gore, SS C.J. Abrams, OF Robert Hassell III, OF James Wood and RHP Jarlin Susana.
+  >> Washington Nationals sent ($295.5M total):
+  |   Josh Bell ($19.4M)
+  |   Juan Soto ($276.0M)
+  << San Diego Padres sent ($388.7M total):
+      CJ Abrams [FV 60, Top-100 #9] ($124.9M)
+      James Wood [FV 55] ($62.2M)
+      Robert Hassell III [FV 55, Top-100 #37] ($74.6M)
+      MacKenzie Gore [FV 55, Top-100 #86] ($65.9M)
+      Jarlin Susana [FV 50] ($35.6M)
+      Luke Voit ($25.5M)
+  Imbalance: $93.3M (24%)
+
+  ----------------------------------------------------------------------
+  [Top prospect]
+  2015 | Trade #251466
+  Atlanta Braves traded RHP Shelby Miller and LHP Gabe Speier to Arizona Diamondbacks for RF Ender Inciarte, RHP Aaron Blair and SS Dansby Swanson.
+  >> Arizona Diamondbacks sent ($290.6M total):
+  |   Ender Inciarte ($90.4M)
+  |   Aaron Blair [FV 55, Top-100 #56] ($56.3M)
+  |   Dansby Swanson [FV 65, Top-100 #8] ($143.9M)
+  << Atlanta Braves sent ($52.1M total):
+      Shelby Miller ($52.1M)
+  Imbalance: $238.5M (82%)
+
+  ----------------------------------------------------------------------
+  [Top prospect]
+  2016 | Trade #294482
+  Chicago White Sox traded LHP Chris Sale to Boston Red Sox for CF Luis Alexander Basabe, RHP Michael Kopech, RHP Victor Diaz and 3B Yoan Moncada.
+  >> Boston Red Sox sent ($274.7M total):
+  |   Yoán Moncada [FV 65, Top-100 #2] ($151.7M)
+  |   Luis Alexander Basabe [FV 45] ($11.0M)
+  |   Michael Kopech [FV 60, Top-100 #16] ($101.1M)
+  |   Victor Diaz [FV 45] ($11.0M)
+  << Chicago White Sox sent ($84.5M total):
+      Chris Sale ($84.5M)
+  Imbalance: $190.1M (69%)
+
+  > HIGHEST TOTAL VALUE EXCHANGED (top 3)
+
+  ----------------------------------------------------------------------
+  [Big trade]
+  2020 | Trade #438093
+  Los Angeles Dodgers traded CF Alex Verdugo, C Connor Wong and SS Jeter Downs to Boston Red Sox for RF Mookie Betts, LHP David Price and cash.
+  >> Boston Red Sox sent ($524.3M total):
+  |   Mookie Betts ($573.0M)
+  |   David Price ($-48.8M)
+  << Los Angeles Dodgers sent ($175.6M total):
+      Jeter Downs [FV 55, Top-100 #44] ($67.8M)
+      Connor Wong [FV 45] ($12.3M)
+      Alex Verdugo ($95.5M)
+  Imbalance: $348.7M (67%)
+
+  ----------------------------------------------------------------------
+  [Big trade]
+  2022 | Trade #642337
+  Washington Nationals traded LF Juan Soto and 1B Josh Bell to San Diego Padres for 1B Luke Voit, LHP MacKenzie Gore, SS C.J. Abrams, OF Robert Hassell III, OF James Wood and RHP Jarlin Susana.
+  >> Washington Nationals sent ($295.5M total):
+  |   Josh Bell ($19.4M)
+  |   Juan Soto ($276.0M)
+  << San Diego Padres sent ($388.7M total):
+      CJ Abrams [FV 60, Top-100 #9] ($124.9M)
+      James Wood [FV 55] ($62.2M)
+      Robert Hassell III [FV 55, Top-100 #37] ($74.6M)
+      MacKenzie Gore [FV 55, Top-100 #86] ($65.9M)
+      Jarlin Susana [FV 50] ($35.6M)
+      Luke Voit ($25.5M)
+  Imbalance: $93.3M (24%)
+
+  ----------------------------------------------------------------------
+  [Big trade]
+  2018 | Trade #340471
+  Miami Marlins traded CF Christian Yelich to Milwaukee Brewers for CF Lewis Brinson, 2B Isan Diaz, CF Monte Harrison and RHP Jordan Yamamoto.
+  >> Miami Marlins sent ($232.7M total):
+  |   Christian Yelich ($232.7M)
+  << Milwaukee Brewers sent ($140.5M total):
+      Jordan Yamamoto [FV 45] ($11.4M)
+      Lewis Brinson [FV 55, Top-100 #27] ($65.2M)
+      Monte Harrison [FV 50, Top-100 #71] ($33.5M)
+      Isan Díaz [FV 50] ($30.4M)
+  Imbalance: $92.2M (40%)
+
+==========================================================================

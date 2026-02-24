@@ -1,5 +1,22 @@
 """
 WAR value and contract value calculations.
+
+Uses an empirically calibrated convex power-law model for WAR-to-dollar
+conversion. The model parameters (alpha, beta) are loaded from the trade
+analysis calibration file if available, otherwise hardcoded defaults are used.
+
+Convex Model:
+    value = alpha * max(WAR, 0)^beta * inflation(year)
+    
+    With beta > 1, the value of each additional WAR is INCREASING:
+    a 5-WAR player is worth more than five 1-WAR players combined.
+    This captures the scarcity premium, certainty premium, optionality,
+    and roster-slot opportunity cost of elite players.
+
+Legacy Tiered Model (deprecated, kept for reference):
+    Tier 1 (0-2 WAR):  $8M/WAR
+    Tier 2 (2-4 WAR):  $9M/WAR
+    Tier 3 (4+ WAR):  $10M/WAR
 """
 
 import pandas as pd
@@ -11,6 +28,12 @@ from .constants import (
     HITTER_COLUMNS, PITCHER_COLUMNS, get_war_value
 )
 from .config import Config, CURRENT_YEAR
+
+
+# ---------------------------------------------------------------------------
+# Load convex model parameters at module initialization
+# ---------------------------------------------------------------------------
+_CONVEX_ALPHA, _CONVEX_BETA = Config.ConvexModel.load_calibration()
 
 
 # Team name to abbreviation mapping (handles both full names and existing abbreviations)
@@ -73,14 +96,56 @@ def calculate_inflation_multiplier(year: int) -> float:
 
 def calculate_war_value(war: float, year: int) -> float:
     """
-    Calculate WAR value using tiered system and inflation.
+    Calculate WAR dollar value using the empirically calibrated convex power-law.
+    
+    Formula:
+        value = alpha * max(WAR, 0)^beta * (1 + inflation_rate)^(year - base_year)
+    
+    Parameters alpha and beta are loaded from the trade-analysis calibration file
+    (convex_calibration.json) at module startup. If unavailable, defaults are used:
+        alpha = $8,592,188  (~$8.59M base per WAR)
+        beta  = 1.323       (convex exponent)
+    
+    The convex shape (beta > 1) means each additional WAR is worth MORE than
+    the last, reflecting the scarcity premium for elite players.
+    
+    Reference values (2025 dollars):
+        1 WAR  =   $8.6M       4 WAR  =  $53.8M
+        2 WAR  =  $21.5M       5 WAR  =  $72.3M
+        3 WAR  =  $36.8M       8 WAR  = $134.6M
+    
+    Args:
+        war: WAR value (negative WAR returns $0)
+        year: Year for inflation adjustment (relative to BASE_YEAR)
+    
+    Returns:
+        Dollar value of WAR production for that year
+    """
+    if pd.isna(war) or war <= 0:
+        return 0.0
+    
+    inflation = calculate_inflation_multiplier(year)
+    return _CONVEX_ALPHA * (war ** _CONVEX_BETA) * inflation
+
+
+def _calculate_war_value_tiered(war: float, year: int) -> float:
+    """
+    DEPRECATED: Legacy tiered WAR valuation (kept for reference/comparison).
+    
+    Uses a piecewise linear function:
+        Tier 1 (0-2 WAR): $8M per WAR
+        Tier 2 (2-4 WAR): $9M per WAR
+        Tier 3 (4+ WAR): $10M per WAR
+    
+    Replaced by the convex model which better captures the superlinear 
+    relationship between WAR and market value observed in real trades.
     
     Args:
         war: WAR value
         year: Year for inflation adjustment
     
     Returns:
-        Dollar value of WAR
+        Dollar value of WAR (tiered, linear within each tier)
     """
     if pd.isna(war) or war <= 0:
         return 0.0
@@ -334,9 +399,9 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     historical['Normalized_Status'] = 'NA'
     historical['Payroll'] = np.nan
     
-    # Calculate base value
+    # Calculate base value using the convex model (consistent with prediction years)
     historical['Base_Value'] = historical.apply(
-        lambda x: x['WAR'] * get_war_value(int(x['Year'])), axis=1
+        lambda x: calculate_war_value(x['WAR'], int(x['Year'])), axis=1
     )
     historical['Contract_Value'] = np.nan
     historical['surplus_value'] = np.nan
@@ -513,13 +578,16 @@ def post_process_export_data(df: pd.DataFrame) -> pd.DataFrame:
     export_data = export_data.drop('Contract_Value', axis=1, errors='ignore')
     export_data = export_data.drop('Payroll', axis=1, errors='ignore')
     
-    # Calculate combined WAR value for two-way players
+    # Calculate combined WAR value for two-way players using convex model
     if 'Two_Way' in export_data.columns:
         two_way_mask = export_data['Two_Way'] == True
         if two_way_mask.any():
             total_war = (export_data.loc[two_way_mask, 'WAR_batter'].fillna(0) + 
                         export_data.loc[two_way_mask, 'WAR_pitcher'].fillna(0))
-            export_data.loc[two_way_mask, 'Base_Value'] = total_war * 10_000_000
+            export_data.loc[two_way_mask, 'Base_Value'] = [
+                calculate_war_value(w, int(y))
+                for w, y in zip(total_war, export_data.loc[two_way_mask, 'Year'])
+            ]
             export_data.loc[two_way_mask, 'surplus_value'] = (
                 export_data.loc[two_way_mask, 'Base_Value'] - 
                 export_data.loc[two_way_mask, 'contract_value']
