@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { getPlayerDetails, PlayerStats } from '../../services/api';
+import { getPlayerDetails, getTradeValueHistory, PlayerStats } from '../../services/api';
+import type { TradeValuePoint } from '../../services/api';
 import { CURRENT_YEAR, MAX_PROJECTION_YEARS, API_BASE } from '../../config';
 import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
 import { getTeamColors, getTeamName } from '../../utils/teamColors';
+import TradeValueChart from '../../components/TradeValueChart';
 
 // ─── Helpers ────────────────────────────────────────────────
 const fmt = {
@@ -259,6 +261,7 @@ const PlayerDetails: React.FC = () => {
   const [player, setPlayer] = useState<PlayerStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tradeHistory, setTradeHistory] = useState<TradeValuePoint[]>([]);
 
   useEffect(() => {
     const fetchPlayer = async () => {
@@ -277,6 +280,13 @@ const PlayerDetails: React.FC = () => {
     };
     fetchPlayer();
   }, [playerId]);
+
+  // Fetch trade value history once we have the player's mlb_id (or fallback to playerId)
+  useEffect(() => {
+    const id = player?.mlb_id ?? (playerId ? parseInt(playerId) : null);
+    if (id == null) return;
+    getTradeValueHistory(id).then(setTradeHistory).catch(() => setTradeHistory([]));
+  }, [player?.mlb_id, playerId]);
 
   // ── Derived state ──
   const cur = player?.projections.find((p) => p.year === CURRENT_YEAR) ?? player?.projections[0];
@@ -474,6 +484,25 @@ const PlayerDetails: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ════════════════════════════════════════════════════
+       *  TRADE VALUE TIMELINE — rolling value chart
+       *  ════════════════════════════════════════════════════ */}
+      {tradeHistory.length > 0 && (
+        <div className="max-w-6xl mx-auto px-4 mb-8">
+          <div className="rounded-xl border border-white/[0.06] bg-surface-800/40 p-6 relative">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-1 h-5 rounded-full" style={{ backgroundColor: colors.primary }} />
+              <h2 className="text-lg font-semibold text-white">Trade Value History</h2>
+            </div>
+            <TradeValueChart
+              data={tradeHistory}
+              teamColor={colors.primary}
+              teamAccent={colors.accent}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════════
        *  PROJECTION TABLES — collapsible to reduce clutter

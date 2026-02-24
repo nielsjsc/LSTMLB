@@ -1,10 +1,12 @@
 import sys
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import Optional
 import logging
+import pandas as pd
 
 # Add backend to path
 backend_dir = Path(__file__).resolve().parent.parent.parent
@@ -17,6 +19,29 @@ from app.models.player import Player
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# ── Trade Value History (CSV-backed, loaded once at startup) ──────────────
+_TRADE_HISTORY_CSV = (
+    Path(__file__).resolve().parents[4]  # project root (LSTMLB)
+    / "data" / "generated" / "value_by_year" / "trade_value_history.csv"
+)
+_trade_history_df: Optional[pd.DataFrame] = None
+
+
+def _get_trade_history() -> pd.DataFrame:
+    """Lazy-load and cache the trade value history CSV."""
+    global _trade_history_df
+    if _trade_history_df is None:
+        if not _TRADE_HISTORY_CSV.exists():
+            logger.warning(f"Trade value history not found: {_TRADE_HISTORY_CSV}")
+            _trade_history_df = pd.DataFrame()
+        else:
+            _trade_history_df = pd.read_csv(_TRADE_HISTORY_CSV)
+            logger.info(
+                f"Loaded trade value history: {len(_trade_history_df)} entries, "
+                f"{_trade_history_df['mlb_id'].nunique()} players"
+            )
+    return _trade_history_df
 
 def normalize_team_abbreviation(team: str) -> str:
     """Normalize team abbreviations - players use 2-letter codes, prospects use 3-letter codes"""
@@ -216,3 +241,48 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error in get_player_details: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ── Trade-value history endpoint ──────────────────────────────────────────
+@router.get("/{player_id}/trade-value-history")
+async def get_trade_value_history(player_id: str, db: Session = Depends(get_db)):
+    """Return year-by-year trade value timeline for a player."""
+    df = _get_trade_history()
+    if df.empty:
+        return JSONResponse([])
+
+    # Resolve the player so we can match on mlb_id
+    try:
+        pid = int(player_id)
+        player = db.query(Player).filter(
+            or_(Player.mlb_id == pid, Player.real_id == pid)
+        ).first()
+    except (ValueError, TypeError):
+        player = None
+
+    if player is None:
+        return JSONResponse([])
+
+    mlb_id = player.mlb_id
+    rows = df[df["mlb_id"] == mlb_id]
+
+    if rows.empty:
+        # Try matching by IDfg (real_id) as fallback
+        idfg = player.real_id
+        if idfg is not None:
+            rows = df[df["IDfg"] == idfg]
+
+    if rows.empty:
+        return JSONResponse([])
+
+    rows = rows.sort_values("year")
+    result = [
+        {
+            "year": int(r["year"]),
+            "value": round(float(r["value"]), 2),
+            "valueType": r["value_type"],
+            "label": r["label"],
+        }
+        for _, r in rows.iterrows()
+    ]
+    return JSONResponse(result)

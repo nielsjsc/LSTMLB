@@ -559,3 +559,22 @@ export const getTradeValueRankings = async (
     throw error;
   }
 };
+
+// ── Trade Value History (per-player timeline) ─────────────────────────────
+export interface TradeValuePoint {
+  year: number;
+  value: number;
+  valueType: 'prospect' | 'mlb_surplus' | 'projected';
+  label: string;
+}
+
+export const getTradeValueHistory = async (playerId: number): Promise<TradeValuePoint[]> => {
+  const url = `${API_BASE}/players/${playerId}/trade-value-history`;
+  try {
+    const response = await fetch(url, { headers: createApiHeaders() });
+    if (!response.ok) return [];
+    return await response.json();
+  } catch {
+    return [];
+  }
+};
