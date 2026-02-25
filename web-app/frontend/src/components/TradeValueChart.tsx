@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import type { TradeValuePoint } from '../services/api';
+import type { TradeValuePoint, Transaction } from '../services/api';
 
 // ─── Helpers ────────────────────────────────────────────────
 const fmtDollar = (v: number): string => {
@@ -23,22 +23,44 @@ const TYPE_META: Record<string, { label: string; color: string }> = {
   mlb_surplus: { label: 'Trade Value', color: '#34d399' },  // emerald-400
 };
 
+// Transaction type codes that affect trade value (contract events)
+const _TXN_CHART_CODES = new Set(['SGN', 'SFA', 'FA', 'TR', 'EXT']);
+
+const _TXN_LABELS: Record<string, string> = {
+  SGN: 'Signed',
+  SFA: 'Signed (FA)',
+  FA: 'Free Agency',
+  TR: 'Traded',
+  EXT: 'Extension',
+};
+
+const _TXN_COLOR = '#f59e0b'; // amber-500
+
 // ─── Chart Dimensions ───────────────────────────────────────
 const MARGIN = { top: 20, right: 20, bottom: 36, left: 60 };
 const DOT_RADIUS = 5;
 const HOVER_RADIUS = 7;
+
+// ─── Transaction event processed for chart ──────────────────
+interface ChartTxn {
+  year: number;       // fractional year (e.g. 2021.5 for July)
+  label: string;
+  shortDesc: string;
+}
 
 // ─── Component ──────────────────────────────────────────────
 interface Props {
   data: TradeValuePoint[];
   teamColor: string;
   teamAccent: string;
+  transactions?: Transaction[];
 }
 
-const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
+const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transactions }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hoverTxn, setHoverTxn] = useState<number | null>(null);
   const [dims, setDims] = useState({ width: 700, height: 300 });
 
   // Responsive width via ResizeObserver
@@ -57,6 +79,35 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
 
   // Sort by year
   const sorted = useMemo(() => [...data].sort((a, b) => a.year - b.year), [data]);
+
+  // Process transactions for chart markers
+  const chartTxns = useMemo<ChartTxn[]>(() => {
+    if (!transactions || transactions.length === 0) return [];
+    const seen = new Set<string>();
+    return transactions
+      .filter((t) => _TXN_CHART_CODES.has(t.typeCode))
+      .map((t) => {
+        const d = new Date(t.date + 'T12:00:00');
+        const yr = d.getFullYear() + (d.getMonth() / 12);
+        const code = t.typeCode;
+        // For signings, extract short description from description text
+        let shortDesc = _TXN_LABELS[code] || t.typeDesc;
+        // Try to extract dollar amount for signings
+        const moneyMatch = t.description.match(/\$[\d,.]+\s*(million|billion)?/i);
+        if (moneyMatch) shortDesc += ` (${moneyMatch[0]})`;
+        // Add team info
+        if (t.toTeam) shortDesc += ` → ${t.toTeam}`;
+        return { year: yr, label: _TXN_LABELS[code] || code, shortDesc };
+      })
+      .filter((t) => {
+        // Deduplicate very close events
+        const key = `${Math.round(t.year)}-${t.label}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.year - b.year);
+  }, [transactions]);
 
   if (sorted.length === 0) return null;
 
@@ -206,6 +257,46 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
           );
         })}
 
+        {/* ── Transaction markers (vertical lines + diamond) ─── */}
+        {chartTxns
+          .filter((t) => t.year >= minYear && t.year <= maxYear + 0.5)
+          .map((t, i) => {
+            const tx = x(t.year);
+            const isHov = hoverTxn === i;
+            return (
+              <g key={`txn-${i}`}>
+                {/* Dashed vertical line */}
+                <line
+                  x1={tx}
+                  x2={tx}
+                  y1={MARGIN.top}
+                  y2={MARGIN.top + plotH}
+                  stroke={_TXN_COLOR}
+                  strokeWidth={isHov ? 1.5 : 1}
+                  strokeDasharray="3,4"
+                  opacity={isHov ? 0.7 : 0.35}
+                />
+                {/* Diamond marker at bottom */}
+                <polygon
+                  points={`${tx},${MARGIN.top + plotH - 6} ${tx + 4},${MARGIN.top + plotH} ${tx},${MARGIN.top + plotH + 6} ${tx - 4},${MARGIN.top + plotH}`}
+                  fill={isHov ? _TXN_COLOR : _TXN_COLOR + '80'}
+                  stroke="rgba(0,0,0,0.4)"
+                  strokeWidth={1}
+                />
+                {/* Hit area */}
+                <rect
+                  x={tx - 8}
+                  y={MARGIN.top}
+                  width={16}
+                  height={plotH}
+                  fill="transparent"
+                  onMouseEnter={() => { setHoverTxn(i); setHoverIdx(null); }}
+                  onMouseLeave={() => setHoverTxn(null)}
+                />
+              </g>
+            );
+          })}
+
         {/* ── Invisible hit targets for hover ─── */}
         {sorted.map((d, i) => (
           <rect
@@ -270,6 +361,27 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
         </div>
       )}
 
+      {/* ── Transaction hover tooltip ──────────── */}
+      {hoverTxn != null && chartTxns[hoverTxn] && (() => {
+        const t = chartTxns[hoverTxn];
+        const tx = x(t.year);
+        return (
+          <div
+            className="pointer-events-none absolute z-20"
+            style={{
+              left: `${tx}px`,
+              top: `${MARGIN.top + 12}px`,
+              transform: `translate(${tx > dims.width * 0.65 ? 'calc(-100% - 12px)' : '12px'}, 0)`,
+            }}
+          >
+            <div className="bg-surface-800 border border-amber-500/20 rounded-lg shadow-xl px-3 py-2 text-xs whitespace-nowrap">
+              <div className="font-semibold text-amber-400 mb-0.5">{t.label}</div>
+              <div className="text-surface-400 max-w-[220px] truncate">{t.shortDesc}</div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Legend ─────────────────────────────── */}
       <div className="flex flex-wrap gap-4 mt-3 px-1">
         {presentTypes.map((type) => {
@@ -285,6 +397,15 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
             </div>
           );
         })}
+        {chartTxns.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span
+              className="inline-block"
+              style={{ width: 10, height: 10, backgroundColor: _TXN_COLOR, clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }}
+            />
+            <span className="text-[10px] text-surface-500 font-medium">Transaction</span>
+          </div>
+        )}
       </div>
     </div>
   );

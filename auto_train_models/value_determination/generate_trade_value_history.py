@@ -166,11 +166,9 @@ def build_mlb_timeline(player_values: pd.DataFrame) -> pd.DataFrame:
       3. Sum the dollar values and subtract the projected salaries
       → that is the trade value *as it would have been estimated at time Y*
 
-    Two-way player handling:
-      Surplus files may only contain one side of a two-way player's WAR
-      (e.g. Ohtani hitter WAR but not pitcher WAR). We cross-reference
-      player_values_complete.csv which has the combined WAR for each year
-      and use the higher of the two when a discrepancy is detected.
+    IMPORTANT: We only use data from year Y's surplus file for the year Y
+    entry.  We never cross-reference actual stats from future years so that
+    the chart reflects what was projected at the time, not hindsight.
 
     For the current year (CURRENT_YEAR) we use the trade_value already
     computed by the value-determination pipeline and label it mlb_surplus
@@ -193,15 +191,6 @@ def build_mlb_timeline(player_values: pd.DataFrame) -> pd.DataFrame:
     idfg_to_mlb = {}
     for mlb_id, row in id_map.iterrows():
         idfg_to_mlb[int(row["IDfg"])] = int(mlb_id)
-
-    # Build combined WAR lookup from player_values for two-way player fix.
-    # Key: (IDfg, year) -> combined WAR (batting + pitching)
-    pv_war_lookup: dict[tuple[int, int], float] = {}
-    for _, pvr in player_values[player_values["WAR"].notna()].iterrows():
-        try:
-            pv_war_lookup[(int(pvr["IDfg"]), int(pvr["Year"]))] = float(pvr["WAR"])
-        except (ValueError, KeyError):
-            pass
 
     rows: list[dict] = []
 
@@ -231,21 +220,10 @@ def build_mlb_timeline(player_values: pd.DataFrame) -> pd.DataFrame:
 
             for wc in war_cols:
                 proj_year = int(wc.split("_")[1])
-                surplus_war = player_row.get(wc)
-                if pd.isna(surplus_war):
-                    surplus_war = 0.0
-
-                # Two-way player fix: if player_values_complete has a higher
-                # combined WAR for this year, the surplus file likely only
-                # captured one side (e.g. hitting but not pitching).
-                pv_combined = pv_war_lookup.get((idfg, proj_year))
-                if pv_combined is not None and pv_combined > surplus_war:
-                    war = pv_combined
-                else:
-                    war = surplus_war
-
-                if war <= 0:
+                war = player_row.get(wc)
+                if pd.isna(war) or war <= 0:
                     continue
+
                 total_value += _convex_value(war, proj_year)
                 if proj_year == snap_year:
                     proj_war_this_year = war

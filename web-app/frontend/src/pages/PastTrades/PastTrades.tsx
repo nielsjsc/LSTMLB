@@ -59,16 +59,23 @@ function SideCompact({ side, isWinner, isProjected }: {
       <div className="space-y-px pl-4">
         {side.players_received.slice(0, 4).map((p) => {
           const pWar = isProjected && p.has_projection ? (p.projected_war ?? 0) : p.war_with_team;
+          const isPureProspect = !!p.prospect_fv && p.seasons_with_team === 0 && p.war_with_team === 0;
           return (
             <div key={p.mlb_id} className="flex items-center gap-1.5">
-              <Link
-                to={`/players/${p.mlb_id}`}
-                className="text-[12px] text-surface-300 hover:text-blue-400 truncate transition-colors"
-              >
-                {p.name}
-              </Link>
-              {pWar !== 0 && (
-                <span className="text-[11px] text-surface-500 flex-shrink-0 font-mono tabular-nums">
+              {isPureProspect ? (
+                <span className="text-[12px] text-surface-400 truncate">
+                  {p.name}
+                </span>
+              ) : (
+                <Link
+                  to={`/players/${p.mlb_id}`}
+                  className="text-[12px] text-surface-300 hover:text-blue-400 truncate transition-colors"
+                >
+                  {p.name}
+                </Link>
+              )}
+              {!isPureProspect && pWar !== 0 && (
+                <span className={`text-[11px] flex-shrink-0 font-mono tabular-nums ${isProjected ? 'text-blue-400/60' : 'text-surface-500'}`}>
                   {pWar > 0 ? '+' : ''}{pWar}
                 </span>
               )}
@@ -84,8 +91,8 @@ function SideCompact({ side, isWinner, isProjected }: {
           <span className="text-[11px] text-surface-600">+{side.players_received.length - 4} more</span>
         )}
       </div>
-      <div className="pl-4 mt-1 text-[11px] text-surface-500 tabular-nums font-mono">
-        {displayWar} WAR
+      <div className={`pl-4 mt-1 text-[11px] tabular-nums font-mono ${isProjected ? 'text-blue-400/70' : 'text-surface-500'}`}>
+        {isProjected ? `${displayWar} proj. WAR` : `${displayWar} WAR`}
       </div>
     </div>
   );

@@ -596,6 +596,7 @@ const PlayerDetails: React.FC = () => {
               data={tradeHistory}
               teamColor={colors.primary}
               teamAccent={colors.accent}
+              transactions={transactions}
             />
           </div>
         </div>

@@ -482,10 +482,26 @@ _MAJOR_AWARDS = {
     "Home Run Derby Winner",
 }
 
+# Keywords that indicate a non-MLB (minor league / amateur) award
+_MINOR_LEAGUE_KEYWORDS = (
+    "minor league", "milb", "triple-a", "double-a", "single-a",
+    "aaa", "aa all-star", "futures game", "arizona fall",
+    "carolina league", "texas league", "eastern league",
+    "southern league", "international league",
+    "pacific coast", "midwest league", "south atlantic",
+    "pioneer league", "appalachian", "northwest league",
+    "florida state", "california league",
+    "college", "ncaa", "high school",
+)
+
 
 def _is_major_award(award_name: str) -> bool:
-    """Check if an award name matches a major award (partial match)."""
+    """Check if an award name matches a major award at the MLB level (partial match)."""
     name_lower = award_name.lower()
+    # Exclude any award with minor league / amateur indicators
+    for kw in _MINOR_LEAGUE_KEYWORDS:
+        if kw in name_lower:
+            return False
     for major in _MAJOR_AWARDS:
         if major.lower() in name_lower:
             return True

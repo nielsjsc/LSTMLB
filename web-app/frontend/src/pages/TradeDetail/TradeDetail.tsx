@@ -71,12 +71,18 @@ function PlayerCard({
       {/* Name row */}
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-2 min-w-0">
-          <Link
-            to={`/players/${player.mlb_id}`}
-            className="text-[13px] font-medium text-blue-400 hover:text-blue-300 transition-colors truncate"
-          >
-            {player.name}
-          </Link>
+          {isPureProspect ? (
+            <span className="text-[13px] font-medium text-surface-200 truncate">
+              {player.name}
+            </span>
+          ) : (
+            <Link
+              to={`/players/${player.mlb_id}`}
+              className="text-[13px] font-medium text-blue-400 hover:text-blue-300 transition-colors truncate"
+            >
+              {player.name}
+            </Link>
+          )}
           {player.prospect_fv && (
             <span className="text-[10px] px-1 py-px rounded bg-amber-500/10 text-amber-400/80 flex-shrink-0">
               FV {player.prospect_fv}
@@ -125,7 +131,7 @@ function PlayerCard({
         <div className="flex items-center gap-4 text-[11px] text-surface-400">
           <span>
             <span className="text-surface-500">{isProjected ? 'Proj. WAR' : 'WAR'}</span>{' '}
-            <span className="text-surface-200 font-medium">{displayWar}</span>
+            <span className={`font-medium ${isProjected ? 'text-blue-300' : 'text-surface-200'}`}>{displayWar}</span>
           </span>
           <span>
             <span className="text-surface-500">{isProjected ? 'Yrs' : 'Seasons'}</span>{' '}
@@ -139,7 +145,7 @@ function PlayerCard({
           </span>
           <span>
             <span className="text-surface-500">Surplus</span>{' '}
-            <span className={`font-medium ${surplusPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+            <span className={`font-medium ${isProjected ? (surplusPositive ? 'text-blue-300' : 'text-red-400') : (surplusPositive ? 'text-emerald-400' : 'text-red-400')}`}>
               {fmtMoney(displaySurplus, true)}
             </span>
           </span>
@@ -176,6 +182,15 @@ function SidePanel({
   const displayWarValue = isProjected ? (side.projected_total_war_value ?? 0) : side.total_war_value;
   const displaySalary = isProjected ? (side.projected_total_salary ?? 0) : side.total_salary;
 
+  // Check if all players on this side are pure prospects (no MLB data)
+  const allPureProspects = side.players_received.length > 0 && side.players_received.every(
+    (p) => !!p.prospect_fv && p.seasons_with_team === 0 && p.war_with_team === 0
+  );
+  // Sum prospect values for all-prospect sides
+  const totalProspectValue = allPureProspects
+    ? side.players_received.reduce((acc, p) => acc + (p.prospect_value ?? 0), 0)
+    : 0;
+
   return (
     <div className="flex-1 min-w-0">
       {/* Team header */}
@@ -195,14 +210,27 @@ function SidePanel({
       </div>
 
       {/* Aggregate stats — horizontal strip */}
+      {allPureProspects ? (
+        /* All prospects: show prospect value total instead of WAR/surplus */
+        <div className="flex items-center gap-5 mb-3 text-[11px]">
+          <div>
+            <span className="text-surface-500">Prospect Value</span>
+            <div className="text-lg font-bold text-emerald-400 leading-tight">{fmtMoney(totalProspectValue, true)}</div>
+          </div>
+          <div>
+            <span className="text-surface-500">Prospects</span>
+            <div className="text-lg font-bold text-surface-100 leading-tight">{side.players_received.length}</div>
+          </div>
+        </div>
+      ) : (
       <div className="flex items-center gap-5 mb-3 text-[11px]">
         <div>
           <span className="text-surface-500">{isProjected ? 'Proj. WAR' : 'Total WAR'}</span>
-          <div className="text-lg font-bold text-surface-100 leading-tight">{displayWar}</div>
+          <div className={`text-lg font-bold leading-tight ${isProjected ? 'text-blue-300' : 'text-surface-100'}`}>{displayWar}</div>
         </div>
         <div>
           <span className="text-surface-500">{isProjected ? 'Proj. Surplus' : 'Net Surplus'}</span>
-          <div className={`text-lg font-bold leading-tight ${displaySurplus >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <div className={`text-lg font-bold leading-tight ${isProjected ? (displaySurplus >= 0 ? 'text-blue-300' : 'text-red-400') : (displaySurplus >= 0 ? 'text-emerald-400' : 'text-red-400')}`}>
             {fmtMoney(displaySurplus, true)}
           </div>
         </div>
@@ -215,6 +243,7 @@ function SidePanel({
           <div className="text-sm font-semibold text-surface-200 leading-tight">{fmtMoney(displaySalary, true)}</div>
         </div>
       </div>
+      )}
 
       {/* Player list */}
       <div>
@@ -327,8 +356,10 @@ export default function TradeDetail() {
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[13px] text-surface-400">{fmtDate(trade.date)}</span>
-          {isProjected && (
-            <span className="text-[9px] px-1 py-px rounded bg-blue-500/10 text-blue-400 font-medium">Projected</span>
+          {isProjected ? (
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium uppercase tracking-wider">Projected</span>
+          ) : (
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400/80 font-medium uppercase tracking-wider">Actual</span>
           )}
           {trade.has_ptbnl && (
             <span className="text-[9px] px-1 py-px rounded bg-surface-700 text-surface-400">PTBNL</span>
