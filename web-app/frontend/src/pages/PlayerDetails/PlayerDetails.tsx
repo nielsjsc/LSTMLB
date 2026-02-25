@@ -328,7 +328,7 @@ const PlayerDetails: React.FC = () => {
         (proj): proj is typeof proj & { pitching: NonNullable<typeof proj.pitching> } =>
           proj.pitching?.war_pit != null && (isHistorical || proj.year <= MAX_PROJECTION_YEAR)
       )
-      .map((proj) => ({ year: proj.year, age: proj.age, status: proj.status, value: proj.value, pitching: proj.pitching }));
+      .map((proj) => ({ year: proj.year, age: proj.age, team: proj.team, status: proj.status, value: proj.value, pitching: proj.pitching }));
   }, [player, MAX_PROJECTION_YEAR, isHistorical]);
 
   const hittingTableData = useMemo(() => {
@@ -338,7 +338,7 @@ const PlayerDetails: React.FC = () => {
         (proj): proj is typeof proj & { hitting: NonNullable<typeof proj.hitting> } =>
           proj.hitting?.war_bat != null && (isHistorical || proj.year <= MAX_PROJECTION_YEAR)
       )
-      .map((proj) => ({ year: proj.year, age: proj.age, status: proj.status, value: proj.value, hitting: proj.hitting }));
+      .map((proj) => ({ year: proj.year, age: proj.age, team: proj.team, status: proj.status, value: proj.value, hitting: proj.hitting }));
   }, [player, MAX_PROJECTION_YEAR, isHistorical]);
 
   // ── Loading / Error ──

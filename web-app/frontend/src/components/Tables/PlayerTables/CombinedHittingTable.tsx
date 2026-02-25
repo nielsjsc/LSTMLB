@@ -5,6 +5,7 @@ interface CombinedHittingTableProps {
   data: Array<{
     year: number;
     age: number;
+    team?: string;
     status: string;
     value: {
       base_value: number;
@@ -39,6 +40,7 @@ interface CombinedHittingTableProps {
 interface FormattedRow extends Record<string, any> {
   year: number;
   age: number;
+  team: string;
   status: string;
   base_value: number;
   contract_value: number;
@@ -71,6 +73,7 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
 
   const headers = [
     { key: 'year', label: 'Year' },
+    { key: 'team', label: 'Team' },
     { key: 'age', label: 'Age' },
     { key: 'g_bat', label: 'G' },
     { key: 'war_bat', label: 'WAR' },
@@ -147,6 +150,7 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
 
   const formattedData = data.map(row => ({
     ...row,
+    team: row.team ?? '',
     base_value: row.value.base_value,
     contract_value: row.value.contract_value,
     surplus_value: row.value.surplus_value,

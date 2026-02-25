@@ -5,6 +5,7 @@ interface CombinedPitchingTableProps {
   data: Array<{
     year: number;
     age: number;
+    team?: string;
     status: string;
     value: {
       base_value: number;
@@ -27,6 +28,7 @@ interface CombinedPitchingTableProps {
 interface FormattedPitchingRow extends Record<string, any> {
   year: number;
   age: number;
+  team: string;
   status: string;
   base_value: number;
   contract_value: number;
@@ -46,6 +48,7 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
 
   const headers = [
     { key: 'year', label: 'Year' },
+    { key: 'team', label: 'Team' },
     { key: 'age', label: 'Age' },
     { key: 'g_pit', label: 'G' },
     { key: 'gs', label: 'GS' },
@@ -100,6 +103,7 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
 
   const formattedData = data.map(row => ({
     ...row,
+    team: row.team ?? '',
     base_value: row.value.base_value,
     contract_value: row.value.contract_value,
     surplus_value: row.value.surplus_value,

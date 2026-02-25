@@ -19,11 +19,82 @@ router = APIRouter()
 # ── Data file ────────────────────────────────────────────────────────────
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]  # LSTMLB
 _HIST_FILE = _PROJECT_ROOT / "data" / "generated" / "historical_players" / "historical_players.json"
+_SALARY_BY_YEAR_DIR = _PROJECT_ROOT / "data" / "salary" / "by_year"
 
 _hist_data: Optional[Dict[str, Any]] = None
 _players: Dict[str, Any] = {}
 _mlbam_to_idfg: Dict[str, int] = {}
 _name_index: List[Dict[str, Any]] = []  # For search
+
+
+def _load_salary_supplement() -> Dict[tuple, int]:
+    """Load by_year salary CSVs → {(name_lower, team, year): salary_int}."""
+    import csv as _csv
+
+    lookup: Dict[tuple, int] = {}
+    if not _SALARY_BY_YEAR_DIR.exists():
+        return lookup
+
+    for fname in sorted(_SALARY_BY_YEAR_DIR.iterdir()):
+        if not fname.suffix == ".csv":
+            continue
+        try:
+            yr = int(fname.stem)
+        except ValueError:
+            continue
+        with open(fname, "r", encoding="utf-8") as f:
+            for row in _csv.DictReader(f):
+                name = (row.get("player") or "").replace("*", "").strip().lower()
+                team = (row.get("team") or "").strip()
+                sal_str = row.get("salary", "")
+                if not name or not team or not sal_str:
+                    continue
+                try:
+                    sal = int(float(sal_str))
+                except (ValueError, TypeError):
+                    continue
+                if sal > 0:
+                    lookup[(name, team, yr)] = sal
+    return lookup
+
+
+def _augment_salaries():
+    """Fill null salary fields in historical player seasons using by_year CSVs."""
+    sal_lookup = _load_salary_supplement()
+    if not sal_lookup:
+        return
+
+    filled = 0
+    for _idfg_str, p in _players.items():
+        name_lower = p["name"].lower().strip()
+        career_salary_add = 0
+
+        for season_list_key in ("batting", "pitching"):
+            for s in p.get(season_list_key, []):
+                if s.get("salary"):
+                    continue  # already has salary
+                key = (name_lower, s.get("team", ""), s.get("year", 0))
+                sal = sal_lookup.get(key)
+                if sal:
+                    s["salary"] = sal
+                    # Recalculate surplus for this season
+                    war_val = s.get("war_value") or 0
+                    s["surplus"] = war_val - sal
+                    career_salary_add += sal
+                    filled += 1
+
+        # Update career totals if we added salary
+        if career_salary_add > 0:
+            old = p.get("career_salary") or 0
+            p["career_salary"] = old + career_salary_add
+            old_surplus = p.get("career_surplus")
+            if old_surplus is not None:
+                p["career_surplus"] = old_surplus - career_salary_add
+            else:
+                war_value = p.get("career_war_value") or 0
+                p["career_surplus"] = war_value - p["career_salary"]
+
+    logger.info(f"Filled {filled} salary entries from by_year CSVs")
 
 
 def _load_historical():
@@ -61,6 +132,9 @@ def _load_historical():
         })
     # Sort by career WAR descending for default ordering
     _name_index.sort(key=lambda x: x["career_war"], reverse=True)
+
+    # Supplement missing salary data from by_year CSVs (covers 2014–2025)
+    _augment_salaries()
 
     elapsed = time.time() - t0
     logger.info(

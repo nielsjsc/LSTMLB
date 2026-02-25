@@ -100,6 +100,13 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
                     >
                       {player.name}
                     </Link>
+                  ) : player.id ? (
+                    <Link
+                      to={`/prospects/${player.id}`}
+                      className="text-surface-200 hover:text-blue-400 font-medium transition-colors"
+                    >
+                      {player.name}
+                    </Link>
                   ) : (
                     <span className="text-surface-300 font-medium">
                       {player.name}

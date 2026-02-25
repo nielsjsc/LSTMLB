@@ -127,28 +127,73 @@ async def get_players(
             
         players = query.all()
         logger.info(f"Found {len(players)} players")
-        
+
+        active_results = [
+            {
+                "real_id": p.real_id,
+                "mlb_id": p.mlb_id,
+                "name": p.name,
+                "team": p.team,
+                "position": p.position,
+                "status": p.status,
+                "age": p.age,
+                "war_bat": p.war_bat,
+                "war_pit": p.war_pit,
+                "is_historical": False,
+                "value": {
+                    "base_value": p.base_value,
+                    "contract_value": p.contract_value,
+                    "surplus_value": p.surplus_value,
+                    "trade_value": p.trade_value
+                }
+            } for p in players
+        ]
+
+        # For searches, also include historical player matches (up to a limit)
+        historical_results = []
+        if search and len(search) >= 2:
+            try:
+                from app.routes.historical import _load_historical, _name_index
+                _load_historical()
+                q_lower = search.strip().lower()
+                # Collect active mlb_ids to avoid duplicates
+                active_mlb_ids = {p.get("mlb_id") for p in active_results if p.get("mlb_id")}
+                active_names_lower = {p["name"].lower() for p in active_results}
+                for hp in _name_index:
+                    if q_lower in hp["name_lower"]:
+                        # Skip if already in active results
+                        mlbam = hp.get("mlbam")
+                        if mlbam and mlbam in active_mlb_ids:
+                            continue
+                        if hp["name_lower"] in active_names_lower:
+                            continue
+                        teams_str = ", ".join(hp.get("teams", [])[:3])
+                        historical_results.append({
+                            "real_id": hp["idfg"],
+                            "mlb_id": mlbam,
+                            "name": hp["name"],
+                            "team": teams_str or "---",
+                            "position": "P" if hp.get("is_pitcher") else "Pos",
+                            "status": "historical",
+                            "age": None,
+                            "war_bat": None if hp.get("is_pitcher") else hp.get("career_war", 0),
+                            "war_pit": hp.get("career_war", 0) if hp.get("is_pitcher") else None,
+                            "is_historical": True,
+                            "career_war": hp.get("career_war", 0),
+                            "first_year": hp.get("first_year"),
+                            "last_year": hp.get("last_year"),
+                            "value": None
+                        })
+                        if len(historical_results) >= 15:
+                            break
+            except Exception as he:
+                logger.warning(f"Historical search fallback failed: {he}")
+
+        all_results = active_results + historical_results
+
         return {
-            "count": len(players),
-            "players": [
-                {
-                    "real_id": p.real_id,
-                    "mlb_id": p.mlb_id,
-                    "name": p.name,
-                    "team": p.team,
-                    "position": p.position,
-                    "status": p.status,
-                    "age": p.age,
-                    "war_bat": p.war_bat,
-                    "war_pit": p.war_pit,
-                    "value": {
-                        "base_value": p.base_value,
-                        "contract_value": p.contract_value,
-                        "surplus_value": p.surplus_value,
-                        "trade_value": p.trade_value
-                    }
-                } for p in players
-            ]
+            "count": len(all_results),
+            "players": all_results
         }
     except Exception as e:
         logger.error(f"Error in get_players: {str(e)}")

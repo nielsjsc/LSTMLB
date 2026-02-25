@@ -409,6 +409,116 @@ def _augment_with_projections(trades: List[Dict[str, Any]]) -> None:
     logger.info(f"Augmented {augmented_count} recent trades with projected values")
 
 
+_HIST_TEAM_ALIASES: Dict[str, str] = {
+    "ANA": "LAA", "CAL": "LAA", "FLA": "MIA", "MON": "WSN", "TBD": "TBR",
+}
+
+
+def _augment_with_historical_war(trades: List[Dict[str, Any]]) -> None:
+    """
+    Fill in missing WAR data for trade players using the 13k-player historical
+    dataset.  The pre-computed trades.json has gaps because the offline pipeline
+    uses a limited crosswalk; the historical JSON has 12,999 MLBAM → IDfg
+    mappings which covers most of them.
+
+    Modifies trades in-place.
+    """
+    from app.routes.historical import _load_historical, _mlbam_to_idfg, _players
+
+    _load_historical()
+    if not _mlbam_to_idfg or not _players:
+        return
+
+    augmented = 0
+    for trade in trades:
+        trade_year = trade.get("year", 0)
+        sides_changed = False
+
+        for side in trade.get("sides", []):
+            for player in side.get("players_received", []):
+                # Skip players that already have WAR data
+                if player.get("yearly_war") or abs(player.get("war_with_team", 0)) > 0.01:
+                    continue
+
+                mlb_id = player.get("mlb_id")
+                if not mlb_id:
+                    continue
+
+                # Look up historical data via MLBAM crosswalk
+                idfg = _mlbam_to_idfg.get(str(mlb_id))
+                if idfg is None:
+                    continue
+                hp = _players.get(str(idfg))
+                if hp is None:
+                    continue
+
+                to_team = player.get("to_team", "")
+
+                # Aggregate batting + pitching WAR by year for matching team
+                war_by_year: Dict[int, float] = {}
+                salary_by_year: Dict[int, int] = {}
+                for season in hp.get("batting", []) + hp.get("pitching", []):
+                    st = _HIST_TEAM_ALIASES.get(season["team"], season["team"])
+                    if st == to_team and season["year"] >= trade_year:
+                        yr = season["year"]
+                        war_by_year[yr] = war_by_year.get(yr, 0) + (season.get("war") or 0)
+                        salary_by_year[yr] = salary_by_year.get(yr, 0) + int(season.get("salary") or 0)
+
+                if not war_by_year:
+                    continue
+
+                # Build yearly_war list sorted by year
+                yearly = sorted(
+                    [{"year": yr, "war": round(w, 1)} for yr, w in war_by_year.items()],
+                    key=lambda x: x["year"],
+                )
+                total_war = round(sum(w for w in war_by_year.values()), 1)
+                total_salary = sum(salary_by_year.values())
+
+                player["war_with_team"] = total_war
+                player["yearly_war"] = yearly
+                player["salary_with_team"] = total_salary
+                player["seasons_with_team"] = len(yearly)
+
+                # Recalculate individual WAR value and surplus
+                war_value = 0
+                for yr, w in war_by_year.items():
+                    dpw = _DOLLAR_PER_WAR.get(yr, 8_500_000)
+                    war_value += w * dpw
+                player["war_value"] = int(war_value)
+                player["surplus"] = int(war_value - total_salary)
+
+                augmented += 1
+                sides_changed = True
+
+        if sides_changed:
+            # Recalculate side totals
+            for side in trade.get("sides", []):
+                players_list = side.get("players_received", [])
+                side["total_war"] = round(sum(p.get("war_with_team", 0) for p in players_list), 1)
+                side["total_salary"] = sum(p.get("salary_with_team", 0) for p in players_list)
+                side["total_war_value"] = sum(p.get("war_value", 0) for p in players_list)
+                side["total_surplus"] = sum(p.get("surplus", 0) for p in players_list)
+
+            # Recalculate winner/loser for actual (non-projected) trades
+            if trade.get("evaluation_type") != "projected":
+                sides = trade.get("sides", [])
+                if len(sides) >= 2:
+                    sorted_sides = sorted(sides, key=lambda s: s.get("total_surplus", 0), reverse=True)
+                    trade["winner"] = sorted_sides[0]["team"]
+                    trade["winner_name"] = sorted_sides[0]["team_name"]
+                    trade["loser"] = sorted_sides[-1]["team"]
+                    trade["loser_name"] = sorted_sides[-1]["team_name"]
+                    trade["surplus_diff"] = (
+                        sorted_sides[0].get("total_surplus", 0) - sorted_sides[-1].get("total_surplus", 0)
+                    )
+                trade["total_trade_war"] = round(
+                    sum(s.get("total_war", 0) for s in trade.get("sides", [])), 1
+                )
+
+    logger.info(f"Augmented {augmented} trade players with historical WAR data")
+
+
 def _load_past_trades() -> List[Dict[str, Any]]:
     """Load & cache the pre-computed trade evaluations, augmented with projections."""
     global _past_trades_cache
@@ -424,6 +534,9 @@ def _load_past_trades() -> List[Dict[str, Any]]:
 
     # Augment recent trades with projected values
     _augment_with_projections(_past_trades_cache)
+
+    # Fill in missing WAR from historical player data
+    _augment_with_historical_war(_past_trades_cache)
 
     logger.info(f"Loaded {len(_past_trades_cache)} past trades")
     return _past_trades_cache

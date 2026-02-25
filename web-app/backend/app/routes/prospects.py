@@ -134,6 +134,7 @@ async def get_prospects(
             "page": page,
             "pages": (total_count + page_size - 1) // page_size,
             "players": [{
+                "id": p.id,
                 "IDfg": p.IDfg,
                 "name": p.name,
                 "org": p.org,
@@ -157,4 +158,110 @@ async def get_prospects(
         }
     except Exception as e:
         logger.error(f"Error in get_prospects: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{prospect_id}")
+async def get_prospect_detail(
+    prospect_id: int,
+    db: Session = Depends(get_db)
+) -> dict:
+    """Get detailed prospect data across all available years."""
+    try:
+        # First look up the prospect by DB primary key
+        anchor = db.query(Prospect).filter(Prospect.id == prospect_id).first()
+
+        if not anchor:
+            raise HTTPException(status_code=404, detail=f"Prospect not found: {prospect_id}")
+
+        # Get all records for this prospect across years (by name match)
+        records = (
+            db.query(Prospect)
+            .filter(Prospect.name == anchor.name)
+            .order_by(Prospect.year.desc())
+            .all()
+        )
+
+        latest = records[0]
+        is_pitcher = 'p' in latest.position.lower() if latest.position else False
+
+        # Build tool grades from latest record
+        if is_pitcher:
+            tools = {
+                "fastball": latest.fastball,
+                "slider": latest.slider,
+                "curve": latest.curve,
+                "changeup": latest.changeup,
+                "command": latest.command,
+            }
+        else:
+            tools = {
+                "hit": latest.hit,
+                "game_power": latest.game_power,
+                "raw_power": latest.raw_power,
+                "speed": latest.speed,
+            }
+
+        # Build year-by-year rankings
+        history = []
+        for r in records:
+            entry = {
+                "year": r.year,
+                "age": r.age,
+                "org": r.org,
+                "position": r.position,
+                "fv": r.fv,
+                "value": getattr(r, f"value_{r.year}", None),
+                "composite": getattr(r, f"composite_{r.year}", None),
+            }
+            # Add tool grades per year
+            if is_pitcher:
+                entry.update({
+                    "fastball": r.fastball, "slider": r.slider,
+                    "curve": r.curve, "changeup": r.changeup, "command": r.command,
+                })
+            else:
+                entry.update({
+                    "hit": r.hit, "game_power": r.game_power,
+                    "raw_power": r.raw_power, "speed": r.speed,
+                })
+            history.append(entry)
+
+        # Try to get MLB stats/headshot info via MLB API ID
+        mlb_info = None
+        if latest.has_mlb:
+            # Try to look up the player in the main players table
+            try:
+                from app.models.player import Player
+                player_record = db.query(Player).filter(
+                    Player.name == latest.name,
+                    Player.year == 2026
+                ).first()
+                if player_record and player_record.mlb_id:
+                    mlb_info = {
+                        "mlb_id": player_record.mlb_id,
+                        "headshot_url": f"https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{player_record.mlb_id}/headshot/67/current",
+                    }
+            except Exception:
+                pass
+
+        return {
+            "id": anchor.id,
+            "IDfg": latest.IDfg,
+            "name": latest.name,
+            "org": latest.org,
+            "position": latest.position,
+            "age": latest.age,
+            "fv": latest.fv,
+            "has_mlb": latest.has_mlb,
+            "is_pitcher": is_pitcher,
+            "tools": tools,
+            "history": history,
+            "mlb_info": mlb_info,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_prospect_detail: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

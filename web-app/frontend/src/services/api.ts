@@ -397,6 +397,7 @@ export interface ProjectionResponse {
 
   
 export interface Prospect {
+    id: number;
     playerId: string;
     IDfg: number | null;
     name: string;
@@ -471,6 +472,54 @@ export interface Prospect {
     console.error('Error fetching prospects:', error);
     throw error;
   }
+};
+
+// ── Prospect Detail ──────────────────────────────────────────────────
+
+export interface ProspectDetailHistory {
+  year: number;
+  age: number | null;
+  org: string;
+  position: string;
+  fv: string;
+  value: number | null;
+  composite: number | null;
+  hit?: string;
+  game_power?: string;
+  raw_power?: string;
+  speed?: string;
+  fastball?: string;
+  slider?: string;
+  curve?: string;
+  changeup?: string;
+  command?: string;
+}
+
+export interface ProspectDetail {
+  id: number;
+  IDfg: number | null;
+  name: string;
+  org: string;
+  position: string;
+  age: number | null;
+  fv: string;
+  has_mlb: boolean;
+  is_pitcher: boolean;
+  tools: Record<string, string | null>;
+  history: ProspectDetailHistory[];
+  mlb_info: {
+    mlb_id: number;
+    headshot_url: string;
+  } | null;
+}
+
+export const getProspectDetail = async (prospectId: number): Promise<ProspectDetail> => {
+  const url = `${API_BASE}/prospects/${prospectId}`;
+  const response = await fetch(url, { headers: createApiHeaders() });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch prospect detail: ${response.status}`);
+  }
+  return response.json();
 };
 
   export const getProjections = async (

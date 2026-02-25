@@ -5,6 +5,7 @@ import TradeSimulator from './pages/TradeSimulator/TradeSimulator'
 import PlayerDetails from './pages/PlayerDetails/PlayerDetails'
 import Projections from './pages/Projections/Projections'
 import Prospects from './pages/Prospects/Prospects'
+import ProspectDetail from './pages/Prospects/ProspectDetail'
 import About from './pages/About/About'
 import TradeValues from './pages/TradeValues/TradeValues'
 import PastTrades from './pages/PastTrades/PastTrades'
@@ -22,6 +23,7 @@ function App() {
             <Route path="/players/:playerId" element={<PlayerDetails />} />
             <Route path="/projections" element={<Projections />} />
             <Route path="/prospects" element={<Prospects />} />
+            <Route path="/prospects/:prospectId" element={<ProspectDetail />} />
             <Route path="/about" element={<About />} />
             <Route path="/tradevalues" element={<TradeValues />} />
             <Route path="/trades" element={<PastTrades />} />

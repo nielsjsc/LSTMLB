@@ -25,14 +25,11 @@ const fmtMoney = (n: number, short = false) => {
 
 function PlayerCard({
   player,
-  teamColor,
   isProjected,
 }: {
   player: TradePlayerDetail;
-  teamColor: string;
   isProjected: boolean;
 }) {
-  // For projected trades, prefer projected values; for actual, use actual
   const displayWar = isProjected && player.has_projection
     ? (player.projected_war ?? 0)
     : player.war_with_team;
@@ -44,115 +41,72 @@ function PlayerCard({
     : player.salary_with_team;
   const surplusPositive = displaySurplus >= 0;
 
-  // Use projected yearly WAR for projected trades, actual otherwise
   const yearlyWar = isProjected && player.projected_yearly_war?.length
     ? player.projected_yearly_war
     : player.yearly_war;
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-surface-900/50 p-3">
-      {/* Player name + link */}
-      <div className="flex items-center justify-between mb-2">
-        <Link
-          to={`/players/${player.mlb_id}`}
-          className="text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors"
-        >
-          {player.name}
-        </Link>
-        <div className="flex items-center gap-1.5">
-          {isProjected && !player.has_projection && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-700 text-surface-500 border border-white/[0.06] italic">
-              No projection
-            </span>
-          )}
+    <div className="py-3 border-b border-white/[0.04] last:border-b-0">
+      {/* Name row */}
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <Link
+            to={`/players/${player.mlb_id}`}
+            className="text-[13px] font-medium text-blue-400 hover:text-blue-300 transition-colors truncate"
+          >
+            {player.name}
+          </Link>
           {player.prospect_fv && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/15">
+            <span className="text-[10px] px-1 py-px rounded bg-amber-500/10 text-amber-400/80 flex-shrink-0">
               FV {player.prospect_fv}
             </span>
           )}
           {player.prospect_top_100 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/15">
-              Top 100
+            <span className="text-[10px] px-1 py-px rounded bg-purple-500/10 text-purple-400/80 flex-shrink-0">
+              T100
             </span>
           )}
           {!isProjected && player.still_on_team && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">
+            <span className="text-[10px] px-1 py-px rounded bg-emerald-500/10 text-emerald-400/80 flex-shrink-0">
               Active
+            </span>
+          )}
+          {isProjected && !player.has_projection && (
+            <span className="text-[10px] text-surface-600 italic flex-shrink-0">
+              No projection
             </span>
           )}
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-4 gap-2 mb-2">
-        <div>
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider">
-            {isProjected ? 'Proj. WAR' : 'WAR'}
-          </div>
-          <div className="text-sm font-semibold text-surface-200">{displayWar}</div>
-        </div>
-        <div>
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider">
-            {isProjected ? 'Yrs Ctrl' : 'Seasons'}
-          </div>
-          <div className="text-sm font-semibold text-surface-200">
+      {/* Inline stats */}
+      <div className="flex items-center gap-4 text-[11px] text-surface-400">
+        <span>
+          <span className="text-surface-500">{isProjected ? 'Proj. WAR' : 'WAR'}</span>{' '}
+          <span className="text-surface-200 font-medium">{displayWar}</span>
+        </span>
+        <span>
+          <span className="text-surface-500">{isProjected ? 'Yrs' : 'Seasons'}</span>{' '}
+          <span className="text-surface-200 font-medium">
             {isProjected ? yearlyWar.length : player.seasons_with_team}
-          </div>
-        </div>
-        <div>
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider">
-            {isProjected ? 'Proj. Salary' : 'Salary'}
-          </div>
-          <div className="text-sm font-semibold text-surface-200">{fmtMoney(displaySalary, true)}</div>
-        </div>
-        <div>
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider">
-            {isProjected ? 'Proj. Surplus' : 'Surplus'}
-          </div>
-          <div className={`text-sm font-semibold ${surplusPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+          </span>
+        </span>
+        <span>
+          <span className="text-surface-500">Salary</span>{' '}
+          <span className="text-surface-200 font-medium">{fmtMoney(displaySalary, true)}</span>
+        </span>
+        <span>
+          <span className="text-surface-500">Surplus</span>{' '}
+          <span className={`font-medium ${surplusPositive ? 'text-emerald-400' : 'text-red-400'}`}>
             {fmtMoney(displaySurplus, true)}
-          </div>
-        </div>
+          </span>
+        </span>
       </div>
 
-      {/* Yearly WAR bar chart */}
-      {yearlyWar.length > 0 && (
-        <div className="mt-2">
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-1">
-            {isProjected ? 'Projected WAR by Year' : 'Yearly WAR'}
-          </div>
-          <div className="flex items-end gap-0.5 h-12">
-            {yearlyWar.map((yw) => {
-              const maxWar = Math.max(...yearlyWar.map(y => Math.abs(y.war)), 1);
-              const height = Math.max(2, (Math.abs(yw.war) / maxWar) * 100);
-              const isNeg = yw.war < 0;
-              return (
-                <div key={yw.year} className="flex-1 flex flex-col items-center gap-0.5">
-                  <div
-                    className="w-full rounded-sm transition-all"
-                    style={{
-                      height: `${height}%`,
-                      backgroundColor: isNeg
-                        ? 'rgba(239, 68, 68, 0.4)'
-                        : isProjected
-                          ? 'rgba(96, 165, 250, 0.4)'  // blue-ish for projected
-                          : teamColor + '60',
-                      minHeight: 2,
-                    }}
-                    title={`${yw.year}: ${yw.war} WAR${isProjected ? ' (projected)' : ''}`}
-                  />
-                  <span className="text-[8px] text-surface-600">{String(yw.year).slice(-2)}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Departure info (only for actual trades) */}
+      {/* Departure info */}
       {!isProjected && !player.still_on_team && player.departure_year && (
-        <div className="mt-2 text-[10px] text-surface-500">
-          Left after {player.departure_year - 1} season
+        <div className="mt-1 text-[10px] text-surface-600">
+          Left after {player.departure_year - 1}
         </div>
       )}
     </div>
@@ -172,7 +126,6 @@ function SidePanel({
 }) {
   const colors = getTeamColors(side.team);
 
-  // Use projected values for projected trades
   const displayWar = isProjected ? (side.projected_total_war ?? 0) : side.total_war;
   const displaySurplus = isProjected ? (side.projected_total_surplus ?? 0) : side.total_surplus;
   const displayWarValue = isProjected ? (side.projected_total_war_value ?? 0) : side.total_war_value;
@@ -181,61 +134,48 @@ function SidePanel({
   return (
     <div className="flex-1 min-w-0">
       {/* Team header */}
-      <div
-        className="flex items-center gap-3 mb-4 pb-3 border-b"
-        style={{ borderBottomColor: colors.primary + '30' }}
-      >
+      <div className="flex items-center gap-3 mb-3">
         <div
           className="w-3 h-3 rounded-full flex-shrink-0"
           style={{ backgroundColor: colors.primary }}
         />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-bold text-surface-100 truncate">
-              {side.team_name}
-            </h3>
-            {isWinner && (
-              <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex-shrink-0">
-                Winner
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-surface-500">Received {side.players_received.length} player{side.players_received.length !== 1 ? 's' : ''}</p>
-        </div>
+        <h3 className="text-base font-bold text-surface-100 truncate">
+          {side.team_name}
+        </h3>
+        {isWinner && (
+          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 flex-shrink-0">
+            Winner
+          </span>
+        )}
       </div>
 
-      {/* Aggregate stats */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="rounded-lg border border-white/[0.06] bg-surface-900/30 p-3 text-center">
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">
-            {isProjected ? 'Proj. WAR' : 'Total WAR'}
-          </div>
-          <div className="text-xl font-bold text-surface-100">{displayWar}</div>
+      {/* Aggregate stats — horizontal strip */}
+      <div className="flex items-center gap-5 mb-3 text-[11px]">
+        <div>
+          <span className="text-surface-500">{isProjected ? 'Proj. WAR' : 'Total WAR'}</span>
+          <div className="text-lg font-bold text-surface-100 leading-tight">{displayWar}</div>
         </div>
-        <div className="rounded-lg border border-white/[0.06] bg-surface-900/30 p-3 text-center">
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">
-            {isProjected ? 'Proj. Surplus' : 'Net Surplus'}
-          </div>
-          <div className={`text-xl font-bold ${displaySurplus >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+        <div>
+          <span className="text-surface-500">{isProjected ? 'Proj. Surplus' : 'Net Surplus'}</span>
+          <div className={`text-lg font-bold leading-tight ${displaySurplus >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {fmtMoney(displaySurplus, true)}
           </div>
         </div>
-        <div className="rounded-lg border border-white/[0.06] bg-surface-900/30 p-3 text-center">
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">
-            {isProjected ? 'Proj. Value' : 'WAR Value'}
-          </div>
-          <div className="text-sm font-semibold text-surface-200">{fmtMoney(displayWarValue, true)}</div>
+        <div>
+          <span className="text-surface-500">{isProjected ? 'Value' : 'WAR Value'}</span>
+          <div className="text-sm font-semibold text-surface-200 leading-tight">{fmtMoney(displayWarValue, true)}</div>
         </div>
-        <div className="rounded-lg border border-white/[0.06] bg-surface-900/30 p-3 text-center">
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">
-            {isProjected ? 'Proj. Salary' : 'Salary Paid'}
-          </div>
-          <div className="text-sm font-semibold text-surface-200">{fmtMoney(displaySalary, true)}</div>
+        <div>
+          <span className="text-surface-500">{isProjected ? 'Salary' : 'Salary Paid'}</span>
+          <div className="text-sm font-semibold text-surface-200 leading-tight">{fmtMoney(displaySalary, true)}</div>
         </div>
       </div>
 
-      {/* Player cards */}
-      <div className="space-y-2">
+      {/* Player list */}
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-surface-500 mb-1">
+          Received {side.players_received.length} player{side.players_received.length !== 1 ? 's' : ''}
+        </div>
         {side.players_received
           .sort((a, b) => {
             const aVal = isProjected && a.has_projection ? (a.projected_war ?? 0) : a.war_with_team;
@@ -243,7 +183,7 @@ function SidePanel({
             return bVal - aVal;
           })
           .map((p) => (
-            <PlayerCard key={p.mlb_id} player={p} teamColor={colors.primary} isProjected={isProjected} />
+            <PlayerCard key={p.mlb_id} player={p} isProjected={isProjected} />
           ))}
       </div>
     </div>
@@ -270,7 +210,7 @@ export default function TradeDetail() {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
-        <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
       </div>
     );
   }
@@ -278,8 +218,8 @@ export default function TradeDetail() {
   if (error || !trade) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 text-center">
-        <h2 className="text-xl font-bold text-surface-200 mb-2">Trade Not Found</h2>
-        <p className="text-surface-500 mb-6">{error || 'This trade could not be loaded.'}</p>
+        <h2 className="text-lg font-bold text-surface-200 mb-2">Trade Not Found</h2>
+        <p className="text-surface-500 text-sm mb-4">{error || 'This trade could not be loaded.'}</p>
         <Link to="/trades" className="text-blue-400 hover:text-blue-300 text-sm">
           Back to Past Trades
         </Link>
@@ -296,7 +236,6 @@ export default function TradeDetail() {
     ? (trade.projected_total_war ?? trade.total_trade_war)
     : trade.total_trade_war;
 
-  // Sort sides: winner first
   const sortedSides = [...trade.sides].sort((a, b) => {
     if (a.team === trade.winner) return -1;
     if (b.team === trade.winner) return 1;
@@ -304,103 +243,84 @@ export default function TradeDetail() {
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Back link */}
       <Link
         to="/trades"
-        className="inline-flex items-center gap-1 text-sm text-surface-500 hover:text-surface-300 mb-6"
+        className="inline-flex items-center gap-1 text-[12px] text-surface-500 hover:text-surface-300 mb-5 transition-colors"
       >
         <span>&larr;</span> Past Trades
       </Link>
 
-      {/* Projected banner */}
+      {/* Projected notice */}
       {isProjected && (
-        <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4 mb-4 flex items-start gap-3">
-          <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <span className="text-blue-400 text-xs font-bold">P</span>
-          </div>
-          <div>
-            <div className="text-sm font-medium text-blue-300 mb-0.5">Projected Trade Evaluation</div>
-            <p className="text-xs text-surface-400 leading-relaxed">
-              This trade is too recent for actual performance data. Values shown are based on our projected WAR model
-              and expected future salaries. The evaluation will update as players accumulate real stats.
-            </p>
-          </div>
+        <div className="rounded-lg bg-blue-500/5 border border-blue-500/15 px-4 py-3 mb-4 text-[12px] text-surface-400">
+          <span className="text-blue-400 font-medium">Projected evaluation</span> &mdash; too recent for actual data. Values update as players accumulate stats.
         </div>
       )}
 
       {/* Trade header */}
-      <div className="rounded-xl border border-white/[0.06] bg-surface-800/50 p-6 mb-6">
-        {/* Date & badges */}
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-surface-400 text-sm">{fmtDate(trade.date)}</span>
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[13px] text-surface-400">{fmtDate(trade.date)}</span>
           {isProjected && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/15 font-medium">
-              Projected
-            </span>
+            <span className="text-[9px] px-1 py-px rounded bg-blue-500/10 text-blue-400 font-medium">Projected</span>
           )}
           {trade.has_cash && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/15">
-              Cash Included
-            </span>
+            <span className="text-[9px] px-1 py-px rounded bg-amber-500/10 text-amber-400/70">Cash</span>
           )}
           {trade.has_ptbnl && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-700 text-surface-400 border border-white/[0.06]">
-              PTBNL
-            </span>
+            <span className="text-[9px] px-1 py-px rounded bg-surface-700 text-surface-400">PTBNL</span>
           )}
           {trade.n_teams > 2 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/15">
-              {trade.n_teams}-Team Trade
-            </span>
+            <span className="text-[9px] px-1 py-px rounded bg-purple-500/10 text-purple-400">{trade.n_teams}-Team</span>
           )}
         </div>
 
-        {/* Description */}
-        <p className="text-surface-300 text-sm leading-relaxed mb-4">
+        <p className="text-[13px] text-surface-300 leading-relaxed mb-4 max-w-3xl">
           {trade.description}
         </p>
 
-        {/* Winner announcement */}
+        {/* Winner strip */}
         <div
-          className="rounded-lg p-4 flex items-center justify-between"
+          className="flex items-center justify-between rounded-lg px-5 py-3"
           style={{
             backgroundColor: winnerColors.primary + '08',
-            border: `1px solid ${winnerColors.primary}20`,
+            borderLeft: `3px solid ${winnerColors.primary}40`,
           }}
         >
           <div>
-            <div className="text-xs text-surface-500 uppercase tracking-wider mb-0.5">
+            <div className="text-[10px] text-surface-500 uppercase tracking-wider">
               {isProjected ? 'Projected Winner' : 'Trade Winner'}
             </div>
-            <div className="text-lg font-bold text-surface-100">{trade.winner_name}</div>
+            <div className="text-base font-bold text-surface-100">{trade.winner_name}</div>
           </div>
           <div className="text-right">
-            <div className="text-xs text-surface-500 uppercase tracking-wider mb-0.5">
-              {isProjected ? 'Proj. Surplus Adv.' : 'Surplus Advantage'}
-            </div>
-            <div className={`text-lg font-bold ${isProjected ? 'text-blue-400' : 'text-emerald-400'}`}>
+            <div className="text-[10px] text-surface-500 uppercase tracking-wider">Surplus Adv.</div>
+            <div className={`text-base font-bold ${isProjected ? 'text-blue-400' : 'text-emerald-400'}`}>
               +{fmtMoney(displaySurplusDiff, true)}
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xs text-surface-500 uppercase tracking-wider mb-0.5">
-              {isProjected ? 'Proj. Total WAR' : 'Total WAR'}
-            </div>
-            <div className="text-lg font-bold text-surface-100">{displayTotalWar}</div>
+            <div className="text-[10px] text-surface-500 uppercase tracking-wider">Total WAR</div>
+            <div className="text-base font-bold text-surface-100">{displayTotalWar}</div>
           </div>
         </div>
       </div>
 
       {/* Side-by-side panels */}
-      <div className="flex gap-6">
-        {sortedSides.map((side) => (
-          <SidePanel
-            key={side.team}
-            side={side}
-            isWinner={side.team === trade.winner}
-            isProjected={isProjected}
-          />
+      <div className="flex gap-8">
+        {sortedSides.map((side, idx) => (
+          <div key={side.team} className="contents">
+            {idx > 0 && (
+              <div className="w-px bg-white/[0.06]" />
+            )}
+            <SidePanel
+              side={side}
+              isWinner={side.team === trade.winner}
+              isProjected={isProjected}
+            />
+          </div>
         ))}
       </div>
     </div>
