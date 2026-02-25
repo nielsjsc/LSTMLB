@@ -9,7 +9,15 @@ from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List, Tuple
 import logging
 import pandas as pd
-import httpx
+
+try:
+    import httpx
+except ImportError:
+    httpx = None  # type: ignore
+    logging.getLogger(__name__).warning(
+        "httpx not installed - /transactions endpoint will return empty. "
+        "Install with: pip install httpx"
+    )
 
 # Add backend to path
 backend_dir = Path(__file__).resolve().parent.parent.parent
@@ -291,6 +299,136 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
     return JSONResponse(result)
 
 
+# ── Player Bio / Awards / Draft (MLB Stats API, cached) ──────────────────
+
+_player_info_cache: Dict[int, Tuple[float, Dict[str, Any]]] = {}
+_PLAYER_INFO_CACHE_TTL = 60 * 60 * 24 * 7  # 7 days — bio data changes rarely
+
+# Award names we consider "major" (filter out weekly/monthly/minor league awards)
+_MAJOR_AWARDS = {
+    "MVP", "Cy Young", "Rookie of the Year", "Silver Slugger",
+    "Gold Glove", "All-Star", "Hank Aaron Award",
+    "World Series Championship", "World Series MVP", "NLCS MVP", "ALCS MVP",
+    "Platinum Glove", "Roberto Clemente Award",
+    "Edgar Martinez Outstanding DH", "Reliever of the Year",
+    "All-MLB First Team", "All-MLB Second Team",
+    "Home Run Derby Winner",
+}
+
+
+def _is_major_award(award_name: str) -> bool:
+    """Check if an award name matches a major award (partial match)."""
+    name_lower = award_name.lower()
+    for major in _MAJOR_AWARDS:
+        if major.lower() in name_lower:
+            return True
+    return False
+
+
+async def _fetch_player_info(mlb_id: int) -> Dict[str, Any]:
+    """Fetch player bio/awards/draft from MLB Stats API with caching."""
+    if httpx is None:
+        return {}
+
+    now = time.time()
+    if mlb_id in _player_info_cache:
+        cached_time, cached_data = _player_info_cache[mlb_id]
+        if now - cached_time < _PLAYER_INFO_CACHE_TTL:
+            return cached_data
+
+    url = f"https://statsapi.mlb.com/api/v1/people/{mlb_id}?hydrate=awards,draft"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.warning(f"Failed to fetch player info for mlb_id={mlb_id}: {e}")
+        return {}
+
+    people = data.get("people", [])
+    if not people:
+        return {}
+
+    p = people[0]
+
+    # Parse bio
+    bio = {
+        "height": p.get("height"),
+        "weight": p.get("weight"),
+        "birthDate": p.get("birthDate"),
+        "birthCity": p.get("birthCity"),
+        "birthStateProvince": p.get("birthStateProvince"),
+        "birthCountry": p.get("birthCountry"),
+        "batSide": p.get("batSide", {}).get("description") if p.get("batSide") else None,
+        "pitchHand": p.get("pitchHand", {}).get("description") if p.get("pitchHand") else None,
+        "mlbDebutDate": p.get("mlbDebutDate"),
+        "primaryNumber": p.get("primaryNumber"),
+        "nickName": p.get("nickName"),
+    }
+
+    # Parse awards (filter to major awards, deduplicate by name+season)
+    raw_awards = p.get("awards", [])
+    major_awards = []
+    seen_awards = set()
+    for a in raw_awards:
+        name = a.get("name", "")
+        season = a.get("season")
+        if not _is_major_award(name):
+            continue
+        key = (name, season)
+        if key in seen_awards:
+            continue
+        seen_awards.add(key)
+        major_awards.append({
+            "name": name,
+            "season": season,
+        })
+    # Sort by season desc
+    major_awards.sort(key=lambda x: x.get("season", ""), reverse=True)
+
+    # Parse draft info
+    drafts_raw = p.get("drafts", [])
+    draft_info = None
+    if drafts_raw:
+        # Take the most recent draft (Rule 4 / June Amateur Draft)
+        for d in reversed(drafts_raw):
+            draft_info = {
+                "year": d.get("year"),
+                "round": d.get("pickRound"),
+                "pickNumber": d.get("pickNumber"),
+                "school": d.get("school", {}).get("name") if d.get("school") else None,
+                "team": d.get("team", {}).get("name") if d.get("team") else None,
+            }
+            break
+
+    result = {
+        "bio": bio,
+        "awards": major_awards,
+        "draft": draft_info,
+    }
+    _player_info_cache[mlb_id] = (now, result)
+    return result
+
+
+@router.get("/{player_id}/info")
+async def get_player_info(player_id: str, db: Session = Depends(get_db)):
+    """Return bio, awards, and draft info for a player from MLB Stats API."""
+    try:
+        pid = int(player_id)
+        player = db.query(Player).filter(
+            or_(Player.mlb_id == pid, Player.real_id == pid)
+        ).first()
+    except (ValueError, TypeError):
+        player = None
+
+    if player is None or player.mlb_id is None:
+        return JSONResponse({})
+
+    info = await _fetch_player_info(player.mlb_id)
+    return JSONResponse(info)
+
+
 # ── Transaction History (MLB Stats API, cached) ──────────────────────────
 
 # Simple in-memory cache: mlb_id -> (timestamp, data)
@@ -302,15 +440,21 @@ _IMPORTANT_TYPE_CODES = {
     "TR",   # Trade
     "SGN",  # Signed
     "SFA",  # Signed as Free Agent
-    "DFA",  # Designated for assignment / Declared Free Agency
+    "DFA",  # Declared Free Agency (player elects FA — NOT "Designated for Assignment")
     "FA",   # Free Agency declared
     "CL",   # Claimed (waivers)
     "WV",   # Waiver
-    "SC",   # Status Change (IL, reinstatement, retirement, etc.)
+    "SC",   # Status Change (filtered below to exclude IL stints)
     "RET",  # Retirement
     "REL",  # Released
     "SE",   # Selected (to 40-man roster, Rule 5, etc.)
 }
+
+# IL / disabled-list keywords to filter OUT of Status Change transactions
+_IL_KEYWORDS = (
+    "injured list", "disabled list", "paternity", "bereavement",
+    "restricted list", "suspended", "concussion", "covid",
+)
 
 # MLB full-name → our team abbreviation mapping
 _MLB_TEAM_TO_ABBREV: Dict[str, str] = {
@@ -374,6 +518,9 @@ def _find_players_in_description(
 
 async def _fetch_transactions(mlb_id: int) -> List[Dict[str, Any]]:
     """Fetch transactions from MLB Stats API with caching."""
+    if httpx is None:
+        return []
+
     now = time.time()
     if mlb_id in _transaction_cache:
         cached_time, cached_data = _transaction_cache[mlb_id]
@@ -427,6 +574,18 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
         description = txn.get("description", "")
         date = txn.get("date") or txn.get("effectiveDate", "")
 
+        # Filter out IL stints and minor status changes
+        if type_code == "SC":
+            desc_lower = description.lower()
+            if any(kw in desc_lower for kw in _IL_KEYWORDS):
+                continue
+
+        # Fix DFA: MLB API uses typeCode="DFA" for "Declared Free Agency"
+        # (player elects FA). Remap to "FA" for correct display.
+        display_type_code = type_code
+        if type_code == "DFA" and "elected free agency" in description.lower():
+            display_type_code = "FA"
+
         from_team_name = txn.get("fromTeam", {}).get("name", "") if txn.get("fromTeam") else ""
         to_team_name = txn.get("toTeam", {}).get("name", "") if txn.get("toTeam") else ""
 
@@ -441,7 +600,7 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
         results.append({
             "id": txn.get("id"),
             "date": date,
-            "typeCode": type_code,
+            "typeCode": display_type_code,
             "typeDesc": txn.get("typeDesc", ""),
             "description": description,
             "fromTeam": from_team,

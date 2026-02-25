@@ -334,8 +334,8 @@ def compute_surplus_for_snapshot(
 
     cots = pd.read_csv(cots_file)
     cots = cots.dropna(subset=["player"]).copy()
-    # Normalize the Cot's name for matching
-    cots["_name_key"] = cots["player"].str.strip().str.lower()
+    # Normalize the Cot's name for matching — strip non-alpha chars (e.g. asterisks)
+    cots["_name_key"] = cots["player"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.strip().str.lower()
     # Deduplicate: keep the row with the highest salary for duplicate names
     cots = cots.sort_values("salary", ascending=False, na_position="last")
     cots = cots.drop_duplicates(subset=["_name_key"], keep="first")
@@ -383,13 +383,37 @@ def compute_surplus_for_snapshot(
 
     all_proj = pd.concat([batter_slim, pitcher_slim], ignore_index=True)
 
-    # Deduplicate by keeping highest WAR per (IDfg, Year)
-    all_proj = all_proj.sort_values("WAR", ascending=False).drop_duplicates(
-        subset=["IDfg", "Year"], keep="first"
-    )
+    # ── Handle two-way players: sum WAR instead of taking max ─────────────
+    # Identify players who appear in both batter & pitcher projections
+    dup_mask = all_proj.duplicated(subset=["IDfg", "Year"], keep=False)
+    two_way_ids = set(all_proj.loc[dup_mask, "IDfg"].unique())
 
-    # Add name key for matching with Cot's
-    all_proj["_name_key"] = all_proj["Name"].str.strip().str.lower()
+    if two_way_ids:
+        logger.info(f"[{snapshot_year}]  Found {len(two_way_ids)} two-way player(s): "
+                    f"{list(two_way_ids)[:5]}")
+        # For two-way players: sum WAR across batter+pitcher, keep batter row as base
+        two_way_rows = all_proj[all_proj["IDfg"].isin(two_way_ids)].copy()
+        non_two_way = all_proj[~all_proj["IDfg"].isin(two_way_ids)].copy()
+
+        summed_rows = []
+        for (idfg, yr), grp in two_way_rows.groupby(["IDfg", "Year"]):
+            combined_war = grp["WAR"].sum()
+            # Use the batter row as the base (for Name, Age, etc.)
+            base = grp.sort_values("WAR", ascending=False).iloc[0].copy()
+            base["WAR"] = combined_war
+            base["player_type"] = "two_way"
+            summed_rows.append(base)
+
+        two_way_combined = pd.DataFrame(summed_rows)
+        all_proj = pd.concat([non_two_way, two_way_combined], ignore_index=True)
+    else:
+        # Standard dedup: keep highest WAR per (IDfg, Year)
+        all_proj = all_proj.sort_values("WAR", ascending=False).drop_duplicates(
+            subset=["IDfg", "Year"], keep="first"
+        )
+
+    # Add name key for matching with Cot's — strip non-alpha chars
+    all_proj["_name_key"] = all_proj["Name"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.strip().str.lower()
 
     # ── Identify unique projected players ─────────────────────────────────
     # For each player: determine type and Age in the snapshot year

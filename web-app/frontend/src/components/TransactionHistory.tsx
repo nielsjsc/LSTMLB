@@ -4,21 +4,21 @@ import type { Transaction } from '../services/api';
 import { getTeamColors } from '../utils/teamColors';
 
 // ── Type badge config ────────────────────────────────────────
-const TYPE_CONFIG: Record<string, { label: string; bg: string; text: string; icon: string }> = {
-  TR:  { label: 'Trade',          bg: 'bg-amber-500/15',   text: 'text-amber-400',   icon: '⇄' },
-  SGN: { label: 'Signed',         bg: 'bg-emerald-500/15', text: 'text-emerald-400',  icon: '✍' },
-  SFA: { label: 'Signed (FA)',    bg: 'bg-emerald-500/15', text: 'text-emerald-400',  icon: '✍' },
-  DFA: { label: 'DFA',            bg: 'bg-red-500/15',     text: 'text-red-400',      icon: '✕' },
-  FA:  { label: 'Free Agent',     bg: 'bg-blue-500/15',    text: 'text-blue-400',     icon: '★' },
-  CL:  { label: 'Claimed',        bg: 'bg-purple-500/15',  text: 'text-purple-400',   icon: '⬆' },
-  WV:  { label: 'Waiver',         bg: 'bg-orange-500/15',  text: 'text-orange-400',   icon: '↗' },
-  SC:  { label: 'Status Change',  bg: 'bg-slate-500/15',   text: 'text-slate-400',    icon: '⟳' },
-  SE:  { label: 'Selected',       bg: 'bg-cyan-500/15',    text: 'text-cyan-400',     icon: '⬆' },
-  RET: { label: 'Retired',        bg: 'bg-gray-500/15',    text: 'text-gray-400',     icon: '⏹' },
-  REL: { label: 'Released',       bg: 'bg-red-500/15',     text: 'text-red-400',      icon: '↓' },
+const TYPE_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
+  TR:  { label: 'Trade',          bg: 'bg-amber-500/15',   text: 'text-amber-400'   },
+  SGN: { label: 'Signed',         bg: 'bg-emerald-500/15', text: 'text-emerald-400'  },
+  SFA: { label: 'Signed (FA)',    bg: 'bg-emerald-500/15', text: 'text-emerald-400'  },
+  DFA: { label: 'DFA',            bg: 'bg-red-500/15',     text: 'text-red-400'      },
+  FA:  { label: 'Free Agent',     bg: 'bg-blue-500/15',    text: 'text-blue-400'     },
+  CL:  { label: 'Claimed',        bg: 'bg-purple-500/15',  text: 'text-purple-400'   },
+  WV:  { label: 'Waiver',         bg: 'bg-orange-500/15',  text: 'text-orange-400'   },
+  SC:  { label: 'Status Change',  bg: 'bg-slate-500/15',   text: 'text-slate-400'    },
+  SE:  { label: 'Selected',       bg: 'bg-cyan-500/15',    text: 'text-cyan-400'     },
+  RET: { label: 'Retired',        bg: 'bg-gray-500/15',    text: 'text-gray-400'     },
+  REL: { label: 'Released',       bg: 'bg-red-500/15',     text: 'text-red-400'      },
 };
 
-const DEFAULT_TYPE = { label: 'Transaction', bg: 'bg-slate-500/15', text: 'text-slate-400', icon: '•' };
+const DEFAULT_TYPE = { label: 'Transaction', bg: 'bg-slate-500/15', text: 'text-slate-400' };
 
 // ── Helpers ──────────────────────────────────────────────────
 function formatDate(dateStr: string): string {
@@ -166,7 +166,6 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions })
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                       {/* Type badge */}
                       <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${cfg.bg} ${cfg.text}`}>
-                        <span className="text-xs">{cfg.icon}</span>
                         {cfg.label}
                       </span>
 

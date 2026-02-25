@@ -579,6 +579,53 @@ export const getTradeValueHistory = async (playerId: number): Promise<TradeValue
   }
 };
 
+// ── Player Bio / Awards / Draft ───────────────────────────────────────────
+export interface PlayerAward {
+  name: string;
+  season: string;
+}
+
+export interface PlayerDraft {
+  year: string;
+  round: string;
+  pickNumber: number;
+  school: string | null;
+  team: string | null;
+}
+
+export interface PlayerBio {
+  height: string | null;
+  weight: number | null;
+  birthDate: string | null;
+  birthCity: string | null;
+  birthStateProvince: string | null;
+  birthCountry: string | null;
+  batSide: string | null;
+  pitchHand: string | null;
+  mlbDebutDate: string | null;
+  primaryNumber: string | null;
+  nickName: string | null;
+}
+
+export interface PlayerInfo {
+  bio: PlayerBio;
+  awards: PlayerAward[];
+  draft: PlayerDraft | null;
+}
+
+export const getPlayerInfo = async (playerId: number): Promise<PlayerInfo | null> => {
+  const url = `${API_BASE}/players/${playerId}/info`;
+  try {
+    const response = await fetch(url, { headers: createApiHeaders() });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data.bio) return null;
+    return data;
+  } catch {
+    return null;
+  }
+};
+
 // ── Transaction History ───────────────────────────────────────────────────
 export interface LinkedPlayer {
   name: string;

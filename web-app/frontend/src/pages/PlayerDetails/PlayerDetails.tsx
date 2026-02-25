@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { getPlayerDetails, getTradeValueHistory, getPlayerTransactions, PlayerStats } from '../../services/api';
-import type { TradeValuePoint, Transaction } from '../../services/api';
+import { getPlayerDetails, getTradeValueHistory, getPlayerTransactions, getPlayerInfo, PlayerStats } from '../../services/api';
+import type { TradeValuePoint, Transaction, PlayerInfo } from '../../services/api';
 import { CURRENT_YEAR, MAX_PROJECTION_YEARS, API_BASE } from '../../config';
 import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
 import { getTeamColors, getTeamName } from '../../utils/teamColors';
 import TradeValueChart from '../../components/TradeValueChart';
 import TransactionHistory from '../../components/TransactionHistory';
+import PlayerBioSection from '../../components/PlayerBioSection';
 
 // ─── Helpers ────────────────────────────────────────────────
 const fmt = {
@@ -264,6 +265,7 @@ const PlayerDetails: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [tradeHistory, setTradeHistory] = useState<TradeValuePoint[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [playerInfo, setPlayerInfo] = useState<PlayerInfo | null>(null);
 
   useEffect(() => {
     const fetchPlayer = async () => {
@@ -289,6 +291,7 @@ const PlayerDetails: React.FC = () => {
     if (id == null) return;
     getTradeValueHistory(id).then(setTradeHistory).catch(() => setTradeHistory([]));
     getPlayerTransactions(id).then(setTransactions).catch(() => setTransactions([]));
+    getPlayerInfo(id).then(setPlayerInfo).catch(() => setPlayerInfo(null));
   }, [player?.mlb_id, playerId]);
 
   // ── Derived state ──
@@ -425,6 +428,17 @@ const PlayerDetails: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ════════════════════════════════════════════════════
+       *  PLAYER BIO — bio, awards, draft info
+       *  ════════════════════════════════════════════════════ */}
+      {playerInfo && (
+        <div className="max-w-6xl mx-auto px-4 mb-8">
+          <div className="rounded-xl border border-white/[0.06] bg-surface-800/40 p-6">
+            <PlayerBioSection info={playerInfo} teamColor={colors.accent} />
+          </div>
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════════
        *  VALUE & CONTRACT SECTION — visual, not a wall of text
