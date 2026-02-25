@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { getPlayerDetails, getTradeValueHistory, getPlayerTransactions, getPlayerInfo, PlayerStats } from '../../services/api';
-import type { TradeValuePoint, Transaction, PlayerInfo } from '../../services/api';
+import { getPlayerDetails, getTradeValueHistory, getPlayerTransactions, getPlayerInfo, getPlayerPastTrades, PlayerStats } from '../../services/api';
+import type { TradeValuePoint, Transaction, PlayerInfo, PastTradeDetail } from '../../services/api';
 import { CURRENT_YEAR, MAX_PROJECTION_YEARS, API_BASE } from '../../config';
 import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
 import { getTeamColors, getTeamName } from '../../utils/teamColors';
 import TradeValueChart from '../../components/TradeValueChart';
 import TransactionHistory from '../../components/TransactionHistory';
 import PlayerBioSection from '../../components/PlayerBioSection';
+import PlayerTradeHistory from '../../components/PlayerTradeHistory';
 
 // ─── Helpers ────────────────────────────────────────────────
 const fmt = {
@@ -266,6 +267,7 @@ const PlayerDetails: React.FC = () => {
   const [tradeHistory, setTradeHistory] = useState<TradeValuePoint[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [playerInfo, setPlayerInfo] = useState<PlayerInfo | null>(null);
+  const [pastTrades, setPastTrades] = useState<PastTradeDetail[]>([]);
 
   useEffect(() => {
     const fetchPlayer = async () => {
@@ -292,6 +294,7 @@ const PlayerDetails: React.FC = () => {
     getTradeValueHistory(id).then(setTradeHistory).catch(() => setTradeHistory([]));
     getPlayerTransactions(id).then(setTransactions).catch(() => setTransactions([]));
     getPlayerInfo(id).then(setPlayerInfo).catch(() => setPlayerInfo(null));
+    getPlayerPastTrades(id).then(r => setPastTrades(r.trades)).catch(() => setPastTrades([]));
   }, [player?.mlb_id, playerId]);
 
   // ── Derived state ──
@@ -534,6 +537,18 @@ const PlayerDetails: React.FC = () => {
         {hasHitting && hasCurrentHitting && (
           <CollapsibleSection title="Hitting Projections" teamColor={colors.primary} defaultOpen>
             <CombinedHittingTable data={hittingTableData.sort((a, b) => b.year - a.year)} />
+          </CollapsibleSection>
+        )}
+
+        {pastTrades.length > 0 && (
+          <CollapsibleSection title="Past Trades" teamColor={colors.primary} defaultOpen>
+            <div className="p-4">
+              <PlayerTradeHistory
+                trades={pastTrades}
+                playerMlbId={player?.mlb_id ?? (playerId ? parseInt(playerId) : 0)}
+                teamColor={colors.primary}
+              />
+            </div>
           </CollapsibleSection>
         )}
 

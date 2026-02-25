@@ -7,6 +7,8 @@ import Projections from './pages/Projections/Projections'
 import Prospects from './pages/Prospects/Prospects'
 import About from './pages/About/About'
 import TradeValues from './pages/TradeValues/TradeValues'
+import PastTrades from './pages/PastTrades/PastTrades'
+import TradeDetail from './pages/TradeDetail/TradeDetail'
 
 function App() {
   return (
@@ -22,6 +24,8 @@ function App() {
             <Route path="/prospects" element={<Prospects />} />
             <Route path="/about" element={<About />} />
             <Route path="/tradevalues" element={<TradeValues />} />
+            <Route path="/trades" element={<PastTrades />} />
+            <Route path="/trades/:tradeId" element={<TradeDetail />} />
           </Routes>
         </div>
       </div>

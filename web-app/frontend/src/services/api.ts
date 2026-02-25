@@ -656,3 +656,137 @@ export const getPlayerTransactions = async (playerId: number): Promise<Transacti
     return [];
   }
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PAST TRADES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface TradePlayerSummary {
+  mlb_id: number;
+  name: string;
+  war_with_team: number;
+  surplus: number;
+  prospect_fv: number | null;
+  from_team: string;
+  from_team_name: string;
+}
+
+export interface TradePlayerDetail extends TradePlayerSummary {
+  to_team: string;
+  to_team_name: string;
+  seasons_with_team: number;
+  yearly_war: { year: number; war: number }[];
+  salary_with_team: number;
+  war_value: number;
+  still_on_team: boolean;
+  departure_year: number | null;
+  prospect_rank: number | null;
+  prospect_top_100: boolean | null;
+  prospect_level: string | null;
+}
+
+export interface TradeSideSummary {
+  team: string;
+  team_name: string;
+  total_war: number;
+  total_salary: number;
+  total_war_value: number;
+  total_surplus: number;
+  players_received: TradePlayerSummary[];
+}
+
+export interface TradeSideDetail {
+  team: string;
+  team_name: string;
+  total_war: number;
+  total_salary: number;
+  total_war_value: number;
+  total_surplus: number;
+  players_received: TradePlayerDetail[];
+}
+
+export interface PastTradeSummary {
+  trade_id: number;
+  date: string;
+  year: number;
+  description: string;
+  has_cash: boolean;
+  has_ptbnl: boolean;
+  n_teams: number;
+  n_players: number;
+  winner: string;
+  winner_name: string;
+  loser: string;
+  loser_name: string;
+  surplus_diff: number;
+  total_trade_war: number;
+  max_prospect_fv: number | null;
+  sides: TradeSideSummary[];
+}
+
+export interface PastTradeDetail {
+  trade_id: number;
+  date: string;
+  year: number;
+  description: string;
+  has_cash: boolean;
+  has_ptbnl: boolean;
+  n_teams: number;
+  n_players: number;
+  winner: string;
+  winner_name: string;
+  loser: string;
+  loser_name: string;
+  surplus_diff: number;
+  total_trade_war: number;
+  max_prospect_fv: number | null;
+  sides: TradeSideDetail[];
+}
+
+export interface PastTradesResponse {
+  trades: PastTradeSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export const getPastTrades = async (params?: {
+  page?: number;
+  page_size?: number;
+  sort_by?: string;
+  sort_dir?: string;
+  team?: string;
+  year?: number;
+  min_war?: number;
+  search?: string;
+}): Promise<PastTradesResponse> => {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.page_size) searchParams.set('page_size', String(params.page_size));
+  if (params?.sort_by) searchParams.set('sort_by', params.sort_by);
+  if (params?.sort_dir) searchParams.set('sort_dir', params.sort_dir);
+  if (params?.team) searchParams.set('team', params.team);
+  if (params?.year) searchParams.set('year', String(params.year));
+  if (params?.min_war) searchParams.set('min_war', String(params.min_war));
+  if (params?.search) searchParams.set('search', params.search);
+
+  const url = `${API_BASE}/trades/past-trades?${searchParams.toString()}`;
+  const response = await fetch(url, { headers: createApiHeaders() });
+  if (!response.ok) throw new Error('Failed to fetch past trades');
+  return response.json();
+};
+
+export const getPastTradeDetail = async (tradeId: number): Promise<PastTradeDetail> => {
+  const url = `${API_BASE}/trades/past-trades/${tradeId}`;
+  const response = await fetch(url, { headers: createApiHeaders() });
+  if (!response.ok) throw new Error('Trade not found');
+  return response.json();
+};
+
+export const getPlayerPastTrades = async (mlbId: number): Promise<{ trades: PastTradeDetail[] }> => {
+  const url = `${API_BASE}/trades/player-trades/${mlbId}`;
+  const response = await fetch(url, { headers: createApiHeaders() });
+  if (!response.ok) return { trades: [] };
+  return response.json();
+};

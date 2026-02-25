@@ -1,10 +1,11 @@
+import json
 import sys
 from math import isnan
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, func
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 import logging
 
@@ -182,9 +183,9 @@ def get_trade_value_rankings(
     page_size: int = Query(50, ge=1, le=100),
     sort_by: str = Query(
         "trade_value",
-        regex="^(trade_value|contract_war|avg_war|total_contract|avg_contract|control_through|years_control|total_future_war|total_future_value|historical_war|historical_value|contract_base_value)$"
+        pattern="^(trade_value|contract_war|avg_war|total_contract|avg_contract|control_through|years_control|total_future_war|total_future_value|historical_war|historical_value|contract_base_value)$"
     ),
-    sort_direction: str = Query("desc", regex="^(asc|desc)$")
+    sort_direction: str = Query("desc", pattern="^(asc|desc)$")
 ):
     try:
         # Start with 2026 players
@@ -238,3 +239,210 @@ def get_trade_value_rankings(
     except Exception as e:
         logger.error(f"Error getting trade value rankings: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  PAST TRADES — Pre-computed trade evaluations
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_PAST_TRADES_FILE = (
+    Path(__file__).resolve().parents[4] / "data" / "generated" / "past_trades" / "trades.json"
+)
+
+_past_trades_cache: Optional[List[Dict[str, Any]]] = None
+
+
+def _load_past_trades() -> List[Dict[str, Any]]:
+    """Load & cache the pre-computed trade evaluations."""
+    global _past_trades_cache
+    if _past_trades_cache is not None:
+        return _past_trades_cache
+
+    if not _PAST_TRADES_FILE.exists():
+        logger.warning(f"Past trades file not found: {_PAST_TRADES_FILE}")
+        return []
+
+    with open(_PAST_TRADES_FILE, "r") as f:
+        _past_trades_cache = json.load(f)
+
+    logger.info(f"Loaded {len(_past_trades_cache)} past trades")
+    return _past_trades_cache
+
+
+# ── Index helpers (built lazily) ─────────────────────────────────────────────
+
+_trade_by_id: Optional[Dict[int, Dict]] = None
+_trades_by_player: Optional[Dict[int, List[int]]] = None  # mlb_id → [trade_id]
+_trades_by_team: Optional[Dict[str, List[int]]] = None     # team abbrev → [trade_id]
+
+
+def _build_indexes():
+    """Build lookup indexes from the trades list."""
+    global _trade_by_id, _trades_by_player, _trades_by_team
+    trades = _load_past_trades()
+
+    _trade_by_id = {}
+    _trades_by_player = {}
+    _trades_by_team = {}
+
+    for t in trades:
+        tid = t["trade_id"]
+        _trade_by_id[tid] = t
+
+        for side in t.get("sides", []):
+            team = side["team"]
+            if team not in _trades_by_team:
+                _trades_by_team[team] = []
+            _trades_by_team[team].append(tid)
+
+            for p in side.get("players_received", []):
+                mid = p.get("mlb_id")
+                if mid:
+                    if mid not in _trades_by_player:
+                        _trades_by_player[mid] = []
+                    _trades_by_player[mid].append(tid)
+
+
+def _ensure_indexes():
+    if _trade_by_id is None:
+        _build_indexes()
+
+
+# ── Endpoints ────────────────────────────────────────────────────────────────
+
+@router.get("/past-trades")
+def get_past_trades(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    sort_by: str = Query("date", pattern="^(date|surplus_diff|total_trade_war|max_prospect_fv|n_players)$"),
+    sort_dir: str = Query("desc", pattern="^(asc|desc)$"),
+    team: Optional[str] = None,
+    year: Optional[int] = None,
+    min_war: Optional[float] = None,
+    search: Optional[str] = None,
+):
+    """List all evaluated past trades with sorting, filtering, and pagination."""
+    _ensure_indexes()
+    trades = _load_past_trades()
+
+    # ── Filtering ────────────────────────────────────────────────────────
+    filtered = trades
+
+    if team:
+        team_upper = team.upper()
+        filtered = [
+            t for t in filtered
+            if any(s["team"] == team_upper for s in t.get("sides", []))
+        ]
+
+    if year:
+        filtered = [t for t in filtered if t["year"] == year]
+
+    if min_war is not None:
+        filtered = [t for t in filtered if t["total_trade_war"] >= min_war]
+
+    if search:
+        search_lower = search.lower()
+        filtered = [
+            t for t in filtered
+            if search_lower in t["description"].lower()
+            or any(
+                search_lower in p["name"].lower()
+                for s in t.get("sides", [])
+                for p in s.get("players_received", [])
+            )
+        ]
+
+    # ── Sorting ──────────────────────────────────────────────────────────
+    reverse = sort_dir == "desc"
+
+    def sort_key(t):
+        val = t.get(sort_by)
+        if val is None:
+            return -999999 if reverse else 999999
+        return val
+
+    filtered.sort(key=sort_key, reverse=reverse)
+
+    # ── Pagination ───────────────────────────────────────────────────────
+    total = len(filtered)
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_items = filtered[start:end]
+
+    # Return lightweight summaries (no yearly_war per player for list view)
+    summaries = []
+    for t in page_items:
+        sides_summary = []
+        for s in t.get("sides", []):
+            players_summary = []
+            for p in s.get("players_received", []):
+                players_summary.append({
+                    "mlb_id": p["mlb_id"],
+                    "name": p["name"],
+                    "war_with_team": p["war_with_team"],
+                    "surplus": p["surplus"],
+                    "prospect_fv": p.get("prospect_fv"),
+                    "from_team": p["from_team"],
+                    "from_team_name": p["from_team_name"],
+                })
+            sides_summary.append({
+                "team": s["team"],
+                "team_name": s["team_name"],
+                "total_war": s["total_war"],
+                "total_salary": s["total_salary"],
+                "total_war_value": s["total_war_value"],
+                "total_surplus": s["total_surplus"],
+                "players_received": players_summary,
+            })
+
+        summaries.append({
+            "trade_id": t["trade_id"],
+            "date": t["date"],
+            "year": t["year"],
+            "description": t["description"],
+            "has_cash": t["has_cash"],
+            "has_ptbnl": t["has_ptbnl"],
+            "n_teams": t["n_teams"],
+            "n_players": t["n_players"],
+            "winner": t["winner"],
+            "winner_name": t["winner_name"],
+            "loser": t["loser"],
+            "loser_name": t["loser_name"],
+            "surplus_diff": t["surplus_diff"],
+            "total_trade_war": t["total_trade_war"],
+            "max_prospect_fv": t["max_prospect_fv"],
+            "sides": sides_summary,
+        })
+
+    return {
+        "trades": summaries,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }
+
+
+@router.get("/past-trades/{trade_id}")
+def get_past_trade_detail(trade_id: int):
+    """Get full details for a single past trade, including yearly WAR."""
+    _ensure_indexes()
+    trade = _trade_by_id.get(trade_id)  # type: ignore
+    if not trade:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    return trade
+
+
+@router.get("/player-trades/{mlb_id}")
+def get_player_past_trades(mlb_id: int):
+    """Get all past trades involving a specific player (by mlb_id)."""
+    _ensure_indexes()
+    trade_ids = _trades_by_player.get(mlb_id, [])  # type: ignore
+    if not trade_ids:
+        return {"trades": []}
+
+    unique_ids = list(set(trade_ids))
+    trades = [_trade_by_id[tid] for tid in unique_ids if tid in _trade_by_id]  # type: ignore
+    trades.sort(key=lambda t: t["date"], reverse=True)
+    return {"trades": trades}

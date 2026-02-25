@@ -6,6 +6,7 @@ import { FaBars, FaTimes } from 'react-icons/fa'
 const navLinks = [
   { to: '/projections', label: 'Projections' },
   { to: '/tradevalues', label: 'Trade Values' },
+  { to: '/trades', label: 'Past Trades' },
   { to: '/tradesimulator', label: 'Trade Simulator' },
   { to: '/prospects', label: 'Prospects' },
   { to: '/about', label: 'About' },
