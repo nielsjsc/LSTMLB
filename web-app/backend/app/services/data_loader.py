@@ -241,7 +241,9 @@ def init_db():
     try:
         logger.info("Starting database initialization...")
         
-        # Create tables using SQLAlchemy
+        # Drop and recreate tables so schema changes (e.g. new columns) are picked up.
+        # create_all() alone won't add columns to existing tables.
+        Base.metadata.drop_all(bind=engine)
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
         
