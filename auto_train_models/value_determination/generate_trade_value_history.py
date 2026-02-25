@@ -5,8 +5,9 @@ Generate Trade Value History
 
 Builds a year-by-year trade value timeline for every player by combining:
   1. Prospect rankings (FV-based dollar values) for pre-MLB years
-  2. Historical MLB surplus values (WAR production - contract cost) per season
-  3. Current projected trade value from the value determination pipeline
+  2. MLB surplus values from each year's surplus file — uses the PROJECTED
+     WAR at that point in time (never actual future stats), applies the
+     convex trade-value model, and subtracts projected salary
 
 The output is a compact CSV that the web-app backend serves to render a
 rolling trade value chart on each player's detail page.
@@ -17,8 +18,8 @@ Output columns:
     name        - Player name
     year        - Season
     value       - Dollar value for that year
-    value_type  - 'prospect' | 'mlb_surplus' | 'projected'
-    label       - Human-readable label (e.g. "FV 55, #46" or "3.2 WAR")
+    value_type  - 'prospect' | 'mlb_surplus'
+    label       - Human-readable label (e.g. "FV 55, #46" or "6.3 WAR")
 
 Output:  data/generated/value_by_year/trade_value_history.csv
 
@@ -140,109 +141,146 @@ def build_prospect_timeline(player_values: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def _load_surplus_files() -> dict[int, pd.DataFrame]:
+    """Load all per-year surplus files (surplus_YYYY.csv) into a dict keyed by year."""
+    surplus_dir = ROOT / "data" / "generated" / "trade_analysis" / "surplus"
+    surplus_by_year: dict[int, pd.DataFrame] = {}
+    for path in sorted(surplus_dir.glob("surplus_*.csv")):
+        try:
+            yr = int(path.stem.split("_")[1])
+            surplus_by_year[yr] = pd.read_csv(path, low_memory=False)
+            logger.info(f"  Loaded {path.name}: {len(surplus_by_year[yr])} players")
+        except Exception as e:
+            logger.warning(f"  Failed to load {path.name}: {e}")
+    return surplus_by_year
+
+
 def build_mlb_timeline(player_values: pd.DataFrame) -> pd.DataFrame:
     """
-    Build MLB surplus value entries from historical + projected data.
-    
-    For historical years: compute cumulative remaining trade value at each year
-    (sum of surplus from that year forward until FA).
-    
-    For projected years: use the trade_value from the pipeline directly.
-    
-    Returns DataFrame with columns: mlb_id, IDfg, name, year, value, value_type, label
+    Build MLB trade-value entries using **projected** WAR from each year's
+    surplus file — never actual future stats.
+
+    For each surplus snapshot year Y and each player in that file:
+      1. Collect WAR_Y, WAR_Y+1, … (the projections made at time Y)
+      2. Apply the convex model to each year's projected WAR
+      3. Sum the dollar values and subtract the projected salaries
+      → that is the trade value *as it would have been estimated at time Y*
+
+    For the current year (CURRENT_YEAR) we use the trade_value already
+    computed by the value-determination pipeline and label it mlb_surplus
+    (it IS the present, not the future).
+
+    Returns DataFrame: mlb_id, IDfg, name, year, value, value_type, label
     """
-    rows = []
+    # ── Load all surplus files ────────────────────────────────────────────
+    surplus_by_year = _load_surplus_files()
+    if not surplus_by_year:
+        logger.warning("No surplus files found — MLB timeline will be empty")
+        return pd.DataFrame()
 
-    # Only process players with mlb_id (needed for web-app)
-    valid = player_values[player_values["mlb_id"].notna()].copy()
-    valid["mlb_id"] = valid["mlb_id"].astype(int)
-    valid["IDfg"] = valid["IDfg"].astype(int)
+    # Build mlb_id ↔ IDfg lookup from player_values
+    id_map = (
+        player_values[player_values["mlb_id"].notna()]
+        .drop_duplicates("mlb_id")
+        .set_index("mlb_id")[["IDfg", "Player_Name"]]
+    )
+    idfg_to_mlb = {}
+    for mlb_id, row in id_map.iterrows():
+        idfg_to_mlb[int(row["IDfg"])] = int(mlb_id)
 
-    for pid, pdata in valid.groupby("IDfg"):
-        pdata = pdata.sort_values("Year")
-        name = pdata["Player_Name"].iloc[0]
-        mid = pdata["mlb_id"].iloc[0]
+    rows: list[dict] = []
 
-        # Get the current trade value (the reference point)
-        current = pdata[pdata["Year"] == CURRENT_YEAR]
-        current_trade_value = None
-        if not current.empty:
-            tv = current["trade_value"].iloc[0]
-            if pd.notna(tv):
-                current_trade_value = tv
+    # ── Historical years: use each surplus file's projections ─────────────
+    for snap_year, sdf in surplus_by_year.items():
+        war_cols = sorted([c for c in sdf.columns if c.startswith("WAR_")])
+        sal_cols = sorted([c for c in sdf.columns if c.startswith("salary_") and c != "salary_source"])
 
-        # ── Historical years: compute rolling trade value ──
-        # For each historical year, the "trade value" is approximated as:
-        # sum of convex(WAR) - estimated_salary for remaining control years
-        hist = pdata[pdata["Year"] < CURRENT_YEAR].copy()
-        future = pdata[pdata["Year"] >= CURRENT_YEAR].copy()
+        for _, player_row in sdf.iterrows():
+            idfg = int(player_row["IDfg"])
+            mlbam = int(player_row["mlbam_id"]) if pd.notna(player_row.get("mlbam_id")) else None
 
-        fa_year = pdata["FA_Year"].iloc[0] if pd.notna(pdata["FA_Year"].iloc[0]) else None
-
-        for _, row in hist.iterrows():
-            yr = int(row["Year"])
-            war = row.get("WAR", 0) or 0
-            base_val = row.get("Base_Value", 0) or 0
-            contract_val = row.get("Contract_Value", 0) or 0
-            surplus = row.get("Surplus_Value")
-
-            if pd.isna(war) or war == 0:
+            # We need mlb_id for the web-app. Try mlbam_id first, then lookup via IDfg.
+            mlb_id = mlbam
+            if mlb_id is None or mlb_id not in id_map.index:
+                mlb_id = idfg_to_mlb.get(idfg)
+            if mlb_id is None:
                 continue
 
-            # Use the single-year surplus as a proxy for "what this player
-            # was worth in trade value" in that snapshot year.
-            # We accumulate forward-looking surplus from this year onward.
-            remaining_years = pdata[
-                (pdata["Year"] >= yr)
-                & (pdata["Year"] < CURRENT_YEAR)
-                & pdata["WAR"].notna()
-            ]
+            name = player_row.get("Name", "")
+            yrs_ctrl = player_row.get("years_of_control", 0) or 0
 
-            if remaining_years.empty:
+            # Sum convex(projected WAR) - salary for each year of control
+            total_value = 0.0
+            total_salary = 0.0
+            proj_war_this_year = 0.0  # WAR projected for the snapshot year itself
+
+            for wc in war_cols:
+                proj_year = int(wc.split("_")[1])
+                war = player_row.get(wc)
+                if pd.isna(war) or war <= 0:
+                    continue
+                total_value += _convex_value(war, proj_year)
+                if proj_year == snap_year:
+                    proj_war_this_year = war
+
+            for sc in sal_cols:
+                sal = player_row.get(sc)
+                if pd.notna(sal):
+                    total_salary += sal
+
+            trade_val = total_value - total_salary
+
+            # Skip players with no meaningful projection
+            if proj_war_this_year <= 0 and total_value == 0:
                 continue
 
-            # Compute cumulative remaining surplus at this point in time
-            cum_base = sum(
-                _convex_value(r["WAR"], int(r["Year"]))
-                for _, r in remaining_years.iterrows()
-                if pd.notna(r["WAR"]) and r["WAR"] > 0
-            )
-            cum_contract = remaining_years["Contract_Value"].fillna(0).sum()
-            rolling_value = cum_base - cum_contract
-
-            # Add projected future value if available
-            if current_trade_value is not None:
-                # Scale future value by decay (older snapshots shouldn't get full future)
-                pass  # We only show historical MLB production value
-            
-            label = f"{war:.1f} WAR"
+            label = f"{proj_war_this_year:.1f} WAR" if proj_war_this_year > 0 else f"{yrs_ctrl}yr ctrl"
 
             rows.append({
-                "mlb_id": mid,
-                "IDfg": int(pid),
+                "mlb_id": mlb_id,
+                "IDfg": idfg,
                 "name": name,
-                "year": yr,
-                "value": round(rolling_value),
+                "year": snap_year,
+                "value": round(trade_val),
                 "value_type": "mlb_surplus",
                 "label": label,
             })
 
-        # ── Current projected trade value (single entry) ──
-        if current_trade_value is not None:
-            cur_war = future["WAR"].iloc[0] if not future.empty and pd.notna(future["WAR"].iloc[0]) else 0
-            rows.append({
-                "mlb_id": mid,
-                "IDfg": int(pid),
-                "name": name,
-                "year": CURRENT_YEAR,
-                "value": round(current_trade_value),
-                "value_type": "projected",
-                "label": f"Trade Value",
-            })
+    # ── Current year: use trade_value from the pipeline (already convex) ──
+    current_pv = player_values[
+        (player_values["Year"] == CURRENT_YEAR)
+        & player_values["mlb_id"].notna()
+        & player_values["trade_value"].notna()
+    ].copy()
+
+    for _, row in current_pv.iterrows():
+        mlb_id = int(row["mlb_id"])
+        idfg = int(row["IDfg"])
+        name = row["Player_Name"]
+        tv = row["trade_value"]
+        war = row.get("WAR", 0)
+        war_label = f"{war:.1f} WAR" if pd.notna(war) and war > 0 else "Trade Value"
+
+        rows.append({
+            "mlb_id": mlb_id,
+            "IDfg": idfg,
+            "name": name,
+            "year": CURRENT_YEAR,
+            "value": round(tv),
+            "value_type": "mlb_surplus",
+            "label": war_label,
+        })
 
     result = pd.DataFrame(rows)
+    if not result.empty:
+        # Deduplicate: if a player appears multiple times in the same year
+        # (e.g. from surplus file AND current-year pipeline), keep highest priority
+        result = result.sort_values("value", ascending=False).drop_duplicates(
+            ["mlb_id", "year"], keep="first"
+        )
     logger.info(
-        f"Built {len(result)} MLB timeline entries for {result['mlb_id'].nunique()} players"
+        f"Built {len(result)} MLB timeline entries for "
+        f"{result['mlb_id'].nunique() if not result.empty else 0} players"
     )
     return result
 
@@ -271,9 +309,9 @@ def main():
     # prefer the MLB entry (they've already debuted)
     combined = pd.concat([prospect_tl, mlb_tl], ignore_index=True)
 
-    # For duplicate (mlb_id, year), prefer mlb_surplus > projected > prospect
-    type_priority = {"projected": 0, "mlb_surplus": 1, "prospect": 2}
-    combined["_priority"] = combined["value_type"].map(type_priority)
+    # For duplicate (mlb_id, year), prefer mlb_surplus > prospect
+    type_priority = {"mlb_surplus": 0, "prospect": 1}
+    combined["_priority"] = combined["value_type"].map(type_priority).fillna(2)
     combined = (
         combined.sort_values("_priority")
         .drop_duplicates(["mlb_id", "year"], keep="first")
@@ -290,7 +328,6 @@ def main():
     logger.info(f"Wrote {len(combined)} entries for {combined['mlb_id'].nunique()} players")
     logger.info(f"  Prospect entries: {(combined['value_type'] == 'prospect').sum()}")
     logger.info(f"  MLB surplus entries: {(combined['value_type'] == 'mlb_surplus').sum()}")
-    logger.info(f"  Projected entries: {(combined['value_type'] == 'projected').sum()}")
     logger.info(f"Output: {out_path}")
 
     # Print a few example players

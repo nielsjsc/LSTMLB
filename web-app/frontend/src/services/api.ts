@@ -564,7 +564,7 @@ export const getTradeValueRankings = async (
 export interface TradeValuePoint {
   year: number;
   value: number;
-  valueType: 'prospect' | 'mlb_surplus' | 'projected';
+  valueType: 'prospect' | 'mlb_surplus';
   label: string;
 }
 

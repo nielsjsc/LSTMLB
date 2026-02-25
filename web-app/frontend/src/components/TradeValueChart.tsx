@@ -19,9 +19,8 @@ const fmtDollarFull = (v: number): string => {
 };
 
 const TYPE_META: Record<string, { label: string; color: string }> = {
-  prospect: { label: 'Prospect', color: '#a78bfa' },    // violet-400
-  mlb_surplus: { label: 'MLB Surplus', color: '#34d399' }, // emerald-400
-  projected: { label: 'Projected', color: '#60a5fa' },  // blue-400
+  prospect: { label: 'Prospect', color: '#a78bfa' },       // violet-400
+  mlb_surplus: { label: 'Trade Value', color: '#34d399' },  // emerald-400
 };
 
 // ─── Chart Dimensions ───────────────────────────────────────
@@ -101,13 +100,6 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
     return ticks.length > 0 ? ticks : [0];
   }, [yMin, yMax, yRange]);
 
-  // ── Projected segment dashed ────────────────────────
-  let lastNonProjectedIdx = -1;
-  for (let i = sorted.length - 1; i >= 0; i--) {
-    if (sorted[i].valueType !== 'projected') { lastNonProjectedIdx = i; break; }
-  }
-  const projectedStart = lastNonProjectedIdx >= 0 ? lastNonProjectedIdx : 0;
-
   // Build tooltip
   const hovered = hoverIdx != null ? sorted[hoverIdx] : null;
 
@@ -131,11 +123,6 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
           <linearGradient id="tvAreaGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={teamColor} stopOpacity={0.25} />
             <stop offset="100%" stopColor={teamColor} stopOpacity={0.02} />
-          </linearGradient>
-          {/* Projected area gradient (lighter) */}
-          <linearGradient id="tvProjGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={teamColor} stopOpacity={0.12} />
-            <stop offset="100%" stopColor={teamColor} stopOpacity={0.01} />
           </linearGradient>
         </defs>
 
@@ -180,43 +167,15 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
         {/* ── Area fill ───────────────────────── */}
         <path d={areaPath} fill="url(#tvAreaGrad)" />
 
-        {/* ── Solid line (non-projected) ──────── */}
-        {projectedStart > 0 && (
-          <path
-            d={`M${sorted.slice(0, projectedStart + 1).map((d) => `${x(d.year)},${y(d.value)}`).join('L')}`}
-            fill="none"
-            stroke={teamAccent}
-            strokeWidth={2.5}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-        )}
-
-        {/* ── Dashed line for projected segment ─ */}
-        {projectedStart < sorted.length - 1 && (
-          <path
-            d={`M${sorted.slice(projectedStart).map((d) => `${x(d.year)},${y(d.value)}`).join('L')}`}
-            fill="none"
-            stroke={teamAccent}
-            strokeWidth={2}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            strokeDasharray="6,4"
-            opacity={0.6}
-          />
-        )}
-
-        {/* If all points are non-projected, draw full solid line */}
-        {projectedStart === sorted.length - 1 && sorted.every(d => d.valueType !== 'projected') && (
-          <path
-            d={linePath}
-            fill="none"
-            stroke={teamAccent}
-            strokeWidth={2.5}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-        )}
+        {/* ── Main line ───────────────────────── */}
+        <path
+          d={linePath}
+          fill="none"
+          stroke={teamAccent}
+          strokeWidth={2.5}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
 
         {/* ── Data dots ───────────────────────── */}
         {sorted.map((d, i) => {
@@ -326,12 +285,6 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
             </div>
           );
         })}
-        {presentTypes.includes('projected') && (
-          <div className="flex items-center gap-1.5">
-            <span className="inline-block w-4 border-t-2 border-dashed" style={{ borderColor: teamAccent, opacity: 0.6 }} />
-            <span className="text-[10px] text-surface-500 font-medium">Projected</span>
-          </div>
-        )}
       </div>
     </div>
   );
