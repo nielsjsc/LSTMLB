@@ -578,3 +578,34 @@ export const getTradeValueHistory = async (playerId: number): Promise<TradeValue
     return [];
   }
 };
+
+// ── Transaction History ───────────────────────────────────────────────────
+export interface LinkedPlayer {
+  name: string;
+  mlbId: number;
+  realId: number | null;
+}
+
+export interface Transaction {
+  id: number;
+  date: string;
+  typeCode: string;
+  typeDesc: string;
+  description: string;
+  fromTeam: string;
+  fromTeamName: string;
+  toTeam: string;
+  toTeamName: string;
+  linkedPlayers: LinkedPlayer[];
+}
+
+export const getPlayerTransactions = async (playerId: number): Promise<Transaction[]> => {
+  const url = `${API_BASE}/players/${playerId}/transactions`;
+  try {
+    const response = await fetch(url, { headers: createApiHeaders() });
+    if (!response.ok) return [];
+    return await response.json();
+  } catch {
+    return [];
+  }
+};

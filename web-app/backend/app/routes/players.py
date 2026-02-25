@@ -1,12 +1,15 @@
 import sys
+import re
+import time
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict, Any, List, Tuple
 import logging
 import pandas as pd
+import httpx
 
 # Add backend to path
 backend_dir = Path(__file__).resolve().parent.parent.parent
@@ -286,3 +289,169 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
         for _, r in rows.iterrows()
     ]
     return JSONResponse(result)
+
+
+# ── Transaction History (MLB Stats API, cached) ──────────────────────────
+
+# Simple in-memory cache: mlb_id -> (timestamp, data)
+_transaction_cache: Dict[int, Tuple[float, List[Dict[str, Any]]]] = {}
+_TRANSACTION_CACHE_TTL = 60 * 60 * 24  # 24 hours
+
+# Transaction types we want to display (filter out noise)
+_IMPORTANT_TYPE_CODES = {
+    "TR",   # Trade
+    "SGN",  # Signed
+    "SFA",  # Signed as Free Agent
+    "DFA",  # Designated for assignment / Declared Free Agency
+    "FA",   # Free Agency declared
+    "CL",   # Claimed (waivers)
+    "WV",   # Waiver
+    "SC",   # Status Change (IL, reinstatement, retirement, etc.)
+    "RET",  # Retirement
+    "REL",  # Released
+    "SE",   # Selected (to 40-man roster, Rule 5, etc.)
+}
+
+# MLB full-name → our team abbreviation mapping
+_MLB_TEAM_TO_ABBREV: Dict[str, str] = {
+    "Arizona Diamondbacks": "ARI", "Atlanta Braves": "ATL", "Baltimore Orioles": "BAL",
+    "Boston Red Sox": "BOS", "Chicago Cubs": "CHC", "Chicago White Sox": "CHW",
+    "Cincinnati Reds": "CIN", "Cleveland Guardians": "CLE", "Cleveland Indians": "CLE",
+    "Colorado Rockies": "COL", "Detroit Tigers": "DET", "Houston Astros": "HOU",
+    "Kansas City Royals": "KC", "Los Angeles Angels": "LAA", "Los Angeles Dodgers": "LAD",
+    "Miami Marlins": "MIA", "Florida Marlins": "MIA", "Milwaukee Brewers": "MIL",
+    "Minnesota Twins": "MIN", "New York Mets": "NYM", "New York Yankees": "NYY",
+    "Oakland Athletics": "ATH", "Philadelphia Phillies": "PHI", "Pittsburgh Pirates": "PIT",
+    "San Diego Padres": "SD", "San Francisco Giants": "SF", "Seattle Mariners": "SEA",
+    "St. Louis Cardinals": "STL", "Tampa Bay Rays": "TB", "Tampa Bay Devil Rays": "TB",
+    "Texas Rangers": "TEX", "Toronto Blue Jays": "TOR", "Washington Nationals": "WSH",
+    "Montreal Expos": "WSH",
+}
+
+
+def _build_name_index(db: Session) -> Dict[str, List[Dict[str, Any]]]:
+    """Build a name→[{mlb_id, real_id, name}] index for matching players in trade descriptions."""
+    players = db.query(
+        Player.name, Player.mlb_id, Player.real_id
+    ).filter(Player.year == 2026).all()
+
+    index: Dict[str, List[Dict[str, Any]]] = {}
+    for p in players:
+        if not p.name or not p.mlb_id:
+            continue
+        key = p.name.lower().strip()
+        if key not in index:
+            index[key] = []
+        index[key].append({
+            "name": p.name,
+            "mlb_id": p.mlb_id,
+            "real_id": p.real_id,
+        })
+    return index
+
+
+def _find_players_in_description(
+    description: str, name_index: Dict[str, List[Dict[str, Any]]], exclude_mlb_id: int
+) -> List[Dict[str, Any]]:
+    """Parse a trade description and find referenced players in our database."""
+    found = []
+    seen_ids = {exclude_mlb_id}  # Don't link the player to themselves
+
+    for name_key, player_list in name_index.items():
+        for player in player_list:
+            pname = player["name"]
+            if pname in description:
+                if player["mlb_id"] not in seen_ids:
+                    found.append({
+                        "name": pname,
+                        "mlbId": player["mlb_id"],
+                        "realId": player["real_id"],
+                    })
+                    seen_ids.add(player["mlb_id"])
+
+    return found
+
+
+async def _fetch_transactions(mlb_id: int) -> List[Dict[str, Any]]:
+    """Fetch transactions from MLB Stats API with caching."""
+    now = time.time()
+    if mlb_id in _transaction_cache:
+        cached_time, cached_data = _transaction_cache[mlb_id]
+        if now - cached_time < _TRANSACTION_CACHE_TTL:
+            return cached_data
+
+    url = f"https://statsapi.mlb.com/api/v1/transactions?playerId={mlb_id}"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.warning(f"Failed to fetch transactions for mlb_id={mlb_id}: {e}")
+        return []
+
+    raw = data.get("transactions", [])
+    _transaction_cache[mlb_id] = (now, raw)
+    return raw
+
+
+@router.get("/{player_id}/transactions")
+async def get_player_transactions(player_id: str, db: Session = Depends(get_db)):
+    """Return transaction history for a player, with linked players for trades."""
+    try:
+        pid = int(player_id)
+        player = db.query(Player).filter(
+            or_(Player.mlb_id == pid, Player.real_id == pid)
+        ).first()
+    except (ValueError, TypeError):
+        player = None
+
+    if player is None or player.mlb_id is None:
+        return JSONResponse([])
+
+    mlb_id = player.mlb_id
+    raw_transactions = await _fetch_transactions(mlb_id)
+
+    if not raw_transactions:
+        return JSONResponse([])
+
+    # Build name index for matching trade participants
+    name_index = _build_name_index(db)
+
+    results = []
+    for txn in raw_transactions:
+        type_code = txn.get("typeCode", "")
+        if type_code not in _IMPORTANT_TYPE_CODES:
+            continue
+
+        description = txn.get("description", "")
+        date = txn.get("date") or txn.get("effectiveDate", "")
+
+        from_team_name = txn.get("fromTeam", {}).get("name", "") if txn.get("fromTeam") else ""
+        to_team_name = txn.get("toTeam", {}).get("name", "") if txn.get("toTeam") else ""
+
+        from_team = _MLB_TEAM_TO_ABBREV.get(from_team_name, "")
+        to_team = _MLB_TEAM_TO_ABBREV.get(to_team_name, "")
+
+        # For trades, find linked players in description
+        linked_players = []
+        if type_code == "TR" and description:
+            linked_players = _find_players_in_description(description, name_index, mlb_id)
+
+        results.append({
+            "id": txn.get("id"),
+            "date": date,
+            "typeCode": type_code,
+            "typeDesc": txn.get("typeDesc", ""),
+            "description": description,
+            "fromTeam": from_team,
+            "fromTeamName": from_team_name,
+            "toTeam": to_team,
+            "toTeamName": to_team_name,
+            "linkedPlayers": linked_players,
+        })
+
+    # Sort by date descending (most recent first)
+    results.sort(key=lambda x: x["date"], reverse=True)
+
+    return JSONResponse(results)
