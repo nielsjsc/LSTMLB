@@ -350,7 +350,7 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
                                        'BB%': 'BB%_bat', 'K%': 'K%_bat', 'G': 'G_bat'}))
     
     # Format pitching data
-    pitcher_cols = ['IDfg', 'GS', 'Season', 'Name', 'Team', 'G', 'WAR', 'ERA', 'FIP', 'SIERA',
+    pitcher_cols = ['IDfg', 'GS', 'Season', 'Name', 'Team', 'G', 'WAR', 'ERA', 'FIP', 'IP',
                     'K%', 'BB%', 'Age']
     
     # Filter to columns that exist

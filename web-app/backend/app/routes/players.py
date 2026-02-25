@@ -237,7 +237,8 @@ def _build_historical_response(hist: dict) -> dict:
         entry = by_year[yr]
         entry["pitching"] = {
             "g_pit": s.get("g"), "gs": s.get("gs"), "war_pit": s.get("war"),
-            "era": s.get("era"), "fip": s.get("fip"), "siera": s.get("siera"),
+            "era": s.get("era"), "fip": s.get("fip"),
+            "ip": s.get("ip"),
             "k_pct_pit": s.get("k_pct"), "bb_pct_pit": s.get("bb_pct"),
             "w": s.get("w"), "l": s.get("l"), "sv": s.get("sv"),
             "ip": s.get("ip"), "whip": s.get("whip"),
@@ -262,10 +263,12 @@ def _build_historical_response(hist: dict) -> dict:
             "probable_fa_year": None,
             "earliest_fa_year": None,
             "value": {
-                "base_value": 0, "contract_value": 0,
+                "base_value": e.get("war_value") or 0,
+                "contract_value": e.get("salary") or 0,
                 "surplus_value": e.get("surplus") or 0,
                 "trade_value": 0, "contract_war": 0, "avg_war": 0,
-                "total_contract": 0, "avg_contract": 0,
+                "total_contract": hist.get("career_salary") or 0,
+                "avg_contract": 0,
                 "years_control": 0, "control_through": 0,
                 "total_future_war": 0, "total_future_value": 0,
                 "total_war": hist.get("career_war", 0),
@@ -402,10 +405,10 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
                 **({"pitching": {
                     "g_pit": p.g_pit,
                     "gs": p.gs,
+                    "ip": p.ip,
                     "war_pit": p.war_pit,
                     "era": p.era,
                     "fip": p.fip,
-                    "siera": p.siera,
                     "k_pct_pit": p.k_pct_pit,
                     "bb_pct_pit": p.bb_pct_pit
                 }} if p.war_pit is not None else {})

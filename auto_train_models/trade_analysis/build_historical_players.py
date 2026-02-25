@@ -97,8 +97,12 @@ def main():
                 "BB%", "K%", "Off", "Def", "BsR"}
     bat = pd.read_csv(BATTING_CSV, low_memory=False,
                        usecols=lambda c: c in bat_need)
-    # Rename ambiguous columns
-    bat = bat.rename(columns={"Season": "year", "WAR": "war"})
+    # Rename columns with special chars so itertuples can access them
+    bat = bat.rename(columns={
+        "Season": "year", "WAR": "war",
+        "BB%": "bb_pct", "K%": "k_pct", "wRC+": "wrc_plus",
+        "2B": "doubles", "3B": "triples",
+    })
     print(f"  Batting rows: {len(bat):,}")
 
     # ── FanGraphs pitching ───────────────────────────────────
@@ -108,7 +112,12 @@ def main():
                 "K/9", "BB/9", "HR/9", "K%", "BB%", "WAR", "SIERA"}
     pit = pd.read_csv(PITCHING_CSV, low_memory=False,
                        usecols=lambda c: c in pit_need)
-    pit = pit.rename(columns={"Season": "year", "WAR": "war"})
+    # Rename columns with special chars so itertuples can access them
+    pit = pit.rename(columns={
+        "Season": "year", "WAR": "war",
+        "K%": "k_pct", "BB%": "bb_pct",
+        "K/9": "k_9", "BB/9": "bb_9", "HR/9": "hr_9",
+    })
     print(f"  Pitching rows: {len(pit):,}")
 
     # ── Pre-compute name index (IDfg → Name) ────────────────
@@ -174,18 +183,21 @@ def main():
                     "g": _jval(getattr(t, "G", None), "int"),
                     "pa": _jval(getattr(t, "PA", None), "int"),
                     "hr": _jval(getattr(t, "HR", None), "int"),
+                    "doubles": _jval(getattr(t, "doubles", None), "int"),
+                    "triples": _jval(getattr(t, "triples", None), "int"),
                     "r": _jval(getattr(t, "R", None), "int"),
                     "rbi": _jval(getattr(t, "RBI", None), "int"),
                     "sb": _jval(getattr(t, "SB", None), "int"),
+                    "cs": _jval(getattr(t, "CS", None), "int"),
                     "avg": _jval(getattr(t, "AVG", None), "float", 3),
                     "obp": _jval(getattr(t, "OBP", None), "float", 3),
                     "slg": _jval(getattr(t, "SLG", None), "float", 3),
                     "ops": _jval(getattr(t, "OPS", None), "float", 3),
                     "woba": _jval(getattr(t, "wOBA", None), "float", 3),
-                    "wrc_plus": _jval(getattr(t, "wRC+", None), "float", 0),
+                    "wrc_plus": _jval(getattr(t, "wrc_plus", None), "float", 0),
                     "war": _jval(t.war, "float", 1),
-                    "bb_pct": _jval(getattr(t, "BB%", None), "float", 3),
-                    "k_pct": _jval(getattr(t, "K%", None), "float", 3),
+                    "bb_pct": _jval(getattr(t, "bb_pct", None), "float", 3),
+                    "k_pct": _jval(getattr(t, "k_pct", None), "float", 3),
                     "off": _jval(getattr(t, "Off", None), "float", 1),
                     "def_value": _jval(getattr(t, "Def", None), "float", 1),
                     "bsr": _jval(getattr(t, "BsR", None), "float", 1),
@@ -216,11 +228,11 @@ def main():
                     "whip": _jval(getattr(t, "WHIP", None), "float", 2),
                     "so": _jval(getattr(t, "SO", None), "int"),
                     "bb": _jval(getattr(t, "BB", None), "int"),
-                    "k_9": _jval(getattr(t, "K/9", None), "float", 1),
-                    "bb_9": _jval(getattr(t, "BB/9", None), "float", 1),
-                    "hr_9": _jval(getattr(t, "HR/9", None), "float", 1),
-                    "k_pct": _jval(getattr(t, "K%", None), "float", 3),
-                    "bb_pct": _jval(getattr(t, "BB%", None), "float", 3),
+                    "k_9": _jval(getattr(t, "k_9", None), "float", 1),
+                    "bb_9": _jval(getattr(t, "bb_9", None), "float", 1),
+                    "hr_9": _jval(getattr(t, "hr_9", None), "float", 1),
+                    "k_pct": _jval(getattr(t, "k_pct", None), "float", 3),
+                    "bb_pct": _jval(getattr(t, "bb_pct", None), "float", 3),
                     "war": _jval(t.war, "float", 1),
                     "siera": _jval(getattr(t, "SIERA", None), "float", 2),
                     "salary": _jval(t.salary, "int"),

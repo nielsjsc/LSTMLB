@@ -15,10 +15,10 @@ interface CombinedPitchingTableProps {
     pitching: {
       g_pit: number;
       gs: number;
+      ip: number;
       war_pit: number;
       era: number;
       fip: number;
-      siera: number;
       k_pct_pit: number;
       bb_pct_pit: number;
     };
@@ -35,10 +35,10 @@ interface FormattedPitchingRow extends Record<string, any> {
   surplus_value: number;
   g_pit: number;
   gs: number;
+  ip: number;
   war_pit: number;
   era: number;
   fip: number;
-  siera: number;
   k_pct_pit: number;
   bb_pct_pit: number;
 }
@@ -52,10 +52,10 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
     { key: 'age', label: 'Age' },
     { key: 'g_pit', label: 'G' },
     { key: 'gs', label: 'GS' },
+    { key: 'ip', label: 'IP' },
     { key: 'war_pit', label: 'WAR' },
     { key: 'era', label: 'ERA' },
     { key: 'fip', label: 'FIP' },
-    { key: 'siera', label: 'SIERA' },
     { key: 'k_pct_pit', label: 'K%' },
     { key: 'bb_pct_pit', label: 'BB%' },
     { key: 'base_value', label: 'Value ($M)' },
@@ -87,8 +87,9 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
         return formatDecimal(value, 1);
       case 'era':
       case 'fip':
-      case 'siera':
         return formatDecimal(value, 2);
+      case 'ip':
+        return formatDecimal(value, 1);
       case 'k_pct_pit':
       case 'bb_pct_pit':
         return formatPercent(value);

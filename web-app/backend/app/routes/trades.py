@@ -421,13 +421,21 @@ def _augment_with_historical_war(trades: List[Dict[str, Any]]) -> None:
     uses a limited crosswalk; the historical JSON has 12,999 MLBAM → IDfg
     mappings which covers most of them.
 
+    Also fixes departure_year and still_on_team which the offline pipeline
+    computes incorrectly for off-season trades.
+
     Modifies trades in-place.
     """
-    from app.routes.historical import _load_historical, _mlbam_to_idfg, _players
+    from app.routes import historical as _hist_mod
 
-    _load_historical()
-    if not _mlbam_to_idfg or not _players:
+    _hist_mod._load_historical()
+    if not _hist_mod._mlbam_to_idfg or not _hist_mod._players:
         return
+
+    mlbam_to_idfg = _hist_mod._mlbam_to_idfg
+    players_db = _hist_mod._players
+
+    CURRENT_YEAR = 2025  # latest year with full historical data
 
     augmented = 0
     for trade in trades:
@@ -436,60 +444,74 @@ def _augment_with_historical_war(trades: List[Dict[str, Any]]) -> None:
 
         for side in trade.get("sides", []):
             for player in side.get("players_received", []):
-                # Skip players that already have WAR data
-                if player.get("yearly_war") or abs(player.get("war_with_team", 0)) > 0.01:
-                    continue
-
                 mlb_id = player.get("mlb_id")
                 if not mlb_id:
                     continue
 
                 # Look up historical data via MLBAM crosswalk
-                idfg = _mlbam_to_idfg.get(str(mlb_id))
+                idfg = mlbam_to_idfg.get(str(mlb_id))
                 if idfg is None:
                     continue
-                hp = _players.get(str(idfg))
+                hp = players_db.get(str(idfg))
                 if hp is None:
                     continue
 
                 to_team = player.get("to_team", "")
 
                 # Aggregate batting + pitching WAR by year for matching team
+                # Include "- - -" (multi-team split) seasons as potential matches
                 war_by_year: Dict[int, float] = {}
                 salary_by_year: Dict[int, int] = {}
                 for season in hp.get("batting", []) + hp.get("pitching", []):
-                    st = _HIST_TEAM_ALIASES.get(season["team"], season["team"])
-                    if st == to_team and season["year"] >= trade_year:
+                    raw_team = season.get("team", "")
+                    st = _HIST_TEAM_ALIASES.get(raw_team, raw_team)
+                    is_match = (st == to_team) or (raw_team == "- - -")
+                    if is_match and season["year"] >= trade_year:
                         yr = season["year"]
                         war_by_year[yr] = war_by_year.get(yr, 0) + (season.get("war") or 0)
                         salary_by_year[yr] = salary_by_year.get(yr, 0) + int(season.get("salary") or 0)
 
-                if not war_by_year:
-                    continue
+                # Always try to fix departure_year / still_on_team even if
+                # the player already had WAR data from the offline pipeline
+                has_existing_war = bool(player.get("yearly_war")) or abs(player.get("war_with_team", 0)) > 0.01
 
-                # Build yearly_war list sorted by year
-                yearly = sorted(
-                    [{"year": yr, "war": round(w, 1)} for yr, w in war_by_year.items()],
-                    key=lambda x: x["year"],
-                )
-                total_war = round(sum(w for w in war_by_year.values()), 1)
-                total_salary = sum(salary_by_year.values())
+                if war_by_year:
+                    max_year = max(war_by_year.keys())
+                    still_on = max_year >= CURRENT_YEAR
+                    departure = None if still_on else max_year + 1
 
-                player["war_with_team"] = total_war
-                player["yearly_war"] = yearly
-                player["salary_with_team"] = total_salary
-                player["seasons_with_team"] = len(yearly)
+                    # Update departure_year and still_on_team regardless
+                    player["still_on_team"] = still_on
+                    player["departure_year"] = departure
 
-                # Recalculate individual WAR value and surplus
-                war_value = 0
-                for yr, w in war_by_year.items():
-                    dpw = _DOLLAR_PER_WAR.get(yr, 8_500_000)
-                    war_value += w * dpw
-                player["war_value"] = int(war_value)
-                player["surplus"] = int(war_value - total_salary)
+                    if not has_existing_war:
+                        # Build yearly_war list sorted by year
+                        yearly = sorted(
+                            [{"year": yr, "war": round(w, 1)} for yr, w in war_by_year.items()],
+                            key=lambda x: x["year"],
+                        )
+                        total_war = round(sum(w for w in war_by_year.values()), 1)
+                        total_salary = sum(salary_by_year.values())
 
-                augmented += 1
-                sides_changed = True
+                        player["war_with_team"] = total_war
+                        player["yearly_war"] = yearly
+                        player["salary_with_team"] = total_salary
+                        player["seasons_with_team"] = len(yearly)
+
+                        # Recalculate individual WAR value and surplus
+                        war_value = 0
+                        for yr, w in war_by_year.items():
+                            dpw = _DOLLAR_PER_WAR.get(yr, 8_500_000)
+                            war_value += w * dpw
+                        player["war_value"] = int(war_value)
+                        player["surplus"] = int(war_value - total_salary)
+
+                        augmented += 1
+                        sides_changed = True
+                    else:
+                        # Even if WAR was already correct, check if side totals
+                        # need recalculation (departure fix can change display)
+                        sides_changed = True
 
         if sides_changed:
             # Recalculate side totals
@@ -519,6 +541,154 @@ def _augment_with_historical_war(trades: List[Dict[str, Any]]) -> None:
     logger.info(f"Augmented {augmented} trade players with historical WAR data")
 
 
+# ── FV → dollar value fallback (median by FV grade from prospect model) ──────
+
+_FV_VALUE_MAP: Dict[int, int] = {
+    35: 3_000_000,
+    40: 7_000_000,
+    45: 15_000_000,
+    50: 30_000_000,
+    55: 60_000_000,
+    60: 100_000_000,
+    65: 135_000_000,
+    70: 200_000_000,
+    75: 275_000_000,
+    80: 350_000_000,
+}
+
+
+def _estimate_prospect_value(fv: int) -> int:
+    """Return a dollar value estimate for a prospect based on FV grade."""
+    if fv in _FV_VALUE_MAP:
+        return _FV_VALUE_MAP[fv]
+    # Interpolate between nearest known grades
+    grades = sorted(_FV_VALUE_MAP.keys())
+    if fv <= grades[0]:
+        return _FV_VALUE_MAP[grades[0]]
+    if fv >= grades[-1]:
+        return _FV_VALUE_MAP[grades[-1]]
+    for lo, hi in zip(grades, grades[1:]):
+        if lo <= fv <= hi:
+            frac = (fv - lo) / (hi - lo)
+            return int(_FV_VALUE_MAP[lo] + frac * (_FV_VALUE_MAP[hi] - _FV_VALUE_MAP[lo]))
+    return _FV_VALUE_MAP.get(50, 30_000_000)
+
+
+def _augment_with_prospect_values(trades: List[Dict[str, Any]]) -> None:
+    """
+    Enrich trade players with prospect dollar values and fix prospect_top_100.
+    
+    For players with prospect_fv:
+      - Attempt DB lookup by name + trade year for exact value
+      - Fall back to FV-based estimate
+      - Fix prospect_top_100 (offline pipeline bug: bool(NaN) == True)
+      - Clear salary for prospects with 0 MLB seasons (pre-arb, not rostered)
+    """
+    from app.database import SessionLocal
+
+    # Build a (name_lower, year) → value lookup from the prospect DB
+    db = SessionLocal()
+    try:
+        all_prospects = db.query(Prospect).all()
+    finally:
+        db.close()
+
+    prospect_db: Dict[Tuple[str, int], Dict[str, Any]] = {}
+    for p in all_prospects:
+        name_lower = p.name.strip().lower() if p.name else ""
+        year = p.year
+        val = getattr(p, f"value_{year}", None)
+        fv_str = p.fv
+        # Also store the DB FV for cross-reference
+        prospect_db[(name_lower, year)] = {
+            "value": val,
+            "fv": fv_str,
+        }
+
+    enriched = 0
+    t100_fixed = 0
+
+    for trade in trades:
+        trade_year = trade.get("year", 0)
+        for side in trade.get("sides", []):
+            for player in side.get("players_received", []):
+                prospect_fv = player.get("prospect_fv")
+                if not prospect_fv:
+                    continue
+
+                # ------- Fix prospect_top_100 -------
+                # The offline pipeline has a bug: bool(NaN) == True
+                # If prospect_top_100 is True but prospect has no top-100 rank,
+                # it's a false positive. We reset it.
+                # A true top-100 prospect would have a top_100_rank in the CSV.
+                # Since we can't access the CSV at runtime, use FV as heuristic:
+                # Generally only FV >= 50 are top-100 candidates, and even then
+                # not guaranteed. But the key indicator is: the pipeline stored
+                # top_100=True for ALL prospects because of the NaN bug.
+                # Safe fix: treat prospect_top_100 as False unless we see
+                # prospect_rank ≤ 10 AND fv >= 50 (org top-3 with solid FV).
+                # Actually better: just set it to False. The pipeline fix will
+                # generate correct data on the next run.
+                if player.get("prospect_top_100") is True:
+                    # Heuristic: a real top-100 prospect typically has FV >= 50
+                    # and the rank field from the CSV doesn't discriminate
+                    # between org rank and national rank. Safest to clear.
+                    player["prospect_top_100"] = False
+                    t100_fixed += 1
+
+                # ------- Add prospect_value -------
+                name_lower = player.get("name", "").strip().lower()
+
+                # Try exact year, then adjacent years
+                db_entry = None
+                for yr_offset in [0, -1, 1, -2, 2]:
+                    lookup_year = trade_year + yr_offset
+                    db_entry = prospect_db.get((name_lower, lookup_year))
+                    if db_entry and db_entry["value"]:
+                        break
+
+                if db_entry and db_entry["value"]:
+                    player["prospect_value"] = int(db_entry["value"])
+                else:
+                    # Fallback to FV-based estimate
+                    player["prospect_value"] = _estimate_prospect_value(int(prospect_fv))
+
+                # ------- Clear salary for non-rostered prospects -------
+                if player.get("seasons_with_team", 0) == 0 and player.get("war_with_team", 0) == 0:
+                    player["salary_with_team"] = 0
+                    player["war_value"] = 0
+                    # Surplus for a pure prospect = prospect_value
+                    player["surplus"] = player["prospect_value"]
+
+                enriched += 1
+
+    # Recalculate side totals after prospect enrichment
+    for trade in trades:
+        for side in trade.get("sides", []):
+            players_list = side.get("players_received", [])
+            side["total_salary"] = sum(p.get("salary_with_team", 0) for p in players_list)
+            side["total_war_value"] = sum(p.get("war_value", 0) for p in players_list)
+            side["total_surplus"] = sum(p.get("surplus", 0) for p in players_list)
+
+        # Recalculate winner/loser
+        if trade.get("evaluation_type") != "projected":
+            sides = trade.get("sides", [])
+            if len(sides) >= 2:
+                sorted_sides = sorted(sides, key=lambda s: s.get("total_surplus", 0), reverse=True)
+                trade["winner"] = sorted_sides[0]["team"]
+                trade["winner_name"] = sorted_sides[0]["team_name"]
+                trade["loser"] = sorted_sides[-1]["team"]
+                trade["loser_name"] = sorted_sides[-1]["team_name"]
+                trade["surplus_diff"] = (
+                    sorted_sides[0].get("total_surplus", 0) - sorted_sides[-1].get("total_surplus", 0)
+                )
+
+    logger.info(
+        f"Enriched {enriched} trade players with prospect values, "
+        f"fixed {t100_fixed} false top-100 flags"
+    )
+
+
 def _load_past_trades() -> List[Dict[str, Any]]:
     """Load & cache the pre-computed trade evaluations, augmented with projections."""
     global _past_trades_cache
@@ -537,6 +707,9 @@ def _load_past_trades() -> List[Dict[str, Any]]:
 
     # Fill in missing WAR from historical player data
     _augment_with_historical_war(_past_trades_cache)
+
+    # Enrich prospects with dollar values and fix top-100 flags
+    _augment_with_prospect_values(_past_trades_cache)
 
     logger.info(f"Loaded {len(_past_trades_cache)} past trades")
     return _past_trades_cache

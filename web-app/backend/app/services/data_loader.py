@@ -86,7 +86,7 @@ class DataLoader:
             'war_pit': float(row.get('WAR_pitcher')) if pd.notna(row.get('WAR_pitcher')) else None,
             'era': float(row.get('ERA')) if pd.notna(row.get('ERA')) else None,
             'fip': float(row.get('FIP')) if pd.notna(row.get('FIP')) else None,
-            'siera': float(row.get('SIERA')) if pd.notna(row.get('SIERA')) else None,
+            'ip': float(row.get('IP')) if pd.notna(row.get('IP')) else None,
             'k_pct_pit': float(row.get('K%_pit')) if pd.notna(row.get('K%_pit')) else None,
             'bb_pct_pit': float(row.get('BB%_pit')) if pd.notna(row.get('BB%_pit')) else None,
 

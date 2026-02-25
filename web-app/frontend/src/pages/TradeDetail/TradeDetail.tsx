@@ -21,6 +21,24 @@ const fmtMoney = (n: number, short = false) => {
   return `${sign}$${abs.toLocaleString()}`;
 };
 
+/**
+ * Determine which team received "cash" in a trade by parsing the description.
+ * Returns the team abbreviation of the receiving side, or null if not determinable.
+ */
+const parseCashReceiver = (description: string, sides: TradeSideDetail[]): string | null => {
+  // Pattern: "TEAM traded [players] and cash to OTHER_TEAM"
+  const cashMatch = description.match(/and cash to ([A-Z][A-Za-z .]+?)(?:\s+for\b|\.$)/i);
+  if (!cashMatch) return null;
+  const receiverName = cashMatch[1].trim();
+  // Match against side team names
+  for (const side of sides) {
+    if (side.team_name === receiverName || receiverName.startsWith(side.team_name)) {
+      return side.team;
+    }
+  }
+  return null;
+};
+
 // ── Player card ─────────────────────────────────────────────────────────────
 
 function PlayerCard({
@@ -30,6 +48,9 @@ function PlayerCard({
   player: TradePlayerDetail;
   isProjected: boolean;
 }) {
+  const isProspect = !!player.prospect_fv;
+  const isPureProspect = isProspect && player.seasons_with_team === 0 && player.war_with_team === 0;
+
   const displayWar = isProjected && player.has_projection
     ? (player.projected_war ?? 0)
     : player.war_with_team;
@@ -66,12 +87,17 @@ function PlayerCard({
               T100
             </span>
           )}
-          {!isProjected && player.still_on_team && (
+          {player.prospect_level && isPureProspect && (
+            <span className="text-[10px] px-1 py-px rounded bg-surface-700 text-surface-400 flex-shrink-0">
+              {player.prospect_level}
+            </span>
+          )}
+          {!isProjected && player.still_on_team && !isPureProspect && (
             <span className="text-[10px] px-1 py-px rounded bg-emerald-500/10 text-emerald-400/80 flex-shrink-0">
               Active
             </span>
           )}
-          {isProjected && !player.has_projection && (
+          {isProjected && !player.has_projection && !isPureProspect && (
             <span className="text-[10px] text-surface-600 italic flex-shrink-0">
               No projection
             </span>
@@ -79,29 +105,46 @@ function PlayerCard({
         </div>
       </div>
 
-      {/* Inline stats */}
-      <div className="flex items-center gap-4 text-[11px] text-surface-400">
-        <span>
-          <span className="text-surface-500">{isProjected ? 'Proj. WAR' : 'WAR'}</span>{' '}
-          <span className="text-surface-200 font-medium">{displayWar}</span>
-        </span>
-        <span>
-          <span className="text-surface-500">{isProjected ? 'Yrs' : 'Seasons'}</span>{' '}
-          <span className="text-surface-200 font-medium">
-            {isProjected ? yearlyWar.length : player.seasons_with_team}
+      {/* Inline stats — different layout for pure prospects vs MLB players */}
+      {isPureProspect ? (
+        <div className="flex items-center gap-4 text-[11px] text-surface-400">
+          {player.prospect_rank && (
+            <span>
+              <span className="text-surface-500">Org Rank</span>{' '}
+              <span className="text-surface-200 font-medium">#{player.prospect_rank}</span>
+            </span>
+          )}
+          <span>
+            <span className="text-surface-500">$ Value</span>{' '}
+            <span className="text-emerald-400 font-medium">
+              {fmtMoney(player.prospect_value ?? 0, true)}
+            </span>
           </span>
-        </span>
-        <span>
-          <span className="text-surface-500">Salary</span>{' '}
-          <span className="text-surface-200 font-medium">{fmtMoney(displaySalary, true)}</span>
-        </span>
-        <span>
-          <span className="text-surface-500">Surplus</span>{' '}
-          <span className={`font-medium ${surplusPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-            {fmtMoney(displaySurplus, true)}
+        </div>
+      ) : (
+        <div className="flex items-center gap-4 text-[11px] text-surface-400">
+          <span>
+            <span className="text-surface-500">{isProjected ? 'Proj. WAR' : 'WAR'}</span>{' '}
+            <span className="text-surface-200 font-medium">{displayWar}</span>
           </span>
-        </span>
-      </div>
+          <span>
+            <span className="text-surface-500">{isProjected ? 'Yrs' : 'Seasons'}</span>{' '}
+            <span className="text-surface-200 font-medium">
+              {isProjected ? yearlyWar.length : player.seasons_with_team}
+            </span>
+          </span>
+          <span>
+            <span className="text-surface-500">Salary</span>{' '}
+            <span className="text-surface-200 font-medium">{fmtMoney(displaySalary, true)}</span>
+          </span>
+          <span>
+            <span className="text-surface-500">Surplus</span>{' '}
+            <span className={`font-medium ${surplusPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+              {fmtMoney(displaySurplus, true)}
+            </span>
+          </span>
+        </div>
+      )}
 
       {/* Departure info */}
       {!isProjected && !player.still_on_team && player.departure_year && (
@@ -119,10 +162,12 @@ function SidePanel({
   side,
   isWinner,
   isProjected,
+  receivedCash,
 }: {
   side: TradeSideDetail;
   isWinner: boolean;
   isProjected: boolean;
+  receivedCash: boolean;
 }) {
   const colors = getTeamColors(side.team);
 
@@ -175,9 +220,17 @@ function SidePanel({
       <div>
         <div className="text-[10px] uppercase tracking-wider text-surface-500 mb-1">
           Received {side.players_received.length} player{side.players_received.length !== 1 ? 's' : ''}
+          {receivedCash ? ' + cash' : ''}
         </div>
         {side.players_received
           .sort((a, b) => {
+            // Sort prospects with value to the end, then by WAR descending
+            const aIsProspect = !!a.prospect_fv && a.seasons_with_team === 0 && a.war_with_team === 0;
+            const bIsProspect = !!b.prospect_fv && b.seasons_with_team === 0 && b.war_with_team === 0;
+            if (aIsProspect !== bIsProspect) return aIsProspect ? 1 : -1;
+            if (aIsProspect && bIsProspect) {
+              return (b.prospect_value ?? 0) - (a.prospect_value ?? 0);
+            }
             const aVal = isProjected && a.has_projection ? (a.projected_war ?? 0) : a.war_with_team;
             const bVal = isProjected && b.has_projection ? (b.projected_war ?? 0) : b.war_with_team;
             return bVal - aVal;
@@ -185,6 +238,12 @@ function SidePanel({
           .map((p) => (
             <PlayerCard key={p.mlb_id} player={p} isProjected={isProjected} />
           ))}
+        {receivedCash && (
+          <div className="py-2.5 border-b border-white/[0.04] last:border-b-0 flex items-center gap-2">
+            <span className="text-[13px] text-amber-400/80 font-medium">Cash considerations</span>
+            <span className="text-[10px] px-1 py-px rounded bg-amber-500/10 text-amber-400/70">$</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -236,6 +295,11 @@ export default function TradeDetail() {
     ? (trade.projected_total_war ?? trade.total_trade_war)
     : trade.total_trade_war;
 
+  // Determine which team received cash (if any)
+  const cashReceiver = trade.has_cash
+    ? parseCashReceiver(trade.description, trade.sides)
+    : null;
+
   const sortedSides = [...trade.sides].sort((a, b) => {
     if (a.team === trade.winner) return -1;
     if (b.team === trade.winner) return 1;
@@ -265,9 +329,6 @@ export default function TradeDetail() {
           <span className="text-[13px] text-surface-400">{fmtDate(trade.date)}</span>
           {isProjected && (
             <span className="text-[9px] px-1 py-px rounded bg-blue-500/10 text-blue-400 font-medium">Projected</span>
-          )}
-          {trade.has_cash && (
-            <span className="text-[9px] px-1 py-px rounded bg-amber-500/10 text-amber-400/70">Cash</span>
           )}
           {trade.has_ptbnl && (
             <span className="text-[9px] px-1 py-px rounded bg-surface-700 text-surface-400">PTBNL</span>
@@ -319,6 +380,7 @@ export default function TradeDetail() {
               side={side}
               isWinner={side.team === trade.winner}
               isProjected={isProjected}
+              receivedCash={cashReceiver === side.team}
             />
           </div>
         ))}

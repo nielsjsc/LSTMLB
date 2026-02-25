@@ -764,6 +764,7 @@ export interface TradePlayerDetail extends TradePlayerSummary {
   prospect_rank: number | null;
   prospect_top_100: boolean | null;
   prospect_level: string | null;
+  prospect_value?: number | null;
   // Projected fields (present for "projected" evaluation_type trades)
   projected_war_value?: number | null;
   projected_salary?: number | null;

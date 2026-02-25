@@ -235,13 +235,18 @@ def load_prospect_data() -> Dict[Tuple[str, int], dict]:
         fv = row.get("grade_overall")
         rank = row.get("rank")
         level = row.get("level")
-        top_100 = row.get("top_100", False)
+        top_100_raw = row.get("top_100")
+        # top_100 column contains the national rank (int) or NaN
+        # bool(NaN) is True in Python, so we must use pd.notna check
+        is_top_100 = bool(pd.notna(top_100_raw) and float(top_100_raw) > 0)
+        top_100_rank = int(top_100_raw) if pd.notna(top_100_raw) and float(top_100_raw) > 0 else None
         if name and year:
             prospect_map[(name, year)] = {
                 "fv": int(fv) if pd.notna(fv) else None,
                 "rank": int(rank) if pd.notna(rank) else None,
                 "level": str(level) if pd.notna(level) else None,
-                "top_100": bool(top_100),
+                "top_100": is_top_100,
+                "top_100_rank": top_100_rank,
             }
 
     logger.info(f"  Loaded {len(prospect_map)} prospect entries")

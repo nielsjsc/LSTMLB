@@ -58,23 +58,149 @@ def _load_salary_supplement() -> Dict[tuple, int]:
     return lookup
 
 
+# ── Lahman salary data (1985–2016) ──────────────────────────────────────
+_LAHMAN_FILE = _PROJECT_ROOT / "data" / "salary" / "lahman_salaries.csv"
+
+# Lahman teamID → FanGraphs abbreviation
+_LAHMAN_TEAM_MAP: Dict[str, str] = {
+    "ANA": "LAA", "CAL": "LAA", "CHA": "CHW", "CHN": "CHC",
+    "FLO": "FLA", "KCA": "KCR", "LAN": "LAD", "ML4": "MIL",
+    "NYA": "NYY", "NYN": "NYM", "SDN": "SDP", "SFN": "SFG",
+    "SLN": "STL", "TBA": "TBR", "WAS": "WSN", "MON": "MON",
+}
+
+
+def _load_lahman_salaries() -> Dict[tuple, int]:
+    """Load Lahman salary data → {(bbref_id, year): salary_int}."""
+    import csv as _csv
+
+    lookup: Dict[tuple, int] = {}
+    if not _LAHMAN_FILE.exists():
+        logger.warning(f"Lahman salary file not found: {_LAHMAN_FILE}")
+        return lookup
+
+    with open(_LAHMAN_FILE, "r", encoding="utf-8") as f:
+        for row in _csv.DictReader(f):
+            bbref = (row.get("playerID") or "").strip()
+            yr_str = row.get("yearID", "")
+            sal_str = row.get("salary", "")
+            if not bbref or not yr_str or not sal_str:
+                continue
+            try:
+                yr = int(yr_str)
+                sal = int(float(sal_str))
+            except (ValueError, TypeError):
+                continue
+            if sal > 0:
+                lookup[(bbref, yr)] = sal
+
+    logger.info(f"Loaded {len(lookup)} Lahman salary entries")
+    return lookup
+
+
+# ── Spotrac salary data ─────────────────────────────────────────────────
+_SPOTRAC_FILE = _PROJECT_ROOT / "data" / "salary" / "mlb_salary_data.csv"
+
+_SPOTRAC_TEAM_MAP: Dict[str, str] = {
+    "Arizona Diamondbacks": "ARI", "Atlanta Braves": "ATL",
+    "Baltimore Orioles": "BAL", "Boston Red Sox": "BOS",
+    "Chicago Cubs": "CHC", "Chicago White Sox": "CHW",
+    "Cincinnati Reds": "CIN", "Cleveland Guardians": "CLE",
+    "Cleveland Indians": "CLE", "Colorado Rockies": "COL",
+    "Detroit Tigers": "DET", "Houston Astros": "HOU",
+    "Kansas City Royals": "KCR", "Los Angeles Angels": "LAA",
+    "Los Angeles Dodgers": "LAD", "Miami Marlins": "MIA",
+    "Florida Marlins": "FLA", "Milwaukee Brewers": "MIL",
+    "Minnesota Twins": "MIN", "New York Mets": "NYM",
+    "New York Yankees": "NYY", "Oakland Athletics": "OAK",
+    "Philadelphia Phillies": "PHI", "Pittsburgh Pirates": "PIT",
+    "San Diego Padres": "SDP", "San Francisco Giants": "SFG",
+    "Seattle Mariners": "SEA", "St. Louis Cardinals": "STL",
+    "Tampa Bay Rays": "TBR", "Tampa Bay Devil Rays": "TBR",
+    "Texas Rangers": "TEX", "Toronto Blue Jays": "TOR",
+    "Washington Nationals": "WSN", "Montreal Expos": "MON",
+}
+
+
+def _load_spotrac_salaries() -> Dict[tuple, int]:
+    """Load Spotrac salary data → {(name_lower, team_abbrev, year): salary_int}."""
+    import csv as _csv
+
+    lookup: Dict[tuple, int] = {}
+    if not _SPOTRAC_FILE.exists():
+        logger.warning(f"Spotrac salary file not found: {_SPOTRAC_FILE}")
+        return lookup
+
+    with open(_SPOTRAC_FILE, "r", encoding="utf-8-sig") as f:
+        for row in _csv.DictReader(f):
+            # Handle BOM in first column name
+            name = ""
+            for key in row:
+                if "player_name" in key:
+                    name = (row[key] or "").strip().lower()
+                    break
+            team_full = (row.get("team") or "").strip()
+            yr_str = row.get("year", "")
+            sal_str = row.get("payroll_annual", "") or row.get("cash_annual", "")
+            if not name or not team_full or not yr_str or not sal_str:
+                continue
+
+            team_abbrev = _SPOTRAC_TEAM_MAP.get(team_full, "")
+            if not team_abbrev:
+                continue
+
+            # Parse dollar-formatted salary: "$3,100,000" → 3100000
+            try:
+                yr = int(yr_str)
+                sal = int(float(sal_str.replace("$", "").replace(",", "")))
+            except (ValueError, TypeError):
+                continue
+            if sal > 0:
+                # Only set if not already present (by_year CSVs take priority)
+                key = (name, team_abbrev, yr)
+                if key not in lookup:
+                    lookup[key] = sal
+
+    logger.info(f"Loaded {len(lookup)} Spotrac salary entries")
+    return lookup
+
+
 def _augment_salaries():
-    """Fill null salary fields in historical player seasons using by_year CSVs."""
-    sal_lookup = _load_salary_supplement()
-    if not sal_lookup:
-        return
+    """Fill null salary fields using by_year CSVs, Spotrac, and Lahman data."""
+    # Load all three salary sources (priority: by_year > Spotrac > Lahman)
+    name_team_year_lookup = _load_salary_supplement()  # by_year CSVs
+    spotrac_lookup = _load_spotrac_salaries()          # Spotrac (name, team, yr)
+    lahman_lookup = _load_lahman_salaries()             # Lahman (bbref, yr)
+
+    # Merge Spotrac into name_team_year lookup (by_year takes priority)
+    for key, sal in spotrac_lookup.items():
+        if key not in name_team_year_lookup:
+            name_team_year_lookup[key] = sal
 
     filled = 0
+    lahman_filled = 0
     for _idfg_str, p in _players.items():
         name_lower = p["name"].lower().strip()
+        bbref_id = p.get("bbref", "")
         career_salary_add = 0
 
         for season_list_key in ("batting", "pitching"):
             for s in p.get(season_list_key, []):
                 if s.get("salary"):
                     continue  # already has salary
-                key = (name_lower, s.get("team", ""), s.get("year", 0))
-                sal = sal_lookup.get(key)
+
+                team = s.get("team", "")
+                yr = s.get("year", 0)
+
+                # Try name+team+year lookup first (by_year + Spotrac)
+                sal = name_team_year_lookup.get((name_lower, team, yr))
+
+                # Fall back to Lahman (bbref+year)
+                if sal is None and bbref_id:
+                    sal = lahman_lookup.get((bbref_id, yr))
+                    if sal:
+                        lahman_filled += 1
+
                 if sal:
                     s["salary"] = sal
                     # Recalculate surplus for this season
@@ -94,7 +220,10 @@ def _augment_salaries():
                 war_value = p.get("career_war_value") or 0
                 p["career_surplus"] = war_value - p["career_salary"]
 
-    logger.info(f"Filled {filled} salary entries from by_year CSVs")
+    logger.info(
+        f"Salary augmentation: filled {filled} entries "
+        f"(Lahman: {lahman_filled}, by_year+Spotrac: {filled - lahman_filled})"
+    )
 
 
 def _load_historical():

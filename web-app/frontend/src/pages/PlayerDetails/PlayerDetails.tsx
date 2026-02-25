@@ -314,6 +314,23 @@ const PlayerDetails: React.FC = () => {
   const hasPitching = player?.projections.some((p) => p.pitching?.war_pit != null);
   const hasHitting = player?.projections.some((p) => p.hitting?.war_bat != null);
 
+  // Determine if this is primarily a pitcher (has pitching but position is a pitcher variant)
+  const isPrimarilyPitcher = hasPitching && (
+    player?.position === 'P' ||
+    player?.position === 'SP' ||
+    player?.position === 'RP' ||
+    player?.position === 'CL' ||
+    (isHistorical && histMeta?.career_pit_war != null && histMeta.career_pit_war > (histMeta?.career_bat_war ?? 0))
+  );
+
+  // For pitchers with hitting data: check if they have meaningful PA (g_bat > 0 in any year)
+  const hittingHasGames = player?.projections.some(
+    (p) => p.hitting?.g_bat != null && p.hitting.g_bat > 0
+  );
+  // Hide hitting entirely for pitchers with no games batted; collapse it if they have some
+  const showHitting = hasHitting && (!isPrimarilyPitcher || hittingHasGames);
+  const hittingDefaultOpen = !isPrimarilyPitcher;
+
   const hasCurrentHitting = isHistorical
     ? hasHitting
     : player?.projections.some((p) => p.year === CURRENT_YEAR && p.hitting?.war_bat != null);
@@ -594,8 +611,8 @@ const PlayerDetails: React.FC = () => {
           </CollapsibleSection>
         )}
 
-        {hasHitting && hasCurrentHitting && (
-          <CollapsibleSection title={isHistorical ? "Hitting Statistics" : "Hitting Projections"} teamColor={colors.primary} defaultOpen>
+        {showHitting && hasCurrentHitting && (
+          <CollapsibleSection title={isHistorical ? "Hitting Statistics" : "Hitting Projections"} teamColor={colors.primary} defaultOpen={hittingDefaultOpen}>
             <CombinedHittingTable data={hittingTableData.sort((a, b) => b.year - a.year)} />
           </CollapsibleSection>
         )}
