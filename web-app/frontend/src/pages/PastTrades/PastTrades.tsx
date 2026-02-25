@@ -34,11 +34,16 @@ const YEARS = Array.from({ length: 12 }, (_, i) => 2025 - i); // 2025..2014
 function TradeSide({
   side,
   isWinner,
+  isProjected,
 }: {
   side: TradeSideSummary;
   isWinner: boolean;
+  isProjected: boolean;
 }) {
   const colors = getTeamColors(side.team);
+  // For projected trades, use projected values; for actual, use actual
+  const displayWar = isProjected ? (side.projected_total_war ?? 0) : side.total_war;
+  const displaySurplus = isProjected ? (side.projected_total_surplus ?? 0) : side.total_surplus;
 
   return (
     <div className="flex-1 min-w-0">
@@ -60,32 +65,40 @@ function TradeSide({
 
       {/* Received players */}
       <div className="space-y-0.5 mb-2">
-        {side.players_received.map((p) => (
-          <div key={p.mlb_id} className="flex items-center gap-1.5 text-xs">
-            <Link
-              to={`/players/${p.mlb_id}`}
-              className="text-blue-400 hover:text-blue-300 truncate"
-            >
-              {p.name}
-            </Link>
-            {p.war_with_team > 0 && (
-              <span className="text-surface-400 flex-shrink-0">
-                {p.war_with_team} WAR
-              </span>
-            )}
-            {p.prospect_fv && (
-              <span className="text-amber-400/70 flex-shrink-0">
-                FV {p.prospect_fv}
-              </span>
-            )}
-          </div>
-        ))}
+        {side.players_received.map((p) => {
+          const pWar = isProjected && p.has_projection ? (p.projected_war ?? 0) : p.war_with_team;
+          return (
+            <div key={p.mlb_id} className="flex items-center gap-1.5 text-xs">
+              <Link
+                to={`/players/${p.mlb_id}`}
+                className="text-blue-400 hover:text-blue-300 truncate"
+              >
+                {p.name}
+              </Link>
+              {pWar > 0 && (
+                <span className="text-surface-400 flex-shrink-0">
+                  {pWar} WAR
+                </span>
+              )}
+              {isProjected && !p.has_projection && (
+                <span className="text-surface-600 flex-shrink-0 italic text-[10px]">
+                  no proj.
+                </span>
+              )}
+              {p.prospect_fv && (
+                <span className="text-amber-400/70 flex-shrink-0">
+                  FV {p.prospect_fv}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Side stats */}
       <div className="flex items-center gap-3 text-[11px] text-surface-500">
-        <span>{side.total_war} WAR</span>
-        <span>{fmtMoney(side.total_surplus)} surplus</span>
+        <span>{displayWar} WAR{isProjected ? ' (proj.)' : ''}</span>
+        <span>{fmtMoney(displaySurplus)} surplus{isProjected ? ' (proj.)' : ''}</span>
       </div>
     </div>
   );
@@ -95,6 +108,10 @@ function TradeSide({
 
 function TradeCard({ trade }: { trade: PastTradeSummary }) {
   const winnerColors = getTeamColors(trade.winner);
+  const isProjected = trade.evaluation_type === 'projected';
+  const displaySurplus = isProjected
+    ? (trade.projected_surplus_diff ?? trade.surplus_diff)
+    : trade.surplus_diff;
 
   return (
     <Link
@@ -105,6 +122,11 @@ function TradeCard({ trade }: { trade: PastTradeSummary }) {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="text-xs text-surface-400">{fmtDate(trade.date)}</span>
+          {isProjected && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/15 font-medium">
+              Projected
+            </span>
+          )}
           {trade.has_cash && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400/70 border border-amber-500/10">
               + Cash
@@ -126,8 +148,8 @@ function TradeCard({ trade }: { trade: PastTradeSummary }) {
           <span className="text-surface-300 font-medium">
             {trade.winner}
           </span>
-          <span className="text-emerald-400/70">
-            +{fmtMoney(trade.surplus_diff)}
+          <span className={isProjected ? 'text-blue-400/70' : 'text-emerald-400/70'}>
+            +{fmtMoney(displaySurplus)}
           </span>
         </div>
       </div>
@@ -144,6 +166,7 @@ function TradeCard({ trade }: { trade: PastTradeSummary }) {
             <TradeSide
               side={side}
               isWinner={side.team === trade.winner}
+              isProjected={isProjected}
             />
           </div>
         ))}
@@ -228,7 +251,7 @@ export default function PastTrades() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-surface-100 mb-1">Past Trades</h1>
         <p className="text-sm text-surface-500">
-          {total.toLocaleString()} evaluated trades (2014-2025) with actual WAR outcomes
+          {total.toLocaleString()} evaluated trades (2014-2025) &mdash; recent offseason trades show projected values
         </p>
       </div>
 

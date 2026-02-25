@@ -213,6 +213,22 @@ export interface PlayerStats {
     team: string;
     position: string;
     mlb_id: number | null;
+    isHistorical?: boolean;
+    historicalMeta?: {
+        idfg: number;
+        bbref: string | null;
+        birth_year: number | null;
+        death_year: number | null;
+        first_year: number;
+        last_year: number;
+        teams: string[];
+        career_war: number;
+        career_bat_war: number;
+        career_pit_war: number;
+        career_salary: number | null;
+        career_war_value: number;
+        career_surplus: number | null;
+    };
     projections: Array<{
         year: number;
         age: number;
@@ -241,6 +257,8 @@ export interface PlayerStats {
             historical_value: number;
             contract_base_value: number;
         };
+        salary?: number | null;
+        war_value?: number | null;
         hitting?: {
             g_bat: number;
             war_bat: number;
@@ -272,6 +290,16 @@ export interface PlayerStats {
             siera: number;
             k_pct_pit: number;
             bb_pct_pit: number;
+            w?: number;
+            l?: number;
+            sv?: number;
+            ip?: number;
+            whip?: number;
+            so?: number;
+            bb?: number;
+            k_9?: number;
+            bb_9?: number;
+            hr_9?: number;
         };
         
     }>;
@@ -669,6 +697,10 @@ export interface TradePlayerSummary {
   prospect_fv: number | null;
   from_team: string;
   from_team_name: string;
+  // Projected fields (present for "projected" evaluation_type trades)
+  projected_war?: number | null;
+  projected_surplus?: number | null;
+  has_projection?: boolean;
 }
 
 export interface TradePlayerDetail extends TradePlayerSummary {
@@ -683,6 +715,10 @@ export interface TradePlayerDetail extends TradePlayerSummary {
   prospect_rank: number | null;
   prospect_top_100: boolean | null;
   prospect_level: string | null;
+  // Projected fields (present for "projected" evaluation_type trades)
+  projected_war_value?: number | null;
+  projected_salary?: number | null;
+  projected_yearly_war?: { year: number; war: number }[];
 }
 
 export interface TradeSideSummary {
@@ -693,6 +729,9 @@ export interface TradeSideSummary {
   total_war_value: number;
   total_surplus: number;
   players_received: TradePlayerSummary[];
+  // Projected side totals (present for "projected" trades)
+  projected_total_war?: number;
+  projected_total_surplus?: number;
 }
 
 export interface TradeSideDetail {
@@ -703,7 +742,14 @@ export interface TradeSideDetail {
   total_war_value: number;
   total_surplus: number;
   players_received: TradePlayerDetail[];
+  // Projected side totals (present for "projected" trades)
+  projected_total_war?: number;
+  projected_total_war_value?: number;
+  projected_total_salary?: number;
+  projected_total_surplus?: number;
 }
+
+export type EvaluationType = 'actual' | 'projected';
 
 export interface PastTradeSummary {
   trade_id: number;
@@ -721,6 +767,9 @@ export interface PastTradeSummary {
   surplus_diff: number;
   total_trade_war: number;
   max_prospect_fv: number | null;
+  evaluation_type: EvaluationType;
+  projected_total_war?: number;
+  projected_surplus_diff?: number;
   sides: TradeSideSummary[];
 }
 
@@ -740,6 +789,9 @@ export interface PastTradeDetail {
   surplus_diff: number;
   total_trade_war: number;
   max_prospect_fv: number | null;
+  evaluation_type: EvaluationType;
+  projected_total_war?: number;
+  projected_surplus_diff?: number;
   sides: TradeSideDetail[];
 }
 
@@ -788,5 +840,47 @@ export const getPlayerPastTrades = async (mlbId: number): Promise<{ trades: Past
   const url = `${API_BASE}/trades/player-trades/${mlbId}`;
   const response = await fetch(url, { headers: createApiHeaders() });
   if (!response.ok) return { trades: [] };
+  return response.json();
+};
+
+// ── Historical Player Search ──────────────────────────────────────────
+
+export interface HistoricalPlayerSummary {
+  idfg: number;
+  mlbam: number | null;
+  name: string;
+  teams: string[];
+  first_year: number;
+  last_year: number;
+  career_war: number;
+  is_pitcher: boolean;
+}
+
+export interface HistoricalSearchResponse {
+  total: number;
+  offset: number;
+  limit: number;
+  players: HistoricalPlayerSummary[];
+}
+
+export const searchHistoricalPlayers = async (params?: {
+  q?: string;
+  team?: string;
+  min_war?: number;
+  decade?: number;
+  limit?: number;
+  offset?: number;
+}): Promise<HistoricalSearchResponse> => {
+  const searchParams = new URLSearchParams();
+  if (params?.q) searchParams.set('q', params.q);
+  if (params?.team) searchParams.set('team', params.team);
+  if (params?.min_war) searchParams.set('min_war', String(params.min_war));
+  if (params?.decade) searchParams.set('decade', String(params.decade));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.offset) searchParams.set('offset', String(params.offset));
+
+  const url = `${API_BASE}/historical/search?${searchParams.toString()}`;
+  const response = await fetch(url, { headers: createApiHeaders() });
+  if (!response.ok) throw new Error('Failed to search historical players');
   return response.json();
 };

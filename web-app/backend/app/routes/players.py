@@ -154,6 +154,119 @@ async def get_players(
         logger.error(f"Error in get_players: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+def _build_historical_response(hist: dict) -> dict:
+    """Transform historical player JSON into a response compatible with PlayerStats.
+    Adds isHistorical=True and historical batting/pitching seasons."""
+    # Build per-year projections-like objects from historical batting/pitching data
+    # Merge batting + pitching for same year
+    by_year: dict = {}
+
+    for s in hist.get("batting", []):
+        yr = s.get("year")
+        if yr is None:
+            continue
+        if yr not in by_year:
+            by_year[yr] = {"year": yr, "team": s.get("team", ""), "age": s.get("age")}
+        entry = by_year[yr]
+        entry["hitting"] = {
+            "g_bat": s.get("g"), "war_bat": s.get("war"),
+            "bb_pct_bat": s.get("bb_pct"), "k_pct_bat": s.get("k_pct"),
+            "avg": s.get("avg"), "obp": s.get("obp"), "slg": s.get("slg"),
+            "ops": s.get("ops"), "woba": s.get("woba"), "wrc_plus": s.get("wrc_plus"),
+            "off": s.get("off"), "bsr": s.get("bsr"), "def_value": s.get("def_value"),
+            "hr": s.get("hr"), "doubles": s.get("doubles") if "doubles" in s else None,
+            "triples": s.get("triples") if "triples" in s else None,
+            "r": s.get("r"), "rbi": s.get("rbi"), "sb": s.get("sb"), "cs": s.get("cs"),
+        }
+        entry["salary"] = s.get("salary")
+        entry["war_value"] = s.get("war_value")
+        entry["surplus"] = s.get("surplus")
+
+    for s in hist.get("pitching", []):
+        yr = s.get("year")
+        if yr is None:
+            continue
+        if yr not in by_year:
+            by_year[yr] = {"year": yr, "team": s.get("team", ""), "age": s.get("age")}
+        entry = by_year[yr]
+        entry["pitching"] = {
+            "g_pit": s.get("g"), "gs": s.get("gs"), "war_pit": s.get("war"),
+            "era": s.get("era"), "fip": s.get("fip"), "siera": s.get("siera"),
+            "k_pct_pit": s.get("k_pct"), "bb_pct_pit": s.get("bb_pct"),
+            "w": s.get("w"), "l": s.get("l"), "sv": s.get("sv"),
+            "ip": s.get("ip"), "whip": s.get("whip"),
+            "so": s.get("so"), "bb": s.get("bb"),
+            "k_9": s.get("k_9"), "bb_9": s.get("bb_9"), "hr_9": s.get("hr_9"),
+        }
+        if entry.get("salary") is None:
+            entry["salary"] = s.get("salary")
+            entry["war_value"] = s.get("war_value")
+            entry["surplus"] = s.get("surplus")
+
+    projections = []
+    for yr in sorted(by_year.keys()):
+        e = by_year[yr]
+        proj = {
+            "year": yr,
+            "age": e.get("age"),
+            "team": e.get("team", ""),
+            "position": "",
+            "status": "",
+            "fa_year": None,
+            "probable_fa_year": None,
+            "earliest_fa_year": None,
+            "value": {
+                "base_value": 0, "contract_value": 0,
+                "surplus_value": e.get("surplus") or 0,
+                "trade_value": 0, "contract_war": 0, "avg_war": 0,
+                "total_contract": 0, "avg_contract": 0,
+                "years_control": 0, "control_through": 0,
+                "total_future_war": 0, "total_future_value": 0,
+                "total_war": hist.get("career_war", 0),
+                "total_value": hist.get("career_war_value", 0),
+                "historical_war": hist.get("career_war", 0),
+                "historical_value": hist.get("career_war_value", 0),
+                "contract_base_value": 0,
+            },
+            "salary": e.get("salary"),
+            "war_value": e.get("war_value"),
+        }
+        if "hitting" in e:
+            proj["hitting"] = e["hitting"]
+        if "pitching" in e:
+            proj["pitching"] = e["pitching"]
+        projections.append(proj)
+
+    # Determine position and team from last season
+    last_team = hist.get("teams", [""])[0] if hist.get("teams") else ""
+    if projections:
+        last_team = projections[-1].get("team", last_team)
+
+    return {
+        "name": hist["name"],
+        "team": last_team,
+        "position": "P" if hist.get("is_pitcher") else "Pos",
+        "mlb_id": hist.get("mlbam"),
+        "isHistorical": True,
+        "historicalMeta": {
+            "idfg": hist.get("idfg"),
+            "bbref": hist.get("bbref"),
+            "birth_year": hist.get("birth_year"),
+            "death_year": hist.get("death_year"),
+            "first_year": hist.get("first_year"),
+            "last_year": hist.get("last_year"),
+            "teams": hist.get("teams", []),
+            "career_war": hist.get("career_war", 0),
+            "career_bat_war": hist.get("career_bat_war", 0),
+            "career_pit_war": hist.get("career_pit_war", 0),
+            "career_salary": hist.get("career_salary"),
+            "career_war_value": hist.get("career_war_value", 0),
+            "career_surplus": hist.get("career_surplus"),
+        },
+        "projections": projections,
+    }
+
 @router.get("/{player_id}/details")
 async def get_player_details(player_id: int, db: Session = Depends(get_db)):
     logger.info(f"Received request for player_id: {player_id}")  # Debug log
@@ -172,6 +285,12 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
         logger.info(f"Found {len(player_years)} years for player with ID: {player_id}")
         
         if not player_years:
+            # Fall back to historical player data
+            from app.routes.historical import get_historical_player
+            hist = get_historical_player(player_id)
+            if hist is not None:
+                logger.info(f"Found historical player: {hist['name']} (IDfg={hist['idfg']})")
+                return _build_historical_response(hist)
             raise HTTPException(
                 status_code=404, 
                 detail=f"Player not found with ID: {player_id}"
@@ -422,10 +541,23 @@ async def get_player_info(player_id: str, db: Session = Depends(get_db)):
     except (ValueError, TypeError):
         player = None
 
-    if player is None or player.mlb_id is None:
+    mlb_id = None
+    if player is not None and player.mlb_id is not None:
+        mlb_id = player.mlb_id
+    else:
+        # Fall back to historical data for MLBAM resolution
+        from app.routes.historical import get_historical_player
+        try:
+            hist = get_historical_player(int(player_id))
+            if hist and hist.get("mlbam"):
+                mlb_id = hist["mlbam"]
+        except (ValueError, TypeError):
+            pass
+
+    if mlb_id is None:
         return JSONResponse({})
 
-    info = await _fetch_player_info(player.mlb_id)
+    info = await _fetch_player_info(mlb_id)
     return JSONResponse(info)
 
 
@@ -553,10 +685,22 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
     except (ValueError, TypeError):
         player = None
 
-    if player is None or player.mlb_id is None:
+    mlb_id = None
+    if player is not None and player.mlb_id is not None:
+        mlb_id = player.mlb_id
+    else:
+        # Fall back to historical data for MLBAM resolution
+        from app.routes.historical import get_historical_player
+        try:
+            hist = get_historical_player(int(player_id))
+            if hist and hist.get("mlbam"):
+                mlb_id = hist["mlbam"]
+        except (ValueError, TypeError):
+            pass
+
+    if mlb_id is None:
         return JSONResponse([])
 
-    mlb_id = player.mlb_id
     raw_transactions = await _fetch_transactions(mlb_id)
 
     if not raw_transactions:

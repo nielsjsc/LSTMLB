@@ -26,11 +26,28 @@ const fmtMoney = (n: number, short = false) => {
 function PlayerCard({
   player,
   teamColor,
+  isProjected,
 }: {
   player: TradePlayerDetail;
   teamColor: string;
+  isProjected: boolean;
 }) {
-  const surplusPositive = player.surplus >= 0;
+  // For projected trades, prefer projected values; for actual, use actual
+  const displayWar = isProjected && player.has_projection
+    ? (player.projected_war ?? 0)
+    : player.war_with_team;
+  const displaySurplus = isProjected && player.has_projection
+    ? (player.projected_surplus ?? 0)
+    : player.surplus;
+  const displaySalary = isProjected && player.has_projection
+    ? (player.projected_salary ?? 0)
+    : player.salary_with_team;
+  const surplusPositive = displaySurplus >= 0;
+
+  // Use projected yearly WAR for projected trades, actual otherwise
+  const yearlyWar = isProjected && player.projected_yearly_war?.length
+    ? player.projected_yearly_war
+    : player.yearly_war;
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-surface-900/50 p-3">
@@ -43,6 +60,11 @@ function PlayerCard({
           {player.name}
         </Link>
         <div className="flex items-center gap-1.5">
+          {isProjected && !player.has_projection && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-700 text-surface-500 border border-white/[0.06] italic">
+              No projection
+            </span>
+          )}
           {player.prospect_fv && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/15">
               FV {player.prospect_fv}
@@ -53,7 +75,7 @@ function PlayerCard({
               Top 100
             </span>
           )}
-          {player.still_on_team && (
+          {!isProjected && player.still_on_team && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">
               Active
             </span>
@@ -64,32 +86,44 @@ function PlayerCard({
       {/* Stats row */}
       <div className="grid grid-cols-4 gap-2 mb-2">
         <div>
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider">WAR</div>
-          <div className="text-sm font-semibold text-surface-200">{player.war_with_team}</div>
+          <div className="text-[10px] text-surface-500 uppercase tracking-wider">
+            {isProjected ? 'Proj. WAR' : 'WAR'}
+          </div>
+          <div className="text-sm font-semibold text-surface-200">{displayWar}</div>
         </div>
         <div>
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider">Seasons</div>
-          <div className="text-sm font-semibold text-surface-200">{player.seasons_with_team}</div>
+          <div className="text-[10px] text-surface-500 uppercase tracking-wider">
+            {isProjected ? 'Yrs Ctrl' : 'Seasons'}
+          </div>
+          <div className="text-sm font-semibold text-surface-200">
+            {isProjected ? yearlyWar.length : player.seasons_with_team}
+          </div>
         </div>
         <div>
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider">Salary</div>
-          <div className="text-sm font-semibold text-surface-200">{fmtMoney(player.salary_with_team, true)}</div>
+          <div className="text-[10px] text-surface-500 uppercase tracking-wider">
+            {isProjected ? 'Proj. Salary' : 'Salary'}
+          </div>
+          <div className="text-sm font-semibold text-surface-200">{fmtMoney(displaySalary, true)}</div>
         </div>
         <div>
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider">Surplus</div>
+          <div className="text-[10px] text-surface-500 uppercase tracking-wider">
+            {isProjected ? 'Proj. Surplus' : 'Surplus'}
+          </div>
           <div className={`text-sm font-semibold ${surplusPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-            {fmtMoney(player.surplus, true)}
+            {fmtMoney(displaySurplus, true)}
           </div>
         </div>
       </div>
 
       {/* Yearly WAR bar chart */}
-      {player.yearly_war.length > 0 && (
+      {yearlyWar.length > 0 && (
         <div className="mt-2">
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-1">Yearly WAR</div>
+          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-1">
+            {isProjected ? 'Projected WAR by Year' : 'Yearly WAR'}
+          </div>
           <div className="flex items-end gap-0.5 h-12">
-            {player.yearly_war.map((yw) => {
-              const maxWar = Math.max(...player.yearly_war.map(y => Math.abs(y.war)), 1);
+            {yearlyWar.map((yw) => {
+              const maxWar = Math.max(...yearlyWar.map(y => Math.abs(y.war)), 1);
               const height = Math.max(2, (Math.abs(yw.war) / maxWar) * 100);
               const isNeg = yw.war < 0;
               return (
@@ -100,10 +134,12 @@ function PlayerCard({
                       height: `${height}%`,
                       backgroundColor: isNeg
                         ? 'rgba(239, 68, 68, 0.4)'
-                        : teamColor + '60',
+                        : isProjected
+                          ? 'rgba(96, 165, 250, 0.4)'  // blue-ish for projected
+                          : teamColor + '60',
                       minHeight: 2,
                     }}
-                    title={`${yw.year}: ${yw.war} WAR`}
+                    title={`${yw.year}: ${yw.war} WAR${isProjected ? ' (projected)' : ''}`}
                   />
                   <span className="text-[8px] text-surface-600">{String(yw.year).slice(-2)}</span>
                 </div>
@@ -113,8 +149,8 @@ function PlayerCard({
         </div>
       )}
 
-      {/* Departure info */}
-      {!player.still_on_team && player.departure_year && (
+      {/* Departure info (only for actual trades) */}
+      {!isProjected && !player.still_on_team && player.departure_year && (
         <div className="mt-2 text-[10px] text-surface-500">
           Left after {player.departure_year - 1} season
         </div>
@@ -128,11 +164,19 @@ function PlayerCard({
 function SidePanel({
   side,
   isWinner,
+  isProjected,
 }: {
   side: TradeSideDetail;
   isWinner: boolean;
+  isProjected: boolean;
 }) {
   const colors = getTeamColors(side.team);
+
+  // Use projected values for projected trades
+  const displayWar = isProjected ? (side.projected_total_war ?? 0) : side.total_war;
+  const displaySurplus = isProjected ? (side.projected_total_surplus ?? 0) : side.total_surplus;
+  const displayWarValue = isProjected ? (side.projected_total_war_value ?? 0) : side.total_war_value;
+  const displaySalary = isProjected ? (side.projected_total_salary ?? 0) : side.total_salary;
 
   return (
     <div className="flex-1 min-w-0">
@@ -163,31 +207,43 @@ function SidePanel({
       {/* Aggregate stats */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="rounded-lg border border-white/[0.06] bg-surface-900/30 p-3 text-center">
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">Total WAR</div>
-          <div className="text-xl font-bold text-surface-100">{side.total_war}</div>
+          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">
+            {isProjected ? 'Proj. WAR' : 'Total WAR'}
+          </div>
+          <div className="text-xl font-bold text-surface-100">{displayWar}</div>
         </div>
         <div className="rounded-lg border border-white/[0.06] bg-surface-900/30 p-3 text-center">
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">Net Surplus</div>
-          <div className={`text-xl font-bold ${side.total_surplus >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {fmtMoney(side.total_surplus, true)}
+          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">
+            {isProjected ? 'Proj. Surplus' : 'Net Surplus'}
+          </div>
+          <div className={`text-xl font-bold ${displaySurplus >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {fmtMoney(displaySurplus, true)}
           </div>
         </div>
         <div className="rounded-lg border border-white/[0.06] bg-surface-900/30 p-3 text-center">
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">WAR Value</div>
-          <div className="text-sm font-semibold text-surface-200">{fmtMoney(side.total_war_value, true)}</div>
+          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">
+            {isProjected ? 'Proj. Value' : 'WAR Value'}
+          </div>
+          <div className="text-sm font-semibold text-surface-200">{fmtMoney(displayWarValue, true)}</div>
         </div>
         <div className="rounded-lg border border-white/[0.06] bg-surface-900/30 p-3 text-center">
-          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">Salary Paid</div>
-          <div className="text-sm font-semibold text-surface-200">{fmtMoney(side.total_salary, true)}</div>
+          <div className="text-[10px] text-surface-500 uppercase tracking-wider mb-0.5">
+            {isProjected ? 'Proj. Salary' : 'Salary Paid'}
+          </div>
+          <div className="text-sm font-semibold text-surface-200">{fmtMoney(displaySalary, true)}</div>
         </div>
       </div>
 
       {/* Player cards */}
       <div className="space-y-2">
         {side.players_received
-          .sort((a, b) => b.war_with_team - a.war_with_team)
+          .sort((a, b) => {
+            const aVal = isProjected && a.has_projection ? (a.projected_war ?? 0) : a.war_with_team;
+            const bVal = isProjected && b.has_projection ? (b.projected_war ?? 0) : b.war_with_team;
+            return bVal - aVal;
+          })
           .map((p) => (
-            <PlayerCard key={p.mlb_id} player={p} teamColor={colors.primary} />
+            <PlayerCard key={p.mlb_id} player={p} teamColor={colors.primary} isProjected={isProjected} />
           ))}
       </div>
     </div>
@@ -232,6 +288,13 @@ export default function TradeDetail() {
   }
 
   const winnerColors = getTeamColors(trade.winner);
+  const isProjected = trade.evaluation_type === 'projected';
+  const displaySurplusDiff = isProjected
+    ? (trade.projected_surplus_diff ?? trade.surplus_diff)
+    : trade.surplus_diff;
+  const displayTotalWar = isProjected
+    ? (trade.projected_total_war ?? trade.total_trade_war)
+    : trade.total_trade_war;
 
   // Sort sides: winner first
   const sortedSides = [...trade.sides].sort((a, b) => {
@@ -250,11 +313,32 @@ export default function TradeDetail() {
         <span>&larr;</span> Past Trades
       </Link>
 
+      {/* Projected banner */}
+      {isProjected && (
+        <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4 mb-4 flex items-start gap-3">
+          <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span className="text-blue-400 text-xs font-bold">P</span>
+          </div>
+          <div>
+            <div className="text-sm font-medium text-blue-300 mb-0.5">Projected Trade Evaluation</div>
+            <p className="text-xs text-surface-400 leading-relaxed">
+              This trade is too recent for actual performance data. Values shown are based on our projected WAR model
+              and expected future salaries. The evaluation will update as players accumulate real stats.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Trade header */}
       <div className="rounded-xl border border-white/[0.06] bg-surface-800/50 p-6 mb-6">
         {/* Date & badges */}
         <div className="flex items-center gap-3 mb-3">
           <span className="text-surface-400 text-sm">{fmtDate(trade.date)}</span>
+          {isProjected && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/15 font-medium">
+              Projected
+            </span>
+          )}
           {trade.has_cash && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/15">
               Cash Included
@@ -286,16 +370,24 @@ export default function TradeDetail() {
           }}
         >
           <div>
-            <div className="text-xs text-surface-500 uppercase tracking-wider mb-0.5">Trade Winner</div>
+            <div className="text-xs text-surface-500 uppercase tracking-wider mb-0.5">
+              {isProjected ? 'Projected Winner' : 'Trade Winner'}
+            </div>
             <div className="text-lg font-bold text-surface-100">{trade.winner_name}</div>
           </div>
           <div className="text-right">
-            <div className="text-xs text-surface-500 uppercase tracking-wider mb-0.5">Surplus Advantage</div>
-            <div className="text-lg font-bold text-emerald-400">+{fmtMoney(trade.surplus_diff, true)}</div>
+            <div className="text-xs text-surface-500 uppercase tracking-wider mb-0.5">
+              {isProjected ? 'Proj. Surplus Adv.' : 'Surplus Advantage'}
+            </div>
+            <div className={`text-lg font-bold ${isProjected ? 'text-blue-400' : 'text-emerald-400'}`}>
+              +{fmtMoney(displaySurplusDiff, true)}
+            </div>
           </div>
           <div className="text-right">
-            <div className="text-xs text-surface-500 uppercase tracking-wider mb-0.5">Total WAR</div>
-            <div className="text-lg font-bold text-surface-100">{trade.total_trade_war}</div>
+            <div className="text-xs text-surface-500 uppercase tracking-wider mb-0.5">
+              {isProjected ? 'Proj. Total WAR' : 'Total WAR'}
+            </div>
+            <div className="text-lg font-bold text-surface-100">{displayTotalWar}</div>
           </div>
         </div>
       </div>
@@ -307,6 +399,7 @@ export default function TradeDetail() {
             key={side.team}
             side={side}
             isWinner={side.team === trade.winner}
+            isProjected={isProjected}
           />
         ))}
       </div>

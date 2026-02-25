@@ -1,3 +1,4 @@
+import csv
 import json
 import sys
 from math import isnan
@@ -5,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, func
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel
 import logging
 
@@ -251,9 +252,165 @@ _PAST_TRADES_FILE = (
 
 _past_trades_cache: Optional[List[Dict[str, Any]]] = None
 
+# ── Surplus projection data ──────────────────────────────────────────────────
+
+_SURPLUS_FILE = (
+    Path(__file__).resolve().parents[4] / "data" / "generated" / "trade_analysis" / "surplus" / "surplus_2025.csv"
+)
+
+_PROJECTION_CUTOFF = "2024-10-01"  # trades after this may not have actual WAR yet
+
+_DOLLAR_PER_WAR = {
+    2025: 8_500_000, 2026: 8_500_000, 2027: 8_500_000, 2028: 8_500_000,
+    2029: 8_500_000, 2030: 8_500_000, 2031: 8_500_000, 2032: 8_500_000,
+    2033: 8_500_000, 2034: 8_500_000, 2035: 8_500_000, 2036: 8_500_000,
+    2037: 8_500_000, 2038: 8_500_000, 2039: 8_500_000,
+}
+
+
+def _load_surplus_projections() -> Dict[int, Dict[str, Any]]:
+    """Load surplus_2025.csv → {mlbam_id: projection_dict}."""
+    if not _SURPLUS_FILE.exists():
+        logger.warning(f"Surplus file not found: {_SURPLUS_FILE}")
+        return {}
+
+    projections: Dict[int, Dict[str, Any]] = {}
+    with open(_SURPLUS_FILE, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                mlbam_raw = row.get("mlbam_id", "")
+                if not mlbam_raw or mlbam_raw == "nan":
+                    continue
+                mlbam_id = int(float(mlbam_raw))
+            except (ValueError, TypeError):
+                continue
+
+            # Extract year-by-year projected WAR
+            yearly_war = []
+            for yr in range(2025, 2040):
+                col = f"WAR_{yr}"
+                val = row.get(col, "")
+                if val and val != "nan":
+                    try:
+                        yearly_war.append({"year": yr, "war": round(float(val), 1)})
+                    except ValueError:
+                        pass
+
+            # Total future values
+            try:
+                total_war = float(row.get("total_future_WAR", 0) or 0)
+                total_war_value = float(row.get("total_future_WAR_value", 0) or 0)
+                total_salary = float(row.get("total_future_salary", 0) or 0)
+                surplus = float(row.get("surplus", 0) or 0)
+            except (ValueError, TypeError):
+                total_war = total_war_value = total_salary = surplus = 0.0
+
+            projections[mlbam_id] = {
+                "name": row.get("Name", ""),
+                "projected_war": round(total_war, 1),
+                "projected_war_value": int(total_war_value),
+                "projected_salary": int(total_salary),
+                "projected_surplus": int(surplus),
+                "projected_yearly_war": yearly_war,
+            }
+
+    logger.info(f"Loaded {len(projections)} surplus projections for trade augmentation")
+    return projections
+
+
+def _augment_with_projections(trades: List[Dict[str, Any]]) -> None:
+    """
+    Augment recent trades (post-cutoff, zero WAR) with projected future values.
+    Modifies trades in-place.
+    """
+    projections = _load_surplus_projections()
+    if not projections:
+        for t in trades:
+            t["evaluation_type"] = "actual"
+        return
+
+    augmented_count = 0
+
+    for trade in trades:
+        trade_date = trade.get("date", "")
+        total_war = trade.get("total_trade_war", 0)
+
+        # Classify the trade
+        if trade_date >= _PROJECTION_CUTOFF and abs(total_war) < 0.5:
+            trade["evaluation_type"] = "projected"
+        else:
+            trade["evaluation_type"] = "actual"
+            continue  # no augmentation needed
+
+        # Augment each side with projected values
+        for side in trade.get("sides", []):
+            side_proj_war = 0.0
+            side_proj_war_value = 0.0
+            side_proj_salary = 0.0
+            side_proj_surplus = 0.0
+            has_any_projection = False
+
+            for player in side.get("players_received", []):
+                mlb_id = player.get("mlb_id")
+                proj = projections.get(mlb_id) if mlb_id else None
+
+                if proj:
+                    has_any_projection = True
+                    player["projected_war"] = proj["projected_war"]
+                    player["projected_war_value"] = proj["projected_war_value"]
+                    player["projected_salary"] = proj["projected_salary"]
+                    player["projected_surplus"] = proj["projected_surplus"]
+                    player["projected_yearly_war"] = proj["projected_yearly_war"]
+                    player["has_projection"] = True
+
+                    side_proj_war += proj["projected_war"]
+                    side_proj_war_value += proj["projected_war_value"]
+                    side_proj_salary += proj["projected_salary"]
+                    side_proj_surplus += proj["projected_surplus"]
+                else:
+                    player["projected_war"] = None
+                    player["projected_war_value"] = None
+                    player["projected_salary"] = None
+                    player["projected_surplus"] = None
+                    player["projected_yearly_war"] = []
+                    player["has_projection"] = False
+
+            side["projected_total_war"] = round(side_proj_war, 1)
+            side["projected_total_war_value"] = int(side_proj_war_value)
+            side["projected_total_salary"] = int(side_proj_salary)
+            side["projected_total_surplus"] = int(side_proj_surplus)
+
+        # Re-determine winner/loser for projected trades using projected surplus
+        sides = trade.get("sides", [])
+        if len(sides) >= 2:
+            sorted_sides = sorted(sides, key=lambda s: s.get("projected_total_surplus", 0), reverse=True)
+            trade["projected_winner"] = sorted_sides[0]["team"]
+            trade["projected_winner_name"] = sorted_sides[0]["team_name"]
+            trade["projected_loser"] = sorted_sides[-1]["team"]
+            trade["projected_loser_name"] = sorted_sides[-1]["team_name"]
+            trade["projected_surplus_diff"] = (
+                sorted_sides[0].get("projected_total_surplus", 0) -
+                sorted_sides[-1].get("projected_total_surplus", 0)
+            )
+            trade["projected_total_war"] = round(
+                sum(s.get("projected_total_war", 0) for s in sides), 1
+            )
+
+            # Override the "winner" fields to use projected for display
+            trade["winner"] = trade["projected_winner"]
+            trade["winner_name"] = trade["projected_winner_name"]
+            trade["loser"] = trade["projected_loser"]
+            trade["loser_name"] = trade["projected_loser_name"]
+            trade["surplus_diff"] = trade["projected_surplus_diff"]
+
+        augmented_count += 1
+
+    logger.info(f"Augmented {augmented_count} recent trades with projected values")
+
 
 def _load_past_trades() -> List[Dict[str, Any]]:
-    """Load & cache the pre-computed trade evaluations."""
+    """Load & cache the pre-computed trade evaluations, augmented with projections."""
     global _past_trades_cache
     if _past_trades_cache is not None:
         return _past_trades_cache
@@ -264,6 +421,9 @@ def _load_past_trades() -> List[Dict[str, Any]]:
 
     with open(_PAST_TRADES_FILE, "r") as f:
         _past_trades_cache = json.load(f)
+
+    # Augment recent trades with projected values
+    _augment_with_projections(_past_trades_cache)
 
     logger.info(f"Loaded {len(_past_trades_cache)} past trades")
     return _past_trades_cache
@@ -385,8 +545,12 @@ def get_past_trades(
                     "prospect_fv": p.get("prospect_fv"),
                     "from_team": p["from_team"],
                     "from_team_name": p["from_team_name"],
+                    # Projected fields (present for "projected" trades)
+                    "projected_war": p.get("projected_war"),
+                    "projected_surplus": p.get("projected_surplus"),
+                    "has_projection": p.get("has_projection"),
                 })
-            sides_summary.append({
+            side_data = {
                 "team": s["team"],
                 "team_name": s["team_name"],
                 "total_war": s["total_war"],
@@ -394,9 +558,14 @@ def get_past_trades(
                 "total_war_value": s["total_war_value"],
                 "total_surplus": s["total_surplus"],
                 "players_received": players_summary,
-            })
+            }
+            # Add projected side totals for projected trades
+            if "projected_total_war" in s:
+                side_data["projected_total_war"] = s["projected_total_war"]
+                side_data["projected_total_surplus"] = s["projected_total_surplus"]
+            sides_summary.append(side_data)
 
-        summaries.append({
+        summary = {
             "trade_id": t["trade_id"],
             "date": t["date"],
             "year": t["year"],
@@ -412,8 +581,15 @@ def get_past_trades(
             "surplus_diff": t["surplus_diff"],
             "total_trade_war": t["total_trade_war"],
             "max_prospect_fv": t["max_prospect_fv"],
+            "evaluation_type": t.get("evaluation_type", "actual"),
             "sides": sides_summary,
-        })
+        }
+        # Add projected trade-level fields for projected trades
+        if t.get("evaluation_type") == "projected":
+            summary["projected_total_war"] = t.get("projected_total_war", 0)
+            summary["projected_surplus_diff"] = t.get("projected_surplus_diff", 0)
+
+        summaries.append(summary)
 
     return {
         "trades": summaries,

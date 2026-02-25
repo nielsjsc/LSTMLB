@@ -298,7 +298,13 @@ const PlayerDetails: React.FC = () => {
   }, [player?.mlb_id, playerId]);
 
   // ── Derived state ──
-  const cur = player?.projections.find((p) => p.year === CURRENT_YEAR) ?? player?.projections[0];
+  const isHistorical = player?.isHistorical === true;
+  const histMeta = player?.historicalMeta;
+
+  // For historical players, use last season as "current"; for projected players use CURRENT_YEAR
+  const cur = isHistorical
+    ? player?.projections[player.projections.length - 1]
+    : (player?.projections.find((p) => p.year === CURRENT_YEAR) ?? player?.projections[0]);
   const team = cur?.team ?? player?.team ?? '';
   const colors = getTeamColors(team);
   const teamName = getTeamName(team);
@@ -308,32 +314,32 @@ const PlayerDetails: React.FC = () => {
   const hasPitching = player?.projections.some((p) => p.pitching?.war_pit != null);
   const hasHitting = player?.projections.some((p) => p.hitting?.war_bat != null);
 
-  const hasCurrentHitting = player?.projections.some(
-    (p) => p.year === CURRENT_YEAR && p.hitting?.war_bat != null
-  );
-  const hasCurrentPitching = player?.projections.some(
-    (p) => p.year === CURRENT_YEAR && p.pitching?.war_pit != null
-  );
+  const hasCurrentHitting = isHistorical
+    ? hasHitting
+    : player?.projections.some((p) => p.year === CURRENT_YEAR && p.hitting?.war_bat != null);
+  const hasCurrentPitching = isHistorical
+    ? hasPitching
+    : player?.projections.some((p) => p.year === CURRENT_YEAR && p.pitching?.war_pit != null);
 
   const pitchingTableData = useMemo(() => {
     if (!player?.projections) return [];
     return player.projections
       .filter(
         (proj): proj is typeof proj & { pitching: NonNullable<typeof proj.pitching> } =>
-          proj.pitching?.war_pit != null && proj.year <= MAX_PROJECTION_YEAR
+          proj.pitching?.war_pit != null && (isHistorical || proj.year <= MAX_PROJECTION_YEAR)
       )
       .map((proj) => ({ year: proj.year, age: proj.age, status: proj.status, value: proj.value, pitching: proj.pitching }));
-  }, [player, MAX_PROJECTION_YEAR]);
+  }, [player, MAX_PROJECTION_YEAR, isHistorical]);
 
   const hittingTableData = useMemo(() => {
     if (!player?.projections) return [];
     return player.projections
       .filter(
         (proj): proj is typeof proj & { hitting: NonNullable<typeof proj.hitting> } =>
-          proj.hitting?.war_bat != null && proj.year <= MAX_PROJECTION_YEAR
+          proj.hitting?.war_bat != null && (isHistorical || proj.year <= MAX_PROJECTION_YEAR)
       )
       .map((proj) => ({ year: proj.year, age: proj.age, status: proj.status, value: proj.value, hitting: proj.hitting }));
-  }, [player, MAX_PROJECTION_YEAR]);
+  }, [player, MAX_PROJECTION_YEAR, isHistorical]);
 
   // ── Loading / Error ──
   if (loading) {
@@ -365,7 +371,7 @@ const PlayerDetails: React.FC = () => {
   const pit = cur?.pitching;
   const v = cur?.value;
 
-  const projWar = v?.contract_war ?? 0;
+  const projWar = isHistorical ? (histMeta?.career_war ?? 0) : (v?.contract_war ?? 0);
 
   return (
     <div className="min-h-screen bg-surface-900">
@@ -384,7 +390,7 @@ const PlayerDetails: React.FC = () => {
           <div className="flex items-center gap-2 mb-4">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.primary }} />
             <span className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: colors.accent }}>
-              {teamName}
+              {isHistorical ? (histMeta?.teams?.join(' / ') ?? teamName) : teamName}
             </span>
           </div>
 
@@ -413,20 +419,72 @@ const PlayerDetails: React.FC = () => {
                 >
                   {player.position}
                 </span>
-                {cur?.age && (
+                {isHistorical && histMeta && (
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-300 border border-white/[0.08]">
+                    {histMeta.first_year}&ndash;{histMeta.last_year}
+                  </span>
+                )}
+                {isHistorical && histMeta?.death_year && (
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-400 border border-white/[0.08]">
+                    {histMeta.birth_year}&ndash;{histMeta.death_year}
+                  </span>
+                )}
+                {!isHistorical && cur?.age && (
                   <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-300 border border-white/[0.08]">
                     Age {cur.age}
                   </span>
                 )}
-                {cur?.status && (
+                {!isHistorical && cur?.status && (
                   <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-300 border border-white/[0.08]">
                     {cur.status}
                   </span>
                 )}
+                {isHistorical && (
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    Historical
+                  </span>
+                )}
               </div>
 
-              {/* Surplus value bar — right under the name for impact */}
-              {v && <SurplusBar value={v.trade_value ?? 0} teamColor={colors.accent} />}
+              {/* Surplus value bar — only for projected players */}
+              {!isHistorical && v && <SurplusBar value={v.trade_value ?? 0} teamColor={colors.accent} />}
+
+              {/* Career WAR summary for historical players */}
+              {isHistorical && histMeta && (
+                <div className="flex gap-6 mt-2">
+                  <div>
+                    <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Career WAR</span>
+                    <span className="text-3xl font-bold" style={{ color: colors.accent }}>{histMeta.career_war.toFixed(1)}</span>
+                  </div>
+                  {histMeta.career_bat_war > 0 && (
+                    <div>
+                      <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Batting WAR</span>
+                      <span className="text-xl font-bold text-white">{histMeta.career_bat_war.toFixed(1)}</span>
+                    </div>
+                  )}
+                  {histMeta.career_pit_war > 0 && (
+                    <div>
+                      <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Pitching WAR</span>
+                      <span className="text-xl font-bold text-white">{histMeta.career_pit_war.toFixed(1)}</span>
+                    </div>
+                  )}
+                  {histMeta.career_salary != null && (
+                    <div>
+                      <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Career Earnings</span>
+                      <span className="text-xl font-bold text-red-400">{fmt.dollar(histMeta.career_salary)}</span>
+                    </div>
+                  )}
+                  {histMeta.career_surplus != null && (
+                    <div>
+                      <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Career Surplus</span>
+                      <span className={`text-xl font-bold ${histMeta.career_surplus >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {fmt.dollar(histMeta.career_surplus)}
+                      </span>
+                      <span className="text-[9px] text-surface-600 block">inflation-adjusted</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -444,8 +502,9 @@ const PlayerDetails: React.FC = () => {
       )}
 
       {/* ════════════════════════════════════════════════════
-       *  VALUE & CONTRACT SECTION — visual, not a wall of text
+       *  VALUE & CONTRACT SECTION — only for projected players
        *  ════════════════════════════════════════════════════ */}
+      {!isHistorical && (
       <div className="max-w-6xl mx-auto px-4 mb-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Left: Contract timeline + financial summary */}
@@ -504,6 +563,7 @@ const PlayerDetails: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* ════════════════════════════════════════════════════
        *  TRADE VALUE TIMELINE — rolling value chart
@@ -525,17 +585,17 @@ const PlayerDetails: React.FC = () => {
       )}
 
       {/* ════════════════════════════════════════════════════
-       *  PROJECTION TABLES — collapsible to reduce clutter
+       *  STAT TABLES — "Projections" for active, "Career Statistics" for historical
        *  ════════════════════════════════════════════════════ */}
       <div className="max-w-6xl mx-auto px-4 pb-16 space-y-4">
         {hasPitching && hasCurrentPitching && (
-          <CollapsibleSection title="Pitching Projections" teamColor={colors.primary} defaultOpen>
+          <CollapsibleSection title={isHistorical ? "Pitching Statistics" : "Pitching Projections"} teamColor={colors.primary} defaultOpen>
             <CombinedPitchingTable data={pitchingTableData.sort((a, b) => b.year - a.year)} />
           </CollapsibleSection>
         )}
 
         {hasHitting && hasCurrentHitting && (
-          <CollapsibleSection title="Hitting Projections" teamColor={colors.primary} defaultOpen>
+          <CollapsibleSection title={isHistorical ? "Hitting Statistics" : "Hitting Projections"} teamColor={colors.primary} defaultOpen>
             <CombinedHittingTable data={hittingTableData.sort((a, b) => b.year - a.year)} />
           </CollapsibleSection>
         )}

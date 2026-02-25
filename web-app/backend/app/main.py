@@ -21,7 +21,7 @@ if str(backend_dir) not in sys.path:
     sys.path.append(str(backend_dir))
 
 # Change relative imports to absolute
-from app.routes import players, trades, projections, prospects
+from app.routes import players, trades, projections, prospects, historical
 from app.database import SessionLocal, engine
 # Add security headers middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -107,6 +107,7 @@ app.include_router(players.router, prefix="/players", tags=["players"])
 app.include_router(prospects.router, prefix="/prospects", tags=["prospects"])
 app.include_router(trades.router, prefix="/trades", tags=["trades"])
 app.include_router(projections.router, prefix="/projections", tags=["projections"])
+app.include_router(historical.router, prefix="/historical", tags=["historical"])
 
 # Headshot images endpoint
 HEADSHOTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "headshots"
