@@ -23,6 +23,12 @@ const PlayerSearch = () => {
   const [focusedIdx, setFocusedIdx] = useState(-1)
   const navigate = useNavigate()
   const containerRef = useRef<HTMLDivElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -35,39 +41,42 @@ const PlayerSearch = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleSearch = async (value: string) => {
+  const handleSearch = (value: string) => {
     setQuery(value);
     setFocusedIdx(-1);
-    
+
+    // Clear pending debounce
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
     if (value.length < 2) {
       setResults([]);
       return;
     }
 
-    try {
-      const response = await filterPlayers({ year: CURRENT_YEAR, search: value });
-      
-      if (!response || !response.players) {
-        console.error('Invalid response structure');
-        return;
-      }
+    // Debounce API call by 250ms to avoid firing on every keystroke
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const response = await filterPlayers({ year: CURRENT_YEAR, search: value });
 
-      setResults(response.players.map((p: any) => ({
-        id: p.real_id,
-        mlb_id: p.mlb_id,
-        name: p.name,
-        team: p.team,
-        position: p.position,
-        war_bat: p.war_bat,
-        war_pit: p.war_pit,
-        is_historical: p.is_historical ?? false,
-        career_war: p.career_war,
-        first_year: p.first_year,
-        last_year: p.last_year,
-      })));
-    } catch (err) {
-      console.error('Search failed:', err);
-    }
+        if (!response || !response.players) return;
+
+        setResults(response.players.map((p: any) => ({
+          id: p.real_id,
+          mlb_id: p.mlb_id,
+          name: p.name,
+          team: p.team,
+          position: p.position,
+          war_bat: p.war_bat,
+          war_pit: p.war_pit,
+          is_historical: p.is_historical ?? false,
+          career_war: p.career_war,
+          first_year: p.first_year,
+          last_year: p.last_year,
+        })));
+      } catch {
+        // Silently ignore — transient network errors shouldn't break the search UX
+      }
+    }, 250);
   };
 
   const handleSelect = (player: PlayerResult) => {

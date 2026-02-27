@@ -33,7 +33,6 @@ const TradeValues = () => {
       setData(response);
       if (newPage) setPage(newPage);
     } catch (error) {
-      console.error('Failed to fetch trade values:', error);
       setError('Failed to fetch trade values');
     } finally {
       setLoading(false);

@@ -117,10 +117,10 @@ async def get_players(
             
         # Apply sorting
         if sort_by == "war":
-            # Combined WAR sorting
+            # Combined WAR sorting (parenthesized so .desc() applies to the sum)
             query = query.order_by(
-                func.coalesce(Player.war_bat, 0) + 
-                func.coalesce(Player.war_pit, 0).desc()
+                (func.coalesce(Player.war_bat, 0) + 
+                 func.coalesce(Player.war_pit, 0)).desc()
             )
         elif sort_by == "value":
             query = query.order_by(Player.surplus_value.desc())

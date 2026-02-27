@@ -20,9 +20,3 @@ export const CURRENT_YEAR = 2026;
 
 // Number of future years to display in projections (e.g., 5 means show 2026-2030)
 export const MAX_PROJECTION_YEARS = 5;
-
-// Debug logging
-console.log('Frontend Config Debug:');
-console.log('import.meta.env.DEV:', import.meta.env.DEV);
-console.log('import.meta.env.PROD:', import.meta.env.PROD);
-console.log('Final API_BASE:', API_BASE);

@@ -45,7 +45,6 @@ const ProspectsPage = () => {
       setData(response);
       if (newPage) setPage(newPage);
     } catch (error) {
-      console.error('Failed to fetch prospects:', error);
       setError('Failed to fetch prospects');
     } finally {
       setLoading(false);

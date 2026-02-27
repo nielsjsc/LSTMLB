@@ -196,7 +196,6 @@ export default function PastTrades() {
       setTotal(res.total);
       setTotalPages(res.total_pages);
     } catch (e) {
-      console.error('Failed to load trades:', e);
     } finally {
       setLoading(false);
     }

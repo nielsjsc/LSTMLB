@@ -79,7 +79,6 @@ class Player(Base):
     war_pit = Column(Float)
     era = Column(Float)
     fip = Column(Float)
-    siera = Column(Float)  # deprecated, no longer populated
     k_pct_pit = Column(Float)
     bb_pct_pit = Column(Float)
     

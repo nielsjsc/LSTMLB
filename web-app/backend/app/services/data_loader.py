@@ -31,10 +31,6 @@ class DataLoader:
     def __init__(self, db: Session):
         self.db = db
 
-    def validate_player_data(self, data: Dict[str, Any]) -> bool:
-        required_fields = ['name', 'team', 'position', 'year', 'real_id']
-        return all(field in data for field in required_fields)
-
     def transform_player_data(self, row: Dict[str, Any]) -> Dict[str, Any]:
         """Transform CSV row data into correct types for database model"""
         return {

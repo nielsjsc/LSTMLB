@@ -10,6 +10,7 @@ import About from './pages/About/About'
 import TradeValues from './pages/TradeValues/TradeValues'
 import PastTrades from './pages/PastTrades/PastTrades'
 import TradeDetail from './pages/TradeDetail/TradeDetail'
+import NotFound from './pages/NotFound/NotFound'
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
             <Route path="/tradevalues" element={<TradeValues />} />
             <Route path="/trades" element={<PastTrades />} />
             <Route path="/trades/:tradeId" element={<TradeDetail />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
       </div>

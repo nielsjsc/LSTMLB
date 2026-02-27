@@ -140,7 +140,6 @@ async def get_projections(
                     "war_pit": p.war_pit,
                     "era": p.era,
                     "fip": p.fip,
-                    "siera": p.siera,
                     "k_pct_pit": p.k_pct_pit,
                     "bb_pct_pit": p.bb_pct_pit
                 }})

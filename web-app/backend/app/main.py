@@ -13,7 +13,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import Response, JSONResponse
 
 # Add backend to path
 backend_dir = Path(__file__).resolve().parent.parent
@@ -80,7 +80,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
-
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 @app.middleware("http")
@@ -137,12 +137,15 @@ async def root():
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global error: {exc}", exc_info=True)
-    return {
-        "detail": "Internal server error",
-        "path": request.url.path,
-        "method": request.method,
-        "timestamp": datetime.now().isoformat()
-    }
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "path": request.url.path,
+            "method": request.method,
+            "timestamp": datetime.now().isoformat()
+        }
+    )
 
 # Enhanced health check
 @app.get("/health")

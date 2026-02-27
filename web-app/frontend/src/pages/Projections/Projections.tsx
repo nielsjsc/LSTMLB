@@ -57,7 +57,6 @@ const ProjectionsPage = () => {
       setData(response);
       if (newPage) setPage(newPage);
     } catch (error) {
-      console.error('Failed to fetch projections:', error);
       setError('Failed to fetch projections');
     } finally {
       setLoading(false);

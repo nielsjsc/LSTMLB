@@ -47,11 +47,9 @@ const TradeAnalyzer = () => {
         const allProspects = [...hittersData, ...pitchersData]
           .sort((a, b) => (b.value || 0) - (a.value || 0));
         
-        console.log(`Loaded ${playersData.length} players and ${allProspects.length} prospects`);
         setProspects(allProspects);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        console.error('Error fetching assets:', errorMessage);
         setError(`Failed to load assets: ${errorMessage}`);
       } finally {
         setInitialLoading(false);
@@ -140,7 +138,6 @@ const TradeAnalyzer = () => {
       setError(null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to analyze trade';
-      console.error('Trade analysis error:', errorMessage);
       setError(errorMessage);
       setAnalysis(null);
     } finally {

@@ -45,7 +45,6 @@ interface FormattedPlayerRow extends Record<string, any> {
   war_pit?: number;
   era?: number;
   fip?: number;
-  siera?: number;
   k_pct_pit?: number;
   bb_pct_pit?: number;
 }
@@ -96,7 +95,6 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
     { key: 'war_pit', label: 'WAR' },
     { key: 'era', label: 'ERA' },
     { key: 'fip', label: 'FIP' },
-    { key: 'siera', label: 'SIERA' },
     { key: 'k_pct_pit', label: 'K%' },
     { key: 'bb_pct_pit', label: 'BB%' },
     { key: 'base_value', label: 'Value ($M)' },
@@ -149,7 +147,6 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
       case 'woba':
       case 'era':
       case 'fip':
-      case 'siera':
         return formatDecimal(value, 3);
       case 'k_pct_pit':
       case 'bb_pct_pit':

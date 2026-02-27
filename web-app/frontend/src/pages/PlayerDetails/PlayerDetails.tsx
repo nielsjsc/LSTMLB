@@ -278,7 +278,6 @@ const PlayerDetails: React.FC = () => {
         setPlayer(data);
         setError(null);
       } catch (err) {
-        console.error('Error fetching player:', err);
         setError('Failed to load player details');
       } finally {
         setLoading(false);
