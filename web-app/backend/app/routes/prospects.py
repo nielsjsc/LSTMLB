@@ -43,9 +43,10 @@ async def get_prospects(
     team: Optional[str] = None,
     position: Optional[str] = None,
     page: int = Query(1, ge=1),
-    page_size: int = Query(25, ge=1, le=100),
+    page_size: int = Query(25, ge=1, le=500),
     sort_by: str = Query(None),
     sort_direction: str = Query('asc'),
+    slim: bool = Query(False, description="Return minimal fields (name, org, position, fv, value)"),
     db: Session = Depends(get_db)
 ) -> dict:
     try:
@@ -134,6 +135,12 @@ async def get_prospects(
             "page": page,
             "pages": (total_count + page_size - 1) // page_size,
             "players": [{
+                "name": p.name,
+                "org": p.org,
+                "position": p.position,
+                "fv": p.fv,
+                "value": getattr(p, f"value_{year}", None),
+            } for p in prospects] if slim else [{
                 "id": p.id,
                 "IDfg": p.IDfg,
                 "name": p.name,

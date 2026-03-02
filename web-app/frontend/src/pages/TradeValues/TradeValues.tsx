@@ -33,6 +33,7 @@ const TradeValues = () => {
       setData(response);
       if (newPage) setPage(newPage);
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       setError('Failed to fetch trade values');
     } finally {
       setLoading(false);

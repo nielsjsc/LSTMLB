@@ -45,6 +45,7 @@ const ProspectsPage = () => {
       setData(response);
       if (newPage) setPage(newPage);
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       setError('Failed to fetch prospects');
     } finally {
       setLoading(false);
@@ -82,6 +83,7 @@ const ProspectsPage = () => {
       setData(response);
       setPage(newPage);
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       setError('Failed to fetch prospects');
     } finally {
       setLoading(false);

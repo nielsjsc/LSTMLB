@@ -196,6 +196,7 @@ export default function PastTrades() {
       setTotal(res.total);
       setTotalPages(res.total_pages);
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
     } finally {
       setLoading(false);
     }

@@ -8,6 +8,24 @@ const createApiHeaders = () => ({
   'User-Agent': 'LongballAnalytics/1.0'
 });
 
+// ── Request cancellation ────────────────────────────────────────────────
+// Tracks one AbortController per keyed request group. Calling `cancellableFetch`
+// with the same key aborts any in-flight request, preventing stale-response races.
+const _controllers = new Map<string, AbortController>();
+
+async function cancellableFetch(key: string, url: string, init: RequestInit = {}): Promise<Response> {
+  _controllers.get(key)?.abort();
+  const controller = new AbortController();
+  _controllers.set(key, controller);
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    return response;
+  } finally {
+    // Only clean up if this controller is still the active one
+    if (_controllers.get(key) === controller) _controllers.delete(key);
+  }
+}
+
 
 export interface Player {
     id: number;
@@ -60,20 +78,22 @@ export const getAllProspects = async (
   playerType: 'hitter' | 'pitcher',
   year: number = 2025
 ): Promise<Prospect[]> => {
-  try {
-    const response = await fetch(`${API_BASE}/trades/prospects?player_type=${playerType}&year=${year}`, {
-      headers: createApiHeaders()  // Add this line
-    });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Failed to fetch all prospects: ${JSON.stringify(errorData.detail)}`);
-    }
-    const data = await response.json();
-    // Add debug logging
-    return data.players;
-  } catch (error) {
-    throw error;
+  // Uses the unified /prospects/ endpoint with slim=true for minimal fields
+  const params = new URLSearchParams({
+    player_type: playerType,
+    year: year.toString(),
+    page_size: '500',
+    slim: 'true'
+  });
+  const response = await fetch(`${API_BASE}/prospects?${params}`, {
+    headers: createApiHeaders()
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Failed to fetch all prospects: ${JSON.stringify(errorData.detail)}`);
   }
+  const data = await response.json();
+  return data.players;
 };
 export interface BaseTradeAsset {
     name: string;
@@ -181,20 +201,11 @@ export const filterPlayers = async (filters: PlayerFilter): Promise<PlayerRespon
 
   const url = `${API_BASE}/players?${params}`;
 
-  try {
-      const response = await fetch(url, {
-        headers: createApiHeaders()  // Add this line
-      });
-      
-      if (!response.ok) {
-          throw new Error('Failed to fetch players');
-      }
-      
-      const data = await response.json();
-      return data;
-  } catch (error) {
-      throw error;
-  }
+  const response = await cancellableFetch('filterPlayers', url, {
+    headers: createApiHeaders()
+  });
+  if (!response.ok) throw new Error('Failed to fetch players');
+  return response.json();
 };
 
 export interface PlayerStats {
@@ -438,18 +449,14 @@ export interface Prospect {
   if (sortBy) params.append('sort_by', sortBy);
   params.append('sort_direction', sortDirection);
   
-  try {
-    const response = await fetch(`${API_BASE}/prospects?${params}`, {
-      headers: createApiHeaders()  // Add this line
-    });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Failed to fetch prospects: ${errorData.detail || 'Unknown error'}`);
-    }
-    return response.json();
-  } catch (error) {
-    throw error;
+  const response = await cancellableFetch('getProspects', `${API_BASE}/prospects?${params}`, {
+    headers: createApiHeaders()
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Failed to fetch prospects: ${errorData.detail || 'Unknown error'}`);
   }
+  return response.json();
 };
 
 // ── Prospect Detail ──────────────────────────────────────────────────
@@ -522,14 +529,11 @@ export const getProspectDetail = async (prospectId: number): Promise<ProspectDet
   if (sortBy) params.append('sort_by', sortBy);
   if (sortDirection) params.append('sort_direction', sortDirection);
 
-  const response = await fetch(`${API_BASE}/projections?${params}`, {
-    headers: createApiHeaders()  // Add this line
+  const response = await cancellableFetch('getProjections', `${API_BASE}/projections?${params}`, {
+    headers: createApiHeaders()
   });
-  if (!response.ok) {
-      throw new Error('Failed to fetch projections');
-  }
-  const data = await response.json();
-  return data;
+  if (!response.ok) throw new Error('Failed to fetch projections');
+  return response.json();
 };
 
 // TRADE VALUE RANKING
@@ -588,21 +592,14 @@ export const getTradeValueRankings = async (
 
   const url = `${API_BASE}/trades/trade-val-rank?${queryParams}`;
 
-  try {
-    const response = await fetch(url, {
-      headers: createApiHeaders()  // Add this line
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to fetch trade value rankings: ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    throw error;
+  const response = await cancellableFetch('getTradeValueRankings', url, {
+    headers: createApiHeaders()
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch trade value rankings: ${errorText}`);
   }
+  return response.json();
 };
 
 // ── Trade Value History (per-player timeline) ─────────────────────────────
@@ -842,7 +839,7 @@ export const getPastTrades = async (params?: {
   if (params?.search) searchParams.set('search', params.search);
 
   const url = `${API_BASE}/trades/past-trades?${searchParams.toString()}`;
-  const response = await fetch(url, { headers: createApiHeaders() });
+  const response = await cancellableFetch('getPastTrades', url, { headers: createApiHeaders() });
   if (!response.ok) throw new Error('Failed to fetch past trades');
   return response.json();
 };
@@ -898,7 +895,7 @@ export const searchHistoricalPlayers = async (params?: {
   if (params?.offset) searchParams.set('offset', String(params.offset));
 
   const url = `${API_BASE}/historical/search?${searchParams.toString()}`;
-  const response = await fetch(url, { headers: createApiHeaders() });
+  const response = await cancellableFetch('searchHistoricalPlayers', url, { headers: createApiHeaders() });
   if (!response.ok) throw new Error('Failed to search historical players');
   return response.json();
 };

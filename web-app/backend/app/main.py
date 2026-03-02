@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -40,11 +41,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ── Startup preload ──────────────────────────────────────────────────────────
+# Eagerly load heavy JSON/CSV caches so the first request isn't slow.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    t0 = time.time()
+    logger.info("Preloading cached data...")
+    try:
+        historical._load_historical()       # ~32 MB JSON + salary augmentation
+        trades._load_past_trades()          # trades JSON + projections + historical WAR
+        trades._ensure_indexes()            # build fast-lookup dicts
+        logger.info(f"Preload complete in {time.time() - t0:.1f}s")
+    except Exception as e:
+        logger.error(f"Preload failed (non-fatal): {e}")
+    yield
+
 app = FastAPI(
     title="LongBall API",
     description="API for baseball projections and trade analysis",
     version="1.0.0",
-    # Remove docs_url prefix
+    lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
 )

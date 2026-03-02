@@ -81,3 +81,4 @@ coverage/
 .netlify
 *.log
 
+/data/register

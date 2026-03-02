@@ -139,40 +139,19 @@ def analyze_trade(trade: TradeRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/prospects")
-def get_all_prospects(
+async def get_all_prospects(
     player_type: str = Query(..., description="Either 'hitter' or 'pitcher'"),
     year: int = Query(2025, ge=2022, le=2025),
     db: Session = Depends(get_db)
 ):
-    try:
-        # Start with base query and add year filter
-        query = db.query(Prospect).filter(Prospect.year == year)
-        
-        # Filter by player type based on position
-        if player_type == 'pitcher':
-            query = query.filter(Prospect.position.ilike('%p%'))
-        else:
-            query = query.filter(~Prospect.position.ilike('%p%'))
-            
-        prospects = query.all()
-        
-        response_data = []
-        for p in prospects:
-
-            
-            response_data.append({
-                "name": p.name,
-                "org": p.org,
-                "position": p.position,
-                "fv": p.fv,
-                "value": getattr(p, f"value_{year}", None)
-            })
-        
-        return {"players": response_data}
-
-    except Exception as e:
-        logger.error(f"Error in get_all_prospects: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    """Deprecated: use GET /prospects/?slim=true instead.
+    Kept for backward compatibility — delegates to the unified prospects endpoint."""
+    from app.routes.prospects import get_prospects
+    result = await get_prospects(
+        player_type=player_type, year=year,
+        page=1, page_size=500, slim=True, db=db
+    )
+    return {"players": result["players"]}
 
 
 # Add this new endpoint after existing endpoints

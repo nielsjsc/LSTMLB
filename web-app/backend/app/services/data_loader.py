@@ -156,27 +156,24 @@ class DataLoader:
         
 
     def load_player_data(self, players_csv: str) -> None:
+        """Bulk-insert player rows, skipping those without mlb_id."""
         try:
             df = pd.read_csv(players_csv)
             logger.info(f"Loading {len(df)} players from {players_csv}")
             
+            objects = []
             skipped_count = 0
-            loaded_count = 0
             
             for _, row in df.iterrows():
                 data = self.transform_player_data(row.to_dict())
-                
-                # Skip players without mlb_id (not on active roster)
                 if data.get('mlb_id') is None:
                     skipped_count += 1
                     continue
-                
-                player = Player(**data)
-                self.db.add(player)
-                loaded_count += 1
-                    
+                objects.append(Player(**data))
+            
+            self.db.bulk_save_objects(objects)
             self.db.commit()
-            logger.info(f"Player data loading completed successfully: {loaded_count} loaded, {skipped_count} skipped (no mlb_id)")
+            logger.info(f"Player data loaded: {len(objects)} inserted, {skipped_count} skipped (no mlb_id)")
                 
         except Exception as e:
             logger.error(f"Error loading player data: {str(e)}")
@@ -184,17 +181,17 @@ class DataLoader:
             raise
 
     def load_prospect_data(self, prospects_csv: str) -> None:
+        """Bulk-insert prospect rows."""
         try:
             df = pd.read_csv(prospects_csv)
             logger.info(f"Loading {len(df)} prospects from {prospects_csv}")
             
-            for _, row in df.iterrows():
-                data = self.transform_prospect_data(row.to_dict())
-                prospect = Prospect(**data)
-                self.db.add(prospect)
-                    
+            objects = [Prospect(**self.transform_prospect_data(row.to_dict()))
+                       for _, row in df.iterrows()]
+            
+            self.db.bulk_save_objects(objects)
             self.db.commit()
-            logger.info("Prospect data loading completed successfully")
+            logger.info(f"Prospect data loaded: {len(objects)} inserted")
                 
         except Exception as e:
             logger.error(f"Error loading prospect data: {str(e)}")
