@@ -53,29 +53,6 @@ function ConfidenceBadge({ confidence }: { confidence: EvaluationConfidence }) {
   );
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-const fmtDate = (d: string) => {
-  const dt = new Date(d + 'T12:00:00');
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-};
-
-const fmtMoney = (n: number) => {
-  const abs = Math.abs(n);
-  const sign = n < 0 ? '-' : '+';
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(0)}K`;
-  return `${sign}$${abs}`;
-};
-
-const MLB_TEAMS = [
-  'ARI','ATL','BAL','BOS','CHC','CHW','CIN','CLE','COL','DET',
-  'HOU','KCR','LAA','LAD','MIA','MIL','MIN','NYM','NYY','OAK',
-  'PHI','PIT','SDP','SFG','SEA','STL','TBR','TEX','TOR','WSN',
-];
-
-const YEARS = Array.from({ length: CURRENT_YEAR - 2013 }, (_, i) => CURRENT_YEAR - 1 - i);
-
 // ── Compact side summary ────────────────────────────────────────────────────
 
 function SideCompact({ side, isWinner, isProjected }: {
