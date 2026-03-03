@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  getPastTrades,
   PastTradeSummary,
   TradeSideSummary,
 } from '../../services/api';
+import { usePastTrades } from '../../hooks/useApi';
+import { CURRENT_YEAR } from '../../config';
 import { getTeamColors } from '../../utils/teamColors';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -28,7 +29,7 @@ const MLB_TEAMS = [
   'PHI','PIT','SDP','SFG','SEA','STL','TBR','TEX','TOR','WSN',
 ];
 
-const YEARS = Array.from({ length: 12 }, (_, i) => 2025 - i); // 2025..2014
+const YEARS = Array.from({ length: CURRENT_YEAR - 2013 }, (_, i) => CURRENT_YEAR - 1 - i);
 
 // ── Compact side summary ────────────────────────────────────────────────────
 
@@ -164,13 +165,8 @@ function TradeRow({ trade }: { trade: PastTradeSummary }) {
 // ── Main page ───────────────────────────────────────────────────────────────
 
 export default function PastTrades() {
-  const [trades, setTrades] = useState<PastTradeSummary[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
-
   // Filters & sorting
+  const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [teamFilter, setTeamFilter] = useState('');
@@ -180,35 +176,18 @@ export default function PastTrades() {
 
   const pageSize = 25;
 
-  const fetchTrades = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await getPastTrades({
-        page,
-        page_size: pageSize,
-        sort_by: sortBy,
-        sort_dir: sortDir,
-        team: teamFilter || undefined,
-        year: yearFilter || undefined,
-        search: search || undefined,
-      });
-      setTrades(res.trades);
-      setTotal(res.total);
-      setTotalPages(res.total_pages);
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return;
-    } finally {
-      setLoading(false);
-    }
-  }, [page, sortBy, sortDir, teamFilter, yearFilter, search]);
+  // React Query — replaces useCallback/useEffect/fetch
+  const { data: res, isFetching: loading } = usePastTrades({
+    page, pageSize, sortBy, sortDir,
+    team: teamFilter, year: yearFilter, search,
+  });
 
-  useEffect(() => {
-    fetchTrades();
-  }, [fetchTrades]);
+  const trades = res?.trades ?? [];
+  const total = res?.total ?? 0;
+  const totalPages = res?.total_pages ?? 1;
 
-  useEffect(() => {
-    setPage(1);
-  }, [sortBy, sortDir, teamFilter, yearFilter, search]);
+  // Reset to first page when filters/sort change
+  useEffect(() => { setPage(1); }, [sortBy, sortDir, teamFilter, yearFilter, search]);
 
   const handleSearch = () => {
     setSearch(searchInput);
@@ -236,7 +215,7 @@ export default function PastTrades() {
       <div className="mb-6">
         <h1 className="text-xl font-bold text-surface-100 tracking-tight">Past Trades</h1>
         <p className="text-[13px] text-surface-500 mt-0.5">
-          {total.toLocaleString()} evaluated trades, 2014 &ndash; 2025
+          {total.toLocaleString()} evaluated trades, 2014 &ndash; {CURRENT_YEAR - 1}
         </p>
       </div>
 
