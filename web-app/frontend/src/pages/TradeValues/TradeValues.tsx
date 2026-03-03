@@ -1,5 +1,5 @@
-import  { useState, useEffect } from 'react';
-import { getTradeValueRankings, TradeValueRankingsResponse } from '../../services/api';
+import { useState, useEffect } from 'react';
+import { useTradeValues } from '../../hooks/useApi';
 import TradeValuesTable from '../../components/Tables/TradeValues/TradeValuesTable';
 
 const teams = ['ARI', 'ATL', 'BAL', 'BOS', 'CHC', 'CHW', 'CIN', 'CLE', 'COL', 'DET', 
@@ -8,48 +8,24 @@ const teams = ['ARI', 'ATL', 'BAL', 'BOS', 'CHC', 'CHW', 'CIN', 'CLE', 'COL', 'D
 
 const TradeValues = () => {
   const [team, setTeam] = useState<string>();
-  const [data, setData] = useState<TradeValueRankingsResponse>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>();
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [sortBy, setSortBy] = useState<string>('trade_value');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  const fetchTradeValues = async (newPage?: number) => {
-    try {
-      setLoading(true);
-      setError(undefined);
-      const currentPage = newPage || page;
-      
-      const response = await getTradeValueRankings({
-        team,
-        page: currentPage,
-        pageSize,
-        sortBy,
-        sortDirection
-      });
-      
-      setData(response);
-      if (newPage) setPage(newPage);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setError('Failed to fetch trade values');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // React Query — replaces manual useState/useEffect/fetch
+  const { data, isFetching: loading, error } = useTradeValues({
+    team, page, pageSize, sortBy, sortDirection,
+  });
+
+  // Reset to first page when filters or sort change
+  useEffect(() => { setPage(1); }, [team, sortBy, sortDirection]);
 
   const handleSort = (key: string) => {
     const newDirection = sortBy === key && sortDirection === 'desc' ? 'asc' : 'desc';
     setSortBy(key);
     setSortDirection(newDirection);
-    fetchTradeValues(1);
   };
-
-  useEffect(() => {
-    fetchTradeValues(1);
-  }, [team, sortBy, sortDirection]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-surface-900 via-surface-800 to-surface-900">
@@ -83,7 +59,7 @@ const TradeValues = () => {
 
         {error && (
           <div className="text-red-400 mb-4 rounded-lg px-4 py-2 border border-red-500/20">
-            {error}
+            {error instanceof Error ? error.message : 'Failed to fetch trade values'}
           </div>
         )}
 
@@ -97,7 +73,7 @@ const TradeValues = () => {
                 data={data}
                 currentPage={page}
                 totalPages={data.total_pages}
-                onPageChange={(newPage) => fetchTradeValues(newPage)}
+                onPageChange={setPage}
                 onSort={handleSort}
                 sortBy={sortBy}
                 sortDirection={sortDirection}
