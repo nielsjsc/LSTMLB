@@ -333,15 +333,33 @@ class DataLoader:
             except (ValueError, TypeError):
                 return None
 
+        def _get_player_id(row):
+            """Extract FanGraphs player ID, trying multiple column names."""
+            # Try exact name first, then strip whitespace from keys
+            for key in ("PlayerId", "playerid", "playerID", "PLAYERID"):
+                val = row.get(key)
+                if val is not None:
+                    return _safe_int(val)
+            # Fallback: try stripped/lowered key matching
+            for key, val in row.items():
+                if key.strip().lower() == "playerid":
+                    return _safe_int(val)
+            return None
+
         # ── Hitters ───────────────────────────────────────────────────────
         h_path = Path(hitters_csv)
         if h_path.exists():
             objects = []
-            with open(h_path, "r", encoding="utf-8") as f:
+            skipped = 0
+            with open(h_path, "r", encoding="utf-8-sig", newline="") as f:
                 reader = _csv.DictReader(f)
                 for row in reader:
+                    idfg = _get_player_id(row)
+                    if idfg is None:
+                        skipped += 1
+                        continue
                     objects.append(MiLBHittingStats(
-                        IDfg=_safe_int(row.get("PlayerId")),
+                        IDfg=idfg,
                         season=_safe_int(row.get("Season")),
                         name=row.get("Name", ""),
                         team=row.get("Team"),
@@ -366,7 +384,7 @@ class DataLoader:
                     ))
             self.db.bulk_save_objects(objects)
             self.db.commit()
-            logger.info(f"  Loaded {len(objects)} MiLB hitting stat rows")
+            logger.info(f"  Loaded {len(objects)} MiLB hitting stat rows (skipped {skipped} with no PlayerId)")
         else:
             logger.warning(f"MiLB hitters CSV not found: {h_path}")
 
@@ -374,11 +392,16 @@ class DataLoader:
         p_path = Path(pitchers_csv)
         if p_path.exists():
             objects = []
-            with open(p_path, "r", encoding="utf-8") as f:
+            skipped = 0
+            with open(p_path, "r", encoding="utf-8-sig", newline="") as f:
                 reader = _csv.DictReader(f)
                 for row in reader:
+                    idfg = _get_player_id(row)
+                    if idfg is None:
+                        skipped += 1
+                        continue
                     objects.append(MiLBPitchingStats(
-                        IDfg=_safe_int(row.get("PlayerId")),
+                        IDfg=idfg,
                         season=_safe_int(row.get("Season")),
                         name=row.get("Name", ""),
                         team=row.get("Team"),
@@ -403,7 +426,7 @@ class DataLoader:
                     ))
             self.db.bulk_save_objects(objects)
             self.db.commit()
-            logger.info(f"  Loaded {len(objects)} MiLB pitching stat rows")
+            logger.info(f"  Loaded {len(objects)} MiLB pitching stat rows (skipped {skipped} with no PlayerId)")
         else:
             logger.warning(f"MiLB pitchers CSV not found: {p_path}")
 
