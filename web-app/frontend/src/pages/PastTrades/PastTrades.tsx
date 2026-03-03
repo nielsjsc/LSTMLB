@@ -3,10 +3,55 @@ import { Link } from 'react-router-dom';
 import {
   PastTradeSummary,
   TradeSideSummary,
+  EvaluationConfidence,
 } from '../../services/api';
 import { usePastTrades } from '../../hooks/useApi';
 import { CURRENT_YEAR } from '../../config';
 import { getTeamColors } from '../../utils/teamColors';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const fmtDate = (d: string) => {
+  const dt = new Date(d + 'T12:00:00');
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const fmtMoney = (n: number) => {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '+';
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(0)}K`;
+  return `${sign}$${abs}`;
+};
+
+const MLB_TEAMS = [
+  'ARI','ATL','BAL','BOS','CHC','CHW','CIN','CLE','COL','DET',
+  'HOU','KCR','LAA','LAD','MIA','MIL','MIN','NYM','NYY','OAK',
+  'PHI','PIT','SDP','SFG','SEA','STL','TBR','TEX','TOR','WSN',
+];
+
+const YEARS = Array.from({ length: CURRENT_YEAR - 2013 }, (_, i) => CURRENT_YEAR - 1 - i);
+
+// ── Confidence tier display ─────────────────────────────────────────────────
+
+const CONFIDENCE_CONFIG: Record<EvaluationConfidence, { label: string; bg: string; text: string; tooltip: string }> = {
+  definitive: { label: 'Settled', bg: 'bg-emerald-500/12', text: 'text-emerald-400', tooltip: '4+ years of data — clear outcome' },
+  maturing:   { label: 'Maturing', bg: 'bg-amber-500/12', text: 'text-amber-400', tooltip: '2-3 years of data — picture forming' },
+  early:      { label: 'Early', bg: 'bg-sky-500/12', text: 'text-sky-400', tooltip: 'Recent trade — early returns only' },
+  projected:  { label: 'Projected', bg: 'bg-purple-500/12', text: 'text-purple-400', tooltip: 'No actual data — model projections' },
+};
+
+function ConfidenceBadge({ confidence }: { confidence: EvaluationConfidence }) {
+  const cfg = CONFIDENCE_CONFIG[confidence] || CONFIDENCE_CONFIG.definitive;
+  return (
+    <span
+      className={`text-[9px] px-1.5 py-px rounded font-semibold uppercase tracking-wider ${cfg.bg} ${cfg.text}`}
+      title={cfg.tooltip}
+    >
+      {cfg.label}
+    </span>
+  );
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -61,24 +106,37 @@ function SideCompact({ side, isWinner, isProjected }: {
         {side.players_received.slice(0, 4).map((p) => {
           const pWar = isProjected && p.has_projection ? (p.projected_war ?? 0) : p.war_with_team;
           const isPureProspect = !!p.prospect_fv && p.seasons_with_team === 0 && p.war_with_team === 0;
+          const noData = p.has_data === false;
+
+          // Determine link target
+          const prospectLink = p.prospect_id ? `/prospects/${p.prospect_id}` : null;
+          const mlbLink = !isPureProspect ? `/players/${p.mlb_id}` : null;
+          const linkTo = prospectLink || mlbLink;
+
           return (
             <div key={p.mlb_id} className="flex items-center gap-1.5">
-              {isPureProspect ? (
-                <span className="text-[12px] text-surface-400 truncate">
-                  {p.name}
-                </span>
-              ) : (
+              {linkTo ? (
                 <Link
-                  to={`/players/${p.mlb_id}`}
+                  to={linkTo}
                   className="text-[12px] text-surface-300 hover:text-blue-400 truncate transition-colors"
                 >
                   {p.name}
                 </Link>
-              )}
-              {!isPureProspect && pWar !== 0 && (
-                <span className={`text-[11px] flex-shrink-0 font-mono tabular-nums ${isProjected ? 'text-blue-400/60' : 'text-surface-500'}`}>
-                  {pWar > 0 ? '+' : ''}{pWar}
+              ) : (
+                <span className="text-[12px] text-surface-400 truncate">
+                  {p.name}
                 </span>
+              )}
+              {noData ? (
+                <span className="text-[10px] text-surface-600 italic shrink-0">No Data</span>
+              ) : (
+                <>
+                  {!isPureProspect && pWar !== 0 && (
+                    <span className={`text-[11px] flex-shrink-0 font-mono tabular-nums ${isProjected ? 'text-purple-400/60' : 'text-surface-500'}`}>
+                      {pWar > 0 ? '+' : ''}{pWar}
+                    </span>
+                  )}
+                </>
               )}
               {p.prospect_fv && (
                 <span className="text-[10px] text-amber-400/60 shrink-0">
@@ -92,7 +150,7 @@ function SideCompact({ side, isWinner, isProjected }: {
           <span className="text-[11px] text-surface-600">+{side.players_received.length - 4} more</span>
         )}
       </div>
-      <div className={`pl-4 mt-1 text-[11px] tabular-nums font-mono ${isProjected ? 'text-blue-400/70' : 'text-surface-500'}`}>
+      <div className={`pl-4 mt-1 text-[11px] tabular-nums font-mono ${isProjected ? 'text-purple-400/70' : 'text-surface-500'}`}>
         {isProjected ? `${displayWar} proj. WAR` : `${displayWar} WAR`}
       </div>
     </div>
@@ -104,9 +162,15 @@ function SideCompact({ side, isWinner, isProjected }: {
 function TradeRow({ trade }: { trade: PastTradeSummary }) {
   const winnerColors = getTeamColors(trade.winner);
   const isProjected = trade.evaluation_type === 'projected';
+  const confidence = trade.evaluation_confidence || 'definitive';
   const displaySurplus = isProjected
     ? (trade.projected_surplus_diff ?? trade.surplus_diff)
     : trade.surplus_diff;
+
+  const surplusColor = confidence === 'projected' ? 'text-purple-400'
+    : confidence === 'early' ? 'text-sky-400'
+    : confidence === 'maturing' ? 'text-amber-400'
+    : 'text-emerald-400';
 
   return (
     <Link
@@ -117,10 +181,11 @@ function TradeRow({ trade }: { trade: PastTradeSummary }) {
       <div className="w-24 flex-shrink-0 pt-0.5">
         <span className="text-[12px] text-surface-500 tabular-nums">{fmtDate(trade.date)}</span>
         <div className="flex items-center gap-1 mt-0.5">
-          {isProjected && (
-            <span className="text-[9px] px-1 py-px rounded bg-blue-500/10 text-blue-400/80 font-medium">
-              Proj
-            </span>
+          {confidence !== 'definitive' && (
+            <ConfidenceBadge confidence={confidence} />
+          )}
+          {trade.is_featured && (
+            <span className="text-[10px] text-amber-400" title="Notable trade">★</span>
           )}
           {trade.has_cash && (
             <span className="text-[9px] px-1 py-px rounded bg-amber-500/8 text-amber-400/50">$</span>
@@ -152,9 +217,7 @@ function TradeRow({ trade }: { trade: PastTradeSummary }) {
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: winnerColors.primary }} />
           <span className="text-[12px] font-medium text-surface-300">{trade.winner}</span>
         </div>
-        <span className={`text-[13px] font-semibold tabular-nums ${
-          isProjected ? 'text-blue-400' : 'text-emerald-400'
-        }`}>
+        <span className={`text-[13px] font-semibold tabular-nums ${surplusColor}`}>
           {fmtMoney(displaySurplus)}
         </span>
       </div>
@@ -173,6 +236,7 @@ export default function PastTrades() {
   const [yearFilter, setYearFilter] = useState<number | ''>('');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [featuredOnly, setFeaturedOnly] = useState(false);
 
   const pageSize = 25;
 
@@ -180,6 +244,7 @@ export default function PastTrades() {
   const { data: res, isFetching: loading } = usePastTrades({
     page, pageSize, sortBy, sortDir,
     team: teamFilter, year: yearFilter, search,
+    featured: featuredOnly || undefined,
   });
 
   const trades = res?.trades ?? [];
@@ -187,7 +252,7 @@ export default function PastTrades() {
   const totalPages = res?.total_pages ?? 1;
 
   // Reset to first page when filters/sort change
-  useEffect(() => { setPage(1); }, [sortBy, sortDir, teamFilter, yearFilter, search]);
+  useEffect(() => { setPage(1); }, [sortBy, sortDir, teamFilter, yearFilter, search, featuredOnly]);
 
   const handleSearch = () => {
     setSearch(searchInput);
@@ -259,6 +324,18 @@ export default function PastTrades() {
             <option key={y} value={y}>{y}</option>
           ))}
         </select>
+
+        <button
+          onClick={() => setFeaturedOnly((f) => !f)}
+          className={`px-2.5 py-1.5 rounded border text-[12px] font-medium transition-colors ${
+            featuredOnly
+              ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+              : 'bg-surface-800 border-white/[0.06] text-surface-500 hover:text-surface-300'
+          }`}
+          title="Show only notable trades (blockbusters, top prospects, high WAR)"
+        >
+          ★ Featured
+        </button>
 
         <div className="flex items-center gap-0.5 ml-auto">
           <button onClick={() => handleSort('date')} className={sortBtnClass('date')}>
