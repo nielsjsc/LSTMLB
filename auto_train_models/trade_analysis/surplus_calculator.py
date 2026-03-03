@@ -31,7 +31,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -48,7 +48,127 @@ from trade_analysis.config import (
     HISTORIC_BATTING_FILE, HISTORIC_PITCHING_FILE,
     HISTORIC_BATTING_FILE_CLASSIC,
     HISTORIC_PITCHING_FILE_CLASSIC,
+    ROOT_DIR, DATA_DIR,
 )
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ID-based salary matching helpers
+# ═══════════════════════════════════════════════════════════════════════════
+
+_idfg_team_cache: Optional[Dict[int, str]] = None
+
+
+def _build_idfg_team_map() -> Dict[int, str]:
+    """Build IDfg → team_abbreviation from the active roster + team_info CSVs.
+
+    The roster CSV has ``fg_id`` (FanGraphs ID) and ``team_id``.
+    The team_info CSV maps ``team_id`` → ``abbreviation``.
+    Returns {IDfg: 'LAD', ...}.
+    """
+    global _idfg_team_cache
+    if _idfg_team_cache is not None:
+        return _idfg_team_cache
+
+    roster_file = DATA_DIR / "active_roster" / "current_rosters.csv"
+    team_info_file = DATA_DIR / "active_roster" / "team_info.csv"
+
+    if not roster_file.exists() or not team_info_file.exists():
+        logger.warning("Active roster / team_info not found — skipping ID-team crosswalk")
+        _idfg_team_cache = {}
+        return _idfg_team_cache
+
+    teams = pd.read_csv(team_info_file, usecols=["team_id", "abbreviation"])
+    tid_to_abbr = dict(zip(teams["team_id"], teams["abbreviation"]))
+
+    roster = pd.read_csv(roster_file, usecols=["fg_id", "team_id"], low_memory=False)
+    roster = roster.dropna(subset=["fg_id"])
+    roster["fg_id"] = roster["fg_id"].astype(float).astype(int)
+    roster["team_abbr"] = roster["team_id"].map(tid_to_abbr)
+    roster = roster.dropna(subset=["team_abbr"])
+
+    _idfg_team_cache = dict(zip(roster["fg_id"], roster["team_abbr"]))
+    logger.info(f"Built IDfg→team crosswalk: {len(_idfg_team_cache)} entries")
+    return _idfg_team_cache
+
+
+# Cot's team abbreviations → standardised codes (handle minor discrepancies)
+_TEAM_ALIAS: Dict[str, str] = {
+    "ARI": "ARI", "ATL": "ATL", "BAL": "BAL", "BOS": "BOS",
+    "CHC": "CHC", "CHW": "CHW", "CWS": "CHW",
+    "CIN": "CIN", "CLE": "CLE", "COL": "COL", "DET": "DET",
+    "HOU": "HOU", "KC": "KC", "KCR": "KC",
+    "LAA": "LAA", "LAD": "LAD",
+    "MIA": "MIA", "FLA": "MIA",
+    "MIL": "MIL", "MIN": "MIN", "NYM": "NYM", "NYY": "NYY",
+    "OAK": "ATH", "ATH": "ATH",
+    "PHI": "PHI", "PIT": "PIT",
+    "SD": "SD", "SDP": "SD",
+    "SF": "SF", "SFG": "SF",
+    "SEA": "SEA", "STL": "STL",
+    "TB": "TB", "TBR": "TB",
+    "TEX": "TEX", "TOR": "TOR",
+    "WSH": "WSH", "WSN": "WSH", "WAS": "WSH",
+    "FA": "FA",
+}
+
+
+def _normalise_team(t: str) -> str:
+    return _TEAM_ALIAS.get(t.upper().strip(), t.upper().strip())
+
+
+def _enrich_cots_with_idfg(
+    cots: pd.DataFrame,
+    proj_players: pd.DataFrame,
+) -> pd.DataFrame:
+    """Add an ``IDfg`` column to the Cot's DataFrame.
+
+    Matching priority:
+      1. Unique name_key match (one projection player per name) — most common
+      2. Name + team disambiguation (for collisions like Will Smith)
+      3. ``NaN`` if no confident match is possible
+    """
+    # name_key → list of IDfgs from projections
+    name_to_idfgs: Dict[str, list] = {}
+    for _, row in proj_players.iterrows():
+        key = row["_name_key"]
+        name_to_idfgs.setdefault(key, []).append(int(row["IDfg"]))
+
+    idfg_team_map = _build_idfg_team_map()
+    n_unique = n_team = n_ambiguous = 0
+
+    idfg_col = []
+    for _, row in cots.iterrows():
+        candidates = name_to_idfgs.get(row["_name_key"], [])
+
+        if len(candidates) == 1:
+            idfg_col.append(candidates[0])
+            n_unique += 1
+        elif len(candidates) > 1:
+            # Disambiguate by team
+            cots_team = _normalise_team(str(row.get("team", "")))
+            matched = None
+            for cand in candidates:
+                cand_team = _normalise_team(idfg_team_map.get(cand, ""))
+                if cand_team and cand_team == cots_team:
+                    matched = cand
+                    break
+            if matched is not None:
+                idfg_col.append(matched)
+                n_team += 1
+            else:
+                idfg_col.append(pd.NA)
+                n_ambiguous += 1
+        else:
+            idfg_col.append(pd.NA)
+
+    cots = cots.copy()
+    cots["IDfg"] = pd.array(idfg_col, dtype="Int64")
+
+    logger.info(
+        f"Cot's ID enrichment: {n_unique} unique-name, {n_team} team-disambiguated, "
+        f"{n_ambiguous} unresolved collisions, {cots['IDfg'].isna().sum()} total unmatched"
+    )
+    return cots
 
 # ═══════════════════════════════════════════════════════════════════════════
 # WAR calculation helpers
@@ -336,11 +456,10 @@ def compute_surplus_for_snapshot(
     cots = cots.dropna(subset=["player"]).copy()
     # Normalize the Cot's name for matching — strip non-alpha chars (e.g. asterisks)
     cots["_name_key"] = cots["player"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.strip().str.lower()
-    # Deduplicate: keep the row with the highest salary for duplicate names
+    # Pre-sort by salary desc (dedup happens after ID enrichment below)
     cots = cots.sort_values("salary", ascending=False, na_position="last")
-    cots = cots.drop_duplicates(subset=["_name_key"], keep="first")
 
-    logger.info(f"[{snapshot_year}]  loaded {len(cots)} players from Cot's")
+    logger.info(f"[{snapshot_year}]  loaded {len(cots)} Cot's rows")
 
     # ── Load projections ──────────────────────────────────────────────────
     proj_dir = PROJECTIONS_DIR / f"cutoff_{cutoff_year}"
@@ -435,13 +554,25 @@ def compute_surplus_for_snapshot(
 
     logger.info(f"[{snapshot_year}]  {len(proj_players)} unique projected players")
 
-    # ── Match projections ↔ Cot's by name (LEFT join to keep all projected players)
-    merged = proj_players.merge(cots, on="_name_key", how="left", suffixes=("", "_cots"))
+    # ── ID-based Cot's matching (replaces brittle name-only join) ─────────
+    cots = _enrich_cots_with_idfg(cots, proj_players)
+
+    # Dedup: by IDfg where we resolved one, by name_key otherwise
+    cots_id = cots.dropna(subset=["IDfg"]).drop_duplicates(subset=["IDfg"], keep="first")
+    cots_name = cots[cots["IDfg"].isna()].drop_duplicates(subset=["_name_key"], keep="first")
+    cots = pd.concat([cots_id, cots_name], ignore_index=True)
+
+    # Merge on IDfg — Cot's rows without an IDfg also failed name resolution
+    # (same normalisation), so an ID-only join is both complete and correct.
+    merged = proj_players.merge(
+        cots.drop(columns=["_name_key"]),
+        on="IDfg", how="left", suffixes=("", "_cots"),
+    )
 
     n_in_cots = merged["player"].notna().sum()
     n_missing = merged["player"].isna().sum()
     logger.info(
-        f"[{snapshot_year}]  {n_in_cots} matched in Cot's, "
+        f"[{snapshot_year}]  {n_in_cots} matched in Cot's (by IDfg), "
         f"{n_missing} not in Cot's (will estimate from service time)"
     )
 
