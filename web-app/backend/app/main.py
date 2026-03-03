@@ -28,6 +28,7 @@ from app.auth import require_api_key
 # Import models so Base.metadata includes them for create_all
 import app.models.historical  # noqa: F401
 import app.models.past_trade  # noqa: F401
+import app.models.milb_stats  # noqa: F401
 # Add security headers middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
