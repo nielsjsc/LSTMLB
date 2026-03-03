@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import logging
@@ -24,6 +23,11 @@ if str(backend_dir) not in sys.path:
 # Change relative imports to absolute
 from app.routes import players, trades, projections, prospects, historical
 from app.database import SessionLocal, engine
+from app.auth import require_api_key
+
+# Import models so Base.metadata includes them for create_all
+import app.models.historical  # noqa: F401
+import app.models.past_trade  # noqa: F401
 # Add security headers middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -41,19 +45,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ── Startup preload ──────────────────────────────────────────────────────────
-# Eagerly load heavy JSON/CSV caches so the first request isn't slow.
+# ── Startup ───────────────────────────────────────────────────────────────────
+# Historical + trade data now lives in the DB (loaded via data_loader.init_db).
+# No heavy JSON preload needed.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.database import Base
     t0 = time.time()
-    logger.info("Preloading cached data...")
-    try:
-        historical._load_historical()       # ~32 MB JSON + salary augmentation
-        trades._load_past_trades()          # trades JSON + projections + historical WAR
-        trades._ensure_indexes()            # build fast-lookup dicts
-        logger.info(f"Preload complete in {time.time() - t0:.1f}s")
-    except Exception as e:
-        logger.error(f"Preload failed (non-fatal): {e}")
+    logger.info("Creating DB tables (if necessary)...")
+    Base.metadata.create_all(bind=engine)
+    logger.info(f"Startup complete in {time.time() - t0:.1f}s")
     yield
 
 app = FastAPI(
@@ -119,11 +120,11 @@ async def performance_middleware(request: Request, call_next):
             detail=f"Internal server error: {str(e)}"
         )
 
-app.include_router(players.router, prefix="/players", tags=["players"])
-app.include_router(prospects.router, prefix="/prospects", tags=["prospects"])
-app.include_router(trades.router, prefix="/trades", tags=["trades"])
-app.include_router(projections.router, prefix="/projections", tags=["projections"])
-app.include_router(historical.router, prefix="/historical", tags=["historical"])
+app.include_router(players.router, prefix="/players", tags=["players"], dependencies=[Depends(require_api_key)])
+app.include_router(prospects.router, prefix="/prospects", tags=["prospects"], dependencies=[Depends(require_api_key)])
+app.include_router(trades.router, prefix="/trades", tags=["trades"], dependencies=[Depends(require_api_key)])
+app.include_router(projections.router, prefix="/projections", tags=["projections"], dependencies=[Depends(require_api_key)])
+app.include_router(historical.router, prefix="/historical", tags=["historical"], dependencies=[Depends(require_api_key)])
 
 # Headshot images endpoint
 HEADSHOTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "headshots"
