@@ -27,6 +27,7 @@ if str(backend_dir) not in sys.path:
 # Change to absolute imports
 from app.database import get_db
 from app.models.player import Player
+from app.config import CURRENT_YEAR
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -153,35 +154,39 @@ async def get_players(
         historical_results = []
         if search and len(search) >= 2:
             try:
-                from app.routes.historical import _load_historical, _name_index
-                _load_historical()
+                from app.models.historical import HistoricalPlayer
                 q_lower = search.strip().lower()
                 # Collect active mlb_ids to avoid duplicates
                 active_mlb_ids = {p.get("mlb_id") for p in active_results if p.get("mlb_id")}
                 active_names_lower = {p["name"].lower() for p in active_results}
-                for hp in _name_index:
-                    if q_lower in hp["name_lower"]:
-                        # Skip if already in active results
-                        mlbam = hp.get("mlbam")
-                        if mlbam and mlbam in active_mlb_ids:
-                            continue
-                        if hp["name_lower"] in active_names_lower:
-                            continue
-                        teams_str = ", ".join(hp.get("teams", [])[:3])
-                        historical_results.append({
-                            "real_id": hp["idfg"],
-                            "mlb_id": mlbam,
-                            "name": hp["name"],
-                            "team": teams_str or "---",
-                            "position": "P" if hp.get("is_pitcher") else "Pos",
-                            "status": "historical",
-                            "age": None,
-                            "war_bat": None if hp.get("is_pitcher") else hp.get("career_war", 0),
-                            "war_pit": hp.get("career_war", 0) if hp.get("is_pitcher") else None,
-                            "is_historical": True,
-                            "career_war": hp.get("career_war", 0),
-                            "first_year": hp.get("first_year"),
-                            "last_year": hp.get("last_year"),
+                hist_rows = (
+                    db.query(HistoricalPlayer)
+                    .filter(HistoricalPlayer.name_lower.contains(q_lower))
+                    .order_by(HistoricalPlayer.career_war.desc())
+                    .limit(50)
+                    .all()
+                )
+                for hp in hist_rows:
+                    mlbam = hp.mlbam
+                    if mlbam and mlbam in active_mlb_ids:
+                        continue
+                    if hp.name_lower in active_names_lower:
+                        continue
+                    teams_str = ", ".join((hp.teams or [])[:3])
+                    historical_results.append({
+                        "real_id": hp.idfg,
+                        "mlb_id": mlbam,
+                        "name": hp.name,
+                        "team": teams_str or "---",
+                        "position": "P" if hp.is_pitcher else "Pos",
+                        "status": "historical",
+                        "age": None,
+                        "war_bat": None if hp.is_pitcher else (hp.career_war or 0),
+                        "war_pit": (hp.career_war or 0) if hp.is_pitcher else None,
+                        "is_historical": True,
+                        "career_war": hp.career_war or 0,
+                        "first_year": hp.first_year,
+                        "last_year": hp.last_year,
                             "value": None
                         })
                         if len(historical_results) >= 15:
@@ -344,8 +349,8 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
                 detail=f"Player not found with ID: {player_id}"
             )
         
-        # Get current year data (2026) or fallback to first available
-        current_year_data = next((p for p in player_years if p.year == 2026), player_years[0])
+        # Get current year data or fallback to first available
+        current_year_data = next((p for p in player_years if p.year == CURRENT_YEAR), player_years[0])
         
         response = {
             "name": current_year_data.name,
@@ -673,7 +678,7 @@ def _build_name_index(db: Session) -> Dict[str, List[Dict[str, Any]]]:
     """Build a name→[{mlb_id, real_id, name}] index for matching players in trade descriptions."""
     players = db.query(
         Player.name, Player.mlb_id, Player.real_id
-    ).filter(Player.year == 2026).all()
+    ).filter(Player.year == CURRENT_YEAR).all()
 
     index: Dict[str, List[Dict[str, Any]]] = {}
     for p in players:
