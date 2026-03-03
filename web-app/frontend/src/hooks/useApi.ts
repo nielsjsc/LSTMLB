@@ -101,6 +101,8 @@ export function usePastTrades(params: {
   team?: string;
   year?: number | '';
   search?: string;
+  featured?: boolean;
+  confidence?: string;
 }) {
   return useQuery({
     queryKey: ['pastTrades', params] as const,
@@ -113,6 +115,8 @@ export function usePastTrades(params: {
         team: params.team || undefined,
         year: params.year || undefined,
         search: params.search || undefined,
+        featured: params.featured,
+        confidence: params.confidence || undefined,
       }),
     placeholderData: keepPreviousData,
   });
