@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { getProjections, ProjectionResponse } from '../../services/api';
+import { useState, useEffect } from 'react';
+import { useProjections } from '../../hooks/useApi';
 import ProjectionsTable from '../../components/Tables/Projections/ProjectionsTable';
 import { CURRENT_YEAR } from '../../config';
 
@@ -18,65 +18,31 @@ const pitcherPositions = ['SP', 'RP'];
 
 
 const ProjectionsPage = () => {
-  // Existing state
+  // Filter / pagination state
   const [year, setYear] = useState(CURRENT_YEAR);
   const [playerType, setPlayerType] = useState<'hitter' | 'pitcher'>('hitter');
   const [team, setTeam] = useState<string>();
   const [position, setPosition] = useState<string>();
-  const [data, setData] = useState<ProjectionResponse>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>();
-  
-  // Update pagination state
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(50);  // Changed from 25 to match backend
-  
-  // Add sorting state
+  const [pageSize] = useState(50);
   const [sortBy, setSortBy] = useState<string>(
     playerType === 'hitter' ? 'war_bat' : 'war_pit'
   );
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  const fetchProjections = async (newPage?: number) => {
-    try {
-      setLoading(true);
-      setError(undefined);
-      const currentPage = newPage || page;
-      
-      const response = await getProjections(
-        year, 
-        playerType, 
-        team, 
-        position,
-        currentPage,
-        pageSize,
-        sortBy,
-        sortDirection
-      );
-      
-      setData(response);
-      if (newPage) setPage(newPage);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setError('Failed to fetch projections');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // React Query — replaces manual useState/useEffect/fetch
+  const { data, isFetching: loading, error } = useProjections({
+    year, playerType, team, position, page, pageSize, sortBy, sortDirection,
+  });
 
-
+  // Reset to first page when filters or sort change
+  useEffect(() => { setPage(1); }, [year, playerType, team, position, sortBy, sortDirection]);
 
   const handleSort = (key: string) => {
     const newDirection = sortBy === key && sortDirection === 'desc' ? 'asc' : 'desc';
     setSortBy(key);
     setSortDirection(newDirection);
-    fetchProjections(1);  // Reset to first page when sorting
   };
-
-  // Update useEffect dependencies to include sorting
-  useEffect(() => {
-    fetchProjections(1);
-  }, [year, playerType, team, position, sortBy, sortDirection]);
 
 
   return (
@@ -166,7 +132,7 @@ const ProjectionsPage = () => {
   
         {error && (
           <div className="text-red-400 mb-4 rounded-lg px-4 py-2 border border-red-500/20">
-            {error}
+            {error instanceof Error ? error.message : 'Failed to fetch projections'}
           </div>
         )}
   
@@ -181,7 +147,7 @@ const ProjectionsPage = () => {
                 playerType={playerType}
                 currentPage={page}
                 totalPages={data.total_pages}
-                onPageChange={(newPage) => fetchProjections(newPage)}
+                onPageChange={setPage}
                 onSort={handleSort}
                 sortBy={sortBy}
                 sortDirection={sortDirection}
