@@ -669,6 +669,199 @@ def _augment_with_prospect_values(trades: List[Dict[str, Any]]) -> None:
     )
 
 
+def _compute_confidence_and_featured(trades: List[Dict[str, Any]]) -> None:
+    """
+    Add evaluation_confidence tiers and is_featured flags to trades.
+    Modifies trades in-place.
+
+    Confidence tiers:
+      - "definitive" — trade year ≤ CURRENT_YEAR-4 (4+ years of data)
+      - "maturing"   — trade year ≤ CURRENT_YEAR-2 (2-3 years)
+      - "early"      — recent actual trades (1 year of data)
+      - "projected"  — evaluation_type == "projected" (no actual data)
+
+    Featured flag — set for notable/blockbuster trades based on heuristics.
+    """
+    for trade in trades:
+        trade_year = trade.get("year", 0)
+        eval_type = trade.get("evaluation_type", "actual")
+
+        # ── Confidence tier ───────────────────────────────────────────────
+        if eval_type == "projected":
+            trade["evaluation_confidence"] = "projected"
+        elif trade_year <= CURRENT_YEAR - 4:
+            trade["evaluation_confidence"] = "definitive"
+        elif trade_year <= CURRENT_YEAR - 2:
+            trade["evaluation_confidence"] = "maturing"
+        else:
+            trade["evaluation_confidence"] = "early"
+
+        # ── Featured flag ─────────────────────────────────────────────────
+        n_players = trade.get("n_players", 0)
+        max_fv = trade.get("max_prospect_fv") or 0
+        total_war = abs(trade.get("total_trade_war", 0))
+        surplus_diff = abs(trade.get("surplus_diff", 0))
+
+        trade["is_featured"] = (
+            n_players >= 4
+            or max_fv >= 55
+            or total_war >= 8
+            or surplus_diff >= 50_000_000
+        )
+
+    featured_count = sum(1 for t in trades if t.get("is_featured"))
+    logger.info(
+        f"Computed confidence tiers and featured flags "
+        f"({featured_count} featured out of {len(trades)} trades)"
+    )
+
+
+def _add_has_data_flags(trades: List[Dict[str, Any]]) -> None:
+    """
+    Mark trade players with has_data=False when we have no meaningful
+    information about their value — no WAR data, no projection, no prospect
+    value.  This lets the frontend show "No Data" instead of misleading zeros.
+
+    Modifies trades in-place.
+    """
+    flagged = 0
+    for trade in trades:
+        for side in trade.get("sides", []):
+            for player in side.get("players_received", []):
+                has_war = abs(player.get("war_with_team", 0)) > 0.01
+                has_projection = player.get("has_projection", False)
+                has_prospect_val = player.get("prospect_value") is not None and player.get("prospect_value", 0) > 0
+                has_seasons = player.get("seasons_with_team", 0) > 0
+
+                if has_war or has_projection or has_prospect_val or has_seasons:
+                    player["has_data"] = True
+                else:
+                    player["has_data"] = False
+                    flagged += 1
+
+    logger.info(f"Flagged {flagged} trade players with has_data=False")
+
+
+def _link_prospect_ids(trades: List[Dict[str, Any]]) -> None:
+    """
+    Cross-reference trade players against the Prospect table by MLB ID → IDfg
+    mapping and by name.  Attaches ``prospect_id`` (the Prospect table PK) so
+    the frontend can link pure prospects to their detail pages.
+
+    Also attempts to enrich players who have no prospect_fv in raw data but
+    ARE in the prospect DB — fixes the gap where the offline pipeline didn't
+    tag them as prospects.
+
+    Modifies trades in-place.
+    """
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        all_prospects = db.query(Prospect).all()
+    finally:
+        db.close()
+
+    # Build lookups: (name_lower, year) → prospect row, and idfg → prospect row
+    name_year_lookup: Dict[Tuple[str, int], Any] = {}
+    idfg_lookup: Dict[int, Any] = {}
+    for p in all_prospects:
+        nl = p.name.strip().lower() if p.name else ""
+        yr = p.year
+        key = (nl, yr)
+        # Keep the most recent year entry per name
+        if key not in name_year_lookup or p.year > name_year_lookup[key].year:
+            name_year_lookup[key] = p
+        if p.IDfg:
+            # Keep the most recent entry per IDfg
+            if p.IDfg not in idfg_lookup or p.year > idfg_lookup[p.IDfg].year:
+                idfg_lookup[p.IDfg] = p
+
+    # Also need MLBAM → IDfg from historical data for cross-referencing
+    try:
+        from app.routes import historical as _hist_mod
+        _hist_mod._load_historical()
+        mlbam_to_idfg = _hist_mod._mlbam_to_idfg or {}
+    except Exception:
+        mlbam_to_idfg = {}
+
+    linked = 0
+    enriched = 0
+
+    for trade in trades:
+        trade_year = trade.get("year", 0)
+        for side in trade.get("sides", []):
+            for player in side.get("players_received", []):
+                name_lower = player.get("name", "").strip().lower()
+                mlb_id = player.get("mlb_id")
+
+                # Try to find prospect by IDfg (via MLBAM crosswalk)
+                prospect = None
+                if mlb_id:
+                    idfg_str = mlbam_to_idfg.get(str(mlb_id))
+                    if idfg_str:
+                        prospect = idfg_lookup.get(int(idfg_str))
+
+                # Fallback: name + year matching (try exact year, then adjacent)
+                if not prospect:
+                    for yr_offset in [0, -1, 1, -2, 2]:
+                        prospect = name_year_lookup.get((name_lower, trade_year + yr_offset))
+                        if prospect:
+                            break
+
+                if prospect:
+                    player["prospect_id"] = prospect.id
+                    linked += 1
+
+                    # If the raw data didn't tag this player as a prospect but
+                    # they ARE in the prospect DB, enrich them now
+                    if not player.get("prospect_fv") and prospect.fv:
+                        try:
+                            fv_int = int(prospect.fv)
+                            player["prospect_fv"] = fv_int
+                            # Calculate prospect value
+                            val = prospect.get_value(prospect.year)
+                            if val:
+                                player["prospect_value"] = int(val)
+                            else:
+                                player["prospect_value"] = _estimate_prospect_value(fv_int)
+                            # If they're a pure prospect (0 WAR, 0 seasons), fix surplus
+                            if player.get("seasons_with_team", 0) == 0 and player.get("war_with_team", 0) == 0:
+                                player["salary_with_team"] = 0
+                                player["war_value"] = 0
+                                player["surplus"] = player["prospect_value"]
+                            enriched += 1
+                        except (ValueError, TypeError):
+                            pass
+
+    # Recalculate side totals after prospect enrichment
+    if enriched > 0:
+        for trade in trades:
+            for side in trade.get("sides", []):
+                players_list = side.get("players_received", [])
+                side["total_salary"] = sum(p.get("salary_with_team", 0) for p in players_list)
+                side["total_war_value"] = sum(p.get("war_value", 0) for p in players_list)
+                side["total_surplus"] = sum(p.get("surplus", 0) for p in players_list)
+
+            # Recalculate winner/loser
+            if trade.get("evaluation_type") != "projected":
+                sides = trade.get("sides", [])
+                if len(sides) >= 2:
+                    sorted_sides = sorted(sides, key=lambda s: s.get("total_surplus", 0), reverse=True)
+                    trade["winner"] = sorted_sides[0]["team"]
+                    trade["winner_name"] = sorted_sides[0]["team_name"]
+                    trade["loser"] = sorted_sides[-1]["team"]
+                    trade["loser_name"] = sorted_sides[-1]["team_name"]
+                    trade["surplus_diff"] = (
+                        sorted_sides[0].get("total_surplus", 0) - sorted_sides[-1].get("total_surplus", 0)
+                    )
+
+    logger.info(
+        f"Linked {linked} prospect IDs to trade players, "
+        f"enriched {enriched} previously-untagged prospects"
+    )
+
+
 def _load_past_trades() -> List[Dict[str, Any]]:
     """Load & augment the trade evaluations from JSON.
 
@@ -689,6 +882,9 @@ def _load_past_trades() -> List[Dict[str, Any]]:
     _augment_with_projections(_past_trades_cache)
     _augment_with_historical_war(_past_trades_cache)
     _augment_with_prospect_values(_past_trades_cache)
+    _link_prospect_ids(_past_trades_cache)
+    _add_has_data_flags(_past_trades_cache)
+    _compute_confidence_and_featured(_past_trades_cache)
 
     logger.info(f"Loaded {len(_past_trades_cache)} past trades (for ingestion)")
     return _past_trades_cache
@@ -719,6 +915,8 @@ def get_past_trades(
     year: Optional[int] = None,
     min_war: Optional[float] = None,
     search: Optional[str] = None,
+    featured: Optional[bool] = None,
+    confidence: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     """List all evaluated past trades with sorting, filtering, and pagination."""
@@ -734,6 +932,12 @@ def get_past_trades(
 
     if min_war is not None:
         query = query.filter(PastTrade.total_trade_war >= min_war)
+
+    if featured is not None:
+        query = query.filter(PastTrade.is_featured == featured)
+
+    if confidence:
+        query = query.filter(PastTrade.evaluation_confidence == confidence)
 
     if search:
         search_lower = search.lower()
