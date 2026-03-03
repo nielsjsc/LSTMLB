@@ -22,6 +22,9 @@ if str(backend_dir) not in sys.path:
 load_dotenv(backend_dir / '.env')
 from app.models.player import Player
 from app.models.prospect import Prospect
+from app.models.historical import HistoricalPlayer
+from app.models.past_trade import PastTrade
+from app.config import PROSPECT_YEARS
 from app.database import SessionLocal, engine, Base
 
 logging.basicConfig(level=logging.INFO)
@@ -130,17 +133,17 @@ class DataLoader:
             # Float fields
             'age': float(row['Age']) if pd.notna(row['Age']) else None,
             
-            # Value metrics (Float)
-            'value_2022': float(row.get('2022_Value')) if pd.notna(row.get('2022_Value')) else None,
-            'value_2023': float(row.get('2023_Value')) if pd.notna(row.get('2023_Value')) else None,
-            'value_2024': float(row.get('2024_Value')) if pd.notna(row.get('2024_Value')) else None,
-            'value_2025': float(row.get('2025_Value')) if pd.notna(row.get('2025_Value')) else None,
-            
-            # Composite metrics (Float) - top 100 rank for top prospects, None otherwise
-            'composite_2022': float(row.get('2022_Composite')) if pd.notna(row.get('2022_Composite')) else None,
-            'composite_2023': float(row.get('2023_Composite')) if pd.notna(row.get('2023_Composite')) else None,
-            'composite_2024': float(row.get('2024_Composite')) if pd.notna(row.get('2024_Composite')) else None,
-            'composite_2025': float(row.get('2025_Composite')) if pd.notna(row.get('2025_Composite')) else None,
+            # Year-keyed value & composite maps (dynamic — no schema change per season)
+            'values_by_year': {
+                str(yr): float(row[f'{yr}_Value'])
+                for yr in PROSPECT_YEARS
+                if pd.notna(row.get(f'{yr}_Value'))
+            },
+            'composites_by_year': {
+                str(yr): float(row[f'{yr}_Composite'])
+                for yr in PROSPECT_YEARS
+                if pd.notna(row.get(f'{yr}_Composite'))
+            },
             
             # Tool grades (String)
             'hit': str(row.get('Hit')) if pd.notna(row.get('Hit')) else None,
@@ -198,6 +201,200 @@ class DataLoader:
             self.db.rollback()
             raise
 
+    # ── Historical players ────────────────────────────────────────────────
+
+    def load_historical_data(self, json_path: str) -> None:
+        """Ingest historical_players.json (with salary augmentation) into DB.
+
+        Uses the existing loading/augmentation code from routes.historical,
+        then writes the fully-augmented data to the HistoricalPlayer table.
+        """
+        import json as _json
+        from app.routes.historical import (
+            _load_salary_supplement,
+            _load_spotrac_salaries,
+            _load_lahman_salaries,
+        )
+
+        p = Path(json_path)
+        if not p.exists():
+            logger.warning(f"Historical players file not found: {p}")
+            return
+
+        logger.info(f"Reading historical JSON from {p} ...")
+        with open(p, "r") as f:
+            data = _json.load(f)
+
+        players = data.get("players", {})
+        mlbam_to_idfg = data.get("mlbam_to_idfg", {})
+        logger.info(f"  {len(players)} players, {len(mlbam_to_idfg)} MLBAM mappings")
+
+        # ── Salary augmentation (same three-source merge as before) ───────
+        by_year_lookup = _load_salary_supplement()
+        spotrac_lookup = _load_spotrac_salaries()
+        lahman_lookup = _load_lahman_salaries()
+
+        for key, sal in spotrac_lookup.items():
+            if key not in by_year_lookup:
+                by_year_lookup[key] = sal
+
+        filled = 0
+        for _idfg_str, pl in players.items():
+            name_lower = pl["name"].lower().strip()
+            bbref_id = pl.get("bbref", "")
+            career_salary_add = 0
+
+            for season_key in ("batting", "pitching"):
+                for s in pl.get(season_key, []):
+                    if s.get("salary"):
+                        continue
+                    team = s.get("team", "")
+                    yr = s.get("year", 0)
+                    sal = by_year_lookup.get((name_lower, team, yr))
+                    if sal is None and bbref_id:
+                        sal = lahman_lookup.get((bbref_id, yr))
+                    if sal:
+                        s["salary"] = sal
+                        war_val = s.get("war_value") or 0
+                        s["surplus"] = war_val - sal
+                        career_salary_add += sal
+                        filled += 1
+
+            if career_salary_add > 0:
+                old = pl.get("career_salary") or 0
+                pl["career_salary"] = old + career_salary_add
+                old_surplus = pl.get("career_surplus")
+                if old_surplus is not None:
+                    pl["career_surplus"] = old_surplus - career_salary_add
+                else:
+                    war_value = pl.get("career_war_value") or 0
+                    pl["career_surplus"] = war_value - pl["career_salary"]
+
+        logger.info(f"  Salary augmentation: filled {filled} season entries")
+
+        # ── Bulk write to DB ──────────────────────────────────────────────
+        objects = []
+        for idfg_str, pl in players.items():
+            idfg = int(idfg_str)
+            objects.append(HistoricalPlayer(
+                idfg=idfg,
+                mlbam=pl.get("mlbam"),
+                bbref=pl.get("bbref"),
+                name=pl["name"],
+                name_lower=pl["name"].lower().strip(),
+                birth_year=pl.get("birth_year"),
+                death_year=pl.get("death_year"),
+                first_year=pl.get("first_year"),
+                last_year=pl.get("last_year"),
+                teams=pl.get("teams", []),
+                career_war=pl.get("career_war", 0),
+                career_bat_war=pl.get("career_bat_war", 0),
+                career_pit_war=pl.get("career_pit_war", 0),
+                career_salary=pl.get("career_salary", 0),
+                career_war_value=pl.get("career_war_value", 0),
+                career_surplus=pl.get("career_surplus", 0),
+                is_pitcher=pl.get("is_pitcher", False),
+                batting=pl.get("batting", []),
+                pitching=pl.get("pitching", []),
+            ))
+
+        self.db.bulk_save_objects(objects)
+
+        # Also store the MLBAM→IDfg crosswalk in a lightweight way:
+        # we rely on the mlbam column being indexed, so lookups work.
+        self.db.commit()
+        logger.info(f"  Loaded {len(objects)} historical players into DB")
+
+    # ── Past trades ───────────────────────────────────────────────────────
+
+    def load_past_trades_data(self, json_path: str) -> None:
+        """Ingest trades.json with full augmentation into DB.
+
+        Temporarily loads historical data + surplus projections + prospect DB
+        to perform the same three-pass augmentation as the old startup code,
+        then writes the augmented results to the PastTrade table.
+
+        Must be called *after* load_historical_data so the historical table
+        is populated (used by the WAR augmentation pass).
+        """
+        import json as _json
+        from app.routes.historical import (
+            _load_historical, _players as _hist_players,
+            _mlbam_to_idfg as _hist_mlbam,
+        )
+
+        p = Path(json_path)
+        if not p.exists():
+            logger.warning(f"Past trades file not found: {p}")
+            return
+
+        logger.info(f"Reading trades JSON from {p} ...")
+        with open(p, "r") as f:
+            trades = _json.load(f)
+        logger.info(f"  {len(trades)} raw trades")
+
+        # We need historical data in memory for the WAR augmentation.
+        # Load it (reads from JSON; the DB is already populated but the
+        # in-memory format is needed by the augmentation helpers).
+        _load_historical()
+
+        # Run the same three-pass augmentation pipeline
+        from app.routes.trades import (
+            _augment_with_projections,
+            _augment_with_historical_war,
+            _augment_with_prospect_values,
+        )
+        _augment_with_projections(trades)
+        _augment_with_historical_war(trades)
+        _augment_with_prospect_values(trades)
+
+        # ── Bulk write to DB ──────────────────────────────────────────────
+        objects = []
+        for t in trades:
+            # Build denormalised filter columns
+            all_teams = set()
+            all_names = []
+            all_mlb_ids = []
+            for side in t.get("sides", []):
+                all_teams.add(side["team"])
+                for pl in side.get("players_received", []):
+                    all_names.append(pl.get("name", "").lower())
+                    if pl.get("mlb_id"):
+                        all_mlb_ids.append(str(pl["mlb_id"]))
+
+            objects.append(PastTrade(
+                trade_id=t["trade_id"],
+                date=t["date"],
+                year=t["year"],
+                description=t.get("description"),
+                has_cash=t.get("has_cash", False),
+                has_ptbnl=t.get("has_ptbnl", False),
+                n_teams=t.get("n_teams", 2),
+                n_players=t.get("n_players", 0),
+                winner=t.get("winner"),
+                winner_name=t.get("winner_name"),
+                loser=t.get("loser"),
+                loser_name=t.get("loser_name"),
+                surplus_diff=t.get("surplus_diff", 0),
+                total_trade_war=t.get("total_trade_war", 0),
+                max_prospect_fv=t.get("max_prospect_fv"),
+                evaluation_type=t.get("evaluation_type", "actual"),
+                projected_winner=t.get("projected_winner"),
+                projected_winner_name=t.get("projected_winner_name"),
+                projected_loser=t.get("projected_loser"),
+                projected_loser_name=t.get("projected_loser_name"),
+                projected_surplus_diff=t.get("projected_surplus_diff"),
+                projected_total_war=t.get("projected_total_war"),
+                sides_json=t.get("sides", []),
+                teams_csv=",".join(sorted(all_teams)),
+                player_names_lower=",".join(all_names),
+                player_mlb_ids_csv=",".join(all_mlb_ids),
+            ))
+
+        self.db.bulk_save_objects(objects)
+        self.db.commit()
+        logger.info(f"  Loaded {len(objects)} past trades into DB")
+
     def reset_and_load_data(self, players_csv: str, prospects_csv: str = None):
         try:
             # Clear existing data - different syntax for SQLite vs PostgreSQL
@@ -230,7 +427,7 @@ class DataLoader:
             raise
 
 def init_db():
-    """Initialize database with player and prospect data"""
+    """Initialize database with all data: players, prospects, historical, trades."""
     try:
         logger.info("Starting database initialization...")
         
@@ -246,6 +443,8 @@ def init_db():
         # Define paths to data files
         player_data = base_path / "data" / "generated" / "value_by_year" / "player_values_complete.csv"
         prospects_data = base_path / "data" / "generated" / "MiLB" / "prospect_histories.csv"
+        historical_data = base_path / "data" / "generated" / "historical_players" / "historical_players.json"
+        trades_data = base_path / "data" / "generated" / "past_trades" / "trades.json"
         
         logger.info(f"Looking for data files in: {base_path}")
         
@@ -257,6 +456,19 @@ def init_db():
         try:
             loader = DataLoader(db)
             loader.reset_and_load_data(str(player_data), str(prospects_data))
+
+            # Historical players (salary-augmented from JSON + CSVs)
+            if historical_data.exists():
+                loader.load_historical_data(str(historical_data))
+            else:
+                logger.warning(f"Historical data not found: {historical_data}")
+
+            # Past trades (augmented with projections, historical WAR, prospect values)
+            if trades_data.exists():
+                loader.load_past_trades_data(str(trades_data))
+            else:
+                logger.warning(f"Trades data not found: {trades_data}")
+
             logger.info("Data loading completed successfully!")
             
         finally:
