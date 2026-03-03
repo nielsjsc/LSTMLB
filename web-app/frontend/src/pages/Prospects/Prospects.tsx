@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { getProspects, ProspectResponse } from '../../services/api';
+import { useState, useEffect } from 'react';
+import { useProspects } from '../../hooks/useApi';
 import ProspectsTable from '../../components/Tables/Prospects/ProspectTable';
+import { PROSPECT_YEARS, PROSPECT_DEFAULT_YEAR } from '../../config';
 
 
 const teams = ['ARI', 'ATL', 'BAL', 'BOS', 'CHC', 'CHW', 'CIN', 'CLE', 'COL', 'DET', 
@@ -9,85 +10,28 @@ const teams = ['ARI', 'ATL', 'BAL', 'BOS', 'CHC', 'CHW', 'CIN', 'CLE', 'COL', 'D
 
 const hitterPositions = ['C', '1B', '2B', '3B', 'SS', 'OF', 'LF', 'CF', 'RF', 'DH'];
 
-// Update years array to show most recent first (2025 is latest prospect data)
-const years = [2025, 2024, 2023, 2022];
-
 const ProspectsPage = () => {
   const [playerType, setPlayerType] = useState<'hitter' | 'pitcher'>('hitter');
   const [team, setTeam] = useState<string>();
   const [position, setPosition] = useState<string>();
-  const [year, setYear] = useState(2025);
+  const [year, setYear] = useState(PROSPECT_DEFAULT_YEAR);
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(50);  // Changed to 50 to match Projections
-  const [data, setData] = useState<ProspectResponse>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>();
-  const [sortBy, setSortBy] = useState<string>('composite');  // Default sort
+  const [pageSize] = useState(50);
+  const [sortBy, setSortBy] = useState<string>('composite');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  const fetchProspects = async (newPage?: number) => {
-    try {
-      setLoading(true);
-      setError(undefined);
-      const currentPage = newPage || page;
-      
-      const response = await getProspects(
-        playerType,
-        team,
-        position,
-        year,
-        currentPage,
-        pageSize,
-        sortBy,
-        sortDirection
-      );
-      
-      setData(response);
-      if (newPage) setPage(newPage);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setError('Failed to fetch prospects');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // React Query — replaces manual useState/useEffect/fetch
+  const { data, isFetching: loading, error } = useProspects({
+    playerType, team, position, year, page, pageSize, sortBy, sortDirection,
+  });
+
+  // Reset to first page when filters or sort change
+  useEffect(() => { setPage(1); }, [year, playerType, team, position, sortBy, sortDirection]);
 
   const handleSort = (key: string) => {
     const newDirection = sortBy === key && sortDirection === 'desc' ? 'asc' : 'desc';
     setSortBy(key);
     setSortDirection(newDirection);
-    fetchProspects(1);
-  };
-
-  // Update useEffect to match Projections behavior
-  useEffect(() => {
-    fetchProspects(1);
-  }, [year, playerType, team, position, sortBy, sortDirection]);
-
-
-
-  const handlePageChange = async (newPage: number) => {
-    try {
-      setLoading(true);
-      setError(undefined);
-      const response = await getProspects(
-        playerType,
-        team,
-        position,
-        year,
-        newPage,
-        pageSize,
-        sortBy,  // Now this is string | undefined
-        sortDirection
-      );
-      setData(response);
-      setPage(newPage);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setError('Failed to fetch prospects');
-    } finally {
-      setLoading(false);
-    }
   };
 
 
@@ -104,7 +48,7 @@ const ProspectsPage = () => {
               onChange={(e) => setYear(Number(e.target.value))}
               className="bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
             >
-              {years.map(y => (
+              {PROSPECT_YEARS.map(y => (
                 <option key={y} value={y} className="bg-surface-800">{y}</option>
               ))}
             </select>
@@ -177,7 +121,7 @@ const ProspectsPage = () => {
   
         {error && (
           <div className="text-red-400 mb-4 rounded-lg px-4 py-2 border border-red-500/20">
-            {error}
+            {error instanceof Error ? error.message : 'Failed to fetch prospects'}
           </div>
         )}
   
@@ -193,7 +137,7 @@ const ProspectsPage = () => {
                 year={year}
                 currentPage={page}
                 totalPages={Math.ceil(data.count / pageSize)}
-                onPageChange={(newPage) => handlePageChange(newPage)}
+                onPageChange={setPage}
                 onSort={handleSort}
                 sortBy={sortBy}
                 sortDirection={sortDirection}
