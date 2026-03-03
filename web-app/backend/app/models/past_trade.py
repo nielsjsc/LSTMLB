@@ -40,6 +40,8 @@ class PastTrade(Base):
 
     # Projection augmentation fields
     evaluation_type = Column(String, default="actual")
+    evaluation_confidence = Column(String, default="definitive")  # definitive/maturing/early/projected
+    is_featured = Column(Boolean, default=False, index=True)
     projected_winner = Column(String, nullable=True)
     projected_winner_name = Column(String, nullable=True)
     projected_loser = Column(String, nullable=True)
@@ -77,6 +79,8 @@ class PastTrade(Base):
             "total_trade_war": self.total_trade_war,
             "max_prospect_fv": self.max_prospect_fv,
             "evaluation_type": self.evaluation_type,
+            "evaluation_confidence": self.evaluation_confidence or "definitive",
+            "is_featured": self.is_featured or False,
             "sides": self._build_sides_summary(),
         }
         if self.evaluation_type == "projected":
@@ -103,6 +107,8 @@ class PastTrade(Base):
             "total_trade_war": self.total_trade_war,
             "max_prospect_fv": self.max_prospect_fv,
             "evaluation_type": self.evaluation_type,
+            "evaluation_confidence": self.evaluation_confidence or "definitive",
+            "is_featured": self.is_featured or False,
             "sides": self.sides_json or [],
         }
         if self.evaluation_type == "projected":
@@ -134,6 +140,8 @@ class PastTrade(Base):
                     "projected_surplus": p.get("projected_surplus"),
                     "has_projection": p.get("has_projection"),
                     "prospect_value": p.get("prospect_value"),
+                    "prospect_id": p.get("prospect_id"),
+                    "has_data": p.get("has_data", True),
                     "seasons_with_team": p.get("seasons_with_team", 0),
                 })
             side_data = {
