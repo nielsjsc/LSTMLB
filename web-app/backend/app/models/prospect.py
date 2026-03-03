@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-from sqlalchemy import Column, Integer, String, Float, Boolean
+from sqlalchemy import Column, Integer, String, Float, Boolean, JSON
 
 # Add backend to path
 backend_dir = Path(__file__).resolve().parent.parent.parent
@@ -33,18 +33,23 @@ class Prospect(Base):
     changeup = Column(String)
     command = Column(String)
     
-    # Dynamic value columns
+    # Year-keyed value & composite maps — no schema change needed when a new
+    # season is added.  Stored as ``{"2022": 1.5, "2023": 2.0, ...}``.
+    values_by_year = Column(JSON, default=dict)
+    composites_by_year = Column(JSON, default=dict)
 
-    value_2022 = Column(Float)
-    value_2023 = Column(Float)
-    value_2024 = Column(Float)
-    value_2025 = Column(Float)
-    
-    # Dynamic composite columns
-    composite_2022 = Column(Float)
-    composite_2023 = Column(Float)
-    composite_2024 = Column(Float)
-    composite_2025 = Column(Float)
+    # ── Helpers ──────────────────────────────────────────────────────────
+    def get_value(self, year: int) -> float | None:
+        """Return the prospect value for *year*, or ``None``."""
+        if not self.values_by_year:
+            return None
+        return self.values_by_year.get(str(year))
+
+    def get_composite(self, year: int) -> float | None:
+        """Return the composite ranking for *year*, or ``None``."""
+        if not self.composites_by_year:
+            return None
+        return self.composites_by_year.get(str(year))
 
     # Type is now determined by position, not stored separately
     @property
