@@ -13,6 +13,7 @@ if str(backend_dir) not in sys.path:
 # Change to absolute imports
 from app.database import get_db
 from app.models.prospect import Prospect
+from app.models.milb_stats import MiLBHittingStats, MiLBPitchingStats
 from app.config import PROSPECT_YEARS, PROSPECT_DEFAULT_YEAR, PROSPECT_YEAR_START, PROSPECT_YEAR_END
 from typing import Optional, List
 
@@ -289,3 +290,112 @@ async def get_prospect_detail(
     except Exception as e:
         logger.error(f"Error in get_prospect_detail: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{prospect_id}/milb-stats")
+async def get_prospect_milb_stats(
+    prospect_id: int,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Return all MiLB hitting & pitching stats for a prospect.
+
+    Looks up the prospect by DB primary key to get their FanGraphs ID
+    (``IDfg``), then queries the MiLB stats tables.  Results are grouped
+    by season and sorted most-recent-first.
+    """
+    try:
+        prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
+        if not prospect:
+            raise HTTPException(status_code=404, detail="Prospect not found")
+
+        idfg = prospect.IDfg
+        if not idfg:
+            return {"hitting": [], "pitching": []}
+
+        # ── Hitting stats ─────────────────────────────────────────────────
+        hitting_rows = (
+            db.query(MiLBHittingStats)
+            .filter(MiLBHittingStats.IDfg == idfg)
+            .order_by(MiLBHittingStats.season.desc(), MiLBHittingStats.level)
+            .all()
+        )
+
+        hitting = []
+        for h in hitting_rows:
+            hitting.append({
+                "season": h.season,
+                "team": h.team,
+                "level": h.level,
+                "age": h.age,
+                "pa": h.pa,
+                "bb_pct": round(h.bb_pct * 100, 1) if h.bb_pct is not None else None,
+                "k_pct": round(h.k_pct * 100, 1) if h.k_pct is not None else None,
+                "avg": round(h.avg, 3) if h.avg is not None else None,
+                "obp": round(h.obp, 3) if h.obp is not None else None,
+                "slg": round(h.slg, 3) if h.slg is not None else None,
+                "ops": round(h.ops, 3) if h.ops is not None else None,
+                "iso": round(h.iso, 3) if h.iso is not None else None,
+                "babip": round(h.babip, 3) if h.babip is not None else None,
+                "woba": round(h.woba, 3) if h.woba is not None else None,
+                "wrc_plus": round(h.wrc_plus, 1) if h.wrc_plus is not None else None,
+                "spd": round(h.spd, 1) if h.spd is not None else None,
+            })
+
+        # ── Pitching stats ────────────────────────────────────────────────
+        pitching_rows = (
+            db.query(MiLBPitchingStats)
+            .filter(MiLBPitchingStats.IDfg == idfg)
+            .order_by(MiLBPitchingStats.season.desc(), MiLBPitchingStats.level)
+            .all()
+        )
+
+        pitching = []
+        for p in pitching_rows:
+            pitching.append({
+                "season": p.season,
+                "team": p.team,
+                "level": p.level,
+                "age": p.age,
+                "ip": round(p.ip, 1) if p.ip is not None else None,
+                "k_9": round(p.k_9, 2) if p.k_9 is not None else None,
+                "bb_9": round(p.bb_9, 2) if p.bb_9 is not None else None,
+                "k_bb": round(p.k_bb, 2) if p.k_bb is not None else None,
+                "hr_9": round(p.hr_9, 2) if p.hr_9 is not None else None,
+                "k_pct": round(p.k_pct * 100, 1) if p.k_pct is not None else None,
+                "bb_pct": round(p.bb_pct * 100, 1) if p.bb_pct is not None else None,
+                "avg": round(p.avg, 3) if p.avg is not None else None,
+                "whip": round(p.whip, 2) if p.whip is not None else None,
+                "babip": round(p.babip, 3) if p.babip is not None else None,
+                "era": round(p.era, 2) if p.era is not None else None,
+                "fip": round(p.fip, 2) if p.fip is not None else None,
+                "xfip": round(p.xfip, 2) if p.xfip is not None else None,
+            })
+
+        return {"hitting": hitting, "pitching": pitching}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_prospect_milb_stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/by-idfg/{idfg}")
+async def get_prospect_by_idfg(
+    idfg: int,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Look up a prospect's DB primary key by FanGraphs ID.
+
+    Useful for linking trade players (who have mlb_id / IDfg) to their
+    prospect detail pages.
+    """
+    prospect = (
+        db.query(Prospect)
+        .filter(Prospect.IDfg == idfg)
+        .order_by(Prospect.year.desc())
+        .first()
+    )
+    if not prospect:
+        raise HTTPException(status_code=404, detail="Prospect not found")
+    return {"id": prospect.id, "name": prospect.name}
