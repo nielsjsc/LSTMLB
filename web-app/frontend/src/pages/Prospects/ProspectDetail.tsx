@@ -1,6 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getProspectDetail, ProspectDetail as ProspectDetailType } from '../../services/api';
+import {
+  getProspectDetail,
+  ProspectDetail as ProspectDetailType,
+  getProspectMiLBStats,
+  MiLBStatsResponse,
+  MiLBHittingSeason,
+  MiLBPitchingSeason,
+} from '../../services/api';
 import { getTeamColors } from '../../utils/teamColors';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -80,20 +87,77 @@ function GradeBar({ label, grade }: { label: string; grade: string | null | unde
 
 // ── Main component ──────────────────────────────────────────────────────────
 
+// ── Level ordering for MiLB stats ────────────────────────────────────────────
+
+const LEVEL_ORDER: Record<string, number> = {
+  'MLB': 0, 'AAA': 1, 'AA': 2, 'A+': 3, 'A': 4, 'A-': 5,
+  'A (Short)': 6, 'Rk': 7, 'R': 7, 'CPX': 8, 'DSL': 9, 'FCL': 10,
+};
+
+const levelOrder = (lvl: string) => LEVEL_ORDER[lvl] ?? 20;
+
+// ── Stat table helpers ───────────────────────────────────────────────────────
+
+const pct = (v: number | null) => v == null ? '-' : `${v.toFixed(1)}%`;
+const dec3 = (v: number | null) => v == null ? '-' : v.toFixed(3).replace(/^0/, '');
+const dec2 = (v: number | null) => v == null ? '-' : v.toFixed(2);
+const intStat = (v: number | null) => v == null ? '-' : Math.round(v).toString();
+
+const wrcColor = (v: number | null) => {
+  if (v == null) return 'text-surface-400';
+  if (v >= 140) return 'text-emerald-400';
+  if (v >= 115) return 'text-green-400';
+  if (v >= 85) return 'text-surface-200';
+  if (v >= 70) return 'text-amber-400';
+  return 'text-red-400';
+};
+
+const eraColor = (v: number | null) => {
+  if (v == null) return 'text-surface-400';
+  if (v <= 2.50) return 'text-emerald-400';
+  if (v <= 3.50) return 'text-green-400';
+  if (v <= 4.50) return 'text-surface-200';
+  if (v <= 5.50) return 'text-amber-400';
+  return 'text-red-400';
+};
+
 export default function ProspectDetailPage() {
   const { prospectId } = useParams<{ prospectId: string }>();
   const [prospect, setProspect] = useState<ProspectDetailType | null>(null);
+  const [milbStats, setMilbStats] = useState<MiLBStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!prospectId) return;
+    const id = Number(prospectId);
     setLoading(true);
-    getProspectDetail(Number(prospectId))
-      .then(setProspect)
+    Promise.all([
+      getProspectDetail(id),
+      getProspectMiLBStats(id),
+    ])
+      .then(([p, stats]) => {
+        setProspect(p);
+        setMilbStats(stats);
+      })
       .catch((e) => setError(e.message || 'Prospect not found'))
       .finally(() => setLoading(false));
   }, [prospectId]);
+
+  // Sort MiLB stats: newest season first, within season by level (highest first)
+  const sortedHitting = useMemo(() => {
+    if (!milbStats?.hitting?.length) return [];
+    return [...milbStats.hitting].sort(
+      (a, b) => b.season - a.season || levelOrder(a.level) - levelOrder(b.level)
+    );
+  }, [milbStats]);
+
+  const sortedPitching = useMemo(() => {
+    if (!milbStats?.pitching?.length) return [];
+    return [...milbStats.pitching].sort(
+      (a, b) => b.season - a.season || levelOrder(a.level) - levelOrder(b.level)
+    );
+  }, [milbStats]);
 
   if (loading) {
     return (
@@ -238,9 +302,9 @@ export default function ProspectDetailPage() {
         </div>
       </div>
 
-      {/* Year-by-year history */}
+      {/* Year-by-year ranking history */}
       {prospect.history.length > 1 && (
-        <div>
+        <div className="mb-8">
           <h2 className="text-[11px] uppercase tracking-wider text-surface-500 mb-3">Ranking History</h2>
           <div className="overflow-x-auto">
             <table className="min-w-full">
@@ -303,6 +367,112 @@ export default function ProspectDetailPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ── Minor League Statistics ──────────────────────────────── */}
+      {(sortedHitting.length > 0 || sortedPitching.length > 0) && (
+        <div className="mt-8 space-y-8">
+          <h2 className="text-[13px] font-semibold text-surface-300 border-b border-white/[0.06] pb-2">
+            Minor League Statistics
+          </h2>
+
+          {/* Hitting table */}
+          {sortedHitting.length > 0 && (
+            <div>
+              <h3 className="text-[11px] uppercase tracking-wider text-surface-500 mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                Hitting
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b border-white/[0.06]">
+                      {['Year','Tm','Lv','Age','PA','AVG','OBP','SLG','OPS','ISO','BB%','K%','wOBA','wRC+','Spd','BABIP'].map(col => (
+                        <th key={col} className={`px-2 py-1.5 text-[10px] text-surface-500 uppercase tracking-wider whitespace-nowrap ${
+                          ['AVG','OBP','SLG','OPS','ISO','BB%','K%','wOBA','wRC+','Spd','BABIP','PA'].includes(col) ? 'text-right' : 'text-left'
+                        }`}>{col}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedHitting.map((h: MiLBHittingSeason, i: number) => (
+                      <tr
+                        key={`${h.season}-${h.team}-${h.level}`}
+                        className={`text-[11px] border-b border-white/[0.03] ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}`}
+                      >
+                        <td className="px-2 py-1.5 text-surface-200 font-medium">{h.season}</td>
+                        <td className="px-2 py-1.5 text-surface-400 whitespace-nowrap">{h.team}</td>
+                        <td className="px-2 py-1.5 text-surface-400">{h.level}</td>
+                        <td className="px-2 py-1.5 text-surface-400">{h.age}</td>
+                        <td className="px-2 py-1.5 text-surface-300 text-right font-mono">{h.pa}</td>
+                        <td className="px-2 py-1.5 text-surface-200 text-right font-mono">{dec3(h.avg)}</td>
+                        <td className="px-2 py-1.5 text-surface-200 text-right font-mono">{dec3(h.obp)}</td>
+                        <td className="px-2 py-1.5 text-surface-200 text-right font-mono">{dec3(h.slg)}</td>
+                        <td className="px-2 py-1.5 text-surface-100 text-right font-mono font-semibold">{dec3(h.ops)}</td>
+                        <td className="px-2 py-1.5 text-surface-300 text-right font-mono">{dec3(h.iso)}</td>
+                        <td className="px-2 py-1.5 text-surface-300 text-right font-mono">{pct(h.bb_pct)}</td>
+                        <td className="px-2 py-1.5 text-surface-300 text-right font-mono">{pct(h.k_pct)}</td>
+                        <td className="px-2 py-1.5 text-surface-200 text-right font-mono">{dec3(h.woba)}</td>
+                        <td className={`px-2 py-1.5 text-right font-mono font-semibold ${wrcColor(h.wrc_plus)}`}>{intStat(h.wrc_plus)}</td>
+                        <td className="px-2 py-1.5 text-surface-400 text-right font-mono">{h.spd != null ? dec2(h.spd) : '-'}</td>
+                        <td className="px-2 py-1.5 text-surface-400 text-right font-mono">{dec3(h.babip)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Pitching table */}
+          {sortedPitching.length > 0 && (
+            <div>
+              <h3 className="text-[11px] uppercase tracking-wider text-surface-500 mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                Pitching
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b border-white/[0.06]">
+                      {['Year','Tm','Lv','Age','IP','ERA','FIP','xFIP','K/9','BB/9','K/BB','K%','BB%','WHIP','AVG','HR/9','BABIP'].map(col => (
+                        <th key={col} className={`px-2 py-1.5 text-[10px] text-surface-500 uppercase tracking-wider whitespace-nowrap ${
+                          col === 'Year' || col === 'Tm' || col === 'Lv' ? 'text-left' : 'text-right'
+                        }`}>{col}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedPitching.map((p: MiLBPitchingSeason, i: number) => (
+                      <tr
+                        key={`${p.season}-${p.team}-${p.level}`}
+                        className={`text-[11px] border-b border-white/[0.03] ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}`}
+                      >
+                        <td className="px-2 py-1.5 text-surface-200 font-medium">{p.season}</td>
+                        <td className="px-2 py-1.5 text-surface-400 whitespace-nowrap">{p.team}</td>
+                        <td className="px-2 py-1.5 text-surface-400">{p.level}</td>
+                        <td className="px-2 py-1.5 text-surface-400 text-right">{p.age}</td>
+                        <td className="px-2 py-1.5 text-surface-300 text-right font-mono">{dec2(p.ip)}</td>
+                        <td className={`px-2 py-1.5 text-right font-mono font-semibold ${eraColor(p.era)}`}>{dec2(p.era)}</td>
+                        <td className={`px-2 py-1.5 text-right font-mono font-semibold ${eraColor(p.fip)}`}>{dec2(p.fip)}</td>
+                        <td className="px-2 py-1.5 text-surface-300 text-right font-mono">{dec2(p.xfip)}</td>
+                        <td className="px-2 py-1.5 text-surface-200 text-right font-mono">{dec2(p.k_9)}</td>
+                        <td className="px-2 py-1.5 text-surface-300 text-right font-mono">{dec2(p.bb_9)}</td>
+                        <td className="px-2 py-1.5 text-surface-300 text-right font-mono">{dec2(p.k_bb)}</td>
+                        <td className="px-2 py-1.5 text-surface-200 text-right font-mono">{pct(p.k_pct)}</td>
+                        <td className="px-2 py-1.5 text-surface-300 text-right font-mono">{pct(p.bb_pct)}</td>
+                        <td className="px-2 py-1.5 text-surface-200 text-right font-mono">{dec2(p.whip)}</td>
+                        <td className="px-2 py-1.5 text-surface-300 text-right font-mono">{dec3(p.avg)}</td>
+                        <td className="px-2 py-1.5 text-surface-400 text-right font-mono">{dec2(p.hr_9)}</td>
+                        <td className="px-2 py-1.5 text-surface-400 text-right font-mono">{dec3(p.babip)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
