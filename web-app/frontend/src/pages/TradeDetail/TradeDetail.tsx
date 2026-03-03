@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getPastTradeDetail, PastTradeDetail as PastTradeDetailType, TradeSideDetail, TradePlayerDetail } from '../../services/api';
+import { getPastTradeDetail, PastTradeDetail as PastTradeDetailType, TradeSideDetail, TradePlayerDetail, EvaluationConfidence } from '../../services/api';
 import { getTeamColors } from '../../utils/teamColors';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -20,6 +20,46 @@ const fmtMoney = (n: number, short = false) => {
   }
   return `${sign}$${abs.toLocaleString()}`;
 };
+
+// ── Confidence tier display ─────────────────────────────────────────────────
+
+const CONFIDENCE_CONFIG: Record<EvaluationConfidence, {
+  label: string; bg: string; text: string; borderColor: string;
+  winnerLabel: string; surplusColor: string; tooltip: string;
+}> = {
+  definitive: {
+    label: 'Settled', bg: 'bg-emerald-500/12', text: 'text-emerald-400',
+    borderColor: '#10b981', winnerLabel: 'Trade Winner', surplusColor: 'text-emerald-400',
+    tooltip: '4+ years of data — clear outcome',
+  },
+  maturing: {
+    label: 'Maturing', bg: 'bg-amber-500/12', text: 'text-amber-400',
+    borderColor: '#f59e0b', winnerLabel: 'Leading', surplusColor: 'text-amber-400',
+    tooltip: '2-3 years of data — picture forming',
+  },
+  early: {
+    label: 'Early Returns', bg: 'bg-sky-500/12', text: 'text-sky-400',
+    borderColor: '#38bdf8', winnerLabel: 'Early Leader', surplusColor: 'text-sky-400',
+    tooltip: 'Recent trade — early returns only',
+  },
+  projected: {
+    label: 'Projected', bg: 'bg-purple-500/12', text: 'text-purple-400',
+    borderColor: '#a78bfa', winnerLabel: 'Projected Winner', surplusColor: 'text-purple-400',
+    tooltip: 'No actual data — model projections only',
+  },
+};
+
+function ConfidenceBadge({ confidence }: { confidence: EvaluationConfidence }) {
+  const cfg = CONFIDENCE_CONFIG[confidence] || CONFIDENCE_CONFIG.definitive;
+  return (
+    <span
+      className={`text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider ${cfg.bg} ${cfg.text}`}
+      title={cfg.tooltip}
+    >
+      {cfg.label}
+    </span>
+  );
+}
 
 /**
  * Determine which team received "cash" in a trade by parsing the description.
@@ -50,6 +90,7 @@ function PlayerCard({
 }) {
   const isProspect = !!player.prospect_fv;
   const isPureProspect = isProspect && player.seasons_with_team === 0 && player.war_with_team === 0;
+  const noData = player.has_data === false;
 
   const displayWar = isProjected && player.has_projection
     ? (player.projected_war ?? 0)
@@ -66,22 +107,27 @@ function PlayerCard({
     ? player.projected_yearly_war
     : player.yearly_war;
 
+  // Determine best link target
+  const prospectLink = player.prospect_id ? `/prospects/${player.prospect_id}` : null;
+  const mlbLink = !isPureProspect ? `/players/${player.mlb_id}` : null;
+  const linkTo = prospectLink || mlbLink;
+
   return (
     <div className="py-3 border-b border-white/[0.04] last:border-b-0">
       {/* Name row */}
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-2 min-w-0">
-          {isPureProspect ? (
-            <span className="text-[13px] font-medium text-surface-200 truncate">
-              {player.name}
-            </span>
-          ) : (
+          {linkTo ? (
             <Link
-              to={`/players/${player.mlb_id}`}
+              to={linkTo}
               className="text-[13px] font-medium text-blue-400 hover:text-blue-300 transition-colors truncate"
             >
               {player.name}
             </Link>
+          ) : (
+            <span className="text-[13px] font-medium text-surface-200 truncate">
+              {player.name}
+            </span>
           )}
           {player.prospect_fv && (
             <span className="text-[10px] px-1 py-px rounded bg-amber-500/10 text-amber-400/80 flex-shrink-0">
@@ -103,16 +149,25 @@ function PlayerCard({
               Active
             </span>
           )}
-          {isProjected && !player.has_projection && !isPureProspect && (
+          {isProjected && !player.has_projection && !isPureProspect && !noData && (
             <span className="text-[10px] text-surface-600 italic flex-shrink-0">
               No projection
+            </span>
+          )}
+          {noData && (
+            <span className="text-[10px] px-1.5 py-px rounded bg-surface-700/50 text-surface-500 italic flex-shrink-0">
+              No Data Available
             </span>
           )}
         </div>
       </div>
 
-      {/* Inline stats — different layout for pure prospects vs MLB players */}
-      {isPureProspect ? (
+      {/* Inline stats — different layout for no-data vs pure prospects vs MLB players */}
+      {noData ? (
+        <div className="text-[11px] text-surface-600 italic">
+          This player has no projections, historical stats, or prospect data in our system.
+        </div>
+      ) : isPureProspect ? (
         <div className="flex items-center gap-4 text-[11px] text-surface-400">
           {player.prospect_rank && (
             <span>
@@ -317,6 +372,8 @@ export default function TradeDetail() {
 
   const winnerColors = getTeamColors(trade.winner);
   const isProjected = trade.evaluation_type === 'projected';
+  const confidence = (trade.evaluation_confidence || 'definitive') as EvaluationConfidence;
+  const confCfg = CONFIDENCE_CONFIG[confidence] || CONFIDENCE_CONFIG.definitive;
   const displaySurplusDiff = isProjected
     ? (trade.projected_surplus_diff ?? trade.surplus_diff)
     : trade.surplus_diff;
@@ -345,10 +402,20 @@ export default function TradeDetail() {
         <span>&larr;</span> Past Trades
       </Link>
 
-      {/* Projected notice */}
-      {isProjected && (
-        <div className="rounded-lg bg-blue-500/5 border border-blue-500/15 px-4 py-3 mb-4 text-[12px] text-surface-400">
-          <span className="text-blue-400 font-medium">Projected evaluation</span> &mdash; too recent for actual data. Values update as players accumulate stats.
+      {/* Confidence notice */}
+      {confidence === 'projected' && (
+        <div className="rounded-lg bg-purple-500/5 border border-purple-500/15 px-4 py-3 mb-4 text-[12px] text-surface-400">
+          <span className="text-purple-400 font-medium">Projected evaluation</span> &mdash; too recent for actual data. Values based on model projections and will update as players accumulate stats.
+        </div>
+      )}
+      {confidence === 'early' && (
+        <div className="rounded-lg bg-sky-500/5 border border-sky-500/15 px-4 py-3 mb-4 text-[12px] text-surface-400">
+          <span className="text-sky-400 font-medium">Early returns</span> &mdash; limited actual data. The verdict may change significantly over time.
+        </div>
+      )}
+      {confidence === 'maturing' && (
+        <div className="rounded-lg bg-amber-500/5 border border-amber-500/15 px-4 py-3 mb-4 text-[12px] text-surface-400">
+          <span className="text-amber-400 font-medium">Maturing evaluation</span> &mdash; 2-3 years of data. The picture is forming but may still shift.
         </div>
       )}
 
@@ -356,10 +423,9 @@ export default function TradeDetail() {
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[13px] text-surface-400">{fmtDate(trade.date)}</span>
-          {isProjected ? (
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium uppercase tracking-wider">Projected</span>
-          ) : (
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400/80 font-medium uppercase tracking-wider">Actual</span>
+          <ConfidenceBadge confidence={confidence} />
+          {trade.is_featured && (
+            <span className="text-[11px] text-amber-400" title="Notable trade">★</span>
           )}
           {trade.has_ptbnl && (
             <span className="text-[9px] px-1 py-px rounded bg-surface-700 text-surface-400">PTBNL</span>
@@ -377,19 +443,19 @@ export default function TradeDetail() {
         <div
           className="flex items-center justify-between rounded-lg px-5 py-3"
           style={{
-            backgroundColor: winnerColors.primary + '08',
-            borderLeft: `3px solid ${winnerColors.primary}40`,
+            backgroundColor: confCfg.borderColor + '08',
+            borderLeft: `3px solid ${confCfg.borderColor}40`,
           }}
         >
           <div>
             <div className="text-[10px] text-surface-500 uppercase tracking-wider">
-              {isProjected ? 'Projected Winner' : 'Trade Winner'}
+              {confCfg.winnerLabel}
             </div>
             <div className="text-base font-bold text-surface-100">{trade.winner_name}</div>
           </div>
           <div className="text-right">
             <div className="text-[10px] text-surface-500 uppercase tracking-wider">Surplus Adv.</div>
-            <div className={`text-base font-bold ${isProjected ? 'text-blue-400' : 'text-emerald-400'}`}>
+            <div className={`text-base font-bold ${confCfg.surplusColor}`}>
               +{fmtMoney(displaySurplusDiff, true)}
             </div>
           </div>
