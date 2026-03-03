@@ -15,8 +15,20 @@ const getApiUrl = (): string => {
 export const API_BASE: string = getApiUrl();
 export const API_URL: string = API_BASE;
 
+// ── Season configuration ────────────────────────────────────────────────
+// Update these once per season — every downstream reference derives from here.
+
 // Current projection year
 export const CURRENT_YEAR = 2026;
 
 // Number of future years to display in projections (e.g., 5 means show 2026-2030)
 export const MAX_PROJECTION_YEARS = 5;
+
+// Prospect data availability (oldest → newest)
+export const PROSPECT_YEAR_START = 2022;
+export const PROSPECT_YEAR_END = 2025;
+export const PROSPECT_YEARS: number[] = Array.from(
+  { length: PROSPECT_YEAR_END - PROSPECT_YEAR_START + 1 },
+  (_, i) => PROSPECT_YEAR_END - i  // newest first for dropdown
+);
+export const PROSPECT_DEFAULT_YEAR = PROSPECT_YEAR_END;
