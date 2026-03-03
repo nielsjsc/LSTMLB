@@ -24,6 +24,7 @@ from app.models.player import Player
 from app.models.prospect import Prospect
 from app.models.historical import HistoricalPlayer
 from app.models.past_trade import PastTrade
+from app.models.milb_stats import MiLBHittingStats, MiLBPitchingStats
 from app.config import PROSPECT_YEARS
 from app.database import SessionLocal, engine, Base
 
@@ -305,6 +306,107 @@ class DataLoader:
         self.db.commit()
         logger.info(f"  Loaded {len(objects)} historical players into DB")
 
+    # ── MiLB statistics ─────────────────────────────────────────────────
+
+    def load_milb_stats(self, hitters_csv: str, pitchers_csv: str) -> None:
+        """Bulk-insert MiLB hitting and pitching stats from FanGraphs CSVs.
+
+        Each row is one player-season-team-level combination.  The
+        ``PlayerId`` column is the FanGraphs ID (same as ``IDfg`` in the
+        Prospect table).
+        """
+        import csv as _csv
+
+        def _safe_float(v):
+            if v is None or v == "":
+                return None
+            try:
+                return float(v)
+            except (ValueError, TypeError):
+                return None
+
+        def _safe_int(v):
+            if v is None or v == "":
+                return None
+            try:
+                return int(float(v))
+            except (ValueError, TypeError):
+                return None
+
+        # ── Hitters ───────────────────────────────────────────────────────
+        h_path = Path(hitters_csv)
+        if h_path.exists():
+            objects = []
+            with open(h_path, "r", encoding="utf-8") as f:
+                reader = _csv.DictReader(f)
+                for row in reader:
+                    objects.append(MiLBHittingStats(
+                        IDfg=_safe_int(row.get("PlayerId")),
+                        season=_safe_int(row.get("Season")),
+                        name=row.get("Name", ""),
+                        team=row.get("Team"),
+                        level=row.get("Level"),
+                        age=_safe_int(row.get("Age")),
+                        pa=_safe_int(row.get("PA")),
+                        bb_pct=_safe_float(row.get("BB%")),
+                        k_pct=_safe_float(row.get("K%")),
+                        bb_k=_safe_float(row.get("BB/K")),
+                        avg=_safe_float(row.get("AVG")),
+                        obp=_safe_float(row.get("OBP")),
+                        slg=_safe_float(row.get("SLG")),
+                        ops=_safe_float(row.get("OPS")),
+                        iso=_safe_float(row.get("ISO")),
+                        spd=_safe_float(row.get("Spd")),
+                        babip=_safe_float(row.get("BABIP")),
+                        wsb=_safe_float(row.get("wSB")),
+                        wrc=_safe_float(row.get("wRC")),
+                        wraa=_safe_float(row.get("wRAA")),
+                        woba=_safe_float(row.get("wOBA")),
+                        wrc_plus=_safe_float(row.get("wRC+")),
+                    ))
+            self.db.bulk_save_objects(objects)
+            self.db.commit()
+            logger.info(f"  Loaded {len(objects)} MiLB hitting stat rows")
+        else:
+            logger.warning(f"MiLB hitters CSV not found: {h_path}")
+
+        # ── Pitchers ──────────────────────────────────────────────────────
+        p_path = Path(pitchers_csv)
+        if p_path.exists():
+            objects = []
+            with open(p_path, "r", encoding="utf-8") as f:
+                reader = _csv.DictReader(f)
+                for row in reader:
+                    objects.append(MiLBPitchingStats(
+                        IDfg=_safe_int(row.get("PlayerId")),
+                        season=_safe_int(row.get("Season")),
+                        name=row.get("Name", ""),
+                        team=row.get("Team"),
+                        level=row.get("Level"),
+                        age=_safe_int(row.get("Age")),
+                        ip=_safe_float(row.get("IP")),
+                        k_9=_safe_float(row.get("K/9")),
+                        bb_9=_safe_float(row.get("BB/9")),
+                        k_bb=_safe_float(row.get("K/BB")),
+                        hr_9=_safe_float(row.get("HR/9")),
+                        k_pct=_safe_float(row.get("K%")),
+                        bb_pct=_safe_float(row.get("BB%")),
+                        k_bb_pct=_safe_float(row.get("K-BB%")),
+                        avg=_safe_float(row.get("AVG")),
+                        whip=_safe_float(row.get("WHIP")),
+                        babip=_safe_float(row.get("BABIP")),
+                        lob_pct=_safe_float(row.get("LOB%")),
+                        era=_safe_float(row.get("ERA")),
+                        fip=_safe_float(row.get("FIP")),
+                        e_f=_safe_float(row.get("E-F")),
+                        xfip=_safe_float(row.get("xFIP")),
+                    ))
+            self.db.bulk_save_objects(objects)
+            self.db.commit()
+            logger.info(f"  Loaded {len(objects)} MiLB pitching stat rows")
+        else:
+            logger.warning(f"MiLB pitchers CSV not found: {p_path}")
+
     # ── Past trades ───────────────────────────────────────────────────────
 
     def load_past_trades_data(self, json_path: str) -> None:
@@ -343,10 +445,16 @@ class DataLoader:
             _augment_with_projections,
             _augment_with_historical_war,
             _augment_with_prospect_values,
+            _link_prospect_ids,
+            _add_has_data_flags,
+            _compute_confidence_and_featured,
         )
         _augment_with_projections(trades)
         _augment_with_historical_war(trades)
         _augment_with_prospect_values(trades)
+        _link_prospect_ids(trades)
+        _add_has_data_flags(trades)
+        _compute_confidence_and_featured(trades)
 
         # ── Bulk write to DB ──────────────────────────────────────────────
         objects = []
@@ -379,6 +487,8 @@ class DataLoader:
                 total_trade_war=t.get("total_trade_war", 0),
                 max_prospect_fv=t.get("max_prospect_fv"),
                 evaluation_type=t.get("evaluation_type", "actual"),
+                evaluation_confidence=t.get("evaluation_confidence", "definitive"),
+                is_featured=t.get("is_featured", False),
                 projected_winner=t.get("projected_winner"),
                 projected_winner_name=t.get("projected_winner_name"),
                 projected_loser=t.get("projected_loser"),
@@ -445,6 +555,8 @@ def init_db():
         prospects_data = base_path / "data" / "generated" / "MiLB" / "prospect_histories.csv"
         historical_data = base_path / "data" / "generated" / "historical_players" / "historical_players.json"
         trades_data = base_path / "data" / "generated" / "past_trades" / "trades.json"
+        milb_hitters_data = base_path / "data" / "MiLB" / "MiLB_Hitters.csv"
+        milb_pitchers_data = base_path / "data" / "MiLB" / "MiLB_Pitchers.csv"
         
         logger.info(f"Looking for data files in: {base_path}")
         
@@ -468,6 +580,12 @@ def init_db():
                 loader.load_past_trades_data(str(trades_data))
             else:
                 logger.warning(f"Trades data not found: {trades_data}")
+
+            # MiLB performance statistics (batting + pitching)
+            if milb_hitters_data.exists() or milb_pitchers_data.exists():
+                loader.load_milb_stats(str(milb_hitters_data), str(milb_pitchers_data))
+            else:
+                logger.warning(f"MiLB stats CSVs not found: {milb_hitters_data}")
 
             logger.info("Data loading completed successfully!")
             
