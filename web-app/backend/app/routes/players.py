@@ -187,10 +187,10 @@ async def get_players(
                         "career_war": hp.career_war or 0,
                         "first_year": hp.first_year,
                         "last_year": hp.last_year,
-                            "value": None
-                        })
-                        if len(historical_results) >= 15:
-                            break
+                        "value": None
+                    })
+                    if len(historical_results) >= 15:
+                        break
             except Exception as he:
                 logger.warning(f"Historical search fallback failed: {he}")
 
