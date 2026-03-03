@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   analyzeTrade, 
-  getPlayers, 
-  getAllProspects,
   Player, 
   Prospect,
   TradeAnalysis 
 } from '../../services/api';
-import { CURRENT_YEAR } from '../../config';
+import { useTradeAssets } from '../../hooks/useApi';
 import { teamDivisions, sortTeamsByDivision } from '../../config/teams';
 import { getTeamColors } from '../../utils/teamColors';
 import TeamPlayerList from './components/PlayerSelector/TeamPlayerList';
@@ -21,11 +19,11 @@ interface TradeState {
 }
 
 const TradeAnalyzer = () => {
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [prospects, setProspects] = useState<Prospect[]>([]);
+  // React Query — replaces manual Promise.all + useState + useEffect
+  const { players, prospects, isLoading: initialLoading, error: assetsError } = useTradeAssets();
+
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(assetsError?.message ?? null);
   const [analysis, setAnalysis] = useState<TradeAnalysis | null>(null);
   const [trade, setTrade] = useState<TradeState>({
     teamA: null,
@@ -34,30 +32,10 @@ const TradeAnalyzer = () => {
     teamBReceiving: []
   });
 
+  // Propagate asset-loading errors to the local error state
   useEffect(() => {
-    const fetchAssets = async () => {
-      try {
-        const [playersData, hittersData, pitchersData] = await Promise.all([
-          getPlayers(CURRENT_YEAR),
-          getAllProspects('hitter', 2025),
-          getAllProspects('pitcher', 2025)
-        ]);
-        
-        setPlayers(playersData);
-        const allProspects = [...hittersData, ...pitchersData]
-          .sort((a, b) => (b.value || 0) - (a.value || 0));
-        
-        setProspects(allProspects);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        setError(`Failed to load assets: ${errorMessage}`);
-      } finally {
-        setInitialLoading(false);
-      }
-    };
-  
-    fetchAssets();
-  }, []);
+    if (assetsError) setError(assetsError.message);
+  }, [assetsError]);
 
   const handleTeamAdd = (team: string) => {
     if (!trade.teamA) {
