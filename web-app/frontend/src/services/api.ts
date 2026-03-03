@@ -1,12 +1,20 @@
-import { API_BASE as CONFIG_API_BASE } from '../config';
+import { API_BASE as CONFIG_API_BASE, PROSPECT_DEFAULT_YEAR, CURRENT_YEAR } from '../config';
 
 const API_BASE = CONFIG_API_BASE;
 
-const createApiHeaders = () => ({
-  'Content-Type': 'application/json',
-  'ngrok-skip-browser-warning': 'true',
-  'User-Agent': 'LongballAnalytics/1.0'
-});
+const createApiHeaders = () => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+    'User-Agent': 'LongballAnalytics/1.0',
+  };
+  // Attach API key when configured (production)
+  const apiKey = import.meta.env.VITE_API_KEY;
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey;
+  }
+  return headers;
+};
 
 // ── Request cancellation ────────────────────────────────────────────────
 // Tracks one AbortController per keyed request group. Calling `cancellableFetch`
@@ -76,7 +84,7 @@ export interface PlayerResponse {
 
 export const getAllProspects = async (
   playerType: 'hitter' | 'pitcher',
-  year: number = 2025
+  year: number = PROSPECT_DEFAULT_YEAR
 ): Promise<Prospect[]> => {
   // Uses the unified /prospects/ endpoint with slim=true for minimal fields
   const params = new URLSearchParams({
@@ -174,7 +182,7 @@ team2Assets: TradeAssetRequest[]
 };
 
 
-export const getPlayers = async (year: number = 2024): Promise<Player[]> => {
+export const getPlayers = async (year: number = CURRENT_YEAR): Promise<Player[]> => {
     try {
         const response = await fetch(`${API_BASE}/players?year=${year}`, {
           headers: createApiHeaders()  // Add this line
@@ -433,7 +441,7 @@ export interface Prospect {
   playerType: 'hitter' | 'pitcher',
   team?: string,
   position?: string,
-  year: number = 2025,
+  year: number = PROSPECT_DEFAULT_YEAR,
   page: number = 1,
   pageSize: number = 25,
   sortBy?: string,
