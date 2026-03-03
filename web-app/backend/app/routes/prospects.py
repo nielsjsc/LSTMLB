@@ -13,6 +13,7 @@ if str(backend_dir) not in sys.path:
 # Change to absolute imports
 from app.database import get_db
 from app.models.prospect import Prospect
+from app.config import PROSPECT_YEARS, PROSPECT_DEFAULT_YEAR, PROSPECT_YEAR_START, PROSPECT_YEAR_END
 from typing import Optional, List
 
 router = APIRouter()
@@ -39,7 +40,7 @@ def position_in_string(position: str, position_string: str) -> bool:
 @router.get("/")
 async def get_prospects(
     player_type: str = Query(..., description="Either 'hitter' or 'pitcher'"),
-    year: int = Query(2025, ge=2022, le=2025),
+    year: int = Query(PROSPECT_DEFAULT_YEAR, ge=PROSPECT_YEAR_START, le=PROSPECT_YEAR_END),
     team: Optional[str] = None,
     position: Optional[str] = None,
     page: int = Query(1, ge=1),
@@ -86,13 +87,13 @@ async def get_prospects(
 
         # Handle sorting with proper null handling
         if sort_by:
-            # Special handling for dynamic year-based columns
-            if sort_by == 'value':
-                value_col = getattr(Prospect, f'value_{year}')
-                sort_attr = value_col
-            elif sort_by == 'composite':
-                composite_col = getattr(Prospect, f'composite_{year}')
-                sort_attr = composite_col
+            # Special handling for dynamic year-based columns (now JSON)
+            if sort_by in ('value', 'composite'):
+                # JSON column sorting: extract the year key from the JSON dict.
+                # SQLAlchemy can sort on a Python-side expression via case(),
+                # but for JSON extraction we fall back to fetching all rows and
+                # sorting in-memory (fine for ~500 prospects per year).
+                pass  # handled below after fetch
             else:
                 # Regular columns mapping
                 sort_map = {
@@ -114,19 +115,34 @@ async def get_prospects(
                     'command': Prospect.command
                 }
                 sort_attr = sort_map.get(sort_by)
-
-            if sort_attr is not None:
-                if sort_direction == 'desc':
-                    query = query.order_by(nullslast(sort_attr.desc()))
-                else:
-                    query = query.order_by(nullslast(sort_attr.asc()))
-
+                if sort_attr is not None:
+                    if sort_direction == 'desc':
+                        query = query.order_by(nullslast(sort_attr.desc()))
+                    else:
+                        query = query.order_by(nullslast(sort_attr.asc()))
 
         # Get total count before pagination
         total_count = query.count()
-        
-        # Apply pagination after sorting
-        prospects = query.offset((page - 1) * page_size).limit(page_size).all()
+
+        # If sorting by a JSON-derived value/composite, fetch all then sort in Python
+        if sort_by in ('value', 'composite'):
+            all_prospects = query.all()
+            year_key = str(year)
+            reverse = sort_direction == 'desc'
+
+            def _json_sort_key(p: Prospect) -> float:
+                blob = p.values_by_year if sort_by == 'value' else p.composites_by_year
+                val = (blob or {}).get(year_key)
+                # None → sort to end regardless of direction
+                if val is None:
+                    return float('-inf') if reverse else float('inf')
+                return val
+
+            all_prospects.sort(key=_json_sort_key, reverse=reverse)
+            prospects = all_prospects[(page - 1) * page_size: (page - 1) * page_size + page_size]
+        else:
+            # Apply pagination after sorting
+            prospects = query.offset((page - 1) * page_size).limit(page_size).all()
 
         
         
@@ -139,7 +155,7 @@ async def get_prospects(
                 "org": p.org,
                 "position": p.position,
                 "fv": p.fv,
-                "value": getattr(p, f"value_{year}", None),
+                "value": p.get_value(year),
             } for p in prospects] if slim else [{
                 "id": p.id,
                 "IDfg": p.IDfg,
@@ -149,8 +165,8 @@ async def get_prospects(
                 "age": p.age,
                 "fv": p.fv,
                 "has_mlb": p.has_mlb,
-                "value": getattr(p, f"value_{year}", None),
-                "composite": getattr(p, f"composite_{year}", None),
+                "value": p.get_value(year),
+                "composite": p.get_composite(year),
                 # Tool grades based on player type
                 **({"hit": p.hit,
                     "game": p.game_power,
@@ -218,8 +234,8 @@ async def get_prospect_detail(
                 "org": r.org,
                 "position": r.position,
                 "fv": r.fv,
-                "value": getattr(r, f"value_{r.year}", None),
-                "composite": getattr(r, f"composite_{r.year}", None),
+                "value": r.get_value(r.year),
+                "composite": r.get_composite(r.year),
             }
             # Add tool grades per year
             if is_pitcher:
@@ -240,9 +256,10 @@ async def get_prospect_detail(
             # Try to look up the player in the main players table
             try:
                 from app.models.player import Player
+                from app.config import CURRENT_YEAR
                 player_record = db.query(Player).filter(
                     Player.name == latest.name,
-                    Player.year == 2026
+                    Player.year == CURRENT_YEAR
                 ).first()
                 if player_record and player_record.mlb_id:
                     mlb_info = {
