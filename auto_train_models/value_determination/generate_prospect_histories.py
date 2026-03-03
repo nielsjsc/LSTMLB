@@ -12,6 +12,7 @@ Usage:
     python -m value_determination.generate_prospect_histories
 """
 
+import re
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -220,6 +221,17 @@ def fill_missing_fv_grades(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _extract_mlbam_id(url) -> Optional[int]:
+    """Extract the MLBAM player ID from an MLB.com prospect URL.
+
+    URLs look like: ``https://www.mlb.com/milb/prospects/dbacks/ryan-waldschmidt-814439``
+    """
+    if not url or not isinstance(url, str) or pd.isna(url):
+        return None
+    m = re.search(r"-(\d+)$", url)
+    return int(m.group(1)) if m else None
+
+
 def generate_prospect_histories() -> pd.DataFrame:
     """
     Generate prospect history file matching player_histories.csv format.
@@ -279,7 +291,8 @@ def generate_prospect_histories() -> pd.DataFrame:
             'Level': latest['level'] if pd.notna(latest['level']) else '',
             'Age': latest['age'] if pd.notna(latest['age']) else None,
             'FV': int(latest['grade_overall']) if pd.notna(latest['grade_overall']) else None,
-            'IDfg': None,  # We don't have IDfg for prospects yet
+            'IDfg': None,  # Resolved at data-load time from crosswalk
+            'mlbam_id': _extract_mlbam_id(latest.get('prospect_url', '')),
             'Org_Rank': int(latest['rank']) if pd.notna(latest['rank']) else None,  # Org rank as info only
             
             # Hitting grades (split format like "30 / 40")

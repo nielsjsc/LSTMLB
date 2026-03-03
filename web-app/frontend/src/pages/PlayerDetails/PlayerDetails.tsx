@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { getPlayerDetails, getTradeValueHistory, getPlayerTransactions, getPlayerInfo, getPlayerPastTrades, PlayerStats } from '../../services/api';
-import type { TradeValuePoint, Transaction, PlayerInfo, PastTradeDetail } from '../../services/api';
+import { getPlayerDetails, getTradeValueHistory, getPlayerTransactions, getPlayerInfo, getPlayerPastTrades, getPlayerMiLBStats, PlayerStats } from '../../services/api';
+import type { TradeValuePoint, Transaction, PlayerInfo, PastTradeDetail, MiLBStatsResponse } from '../../services/api';
 import { CURRENT_YEAR, MAX_PROJECTION_YEARS, API_BASE } from '../../config';
 import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
 import { getTeamColors, getTeamName } from '../../utils/teamColors';
@@ -9,6 +9,7 @@ import TradeValueChart from '../../components/TradeValueChart';
 import TransactionHistory from '../../components/TransactionHistory';
 import PlayerBioSection from '../../components/PlayerBioSection';
 import PlayerTradeHistory from '../../components/PlayerTradeHistory';
+import MiLBStatsTable from '../../components/MiLBStatsTable';
 
 // ─── Helpers ────────────────────────────────────────────────
 const fmt = {
@@ -268,6 +269,7 @@ const PlayerDetails: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [playerInfo, setPlayerInfo] = useState<PlayerInfo | null>(null);
   const [pastTrades, setPastTrades] = useState<PastTradeDetail[]>([]);
+  const [milbStats, setMilbStats] = useState<MiLBStatsResponse | null>(null);
 
   useEffect(() => {
     const fetchPlayer = async () => {
@@ -294,6 +296,7 @@ const PlayerDetails: React.FC = () => {
     getPlayerTransactions(id).then(setTransactions).catch(() => setTransactions([]));
     getPlayerInfo(id).then(setPlayerInfo).catch(() => setPlayerInfo(null));
     getPlayerPastTrades(id).then(r => setPastTrades(r.trades)).catch(() => setPastTrades([]));
+    getPlayerMiLBStats(id).then(setMilbStats).catch(() => setMilbStats(null));
   }, [player?.mlb_id, playerId]);
 
   // ── Derived state ──
@@ -614,6 +617,14 @@ const PlayerDetails: React.FC = () => {
         {showHitting && hasCurrentHitting && (
           <CollapsibleSection title={isHistorical ? "Hitting Statistics" : "Hitting Projections"} teamColor={colors.primary} defaultOpen={hittingDefaultOpen}>
             <CombinedHittingTable data={hittingTableData.sort((a, b) => b.year - a.year)} />
+          </CollapsibleSection>
+        )}
+
+        {milbStats && (milbStats.hitting.length > 0 || milbStats.pitching.length > 0) && (
+          <CollapsibleSection title="Minor League Statistics" teamColor={colors.primary} defaultOpen={false}>
+            <div className="p-4">
+              <MiLBStatsTable stats={milbStats} expandLatest />
+            </div>
           </CollapsibleSection>
         )}
 

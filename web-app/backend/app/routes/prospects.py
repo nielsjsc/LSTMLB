@@ -309,6 +309,18 @@ async def get_prospect_milb_stats(
             raise HTTPException(status_code=404, detail="Prospect not found")
 
         idfg = prospect.IDfg
+
+        # Fallback: try resolving via crosswalk if IDfg is missing
+        if not idfg and prospect.mlbam_id:
+            from app.models.player_id_crosswalk import PlayerIdCrosswalk
+            xref = (
+                db.query(PlayerIdCrosswalk)
+                .filter(PlayerIdCrosswalk.mlbam_id == prospect.mlbam_id)
+                .first()
+            )
+            if xref and xref.fg_id:
+                idfg = xref.fg_id
+
         if not idfg:
             return {"hitting": [], "pitching": []}
 

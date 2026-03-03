@@ -322,11 +322,11 @@ def _build_historical_response(hist: dict) -> dict:
 
 @router.get("/{player_id}/details")
 async def get_player_details(player_id: int, db: Session = Depends(get_db)):
-    logger.info(f"Received request for player_id: {player_id}")  # Debug log
+    logger.debug(f"Received request for player_id: {player_id}")
     
     try:
         # Try lookup by mlb_id first, then fall back to real_id (IDfg)
-        logger.info(f"Trying mlb_id lookup for: {player_id}")
+        logger.debug(f"Trying mlb_id lookup for: {player_id}")
         query = db.query(Player).filter(Player.mlb_id == player_id)
         player_years = query.order_by(Player.year).all()
         
@@ -741,6 +741,122 @@ async def _fetch_transactions(mlb_id: int) -> List[Dict[str, Any]]:
     raw = data.get("transactions", [])
     _transaction_cache[mlb_id] = (now, raw)
     return raw
+
+
+@router.get("/{player_id}/milb-stats")
+async def get_player_milb_stats(player_id: str, db: Session = Depends(get_db)):
+    """Return all MiLB hitting & pitching stats for a player.
+
+    Resolves the player's FanGraphs ID via the Player model (real_id) or
+    the PlayerIdCrosswalk (mlbam_id → fg_id), then queries MiLB stat tables.
+    """
+    from app.models.milb_stats import MiLBHittingStats, MiLBPitchingStats
+    from app.models.player_id_crosswalk import PlayerIdCrosswalk
+
+    try:
+        pid = int(player_id)
+        player = db.query(Player).filter(
+            or_(Player.mlb_id == pid, Player.real_id == pid)
+        ).first()
+    except (ValueError, TypeError):
+        player = None
+
+    # Collect candidate FanGraphs IDs to try (as strings)
+    candidate_fgids: list[str] = []
+
+    if player:
+        # real_id is the numeric FanGraphs ID for active players
+        if player.real_id is not None:
+            candidate_fgids.append(str(player.real_id))
+        # Try crosswalk via mlbam_id
+        if player.mlb_id is not None:
+            xref = (
+                db.query(PlayerIdCrosswalk)
+                .filter(PlayerIdCrosswalk.mlbam_id == player.mlb_id)
+                .first()
+            )
+            if xref and xref.fg_id and xref.fg_id not in candidate_fgids:
+                candidate_fgids.append(xref.fg_id)
+    else:
+        # No Player record — try crosswalk directly (player_id may be mlbam_id)
+        try:
+            xref = (
+                db.query(PlayerIdCrosswalk)
+                .filter(PlayerIdCrosswalk.mlbam_id == int(player_id))
+                .first()
+            )
+            if xref and xref.fg_id:
+                candidate_fgids.append(xref.fg_id)
+        except (ValueError, TypeError):
+            pass
+        # Also try raw player_id as IDfg
+        candidate_fgids.append(player_id)
+
+    if not candidate_fgids:
+        return {"hitting": [], "pitching": []}
+
+    # Try each candidate until we find stats
+    hitting: list[dict] = []
+    pitching: list[dict] = []
+
+    for fgid in candidate_fgids:
+        if hitting or pitching:
+            break
+
+        hitting_rows = (
+            db.query(MiLBHittingStats)
+            .filter(MiLBHittingStats.IDfg == fgid)
+            .order_by(MiLBHittingStats.season.desc(), MiLBHittingStats.level)
+            .all()
+        )
+        for h in hitting_rows:
+            hitting.append({
+                "season": h.season,
+                "team": h.team,
+                "level": h.level,
+                "age": h.age,
+                "pa": h.pa,
+                "bb_pct": round(h.bb_pct * 100, 1) if h.bb_pct is not None else None,
+                "k_pct": round(h.k_pct * 100, 1) if h.k_pct is not None else None,
+                "avg": round(h.avg, 3) if h.avg is not None else None,
+                "obp": round(h.obp, 3) if h.obp is not None else None,
+                "slg": round(h.slg, 3) if h.slg is not None else None,
+                "ops": round(h.ops, 3) if h.ops is not None else None,
+                "iso": round(h.iso, 3) if h.iso is not None else None,
+                "babip": round(h.babip, 3) if h.babip is not None else None,
+                "woba": round(h.woba, 3) if h.woba is not None else None,
+                "wrc_plus": round(h.wrc_plus, 1) if h.wrc_plus is not None else None,
+                "spd": round(h.spd, 1) if h.spd is not None else None,
+            })
+
+        pitching_rows = (
+            db.query(MiLBPitchingStats)
+            .filter(MiLBPitchingStats.IDfg == fgid)
+            .order_by(MiLBPitchingStats.season.desc(), MiLBPitchingStats.level)
+            .all()
+        )
+        for p in pitching_rows:
+            pitching.append({
+                "season": p.season,
+                "team": p.team,
+                "level": p.level,
+                "age": p.age,
+                "ip": round(p.ip, 1) if p.ip is not None else None,
+                "k_9": round(p.k_9, 2) if p.k_9 is not None else None,
+                "bb_9": round(p.bb_9, 2) if p.bb_9 is not None else None,
+                "k_bb": round(p.k_bb, 2) if p.k_bb is not None else None,
+                "hr_9": round(p.hr_9, 2) if p.hr_9 is not None else None,
+                "k_pct": round(p.k_pct * 100, 1) if p.k_pct is not None else None,
+                "bb_pct": round(p.bb_pct * 100, 1) if p.bb_pct is not None else None,
+                "avg": round(p.avg, 3) if p.avg is not None else None,
+                "whip": round(p.whip, 2) if p.whip is not None else None,
+                "babip": round(p.babip, 3) if p.babip is not None else None,
+                "era": round(p.era, 2) if p.era is not None else None,
+                "fip": round(p.fip, 2) if p.fip is not None else None,
+                "xfip": round(p.xfip, 2) if p.xfip is not None else None,
+            })
+
+    return {"hitting": hitting, "pitching": pitching}
 
 
 @router.get("/{player_id}/transactions")

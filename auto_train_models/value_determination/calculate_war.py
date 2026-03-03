@@ -272,14 +272,6 @@ def calculate_woba_from_predictions(batter_df: pd.DataFrame, use_calculated_woba
     # IBB estimated at ~10% of BB (used only for wOBA)
     df['IBB'] = df['BB'] * 0.10
 
-    # DEBUG log
-    if len(df) > 0:
-        first = df.iloc[0]
-        logger.info(f"DEBUG - First player: {first.get('Name', 'Unknown')}")
-        logger.info(f"  PA={first['PA']:.1f}, BB={first['BB']:.1f}, HBP={first['HBP_count']:.1f}, SF={first['SF_count']:.1f}")
-        logger.info(f"  AB={first['AB']:.1f}, H={first['H']:.1f}, AVG={first['AVG']:.3f}")
-        logger.info(f"  HR={first['HR_count']:.1f}, 2B={first['2B_count']:.1f}, 3B={first['3B_count']:.1f}, 1B={first['1B']:.1f}")
-
     # ------------------------------------------------------------------
     # wOBA
     # ------------------------------------------------------------------

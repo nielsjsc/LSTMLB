@@ -13,7 +13,8 @@ class Prospect(Base):
     __tablename__ = "prospects"
 
     id = Column(Integer, primary_key=True, index=True)
-    IDfg = Column(Integer, index=True)
+    IDfg = Column(String, index=True)
+    mlbam_id = Column(Integer, index=True, nullable=True)
     name = Column(String)
     has_mlb = Column(Boolean, default=False)
     org = Column(String)

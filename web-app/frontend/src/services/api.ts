@@ -570,6 +570,15 @@ export const getProspectMiLBStats = async (prospectId: number): Promise<MiLBStat
   return response.json();
 };
 
+export const getPlayerMiLBStats = async (playerId: number): Promise<MiLBStatsResponse> => {
+  const url = `${API_BASE}/players/${playerId}/milb-stats`;
+  const response = await fetch(url, { headers: createApiHeaders() });
+  if (!response.ok) {
+    return { hitting: [], pitching: [] };
+  }
+  return response.json();
+};
+
   export const getProjections = async (
   year: number,
   playerType: 'hitter' | 'pitcher',

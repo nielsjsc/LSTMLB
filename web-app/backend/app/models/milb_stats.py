@@ -13,7 +13,7 @@ class MiLBHittingStats(Base):
     __tablename__ = "milb_hitting_stats"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    IDfg = Column(Integer, index=True, nullable=False)
+    IDfg = Column(String, index=True, nullable=False)
     season = Column(Integer, nullable=False)
     name = Column(String, nullable=False)
     team = Column(String)
@@ -45,7 +45,7 @@ class MiLBPitchingStats(Base):
     __tablename__ = "milb_pitching_stats"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    IDfg = Column(Integer, index=True, nullable=False)
+    IDfg = Column(String, index=True, nullable=False)
     season = Column(Integer, nullable=False)
     name = Column(String, nullable=False)
     team = Column(String)

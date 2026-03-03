@@ -29,6 +29,7 @@ from app.auth import require_api_key
 import app.models.historical  # noqa: F401
 import app.models.past_trade  # noqa: F401
 import app.models.milb_stats  # noqa: F401
+import app.models.player_id_crosswalk  # noqa: F401
 # Add security headers middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

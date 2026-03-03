@@ -25,6 +25,7 @@ from app.models.prospect import Prospect
 from app.models.historical import HistoricalPlayer
 from app.models.past_trade import PastTrade
 from app.models.milb_stats import MiLBHittingStats, MiLBPitchingStats
+from app.models.player_id_crosswalk import PlayerIdCrosswalk
 from app.config import PROSPECT_YEARS
 from app.database import SessionLocal, engine, Base
 
@@ -109,18 +110,20 @@ class DataLoader:
         }
     def transform_prospect_data(self, row: Dict[str, Any]) -> Dict[str, Any]:
         """Transform CSV row data into correct types for Prospect model"""
-        # Handle IDfg as Integer
+        # Handle IDfg as String (FanGraphs MiLB IDs are "sa"-prefixed)
         id_fg = None
         if pd.notna(row['IDfg']):
-            try:
-                id_fg = int(row['IDfg'])
-            except ValueError:
-                id_fg = None
+            val = str(row['IDfg']).strip()
+            if val and val.lower() != 'nan':
+                id_fg = val
                 
         return {
             # Integer fields
             'IDfg': id_fg,
             'year': int(row['Year']) if pd.notna(row['Year']) else None,
+            
+            # MLBAM ID (extracted from prospect_url in generate_prospect_histories)
+            'mlbam_id': int(float(row['mlbam_id'])) if pd.notna(row.get('mlbam_id')) else None,
             
             # String fields
             'name': str(row['Name']) if pd.notna(row['Name']) else None,
@@ -201,6 +204,75 @@ class DataLoader:
             logger.error(f"Error loading prospect data: {str(e)}")
             self.db.rollback()
             raise
+
+    # ── Player ID crosswalk ───────────────────────────────────────────────
+
+    def load_crosswalk(self, crosswalk_csv: str) -> None:
+        """Bulk-insert the MLBAM↔FanGraphs crosswalk table."""
+        import csv as _csv
+        path = Path(crosswalk_csv)
+        if not path.exists():
+            logger.warning(f"Crosswalk CSV not found: {path} — skipping")
+            return
+        objects = []
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+            reader = _csv.DictReader(f)
+            for row in reader:
+                mlbam = row.get("mlbam_id", "").strip()
+                fg = row.get("fg_id", "").strip()
+                if not mlbam:
+                    continue
+                try:
+                    mlbam_int = int(float(mlbam))
+                except (ValueError, TypeError):
+                    continue
+                fg_str = fg if fg else None
+                objects.append(PlayerIdCrosswalk(
+                    mlbam_id=mlbam_int,
+                    fg_id=fg_str,
+                    name=row.get("name", ""),
+                    source=row.get("source", ""),
+                ))
+        self.db.bulk_save_objects(objects)
+        self.db.commit()
+        resolved = sum(1 for o in objects if o.fg_id is not None)
+        logger.info(f"  Loaded {len(objects)} crosswalk entries ({resolved} with FanGraphs IDs)")
+
+    def resolve_prospect_idfg(self) -> None:
+        """Post-load pass: resolve IDfg for prospects that don't have one.
+
+        Uses the crosswalk table to map prospect mlbam_id → fg_id.
+        """
+        # Fetch all prospects missing IDfg
+        prospects = (
+            self.db.query(Prospect)
+            .filter(Prospect.IDfg.is_(None))
+            .all()
+        )
+        if not prospects:
+            logger.info("  All prospects already have IDfg — nothing to resolve")
+            return
+
+        logger.info(f"  Resolving IDfg for {len(prospects)} prospects …")
+
+        # Build crosswalk lookup {mlbam_id: fg_id}
+        crosswalk_rows = (
+            self.db.query(PlayerIdCrosswalk)
+            .filter(PlayerIdCrosswalk.fg_id.isnot(None))
+            .all()
+        )
+        mlbam_to_fg: dict[int, str] = {r.mlbam_id: r.fg_id for r in crosswalk_rows}
+
+        resolved = 0
+        for p in prospects:
+            if p.mlbam_id and p.mlbam_id in mlbam_to_fg:
+                p.IDfg = mlbam_to_fg[p.mlbam_id]
+                resolved += 1
+
+        self.db.commit()
+        logger.info(
+            f"  Resolved {resolved}/{len(prospects)} prospect IDfg values via crosswalk"
+        )
 
     # ── Historical players ────────────────────────────────────────────────
 
@@ -334,16 +406,22 @@ class DataLoader:
                 return None
 
         def _get_player_id(row):
-            """Extract FanGraphs player ID, trying multiple column names."""
-            # Try exact name first, then strip whitespace from keys
+            """Extract FanGraphs player ID as a string, trying multiple column names.
+
+            FanGraphs MiLB IDs are typically "sa"-prefixed strings (e.g. "sa657976").
+            """
             for key in ("PlayerId", "playerid", "playerID", "PLAYERID"):
                 val = row.get(key)
                 if val is not None:
-                    return _safe_int(val)
+                    s = str(val).strip().strip('"')
+                    if s and s.lower() != 'nan':
+                        return s
             # Fallback: try stripped/lowered key matching
             for key, val in row.items():
                 if key.strip().lower() == "playerid":
-                    return _safe_int(val)
+                    s = str(val).strip().strip('"')
+                    if s and s.lower() != 'nan':
+                        return s
             return None
 
         # ── Hitters ───────────────────────────────────────────────────────
@@ -580,6 +658,7 @@ def init_db():
         trades_data = base_path / "data" / "generated" / "past_trades" / "trades.json"
         milb_hitters_data = base_path / "data" / "MiLB" / "MiLB_Hitters.csv"
         milb_pitchers_data = base_path / "data" / "MiLB" / "MiLB_Pitchers.csv"
+        crosswalk_data = base_path / "data" / "generated" / "player_id_crosswalk.csv"
         
         logger.info(f"Looking for data files in: {base_path}")
         
@@ -609,6 +688,16 @@ def init_db():
                 loader.load_milb_stats(str(milb_hitters_data), str(milb_pitchers_data))
             else:
                 logger.warning(f"MiLB stats CSVs not found: {milb_hitters_data}")
+
+            # Player ID crosswalk (MLBAM ↔ FanGraphs mapping)
+            if crosswalk_data.exists():
+                loader.load_crosswalk(str(crosswalk_data))
+            else:
+                logger.warning(f"Crosswalk CSV not found: {crosswalk_data} — run scrapers/build_id_crosswalk.py")
+
+            # Resolve prospect FanGraphs IDs using crosswalk + name matching
+            # (must run AFTER load_milb_stats and load_crosswalk)
+            loader.resolve_prospect_idfg()
 
             logger.info("Data loading completed successfully!")
             
