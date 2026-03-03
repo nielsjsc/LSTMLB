@@ -515,6 +515,61 @@ export const getProspectDetail = async (prospectId: number): Promise<ProspectDet
   return response.json();
 };
 
+// ── MiLB Stats ────────────────────────────────────────────────────────
+
+export interface MiLBHittingSeason {
+  season: number;
+  team: string;
+  level: string;
+  age: number;
+  pa: number;
+  bb_pct: number | null;
+  k_pct: number | null;
+  avg: number | null;
+  obp: number | null;
+  slg: number | null;
+  ops: number | null;
+  iso: number | null;
+  babip: number | null;
+  woba: number | null;
+  wrc_plus: number | null;
+  spd: number | null;
+}
+
+export interface MiLBPitchingSeason {
+  season: number;
+  team: string;
+  level: string;
+  age: number;
+  ip: number | null;
+  k_9: number | null;
+  bb_9: number | null;
+  k_bb: number | null;
+  hr_9: number | null;
+  k_pct: number | null;
+  bb_pct: number | null;
+  avg: number | null;
+  whip: number | null;
+  babip: number | null;
+  era: number | null;
+  fip: number | null;
+  xfip: number | null;
+}
+
+export interface MiLBStatsResponse {
+  hitting: MiLBHittingSeason[];
+  pitching: MiLBPitchingSeason[];
+}
+
+export const getProspectMiLBStats = async (prospectId: number): Promise<MiLBStatsResponse> => {
+  const url = `${API_BASE}/prospects/${prospectId}/milb-stats`;
+  const response = await fetch(url, { headers: createApiHeaders() });
+  if (!response.ok) {
+    return { hitting: [], pitching: [] };
+  }
+  return response.json();
+};
+
   export const getProjections = async (
   year: number,
   playerType: 'hitter' | 'pitcher',
@@ -719,6 +774,9 @@ export interface TradePlayerSummary {
   prospect_fv: number | null;
   from_team: string;
   from_team_name: string;
+  // Prospect linking
+  prospect_id?: number | null;
+  has_data?: boolean;
   // Projected fields (present for "projected" evaluation_type trades)
   projected_war?: number | null;
   projected_surplus?: number | null;
@@ -773,6 +831,7 @@ export interface TradeSideDetail {
 }
 
 export type EvaluationType = 'actual' | 'projected';
+export type EvaluationConfidence = 'definitive' | 'maturing' | 'early' | 'projected';
 
 export interface PastTradeSummary {
   trade_id: number;
@@ -791,6 +850,8 @@ export interface PastTradeSummary {
   total_trade_war: number;
   max_prospect_fv: number | null;
   evaluation_type: EvaluationType;
+  evaluation_confidence: EvaluationConfidence;
+  is_featured: boolean;
   projected_total_war?: number;
   projected_surplus_diff?: number;
   sides: TradeSideSummary[];
@@ -813,6 +874,8 @@ export interface PastTradeDetail {
   total_trade_war: number;
   max_prospect_fv: number | null;
   evaluation_type: EvaluationType;
+  evaluation_confidence: EvaluationConfidence;
+  is_featured: boolean;
   projected_total_war?: number;
   projected_surplus_diff?: number;
   sides: TradeSideDetail[];
@@ -835,6 +898,8 @@ export const getPastTrades = async (params?: {
   year?: number;
   min_war?: number;
   search?: string;
+  featured?: boolean;
+  confidence?: string;
 }): Promise<PastTradesResponse> => {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', String(params.page));
@@ -845,6 +910,8 @@ export const getPastTrades = async (params?: {
   if (params?.year) searchParams.set('year', String(params.year));
   if (params?.min_war) searchParams.set('min_war', String(params.min_war));
   if (params?.search) searchParams.set('search', params.search);
+  if (params?.featured !== undefined) searchParams.set('featured', String(params.featured));
+  if (params?.confidence) searchParams.set('confidence', params.confidence);
 
   const url = `${API_BASE}/trades/past-trades?${searchParams.toString()}`;
   const response = await cancellableFetch('getPastTrades', url, { headers: createApiHeaders() });
