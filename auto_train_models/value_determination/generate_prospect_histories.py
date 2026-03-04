@@ -248,8 +248,8 @@ def generate_prospect_histories() -> pd.DataFrame:
     # Load prospect data
     df = pd.read_csv(Config.Paths.DATA_DIR / 'prospect_data' / 'prospects_2014_2026_with_top100.csv')
     
-    # Filter out 2026 (preliminary rankings, incomplete data)
-    df = df[df['year'] < 2026]
+    # Include all available years (2026 rankings are published by the season start)
+    # df = df[df['year'] < 2026]  # Removed: 2026 data is now final
     
     # Filter to relevant years (last 5 years of data)
     years = sorted(df['year'].dropna().unique())[-5:]

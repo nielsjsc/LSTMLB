@@ -14,7 +14,7 @@ CURRENT_YEAR: int = 2026
 # ── Prospect data availability ───────────────────────────────────────────
 # Years for which prospect valuations exist (oldest → newest).
 PROSPECT_YEAR_START: int = 2022
-PROSPECT_YEAR_END: int = 2025
+PROSPECT_YEAR_END: int = 2026
 PROSPECT_YEARS: list[int] = list(range(PROSPECT_YEAR_START, PROSPECT_YEAR_END + 1))
 PROSPECT_DEFAULT_YEAR: int = PROSPECT_YEAR_END  # year shown by default in UI
 
