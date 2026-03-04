@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { getPlayerDetails, getTradeValueHistory, getPlayerTransactions, getPlayerInfo, getPlayerPastTrades, getPlayerMiLBStats, PlayerStats } from '../../services/api';
 import type { TradeValuePoint, Transaction, PlayerInfo, PastTradeDetail, MiLBStatsResponse } from '../../services/api';
-import { CURRENT_YEAR, MAX_PROJECTION_YEARS, API_BASE } from '../../config';
+import { CURRENT_YEAR, MAX_PROJECTION_YEARS } from '../../config';
 import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
 import { getTeamColors, getTeamName } from '../../utils/teamColors';
 import TradeValueChart from '../../components/TradeValueChart';
@@ -31,7 +31,10 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 // ─── Subcomponents ──────────────────────────────────────────
 
-/** Headshot with fallback silhouette — fitted, not zoomed */
+/** Headshot from MLB CDN — uses mlbam_id directly, no local files needed */
+const MLB_HEADSHOT_URL = (mlbId: number) =>
+  `https://img.mlbstatic.com/mlb-photos/image/upload/w_213,d_people:generic:headshot:silo:current.png,q_auto:best,f_auto/v1/people/${mlbId}/headshot/67/current`;
+
 const PlayerHeadshot: React.FC<{ mlbId: number | null; name: string; teamColor: string; size?: string }> = ({
   mlbId,
   name,
@@ -39,36 +42,15 @@ const PlayerHeadshot: React.FC<{ mlbId: number | null; name: string; teamColor: 
   size = 'w-40 h-40 md:w-48 md:h-48',
 }) => {
   const [imgError, setImgError] = useState(false);
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!mlbId) return;
-    let cancelled = false;
-    const fetchImage = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/headshots/${mlbId}.png`, {
-          headers: { 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'LongballAnalytics/1.0' },
-        });
-        if (!response.ok) { setImgError(true); return; }
-        const blob = await response.blob();
-        if (!cancelled) setBlobUrl(URL.createObjectURL(blob));
-      } catch { if (!cancelled) setImgError(true); }
-    };
-    fetchImage();
-    return () => { cancelled = true; };
-  }, [mlbId]);
-
-  // Revoke blob on unmount
-  useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
 
   return (
     <div
       className={`relative ${size} rounded-2xl overflow-hidden shrink-0 ring-1 ring-white/10`}
       style={{ background: `linear-gradient(135deg, ${teamColor}18, ${teamColor}08)` }}
     >
-      {blobUrl && !imgError ? (
+      {mlbId && !imgError ? (
         <img
-          src={blobUrl}
+          src={MLB_HEADSHOT_URL(mlbId)}
           alt={name}
           className="w-full h-full object-contain object-bottom"
           onError={() => setImgError(true)}

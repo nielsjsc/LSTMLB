@@ -4,8 +4,8 @@ import type { MiLBHittingSeason, MiLBPitchingSeason, MiLBStatsResponse } from '.
 // ── Level ordering & badge colours ──────────────────────────────────────────
 
 const LEVEL_ORDER: Record<string, number> = {
-  MLB: 0, AAA: 1, AA: 2, 'A+': 3, A: 4, 'A-': 5,
-  'A (Short)': 6, Rk: 7, R: 7, CPX: 8, DSL: 9, FCL: 10,
+  DSL: 0, FCL: 1, CPX: 2, R: 3, Rk: 3, 'A-': 4,
+  'A (Short)': 5, A: 6, 'A+': 7, AA: 8, AAA: 9, MLB: 10,
 };
 
 const levelOrder = (lvl: string) => LEVEL_ORDER[lvl] ?? 20;

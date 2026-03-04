@@ -145,40 +145,11 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
     }
   };
 
-  const gradeColor = (grade: string | null | undefined) => {
-    if (!grade || grade === '-') return '';
-    const n = parseInt(grade);
-    if (isNaN(n)) return '';
-    if (n >= 70) return 'text-emerald-400';
-    if (n >= 60) return 'text-blue-400';
-    if (n >= 55) return 'text-sky-400';
-    if (n >= 50) return 'text-surface-200';
-    if (n >= 45) return 'text-amber-400';
-    if (n >= 40) return 'text-orange-400';
-    return 'text-red-400';
-  };
+  // No grade color coding — keep all grade values uniform
+  const gradeColor = (_grade: string | null | undefined) => '';
 
-  const statColor = (key: string, value: number | string | undefined | null) => {
-    if (value === undefined || value === null) return '';
-    const v = typeof value === 'string' ? parseFloat(value) : value;
-    if (isNaN(v)) return '';
-    // wRC+ coloring
-    if (key === 'wrc_plus') {
-      if (v >= 140) return 'text-emerald-400';
-      if (v >= 120) return 'text-blue-400';
-      if (v >= 100) return 'text-surface-200';
-      if (v >= 80) return 'text-amber-400';
-      return 'text-red-400';
-    }
-    // ERA/FIP coloring (lower = better)
-    if (key === 'era' || key === 'fip' || key === 'xfip') {
-      if (v <= 2.50) return 'text-emerald-400';
-      if (v <= 3.50) return 'text-blue-400';
-      if (v <= 4.50) return 'text-surface-200';
-      return 'text-red-400';
-    }
-    return '';
-  };
+  // No stat color coding — keep all stat values uniform
+  const statColor = (_key: string, _value: number | string | undefined | null) => '';
 
   const isGradeColumn = (key: string) =>
     ['hit', 'game', 'raw', 'speed', 'fastball', 'slider', 'curve', 'change', 'command'].includes(key);
@@ -240,13 +211,8 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
                     );
                   }
                   if (header.key === 'fv') {
-                    const fvNum = parseInt(player.fv);
-                    const fvCls = fvNum >= 60 ? 'text-blue-400 font-semibold' :
-                                  fvNum >= 55 ? 'text-sky-400 font-semibold' :
-                                  fvNum >= 50 ? 'text-amber-400' :
-                                  fvNum >= 45 ? 'text-orange-400' : 'text-surface-400';
                     return (
-                      <td key={header.key} className={`px-1.5 py-2 whitespace-nowrap font-mono ${fvCls}`}>
+                      <td key={header.key} className="px-1.5 py-2 whitespace-nowrap font-mono text-surface-300">
                         {player.fv || '-'}
                       </td>
                     );

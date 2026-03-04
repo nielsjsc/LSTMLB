@@ -145,22 +145,25 @@ export default function ProspectDetailPage() {
 
       {/* Header */}
       <div className="flex items-start gap-5 mb-8">
-        {/* Headshot */}
+        {/* Headshot — use mlb_info.headshot_url which is built from mlbam_id */}
         {prospect.mlb_info?.headshot_url ? (
           <img
             src={prospect.mlb_info.headshot_url}
             alt={prospect.name}
             className="w-20 h-20 rounded-lg object-cover bg-surface-800"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            onError={(e) => {
+              // Hide on error, show initial instead
+              (e.target as HTMLImageElement).style.display = 'none';
+              (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+            }}
           />
-        ) : (
-          <div
-            className="w-20 h-20 rounded-lg flex items-center justify-center text-2xl font-bold"
-            style={{ backgroundColor: colors.primary + '15', color: colors.primary }}
-          >
-            {prospect.name.charAt(0)}
-          </div>
-        )}
+        ) : null}
+        <div
+          className={`w-20 h-20 rounded-lg flex items-center justify-center text-2xl font-bold ${prospect.mlb_info?.headshot_url ? 'hidden' : ''}`}
+          style={{ backgroundColor: colors.primary + '15', color: colors.primary }}
+        >
+          {prospect.name.charAt(0)}
+        </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-1">

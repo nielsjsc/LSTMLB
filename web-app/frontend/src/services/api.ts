@@ -530,6 +530,7 @@ export interface ProspectDetailHistory {
 export interface ProspectDetail {
   id: number;
   IDfg: number | null;
+  mlbam_id: number | null;
   name: string;
   org: string;
   position: string;
@@ -540,7 +541,8 @@ export interface ProspectDetail {
   tools: Record<string, string | null>;
   history: ProspectDetailHistory[];
   mlb_info: {
-    mlb_id: number;
+    mlbam_id?: number;
+    mlb_id?: number;
     headshot_url: string;
   } | null;
 }

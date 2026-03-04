@@ -26,7 +26,7 @@ export const MAX_PROJECTION_YEARS = 5;
 
 // Prospect data availability (oldest → newest)
 export const PROSPECT_YEAR_START = 2014;
-export const PROSPECT_YEAR_END = 2026;
+export const PROSPECT_YEAR_END = 2025;
 export const PROSPECT_YEARS: number[] = Array.from(
   { length: PROSPECT_YEAR_END - PROSPECT_YEAR_START + 1 },
   (_, i) => PROSPECT_YEAR_END - i  // newest first for dropdown

@@ -362,28 +362,33 @@ async def get_prospect_detail(
                 })
             history.append(entry)
 
-        # Try to get MLB stats/headshot info via MLB API ID
+        # Build mlb_info — use mlbam_id directly for headshot URL (works for
+        # all prospects in MLB's database, not just those who reached the majors).
         mlb_info = None
-        if latest.has_mlb:
-            # Try to look up the player in the main players table
-            try:
-                from app.models.player import Player
-                from app.config import CURRENT_YEAR
-                player_record = db.query(Player).filter(
-                    Player.name == latest.name,
-                    Player.year == CURRENT_YEAR
-                ).first()
-                if player_record and player_record.mlb_id:
-                    mlb_info = {
-                        "mlb_id": player_record.mlb_id,
-                        "headshot_url": f"https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{player_record.mlb_id}/headshot/67/current",
-                    }
-            except Exception:
-                pass
+        mlbam_id = latest.mlbam_id
+        if mlbam_id:
+            mlb_info = {
+                "mlbam_id": mlbam_id,
+                "headshot_url": f"https://img.mlbstatic.com/mlb-photos/image/upload/w_213,d_people:generic:headshot:silo:current.png,q_auto:best,f_auto/v1/people/{mlbam_id}/headshot/67/current",
+            }
+            # Also attach mlb_id from players table if they've reached the majors
+            if latest.has_mlb:
+                try:
+                    from app.models.player import Player
+                    from app.config import CURRENT_YEAR
+                    player_record = db.query(Player).filter(
+                        Player.name == latest.name,
+                        Player.year == CURRENT_YEAR
+                    ).first()
+                    if player_record and player_record.mlb_id:
+                        mlb_info["mlb_id"] = player_record.mlb_id
+                except Exception:
+                    pass
 
         return {
             "id": anchor.id,
             "IDfg": latest.IDfg,
+            "mlbam_id": mlbam_id,
             "name": latest.name,
             "org": latest.org,
             "position": latest.position,
