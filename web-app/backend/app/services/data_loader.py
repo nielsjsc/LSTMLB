@@ -144,26 +144,29 @@ def _bulk_insert(session: Session, model, records: list[dict]) -> int:
 # ══════════════════════════════════════════════════════════════════════════
 
 # CSV column name → Player model column name
+# NOTE: column names must match the ACTUAL CSV headers exactly.
+# player_values_complete.csv uses: Player_Name, WAR_batter, WAR_pitcher,
+# Status (capitalised), Base_Value, Contract_Value, Surplus_Value, etc.
 PLAYER_COL_MAP = {
     "IDfg": "real_id", "mlb_id": "mlb_id",
-    "Name": "name", "Team": "team", "Position": "position", "status": "status",
+    "Player_Name": "name", "Team": "team", "Position": "position", "Status": "status",
     "Age": "age", "Year": "year",
     "years_control": "years_control", "FA_Year": "fa_year",
     "Probable_FA_Year": "probable_fa_year", "Earliest_FA_Year": "earliest_fa_year",
     "control_through": "control_through",
-    "base_value": "base_value", "contract_value": "contract_value",
-    "surplus_value": "surplus_value", "trade_value": "trade_value",
+    "Base_Value": "base_value", "Contract_Value": "contract_value",
+    "Surplus_Value": "surplus_value", "trade_value": "trade_value",
     "contract_war": "contract_war",
     # Hitting
-    "G_bat": "g_bat", "WAR_bat": "war_bat",
+    "G_bat": "g_bat", "WAR_batter": "war_bat",
     "BB%_bat": "bb_pct_bat", "K%_bat": "k_pct_bat",
     "AVG": "avg", "OBP": "obp", "SLG": "slg", "OPS": "ops",
-    "wOBA": "woba", "wRC+": "wrc_plus", "EV": "ev",
+    "wOBA": "woba", "wRC+": "wrc_plus",
     "Off": "off", "BsR": "bsr", "Def": "def_value",
     "HR": "hr", "2B": "doubles", "3B": "triples",
     "R": "r", "RBI": "rbi", "SB": "sb", "CS": "cs",
     # Pitching
-    "G_pit": "g_pit", "GS": "gs", "IP": "ip", "WAR_pit": "war_pit",
+    "G_pit": "g_pit", "GS": "gs", "IP": "ip", "WAR_pitcher": "war_pit",
     "ERA": "era", "FIP": "fip", "K%_pit": "k_pct_pit", "BB%_pit": "bb_pct_pit",
     # Aggregate values
     "avg_war": "avg_war", "total_contract": "total_contract",
