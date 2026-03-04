@@ -16,12 +16,15 @@ Architecture
    SQLAlchemy Core ``insert()`` with batched ``executemany`` (bypasses
    ORM identity-map overhead → 10-100x faster than ``bulk_save_objects``).
 3. **Cross-reference resolution** — a single SQL ``UPDATE`` resolves
-   prospect ``IDfg`` from the crosswalk, replacing the old Python loop.
+   prospect ``IDfg`` from the pre-enriched crosswalk.  The crosswalk is
+   enriched *offline* by ``scrapers/enrich_crosswalk.py`` (name-matching
+   prospects → MiLB FanGraphs IDs).  ``has_mlb`` is resolved via an
+   indexed integer join (``mlbam_id IN players.mlb_id``).
 
 Performance
 -----------
-Full reload (all tables, ~250 K total rows): **< 60 s** on a typical
-laptop with SQLite.  Previously 30+ min with row-by-row ORM inserts.
+Full reload (all tables, ~250 K total rows): **< 20 s** on a typical
+laptop with SQLite.  Previously ~8 min due to LOWER(name) matching.
 """
 
 import sys
@@ -514,78 +517,12 @@ class DataLoader:
             self.db.commit()
             logger.info(f"    {result.rowcount:,} prospect IDfg values resolved")
 
-    def resolve_prospect_idfg_by_name(self) -> None:
-        """Secondary resolution: match unresolved prospect names against
-        MiLB stats tables to find their FanGraphs ID.  This catches
-        players who are not in the crosswalk (e.g. pure MiLB players).
-        """
-        with _Timer("Resolve prospect IDfg by name (hitters)"):
-            if self._is_sqlite:
-                sql_hit = text("""
-                    UPDATE prospects
-                    SET "IDfg" = (
-                        SELECT mh."IDfg"
-                        FROM   milb_hitting_stats mh
-                        WHERE  LOWER(mh.name) = LOWER(prospects.name)
-                        GROUP  BY mh."IDfg"
-                        LIMIT 1
-                    )
-                    WHERE "IDfg" IS NULL
-                      AND EXISTS (
-                          SELECT 1 FROM milb_hitting_stats mh
-                          WHERE LOWER(mh.name) = LOWER(prospects.name)
-                      )
-                """)
-            else:
-                sql_hit = text("""
-                    UPDATE prospects p
-                    SET    "IDfg" = sub.idfg
-                    FROM   (
-                        SELECT DISTINCT ON (LOWER(name)) "IDfg" AS idfg, LOWER(name) AS lname
-                        FROM   milb_hitting_stats
-                    ) sub
-                    WHERE  LOWER(p.name) = sub.lname
-                      AND  p."IDfg" IS NULL
-                """)
-            result = self.db.execute(sql_hit)
-            self.db.commit()
-            logger.info(f"    {result.rowcount:,} prospect IDfg values resolved via hitter name match")
-
-        with _Timer("Resolve prospect IDfg by name (pitchers)"):
-            if self._is_sqlite:
-                sql_pit = text("""
-                    UPDATE prospects
-                    SET "IDfg" = (
-                        SELECT mp."IDfg"
-                        FROM   milb_pitching_stats mp
-                        WHERE  LOWER(mp.name) = LOWER(prospects.name)
-                        GROUP  BY mp."IDfg"
-                        LIMIT 1
-                    )
-                    WHERE "IDfg" IS NULL
-                      AND EXISTS (
-                          SELECT 1 FROM milb_pitching_stats mp
-                          WHERE LOWER(mp.name) = LOWER(prospects.name)
-                      )
-                """)
-            else:
-                sql_pit = text("""
-                    UPDATE prospects p
-                    SET    "IDfg" = sub.idfg
-                    FROM   (
-                        SELECT DISTINCT ON (LOWER(name)) "IDfg" AS idfg, LOWER(name) AS lname
-                        FROM   milb_pitching_stats
-                    ) sub
-                    WHERE  LOWER(p.name) = sub.lname
-                      AND  p."IDfg" IS NULL
-                """)
-            result = self.db.execute(sql_pit)
-            self.db.commit()
-            logger.info(f"    {result.rowcount:,} prospect IDfg values resolved via pitcher name match")
-
     def resolve_prospect_has_mlb(self) -> None:
-        """Set ``has_mlb = True`` for prospects whose name appears in the
-        MLB players table.  This enables correct linking on the frontend.
+        """Set ``has_mlb = True`` for prospects whose ``mlbam_id``
+        appears in the MLB *players* table (``players.mlb_id``).
+
+        Uses an indexed integer join — nearly instant compared to the
+        old LOWER(name) approach which took ~140 s.
         """
         with _Timer("Resolve prospect has_mlb"):
             if self._is_sqlite:
@@ -593,18 +530,22 @@ class DataLoader:
                     UPDATE prospects
                     SET has_mlb = 1
                     WHERE has_mlb = 0
-                      AND EXISTS (
-                          SELECT 1 FROM players pl
-                          WHERE LOWER(pl.name) = LOWER(prospects.name)
+                      AND mlbam_id IS NOT NULL
+                      AND mlbam_id IN (
+                          SELECT DISTINCT mlb_id FROM players
+                          WHERE mlb_id IS NOT NULL
                       )
                 """)
             else:
                 sql = text("""
-                    UPDATE prospects p
+                    UPDATE prospects
                     SET    has_mlb = TRUE
-                    FROM   players pl
-                    WHERE  LOWER(pl.name) = LOWER(p.name)
-                      AND  p.has_mlb = FALSE
+                    WHERE  has_mlb = FALSE
+                      AND  mlbam_id IS NOT NULL
+                      AND  mlbam_id IN (
+                          SELECT DISTINCT mlb_id FROM players
+                          WHERE mlb_id IS NOT NULL
+                      )
                 """)
             result = self.db.execute(sql)
             self.db.commit()
@@ -891,7 +832,7 @@ def init_db():
     t_total = time.perf_counter()
 
     # ── 1. Schema reset ───────────────────────────────────────────────────
-    logger.info("[1/8] Resetting schema ...")
+    logger.info("[1/9] Resetting schema ...")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     logger.info("  Tables recreated")
@@ -912,48 +853,44 @@ def init_db():
         loader = DataLoader(db)
 
         # ── 2. Players ────────────────────────────────────────────────────
-        logger.info("\n[2/8] Loading players ...")
+        logger.info("\n[2/9] Loading players ...")
         loader.load_players(DATA_PATHS["players"])
 
         # ── 3. Prospects ──────────────────────────────────────────────────
-        logger.info("\n[3/8] Loading prospects ...")
+        logger.info("\n[3/9] Loading prospects ...")
         loader.load_prospects(DATA_PATHS["prospects"])
 
         # ── 4. Historical players ─────────────────────────────────────────
-        logger.info("\n[4/8] Loading historical players ...")
+        logger.info("\n[4/9] Loading historical players ...")
         if DATA_PATHS["historical"].exists():
             loader.load_historical(DATA_PATHS["historical"])
         else:
             logger.warning("  Skipped (file not found)")
 
         # ── 5. Past trades ────────────────────────────────────────────────
-        logger.info("\n[5/8] Loading past trades ...")
+        logger.info("\n[5/9] Loading past trades ...")
         if DATA_PATHS["trades"].exists():
             loader.load_past_trades(DATA_PATHS["trades"])
         else:
             logger.warning("  Skipped (file not found)")
 
         # ── 6. MiLB stats ────────────────────────────────────────────────
-        logger.info("\n[6/8] Loading MiLB statistics ...")
+        logger.info("\n[6/9] Loading MiLB statistics ...")
         loader.load_milb_stats(DATA_PATHS["milb_hitters"], DATA_PATHS["milb_pitchers"])
 
         # ── 7. Crosswalk ──────────────────────────────────────────────────
-        logger.info("\n[7/8] Loading player-ID crosswalk ...")
+        logger.info("\n[7/9] Loading player-ID crosswalk ...")
         if DATA_PATHS["crosswalk"].exists():
             loader.load_crosswalk(DATA_PATHS["crosswalk"])
         else:
             logger.warning("  Skipped — run scrapers/build_id_crosswalk.py first")
 
         # ── 8. Prospect IDfg resolution ───────────────────────────────────
-        logger.info("\n[8/10] Resolving prospect FanGraphs IDs (crosswalk) ...")
+        logger.info("\n[8/9] Resolving prospect FanGraphs IDs (crosswalk) ...")
         loader.resolve_prospect_idfg()
 
-        # ── 9. Secondary IDfg resolution by name ─────────────────────────
-        logger.info("\n[9/10] Resolving prospect IDfg by name match ...")
-        loader.resolve_prospect_idfg_by_name()
-
-        # ── 10. Resolve has_mlb ───────────────────────────────────────────
-        logger.info("\n[10/10] Resolving prospect has_mlb ...")
+        # ── 9. Resolve has_mlb (integer mlbam_id match — <1 s) ────────────
+        logger.info("\n[9/9] Resolving prospect has_mlb ...")
         loader.resolve_prospect_has_mlb()
 
         elapsed = time.perf_counter() - t_total
