@@ -149,8 +149,12 @@ const ProspectsPage = () => {
                     <label className="text-[11px] text-surface-400">PA</label>
                     <input
                       type="number"
+                      min="0"
                       value={minPa ?? ''}
-                      onChange={(e) => setMinPa(e.target.value ? Number(e.target.value) : undefined)}
+                      onChange={(e) => {
+                        const v = e.target.value ? Math.max(0, Number(e.target.value)) : undefined;
+                        setMinPa(v);
+                      }}
                       placeholder="0"
                       className="w-16 bg-surface-700/50 border border-white/[0.08] rounded px-2 py-1 text-[11px] text-surface-300 focus:ring-1 focus:ring-brand-400/40"
                     />
@@ -160,8 +164,12 @@ const ProspectsPage = () => {
                     <label className="text-[11px] text-surface-400">IP</label>
                     <input
                       type="number"
+                      min="0"
                       value={minIp ?? ''}
-                      onChange={(e) => setMinIp(e.target.value ? Number(e.target.value) : undefined)}
+                      onChange={(e) => {
+                        const v = e.target.value ? Math.max(0, Number(e.target.value)) : undefined;
+                        setMinIp(v);
+                      }}
                       placeholder="0"
                       step="0.1"
                       className="w-16 bg-surface-700/50 border border-white/[0.08] rounded px-2 py-1 text-[11px] text-surface-300 focus:ring-1 focus:ring-brand-400/40"

@@ -490,9 +490,9 @@ export interface Prospect {
   if (position) params.append('position', position);
   if (sortBy) params.append('sort_by', sortBy);
   params.append('sort_direction', sortDirection);
-  if (minPa) params.append('min_pa', minPa.toString());
-  if (minIp) params.append('min_ip', minIp.toString());
-  if (minG) params.append('min_g', minG.toString());
+  if (minPa && minPa > 0) params.append('min_pa', minPa.toString());
+  if (minIp && minIp > 0) params.append('min_ip', minIp.toString());
+  if (minG && minG > 0) params.append('min_g', minG.toString());
   
   const response = await cancellableFetch('getProspects', `${API_BASE}/prospects?${params}`, {
     headers: createApiHeaders()

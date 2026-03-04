@@ -514,6 +514,102 @@ class DataLoader:
             self.db.commit()
             logger.info(f"    {result.rowcount:,} prospect IDfg values resolved")
 
+    def resolve_prospect_idfg_by_name(self) -> None:
+        """Secondary resolution: match unresolved prospect names against
+        MiLB stats tables to find their FanGraphs ID.  This catches
+        players who are not in the crosswalk (e.g. pure MiLB players).
+        """
+        with _Timer("Resolve prospect IDfg by name (hitters)"):
+            if self._is_sqlite:
+                sql_hit = text("""
+                    UPDATE prospects
+                    SET "IDfg" = (
+                        SELECT mh."IDfg"
+                        FROM   milb_hitting_stats mh
+                        WHERE  LOWER(mh.name) = LOWER(prospects.name)
+                        GROUP  BY mh."IDfg"
+                        LIMIT 1
+                    )
+                    WHERE "IDfg" IS NULL
+                      AND EXISTS (
+                          SELECT 1 FROM milb_hitting_stats mh
+                          WHERE LOWER(mh.name) = LOWER(prospects.name)
+                      )
+                """)
+            else:
+                sql_hit = text("""
+                    UPDATE prospects p
+                    SET    "IDfg" = sub.idfg
+                    FROM   (
+                        SELECT DISTINCT ON (LOWER(name)) "IDfg" AS idfg, LOWER(name) AS lname
+                        FROM   milb_hitting_stats
+                    ) sub
+                    WHERE  LOWER(p.name) = sub.lname
+                      AND  p."IDfg" IS NULL
+                """)
+            result = self.db.execute(sql_hit)
+            self.db.commit()
+            logger.info(f"    {result.rowcount:,} prospect IDfg values resolved via hitter name match")
+
+        with _Timer("Resolve prospect IDfg by name (pitchers)"):
+            if self._is_sqlite:
+                sql_pit = text("""
+                    UPDATE prospects
+                    SET "IDfg" = (
+                        SELECT mp."IDfg"
+                        FROM   milb_pitching_stats mp
+                        WHERE  LOWER(mp.name) = LOWER(prospects.name)
+                        GROUP  BY mp."IDfg"
+                        LIMIT 1
+                    )
+                    WHERE "IDfg" IS NULL
+                      AND EXISTS (
+                          SELECT 1 FROM milb_pitching_stats mp
+                          WHERE LOWER(mp.name) = LOWER(prospects.name)
+                      )
+                """)
+            else:
+                sql_pit = text("""
+                    UPDATE prospects p
+                    SET    "IDfg" = sub.idfg
+                    FROM   (
+                        SELECT DISTINCT ON (LOWER(name)) "IDfg" AS idfg, LOWER(name) AS lname
+                        FROM   milb_pitching_stats
+                    ) sub
+                    WHERE  LOWER(p.name) = sub.lname
+                      AND  p."IDfg" IS NULL
+                """)
+            result = self.db.execute(sql_pit)
+            self.db.commit()
+            logger.info(f"    {result.rowcount:,} prospect IDfg values resolved via pitcher name match")
+
+    def resolve_prospect_has_mlb(self) -> None:
+        """Set ``has_mlb = True`` for prospects whose name appears in the
+        MLB players table.  This enables correct linking on the frontend.
+        """
+        with _Timer("Resolve prospect has_mlb"):
+            if self._is_sqlite:
+                sql = text("""
+                    UPDATE prospects
+                    SET has_mlb = 1
+                    WHERE has_mlb = 0
+                      AND EXISTS (
+                          SELECT 1 FROM players pl
+                          WHERE LOWER(pl.name) = LOWER(prospects.name)
+                      )
+                """)
+            else:
+                sql = text("""
+                    UPDATE prospects p
+                    SET    has_mlb = TRUE
+                    FROM   players pl
+                    WHERE  LOWER(pl.name) = LOWER(p.name)
+                      AND  p.has_mlb = FALSE
+                """)
+            result = self.db.execute(sql)
+            self.db.commit()
+            logger.info(f"    {result.rowcount:,} prospects marked as has_mlb")
+
     # ── MiLB statistics ───────────────────────────────────────────────────
 
     def _load_milb_csv(
@@ -849,8 +945,16 @@ def init_db():
             logger.warning("  Skipped — run scrapers/build_id_crosswalk.py first")
 
         # ── 8. Prospect IDfg resolution ───────────────────────────────────
-        logger.info("\n[8/8] Resolving prospect FanGraphs IDs ...")
+        logger.info("\n[8/10] Resolving prospect FanGraphs IDs (crosswalk) ...")
         loader.resolve_prospect_idfg()
+
+        # ── 9. Secondary IDfg resolution by name ─────────────────────────
+        logger.info("\n[9/10] Resolving prospect IDfg by name match ...")
+        loader.resolve_prospect_idfg_by_name()
+
+        # ── 10. Resolve has_mlb ───────────────────────────────────────────
+        logger.info("\n[10/10] Resolving prospect has_mlb ...")
+        loader.resolve_prospect_has_mlb()
 
         elapsed = time.perf_counter() - t_total
         logger.info(

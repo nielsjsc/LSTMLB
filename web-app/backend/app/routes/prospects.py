@@ -52,9 +52,9 @@ async def get_prospects(
     sort_direction: str = Query('asc'),
     slim: bool = Query(False, description="Return minimal fields (name, org, position, fv, value)"),
     view: str = Query('grades', description="View mode: grades, stats, all_stats"),
-    min_pa: Optional[int] = Query(None, description="Minimum plate appearances (hitters)"),
-    min_ip: Optional[float] = Query(None, description="Minimum innings pitched (pitchers)"),
-    min_g: Optional[int] = Query(None, description="Minimum games"),
+    min_pa: Optional[int] = Query(None, ge=0, description="Minimum plate appearances (hitters)"),
+    min_ip: Optional[float] = Query(None, ge=0, description="Minimum innings pitched (pitchers)"),
+    min_g: Optional[int] = Query(None, ge=0, description="Minimum games"),
     db: Session = Depends(get_db)
 ) -> dict:
     try:
@@ -191,28 +191,32 @@ async def get_prospects(
                         })
 
         # ── Filter by min PA/IP/G if stats requested ─────────────────
-        if view in ('stats', 'all_stats') and (min_pa or min_ip or min_g):
+        has_stat_filter = (
+            (min_pa is not None and min_pa > 0) or
+            (min_ip is not None and min_ip > 0) or
+            (min_g is not None and min_g > 0)
+        )
+        if view in ('stats', 'all_stats') and has_stat_filter:
             filtered_prospects = []
             for p in prospects:
+                # Players without stats data are EXCLUDED when a filter is active
                 if not p.IDfg or p.IDfg not in stats_by_idfg:
-                    filtered_prospects.append(p)
                     continue
                 rows = stats_by_idfg[p.IDfg]
-                # Check if any season row meets the minimum threshold
                 passes = False
                 for row in rows:
-                    if min_pa and player_type == 'hitter' and row.get('pa', 0) and row['pa'] >= min_pa:
-                        passes = True
-                        break
-                    if min_ip and player_type == 'pitcher' and row.get('ip', 0) and row['ip'] >= min_ip:
-                        passes = True
-                        break
-                    if min_g and row.get('g', 0) and row['g'] >= min_g:
-                        passes = True
-                        break
-                    if not min_pa and not min_ip and not min_g:
-                        passes = True
-                        break
+                    if min_pa and min_pa > 0 and player_type == 'hitter':
+                        if (row.get('pa') or 0) >= min_pa:
+                            passes = True
+                            break
+                    elif min_ip and min_ip > 0 and player_type == 'pitcher':
+                        if (row.get('ip') or 0) >= min_ip:
+                            passes = True
+                            break
+                    elif min_g and min_g > 0:
+                        if (row.get('g') or 0) >= min_g:
+                            passes = True
+                            break
                 if passes:
                     filtered_prospects.append(p)
             prospects = filtered_prospects
