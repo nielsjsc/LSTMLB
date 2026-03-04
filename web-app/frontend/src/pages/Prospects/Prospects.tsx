@@ -3,12 +3,19 @@ import { useProspects } from '../../hooks/useApi';
 import ProspectsTable from '../../components/Tables/Prospects/ProspectTable';
 import { PROSPECT_YEARS, PROSPECT_DEFAULT_YEAR } from '../../config';
 
+type ViewMode = 'grades' | 'stats' | 'all_stats';
 
 const teams = ['ARI', 'ATL', 'BAL', 'BOS', 'CHC', 'CHW', 'CIN', 'CLE', 'COL', 'DET', 
                'HOU', 'KC', 'LAA', 'LAD', 'MIA', 'MIL', 'MIN', 'NYM', 'NYY', 'ATH', 
                'PHI', 'PIT', 'SD', 'SF', 'SEA', 'STL', 'TB', 'TEX', 'TOR', 'WSH'];
 
 const hitterPositions = ['C', '1B', '2B', '3B', 'SS', 'OF', 'LF', 'CF', 'RF', 'DH'];
+
+const viewModeLabels: Record<ViewMode, string> = {
+  grades: 'Prospect Grades',
+  stats: 'Stats + Grades',
+  all_stats: 'All Stats',
+};
 
 const ProspectsPage = () => {
   const [playerType, setPlayerType] = useState<'hitter' | 'pitcher'>('hitter');
@@ -19,14 +26,19 @@ const ProspectsPage = () => {
   const [pageSize] = useState(50);
   const [sortBy, setSortBy] = useState<string>('composite');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [viewMode, setViewMode] = useState<ViewMode>('grades');
+  const [minPa, setMinPa] = useState<number | undefined>();
+  const [minIp, setMinIp] = useState<number | undefined>();
 
-  // React Query — replaces manual useState/useEffect/fetch
   const { data, isFetching: loading, error } = useProspects({
     playerType, team, position, year, page, pageSize, sortBy, sortDirection,
+    view: viewMode,
+    minPa: playerType === 'hitter' ? minPa : undefined,
+    minIp: playerType === 'pitcher' ? minIp : undefined,
   });
 
   // Reset to first page when filters or sort change
-  useEffect(() => { setPage(1); }, [year, playerType, team, position, sortBy, sortDirection]);
+  useEffect(() => { setPage(1); }, [year, playerType, team, position, sortBy, sortDirection, viewMode, minPa, minIp]);
 
   const handleSort = (key: string) => {
     const newDirection = sortBy === key && sortDirection === 'desc' ? 'asc' : 'desc';
@@ -34,15 +46,14 @@ const ProspectsPage = () => {
     setSortDirection(newDirection);
   };
 
-
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-surface-900 via-surface-800 to-surface-900">
-      <div className="max-w-7xl mx-auto py-16 px-4">
+      <div className="max-w-[95rem] mx-auto py-16 px-4">
         <h1 className="text-4xl font-bold mb-8 text-white tracking-tight">Prospect Rankings & Values</h1>
         
         <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50 mb-8">
-          <div className="flex flex-wrap gap-4 items-center">
+          {/* Row 1: Main filters */}
+          <div className="flex flex-wrap gap-4 items-center mb-4">
             <select 
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
@@ -55,11 +66,8 @@ const ProspectsPage = () => {
 
             <div className="flex space-x-2">
               <button
-                onClick={() => {
-                  setPlayerType('hitter');
-                  setPosition(undefined);
-                }}
-                className={`px-4 py-2.5 rounded-lg text-sm font-medium ${
+                onClick={() => { setPlayerType('hitter'); setPosition(undefined); }}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   playerType === 'hitter'
                     ? 'bg-brand-500 text-surface-900'
                     : 'bg-white/[0.04] text-surface-300 hover:bg-white/[0.08] border border-white/[0.06]'
@@ -68,11 +76,8 @@ const ProspectsPage = () => {
                 Hitters
               </button>
               <button
-                onClick={() => {
-                  setPlayerType('pitcher');
-                  setPosition(undefined);
-                }}
-                className={`px-4 py-2.5 rounded-lg text-sm font-medium ${
+                onClick={() => { setPlayerType('pitcher'); setPosition(undefined); }}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   playerType === 'pitcher'
                     ? 'bg-brand-500 text-surface-900'
                     : 'bg-white/[0.04] text-surface-300 hover:bg-white/[0.08] border border-white/[0.06]'
@@ -88,12 +93,11 @@ const ProspectsPage = () => {
               className="bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
             >
               <option value="" className="bg-surface-800">All Teams</option>
-              {teams.map(team => (
-                <option key={team} value={team} className="bg-surface-800">{team}</option>
+              {teams.map(t => (
+                <option key={t} value={t} className="bg-surface-800">{t}</option>
               ))}
             </select>
 
-            {/* Only show position filter for hitters */}
             {playerType === 'hitter' && (
               <select
                 value={position || ''}
@@ -106,7 +110,7 @@ const ProspectsPage = () => {
                 ))}
               </select>
             )}
-  
+
             {loading && (
               <div className="text-brand-400 flex items-center">
                 <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
@@ -114,6 +118,56 @@ const ProspectsPage = () => {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
                 Loading...
+              </div>
+            )}
+          </div>
+
+          {/* Row 2: View mode tabs + stat filters */}
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex space-x-1 bg-surface-900/50 rounded-lg p-1">
+              {(Object.keys(viewModeLabels) as ViewMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    viewMode === mode
+                      ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
+                      : 'text-surface-400 hover:text-surface-200 hover:bg-white/[0.04]'
+                  }`}
+                >
+                  {viewModeLabels[mode]}
+                </button>
+              ))}
+            </div>
+
+            {/* Stat filters — only show when stats view is active */}
+            {viewMode !== 'grades' && (
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] text-surface-500 uppercase tracking-wider">Min:</span>
+                {playerType === 'hitter' ? (
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[11px] text-surface-400">PA</label>
+                    <input
+                      type="number"
+                      value={minPa ?? ''}
+                      onChange={(e) => setMinPa(e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder="0"
+                      className="w-16 bg-surface-700/50 border border-white/[0.08] rounded px-2 py-1 text-[11px] text-surface-300 focus:ring-1 focus:ring-brand-400/40"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[11px] text-surface-400">IP</label>
+                    <input
+                      type="number"
+                      value={minIp ?? ''}
+                      onChange={(e) => setMinIp(e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder="0"
+                      step="0.1"
+                      className="w-16 bg-surface-700/50 border border-white/[0.08] rounded px-2 py-1 text-[11px] text-surface-300 focus:ring-1 focus:ring-brand-400/40"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -141,6 +195,7 @@ const ProspectsPage = () => {
                 onSort={handleSort}
                 sortBy={sortBy}
                 sortDirection={sortDirection}
+                viewMode={viewMode}
               />
             </div>
           </div>

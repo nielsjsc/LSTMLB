@@ -395,10 +395,40 @@ export interface ProjectionResponse {
 
 
   
+export interface MiLBStatRow {
+  season: number;
+  team: string;
+  level: string;
+  age: number;
+  // Hitter stats
+  pa?: number;
+  bb_pct?: number | null;
+  k_pct?: number | null;
+  avg?: number | null;
+  obp?: number | null;
+  slg?: number | null;
+  ops?: number | null;
+  iso?: number | null;
+  babip?: number | null;
+  woba?: number | null;
+  wrc_plus?: number | null;
+  spd?: number | null;
+  // Pitcher stats
+  ip?: number | null;
+  k_9?: number | null;
+  bb_9?: number | null;
+  k_bb?: number | null;
+  hr_9?: number | null;
+  whip?: number | null;
+  era?: number | null;
+  fip?: number | null;
+  xfip?: number | null;
+}
+
 export interface Prospect {
     id: number;
     playerId: string;
-    IDfg: number | null;
+    IDfg: string | null;
     name: string;
     has_mlb: boolean;
     org: string;
@@ -408,6 +438,8 @@ export interface Prospect {
     fv: string;
     value: number | null;
     composite: number | null;
+    top_100: number | null;
+    org_rank: number | null;
 
     // Hitter Tool Grades
     hit?: string;
@@ -421,13 +453,10 @@ export interface Prospect {
     curve?: string;
     change?: string;
     command?: string;
-  }
-  
-  export interface ProspectResponse {
-    count: number;
-    page: number;
-    pages: number;
-    players: Prospect[];
+
+    // Stats (populated when view=stats or view=all_stats)
+    latest_stats?: MiLBStatRow;
+    all_stats?: MiLBStatRow[];
   }
   
   export interface ProspectResponse {
@@ -445,17 +474,25 @@ export interface Prospect {
   page: number = 1,
   pageSize: number = 25,
   sortBy?: string,
-  sortDirection: 'asc' | 'desc' = 'asc'
+  sortDirection: 'asc' | 'desc' = 'asc',
+  view: 'grades' | 'stats' | 'all_stats' = 'grades',
+  minPa?: number,
+  minIp?: number,
+  minG?: number,
 ): Promise<ProspectResponse> => {
   const params = new URLSearchParams();
   params.append('player_type', playerType);
   params.append('year', year.toString());
   params.append('page', page.toString());
   params.append('page_size', pageSize.toString());
+  params.append('view', view);
   if (team) params.append('team', team);
   if (position) params.append('position', position);
   if (sortBy) params.append('sort_by', sortBy);
   params.append('sort_direction', sortDirection);
+  if (minPa) params.append('min_pa', minPa.toString());
+  if (minIp) params.append('min_ip', minIp.toString());
+  if (minG) params.append('min_g', minG.toString());
   
   const response = await cancellableFetch('getProspects', `${API_BASE}/prospects?${params}`, {
     headers: createApiHeaders()
@@ -477,6 +514,8 @@ export interface ProspectDetailHistory {
   fv: string;
   value: number | null;
   composite: number | null;
+  top_100: number | null;
+  org_rank: number | null;
   hit?: string;
   game_power?: string;
   raw_power?: string;

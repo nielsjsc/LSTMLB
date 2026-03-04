@@ -25,10 +25,10 @@ export const CURRENT_YEAR = 2026;
 export const MAX_PROJECTION_YEARS = 5;
 
 // Prospect data availability (oldest → newest)
-export const PROSPECT_YEAR_START = 2022;
-export const PROSPECT_YEAR_END = 2025;
+export const PROSPECT_YEAR_START = 2014;
+export const PROSPECT_YEAR_END = 2026;
 export const PROSPECT_YEARS: number[] = Array.from(
   { length: PROSPECT_YEAR_END - PROSPECT_YEAR_START + 1 },
   (_, i) => PROSPECT_YEAR_END - i  // newest first for dropdown
 );
-export const PROSPECT_DEFAULT_YEAR = PROSPECT_YEAR_END;
+export const PROSPECT_DEFAULT_YEAR = 2025;  // 2025 has full boards (900 prospects)

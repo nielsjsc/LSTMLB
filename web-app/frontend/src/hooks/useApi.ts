@@ -50,6 +50,10 @@ export function useProspects(params: {
   pageSize?: number;
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
+  view?: 'grades' | 'stats' | 'all_stats';
+  minPa?: number;
+  minIp?: number;
+  minG?: number;
 }) {
   return useQuery({
     queryKey: ['prospects', params] as const,
@@ -63,6 +67,10 @@ export function useProspects(params: {
         params.pageSize ?? 50,
         params.sortBy,
         params.sortDirection ?? 'asc',
+        params.view ?? 'grades',
+        params.minPa,
+        params.minIp,
+        params.minG,
       ),
     placeholderData: keepPreviousData,
   });

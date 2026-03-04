@@ -53,7 +53,7 @@ from app.models.historical import HistoricalPlayer
 from app.models.past_trade import PastTrade
 from app.models.milb_stats import MiLBHittingStats, MiLBPitchingStats
 from app.models.player_id_crosswalk import PlayerIdCrosswalk
-from app.config import PROSPECT_YEARS
+from app.config import PROSPECT_YEARS, PROSPECT_DEFAULT_YEAR
 from app.database import SessionLocal, engine, Base
 
 logging.basicConfig(
@@ -74,7 +74,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 DATA_PATHS: Dict[str, Path] = {
     # ── Generated / processed ─────────────────────────────────────────
     "players":       PROJECT_ROOT / "data" / "generated" / "value_by_year" / "player_values_complete.csv",
-    "prospects":     PROJECT_ROOT / "data" / "generated" / "MiLB" / "prospect_histories.csv",
+    "prospects":     PROJECT_ROOT / "data" / "prospect_data" / "prospects_2014_2026_with_top100.csv",
     "historical":    PROJECT_ROOT / "data" / "generated" / "historical_players" / "historical_players.json",
     "trades":        PROJECT_ROOT / "data" / "generated" / "past_trades" / "trades.json",
     "crosswalk":     PROJECT_ROOT / "data" / "generated" / "player_id_crosswalk.csv",
@@ -186,14 +186,94 @@ PLAYER_INT_COLS = {
 
 PLAYER_STR_COLS = {"name", "team", "position", "status"}
 
-# Prospect CSV → model
-PROSPECT_COL_MAP = {
-    "Year": "year", "Name": "name", "Team": "org",
-    "Position": "position", "FV": "fv", "Age": "age",
-    "Hit": "hit", "Game": "game_power", "Raw": "raw_power", "Spd": "speed",
-    "FB": "fastball", "SL": "slider", "CB": "curve",
-    "CH": "changeup", "CMD": "command",
+# ── Prospect source CSV (prospects_2014_2026_with_top100.csv) ──────────
+# This CSV has one row per player per year with lowercase column names.
+# We map them to DB model column names.
+
+PROSPECT_TEAM_SLUG_MAP = {
+    'diamondbacks': 'ARI', 'dbacks': 'ARI',
+    'braves': 'ATL',
+    'orioles': 'BAL',
+    'red-sox': 'BOS', 'redsox': 'BOS',
+    'cubs': 'CHC',
+    'white-sox': 'CHW', 'whitesox': 'CHW',
+    'reds': 'CIN',
+    'guardians': 'CLE', 'indians': 'CLE',
+    'rockies': 'COL',
+    'tigers': 'DET',
+    'astros': 'HOU',
+    'royals': 'KCR', 'kcroyals': 'KCR',
+    'angels': 'LAA',
+    'dodgers': 'LAD',
+    'marlins': 'MIA',
+    'brewers': 'MIL',
+    'twins': 'MIN',
+    'mets': 'NYM',
+    'yankees': 'NYY',
+    'athletics': 'ATH',
+    'phillies': 'PHI',
+    'pirates': 'PIT',
+    'padres': 'SDP', 'sdpadres': 'SDP',
+    'giants': 'SFG', 'sfgiants': 'SFG',
+    'mariners': 'SEA',
+    'cardinals': 'STL',
+    'rays': 'TBR', 'tbr': 'TBR',
+    'rangers': 'TEX',
+    'blue-jays': 'TOR', 'bluejays': 'TOR',
+    'nationals': 'WSH', 'wsh': 'WSH',
 }
+
+# FV grade → base value in dollars (must match the prospect model pipeline)
+_FV_BASE_VALUES = {
+    80: 300_000_000,
+    75: 250_000_000,
+    70: 200_000_000,
+    65: 135_000_000,
+    60: 90_000_000,
+    55: 50_000_000,
+    50: 25_000_000,
+    47: 15_000_000,
+    45: 10_000_000,
+    40: 4_000_000,
+    35: 1_000_000,
+    30: 250_000,
+}
+
+import re as _re
+
+def _extract_mlbam_from_url(url) -> int | None:
+    """Extract MLBAM ID from prospect URL like ``...-605151``."""
+    if not url or not isinstance(url, str) or pd.isna(url):
+        return None
+    m = _re.search(r"-(\d+)$", str(url))
+    return int(m.group(1)) if m else None
+
+
+def _prospect_rank_adj(rank: float) -> float:
+    """Top-100 rank → multiplicative adjustment (1.0 = no change)."""
+    if rank <= 5:
+        return 1.35
+    if rank <= 10:
+        return 1.25
+    if rank <= 25:
+        return 1.15
+    if rank <= 50:
+        return 1.05
+    if rank <= 75:
+        return 0.95
+    return 0.90
+
+
+def _calc_prospect_value(fv: float, top_100: float | None) -> float:
+    """Calculate prospect value from FV grade + optional top-100 rank."""
+    if pd.isna(fv):
+        return 0.0
+    grade = max(30, min(80, round(fv / 5) * 5))
+    base = _FV_BASE_VALUES.get(int(grade), 0)
+    if base == 0:
+        return 0.0
+    mult = _prospect_rank_adj(top_100) if pd.notna(top_100) else 1.0
+    return base * mult
 
 # MiLB hitting CSV → model
 MILB_HIT_COL_MAP = {
@@ -259,60 +339,111 @@ class DataLoader:
     # ── Prospects ─────────────────────────────────────────────────────────
 
     def load_prospects(self, csv_path: Path) -> None:
-        """Load prospect data.  JSON dict columns (``values_by_year``,
-        ``composites_by_year``) are built via ``apply`` (fast for ~2 K rows).
+        """Load prospect data from the raw source CSV
+        (``prospects_2014_2026_with_top100.csv``).
+
+        One DB row per player-year.  Extracts mlbam_id from prospect_url,
+        maps team slugs → 3-letter abbreviations, maps tool grades,
+        calculates per-row value & composite, and builds JSON
+        ``values_by_year`` / ``composites_by_year`` for backward compat.
         """
         with _Timer("Prospects"):
-            df = pd.read_csv(csv_path)
+            df = pd.read_csv(csv_path, low_memory=False)
+            logger.info(f"    Source CSV: {len(df):,} rows, years {df['year'].min():.0f}–{df['year'].max():.0f}")
 
-            # -- Build year-keyed JSON dicts --------------------------------
-            def _build_year_dict(row, suffix: str) -> dict:
-                d = {}
-                for yr in PROSPECT_YEARS:
-                    col = f"{yr}_{suffix}"
-                    if col in row.index and pd.notna(row[col]):
-                        d[str(yr)] = float(row[col])
-                return d
+            # ── Column mapping & derivation ────────────────────────────
+            # Name → name (already lowercase in source)
+            df = df.rename(columns={"name": "name", "position": "position",
+                                     "age": "age", "rank": "org_rank"})
 
-            df["values_by_year"] = df.apply(
-                lambda r: _build_year_dict(r, "Value"), axis=1
-            )
-            df["composites_by_year"] = df.apply(
-                lambda r: _build_year_dict(r, "Composite"), axis=1
+            # Team slug → 3-letter abbreviation
+            df["org"] = df["team_slug"].map(
+                lambda s: PROSPECT_TEAM_SLUG_MAP.get(str(s).lower().strip(), str(s).upper()[:3])
+                if pd.notna(s) else "FA"
             )
 
-            # Drop the raw year columns now that they're collapsed
-            year_cols = (
-                [f"{yr}_Value" for yr in PROSPECT_YEARS]
-                + [f"{yr}_Composite" for yr in PROSPECT_YEARS]
+            # Year (float → int)
+            df["year"] = pd.to_numeric(df["year"], errors="coerce")
+            df = df.dropna(subset=["year"])
+            df["year"] = df["year"].astype(int)
+
+            # FV (grade_overall → fv, stored as string to match model)
+            df["fv"] = pd.to_numeric(df["grade_overall"], errors="coerce")
+            # Round to nearest 5 for display
+            df["fv_num"] = df["fv"].copy()  # keep numeric copy
+            df["fv"] = df["fv"].apply(
+                lambda v: str(int(round(v / 5) * 5)) if pd.notna(v) else None
             )
-            df = df.drop(columns=[c for c in year_cols if c in df.columns])
 
-            # Rename
-            df = df.rename(columns=PROSPECT_COL_MAP)
+            # Top 100 rank
+            df["top_100"] = pd.to_numeric(df["top_100"], errors="coerce")
+            df.loc[df["top_100"].isna(), "top_100"] = None
 
-            # -- IDfg (FanGraphs MiLB IDs: "sa"-prefixed strings) ----------
-            df["IDfg"] = df["IDfg"].astype(str).str.strip()
-            df.loc[df["IDfg"].isin(["nan", "", "None", "NaN", "<NA>"]), "IDfg"] = None
+            # Org rank
+            df["org_rank"] = pd.to_numeric(df["org_rank"], errors="coerce")
 
-            # -- mlbam_id ---------------------------------------------------
-            df["mlbam_id"] = pd.to_numeric(df.get("mlbam_id"), errors="coerce")
+            # ── Tool grades (stored as "grade" strings) ────────────────
+            # Hitter tools
+            df["hit"] = df["grade_hit"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
+            df["game_power"] = df["grade_power"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
+            df["raw_power"] = df["grade_power"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
+            df["speed"] = df["grade_run"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
+            # Pitcher tools
+            df["fastball"] = df["grade_fastball"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
+            df["slider"] = df["grade_slider"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
+            df["curve"] = df["grade_curveball"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
+            df["changeup"] = df["grade_changeup"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
+            df["command"] = df["grade_control"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
 
-            # -- has_mlb default False --------------------------------------
-            df["has_mlb"] = df["has_mlb"].fillna(False).astype(bool)
+            # ── mlbam_id from prospect_url ─────────────────────────────
+            df["mlbam_id"] = df["prospect_url"].apply(_extract_mlbam_from_url)
 
-            # Keep only model columns
+            # ── Value & Composite per row ──────────────────────────────
+            df["value"] = df.apply(
+                lambda r: _calc_prospect_value(r["fv_num"], r["top_100"]),
+                axis=1,
+            )
+            # Composite = top_100 rank if available, else None
+            df["composite"] = df["top_100"]
+
+            # ── Build legacy JSON dicts per player ─────────────────────
+            # Group by name → aggregate all years' values/composites
+            val_lookup: dict[str, dict] = {}
+            comp_lookup: dict[str, dict] = {}
+            for name_key, grp in df.groupby("name"):
+                vd, cd = {}, {}
+                for _, r in grp.iterrows():
+                    yr_str = str(int(r["year"]))
+                    if pd.notna(r["value"]) and r["value"] > 0:
+                        vd[yr_str] = float(r["value"])
+                    if pd.notna(r["top_100"]):
+                        cd[yr_str] = float(r["top_100"])
+                val_lookup[name_key] = vd
+                comp_lookup[name_key] = cd
+
+            df["values_by_year"] = df["name"].map(val_lookup)
+            df["composites_by_year"] = df["name"].map(comp_lookup)
+
+            # ── has_mlb default False ──────────────────────────────────
+            df["has_mlb"] = False
+
+            # ── IDfg placeholder (resolved later via crosswalk) ────────
+            df["IDfg"] = None
+
+            # ── Keep only model columns ────────────────────────────────
             model_cols = {c.key for c in Prospect.__table__.columns if c.key != "id"}
             df = df[[c for c in df.columns if c in model_cols]]
 
             records = _clean_records(df)
 
-            # Fix int types for mlbam_id / year
+            # Fix int types for mlbam_id / year / org_rank / top_100
             for rec in records:
-                if rec.get("mlbam_id") is not None:
-                    rec["mlbam_id"] = int(rec["mlbam_id"])
-                if rec.get("year") is not None:
-                    rec["year"] = int(rec["year"])
+                for col in ("mlbam_id", "year", "org_rank", "top_100"):
+                    if rec.get(col) is not None:
+                        try:
+                            rec[col] = int(rec[col])
+                        except (ValueError, TypeError):
+                            rec[col] = None
 
             n = _bulk_insert(self.db, Prospect, records)
             logger.info(f"    {n:,} prospects loaded")

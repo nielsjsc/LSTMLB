@@ -188,10 +188,24 @@ export default function ProspectDetailPage() {
           </div>
         </div>
 
-        {/* FV badge */}
-        <div className={`flex flex-col items-center px-4 py-2 rounded-lg border ${fvBg(prospect.fv)}`}>
-          <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">FV</span>
-          <span className={`text-2xl font-bold ${fvColor(prospect.fv)}`}>{prospect.fv}</span>
+        {/* FV + ranking badges */}
+        <div className="flex items-start gap-3">
+          <div className={`flex flex-col items-center px-4 py-2 rounded-lg border ${fvBg(prospect.fv)}`}>
+            <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">FV</span>
+            <span className={`text-2xl font-bold ${fvColor(prospect.fv)}`}>{prospect.fv}</span>
+          </div>
+          {latest?.top_100 && (
+            <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-amber-500/10 border-amber-500/20">
+              <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">Top 100</span>
+              <span className="text-2xl font-bold text-amber-400">#{latest.top_100}</span>
+            </div>
+          )}
+          {latest?.org_rank && (
+            <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-surface-800 border-white/[0.06]">
+              <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">Org Rank</span>
+              <span className="text-2xl font-bold text-surface-200">#{latest.org_rank}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -239,6 +253,18 @@ export default function ProspectDetailPage() {
                 <span className="text-surface-400">FV Grade</span>
                 <span className={`font-semibold ${fvColor(prospect.fv)}`}>{prospect.fv}</span>
               </div>
+              {latest?.top_100 && (
+                <div className="flex justify-between items-center text-[13px]">
+                  <span className="text-surface-400">Top 100 Rank</span>
+                  <span className="text-amber-400 font-semibold">#{latest.top_100}</span>
+                </div>
+              )}
+              {latest?.org_rank && (
+                <div className="flex justify-between items-center text-[13px]">
+                  <span className="text-surface-400">Org Rank</span>
+                  <span className="text-surface-100 font-semibold">#{latest.org_rank}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center text-[13px]">
                 <span className="text-surface-400">Organization</span>
                 <span className="text-surface-100">{prospect.org}</span>
@@ -265,6 +291,8 @@ export default function ProspectDetailPage() {
                   <th className="px-2 py-2 text-left text-[10px] text-surface-500 uppercase tracking-wider">Org</th>
                   <th className="px-2 py-2 text-left text-[10px] text-surface-500 uppercase tracking-wider">Pos</th>
                   <th className="px-2 py-2 text-left text-[10px] text-surface-500 uppercase tracking-wider">FV</th>
+                  <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">T100</th>
+                  <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Org#</th>
                   <th className="px-2 py-2 text-right text-[10px] text-surface-500 uppercase tracking-wider">Value</th>
                   {prospect.is_pitcher ? (
                     <>
@@ -295,6 +323,8 @@ export default function ProspectDetailPage() {
                     <td className="px-2 py-1.5 text-surface-400">{h.org}</td>
                     <td className="px-2 py-1.5 text-surface-400">{h.position}</td>
                     <td className={`px-2 py-1.5 font-semibold ${fvColor(h.fv)}`}>{h.fv}</td>
+                    <td className="px-2 py-1.5 text-center font-mono text-amber-400">{h.top_100 ? '#' + h.top_100 : '-'}</td>
+                    <td className="px-2 py-1.5 text-center font-mono text-surface-400">{h.org_rank ? '#' + h.org_rank : '-'}</td>
                     <td className="px-2 py-1.5 text-surface-300 text-right font-mono">{formatValue(h.value)}</td>
                     {prospect.is_pitcher ? (
                       <>

@@ -2,6 +2,8 @@ import React from 'react';
 import { ProspectResponse } from '../../../services/api';
 import { Link } from 'react-router-dom';
 
+type ViewMode = 'grades' | 'stats' | 'all_stats';
+
 interface ProspectsTableProps {
   data: ProspectResponse;
   playerType: 'hitter' | 'pitcher';
@@ -12,6 +14,7 @@ interface ProspectsTableProps {
   onSort: (key: string) => void;
   sortBy: string;
   sortDirection: 'asc' | 'desc';
+  viewMode: ViewMode;
 }
 
 const ProspectsTable: React.FC<ProspectsTableProps> = ({ 
@@ -23,38 +26,75 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
   onPageChange,
   onSort,
   sortBy,
-  sortDirection
+  sortDirection,
+  viewMode,
 }) => {
-  const renderHeader = () => {
-    const commonHeaders = [
-      { key: 'name', label: 'Name' },
-      { key: 'org', label: 'Team' },
-      { key: 'position', label: 'Position' },
-      { key: 'age', label: 'Age' },
-      { key: 'fv', label: 'FV' },
-      { key: 'value', label: 'Trade Value ($M)' },
-      { key: 'composite', label: 'Ranking' }
-    ];
+  // ── Column definitions per view mode ──────────────────────────────────
+  const coreHeaders = [
+    { key: 'name', label: 'Name' },
+    { key: 'org', label: 'Team' },
+    { key: 'position', label: 'Pos' },
+    { key: 'age', label: 'Age' },
+    { key: 'fv', label: 'FV' },
+    { key: 'top_100', label: 'T100' },
+    { key: 'org_rank', label: 'Org#' },
+    { key: 'value', label: 'Value ($M)' },
+  ];
 
-    const hitterToolHeaders = [
-      { key: 'hit', label: 'Hit' },
-      { key: 'game', label: 'Game' },
-      { key: 'raw', label: 'Raw' },
-      { key: 'speed', label: 'Speed' }
-    ];
+  const hitterGradeHeaders = [
+    { key: 'hit', label: 'Hit' },
+    { key: 'game', label: 'Game' },
+    { key: 'raw', label: 'Raw' },
+    { key: 'speed', label: 'Spd' },
+  ];
 
-    const pitcherToolHeaders = [
-      { key: 'fastball', label: 'Fastball' },
-      { key: 'slider', label: 'Slider' },
-      { key: 'curve', label: 'Curve' },
-      { key: 'change', label: 'Change' },
-      { key: 'command', label: 'Command' }
-    ];
+  const pitcherGradeHeaders = [
+    { key: 'fastball', label: 'FB' },
+    { key: 'slider', label: 'SL' },
+    { key: 'curve', label: 'CB' },
+    { key: 'change', label: 'CH' },
+    { key: 'command', label: 'CMD' },
+  ];
 
-    return [
-      ...commonHeaders,
-      ...(playerType === 'hitter' ? hitterToolHeaders : pitcherToolHeaders)
-    ];
+  const hitterStatHeaders = [
+    { key: 'wrc_plus', label: 'wRC+' },
+    { key: 'avg', label: 'AVG' },
+    { key: 'obp', label: 'OBP' },
+    { key: 'slg', label: 'SLG' },
+    { key: 'iso', label: 'ISO' },
+    { key: 'bb_pct', label: 'BB%' },
+    { key: 'k_pct', label: 'K%' },
+    { key: 'pa', label: 'PA' },
+    { key: 'babip', label: 'BABIP' },
+    { key: 'woba', label: 'wOBA' },
+    { key: 'spd_stat', label: 'Spd' },
+  ];
+
+  const pitcherStatHeaders = [
+    { key: 'era', label: 'ERA' },
+    { key: 'fip', label: 'FIP' },
+    { key: 'xfip', label: 'xFIP' },
+    { key: 'k_9', label: 'K/9' },
+    { key: 'bb_9', label: 'BB/9' },
+    { key: 'k_pct', label: 'K%' },
+    { key: 'bb_pct', label: 'BB%' },
+    { key: 'whip', label: 'WHIP' },
+    { key: 'ip', label: 'IP' },
+    { key: 'babip', label: 'BABIP' },
+  ];
+
+  const getHeaders = () => {
+    const gradeHeaders = playerType === 'hitter' ? hitterGradeHeaders : pitcherGradeHeaders;
+    const statHeaders = playerType === 'hitter' ? hitterStatHeaders : pitcherStatHeaders;
+
+    switch (viewMode) {
+      case 'grades':
+        return [...coreHeaders, ...gradeHeaders];
+      case 'stats':
+        return [...coreHeaders, ...gradeHeaders, ...statHeaders];
+      case 'all_stats':
+        return [...coreHeaders, ...statHeaders];
+    }
   };
 
   const formatValue = (value: number | undefined | null) => {
@@ -62,10 +102,93 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
     return (value / 1000000).toFixed(1);
   };
 
-  const formatRanking = (value: number | undefined | null) => {
+  const formatStat = (key: string, value: number | string | undefined | null): string => {
     if (value === undefined || value === null) return '-';
-    return value.toFixed(2);
+    const v = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(v)) return String(value);
+    if (key === 'pa' || key === 'g') return v.toFixed(0);
+    if (key === 'wrc_plus') return v.toFixed(0);
+    if (key === 'ip') return v.toFixed(1);
+    if (key === 'avg' || key === 'obp' || key === 'slg' || key === 'iso' || key === 'babip' || key === 'woba') return v.toFixed(3);
+    if (key === 'bb_pct' || key === 'k_pct') return v.toFixed(1) + '%';
+    if (key === 'era' || key === 'fip' || key === 'xfip' || key === 'whip') return v.toFixed(2);
+    if (key === 'k_9' || key === 'bb_9' || key === 'k_bb' || key === 'hr_9') return v.toFixed(2);
+    if (key === 'spd_stat') return v.toFixed(1);
+    return v.toFixed(1);
   };
+
+  const getStatValue = (player: typeof data.players[0], key: string): number | string | undefined | null => {
+    const stats = player.latest_stats;
+    if (!stats) return null;
+    // Map table key → stats object key
+    const statKey = key === 'spd_stat' ? 'spd' : key;
+    return (stats as Record<string, unknown>)[statKey] as number | string | undefined | null;
+  };
+
+  const getCellValue = (player: typeof data.players[0], key: string): string => {
+    switch (key) {
+      case 'name': return player.name;
+      case 'org': return player.org;
+      case 'position': return player.position;
+      case 'age': return player.age ? Math.floor(player.age).toString() : '-';
+      case 'fv': return player.fv || '-';
+      case 'top_100': return player.top_100 ? '#' + player.top_100 : '-';
+      case 'org_rank': return player.org_rank ? '#' + player.org_rank : '-';
+      case 'value': return formatValue(player.value);
+      // Grades
+      case 'hit': case 'game': case 'raw': case 'speed':
+      case 'fastball': case 'slider': case 'curve': case 'change': case 'command':
+        return (player as Record<string, unknown>)[key] as string || '-';
+      // Stats
+      default:
+        return formatStat(key, getStatValue(player, key));
+    }
+  };
+
+  const gradeColor = (grade: string | null | undefined) => {
+    if (!grade || grade === '-') return '';
+    const n = parseInt(grade);
+    if (isNaN(n)) return '';
+    if (n >= 70) return 'text-emerald-400';
+    if (n >= 60) return 'text-blue-400';
+    if (n >= 55) return 'text-sky-400';
+    if (n >= 50) return 'text-surface-200';
+    if (n >= 45) return 'text-amber-400';
+    if (n >= 40) return 'text-orange-400';
+    return 'text-red-400';
+  };
+
+  const statColor = (key: string, value: number | string | undefined | null) => {
+    if (value === undefined || value === null) return '';
+    const v = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(v)) return '';
+    // wRC+ coloring
+    if (key === 'wrc_plus') {
+      if (v >= 140) return 'text-emerald-400';
+      if (v >= 120) return 'text-blue-400';
+      if (v >= 100) return 'text-surface-200';
+      if (v >= 80) return 'text-amber-400';
+      return 'text-red-400';
+    }
+    // ERA/FIP coloring (lower = better)
+    if (key === 'era' || key === 'fip' || key === 'xfip') {
+      if (v <= 2.50) return 'text-emerald-400';
+      if (v <= 3.50) return 'text-blue-400';
+      if (v <= 4.50) return 'text-surface-200';
+      return 'text-red-400';
+    }
+    return '';
+  };
+
+  const isGradeColumn = (key: string) =>
+    ['hit', 'game', 'raw', 'speed', 'fastball', 'slider', 'curve', 'change', 'command'].includes(key);
+
+  const isStatColumn = (key: string) =>
+    !isGradeColumn(key) && ![
+      'name', 'org', 'position', 'age', 'fv', 'top_100', 'org_rank', 'value'
+    ].includes(key);
+
+  const headers = getHeaders();
 
   return (
     <div>
@@ -73,11 +196,11 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
         <table className="min-w-full">
           <thead className="sticky top-0 z-10">
             <tr className="bg-surface-850 border-b border-white/[0.06]">
-              {renderHeader().map((header) => (
+              {headers.map((header) => (
                 <th
                   key={header.key}
                   onClick={() => onSort(header.key)}
-                  className="px-1.5 py-2 text-left text-[10px] font-semibold text-surface-400 uppercase tracking-wide cursor-pointer hover:text-white hover:bg-white/[0.04] select-none transition-colors"
+                  className="px-1.5 py-2 text-left text-[10px] font-semibold text-surface-400 uppercase tracking-wide cursor-pointer hover:text-white hover:bg-white/[0.04] select-none transition-colors whitespace-nowrap"
                 >
                   <div className="flex items-center gap-1">
                     <span>{header.label}</span>
@@ -91,51 +214,61 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
           </thead>
           <tbody>
             {data.players.map((player, i) => (
-              <tr key={i} className={`text-[11px] border-b border-white/[0.03] hover:bg-white/[0.04] transition-colors ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}`}>
-                <td className="px-1.5 py-2 whitespace-nowrap">
-                  {player.has_mlb && player.IDfg ? (
-                    <Link 
-                      to={`/players/${player.IDfg}`} 
-                      className="text-accent-blue hover:text-blue-300 font-medium"
-                    >
-                      {player.name}
-                    </Link>
-                  ) : player.id ? (
-                    <Link
-                      to={`/prospects/${player.id}`}
-                      className="text-surface-200 hover:text-blue-400 font-medium transition-colors"
-                    >
-                      {player.name}
-                    </Link>
-                  ) : (
-                    <span className="text-surface-300 font-medium">
-                      {player.name}
-                    </span>
-                  )}
-                </td>
-                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.org}</td>
-                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.position}</td>
-                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.age}</td>
-                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.fv}</td>
-                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{formatValue(player.value)}</td>
-                <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{formatRanking(player.composite)}</td>
+              <tr key={player.id ?? i} className={`text-[11px] border-b border-white/[0.03] hover:bg-white/[0.04] transition-colors ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}`}>
+                {headers.map((header) => {
+                  if (header.key === 'name') {
+                    return (
+                      <td key={header.key} className="px-1.5 py-2 whitespace-nowrap">
+                        {player.has_mlb && player.IDfg ? (
+                          <Link
+                            to={`/players/${player.IDfg}`}
+                            className="text-accent-blue hover:text-blue-300 font-medium"
+                          >
+                            {player.name}
+                          </Link>
+                        ) : player.id ? (
+                          <Link
+                            to={`/prospects/${player.id}`}
+                            className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                          >
+                            {player.name}
+                          </Link>
+                        ) : (
+                          <span className="text-surface-300 font-medium">{player.name}</span>
+                        )}
+                      </td>
+                    );
+                  }
+                  if (header.key === 'fv') {
+                    const fvNum = parseInt(player.fv);
+                    const fvCls = fvNum >= 60 ? 'text-blue-400 font-semibold' :
+                                  fvNum >= 55 ? 'text-sky-400 font-semibold' :
+                                  fvNum >= 50 ? 'text-amber-400' :
+                                  fvNum >= 45 ? 'text-orange-400' : 'text-surface-400';
+                    return (
+                      <td key={header.key} className={`px-1.5 py-2 whitespace-nowrap font-mono ${fvCls}`}>
+                        {player.fv || '-'}
+                      </td>
+                    );
+                  }
 
-                {playerType === 'hitter' ? (
-                  <>
-                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.hit || '-'}</td>
-                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.game || '-'}</td>
-                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.raw || '-'}</td>
-                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.speed || '-'}</td>
-                  </>
-                ) : (
-                  <>
-                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.fastball || '-'}</td>
-                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.slider || '-'}</td>
-                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.curve || '-'}</td>
-                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.change || '-'}</td>
-                    <td className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">{player.command || '-'}</td>
-                  </>
-                )}
+                  const rawValue = getCellValue(player, header.key);
+                  let colorClass = '';
+                  if (isGradeColumn(header.key)) {
+                    colorClass = gradeColor(rawValue);
+                  } else if (isStatColumn(header.key)) {
+                    colorClass = statColor(header.key, getStatValue(player, header.key));
+                  }
+
+                  return (
+                    <td
+                      key={header.key}
+                      className={`px-1.5 py-2 whitespace-nowrap font-mono text-surface-300 ${colorClass}`}
+                    >
+                      {rawValue}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
