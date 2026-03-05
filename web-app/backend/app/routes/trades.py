@@ -696,18 +696,29 @@ def _compute_confidence_and_featured(trades: List[Dict[str, Any]]) -> None:
         else:
             trade["evaluation_confidence"] = "early"
 
-        # ── Featured flag ─────────────────────────────────────────────────
-        n_players = trade.get("n_players", 0)
-        max_fv = trade.get("max_prospect_fv") or 0
-        total_war = abs(trade.get("total_trade_war", 0))
-        surplus_diff = abs(trade.get("surplus_diff", 0))
+    # ── Featured flag: top trades by absolute surplus differential ───────
+    sorted_by_surplus = sorted(
+        trades,
+        key=lambda t: abs(t.get("surplus_diff", 0)),
+        reverse=True,
+    )
+    featured_threshold = max(50, len(trades) // 10)
+    featured_set = set()
+    for t in sorted_by_surplus[:featured_threshold]:
+        featured_set.add(t.get("trade_id"))
 
-        trade["is_featured"] = (
-            n_players >= 4
-            or max_fv >= 55
-            or total_war >= 8
-            or surplus_diff >= 50_000_000
-        )
+    # Also include any trade with very large surplus, many players,
+    # or a top prospect (FV >= 60)
+    for t in trades:
+        surplus = abs(t.get("surplus_diff", 0))
+        max_fv = t.get("max_prospect_fv") or 0
+        n_players = t.get("n_players", 0)
+        total_war = abs(t.get("total_trade_war", 0))
+        if surplus >= 30_000_000 or max_fv >= 60 or total_war >= 10 or n_players >= 5:
+            featured_set.add(t.get("trade_id"))
+
+    for t in trades:
+        t["is_featured"] = t.get("trade_id") in featured_set
 
     featured_count = sum(1 for t in trades if t.get("is_featured"))
     logger.info(

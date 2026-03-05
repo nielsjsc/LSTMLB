@@ -18,10 +18,9 @@ const fmtDate = (d: string) => {
 
 const fmtMoney = (n: number) => {
   const abs = Math.abs(n);
-  const sign = n < 0 ? '-' : '+';
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(0)}K`;
-  return `${sign}$${abs}`;
+  if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `$${(abs / 1_000).toFixed(0)}K`;
+  return `$${abs}`;
 };
 
 const MLB_TEAMS = [
@@ -32,171 +31,173 @@ const MLB_TEAMS = [
 
 const YEARS = Array.from({ length: CURRENT_YEAR - 2013 }, (_, i) => CURRENT_YEAR - 1 - i);
 
-// ── Confidence tier display ─────────────────────────────────────────────────
+// ── Trade grade based on surplus differential ───────────────────────────────
 
-const CONFIDENCE_CONFIG: Record<EvaluationConfidence, { label: string; bg: string; text: string; tooltip: string }> = {
-  definitive: { label: 'Settled', bg: 'bg-emerald-500/12', text: 'text-emerald-400', tooltip: '4+ years of data — clear outcome' },
-  maturing:   { label: 'Maturing', bg: 'bg-amber-500/12', text: 'text-amber-400', tooltip: '2-3 years of data — picture forming' },
-  early:      { label: 'Early', bg: 'bg-sky-500/12', text: 'text-sky-400', tooltip: 'Recent trade — early returns only' },
-  projected:  { label: 'Projected', bg: 'bg-purple-500/12', text: 'text-purple-400', tooltip: 'No actual data — model projections' },
-};
+type TradeGrade = 'A+' | 'A' | 'A-' | 'B+' | 'B' | 'B-' | 'C' | 'F';
 
-function ConfidenceBadge({ confidence }: { confidence: EvaluationConfidence }) {
-  const cfg = CONFIDENCE_CONFIG[confidence] || CONFIDENCE_CONFIG.definitive;
-  return (
-    <span
-      className={`text-[9px] px-1.5 py-px rounded font-semibold uppercase tracking-wider ${cfg.bg} ${cfg.text}`}
-      title={cfg.tooltip}
-    >
-      {cfg.label}
-    </span>
-  );
+function getTradeGrade(surplusDiff: number): TradeGrade {
+  const abs = Math.abs(surplusDiff);
+  if (abs >= 80_000_000) return 'A+';
+  if (abs >= 50_000_000) return 'A';
+  if (abs >= 35_000_000) return 'A-';
+  if (abs >= 25_000_000) return 'B+';
+  if (abs >= 15_000_000) return 'B';
+  if (abs >= 8_000_000) return 'B-';
+  if (abs >= 3_000_000) return 'C';
+  return 'F';
 }
 
-// ── Compact side summary ────────────────────────────────────────────────────
+const GRADE_STYLES: Record<TradeGrade, { text: string; bg: string; border: string }> = {
+  'A+': { text: 'text-emerald-300', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30' },
+  'A':  { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+  'A-': { text: 'text-emerald-400', bg: 'bg-emerald-500/8',  border: 'border-emerald-500/15' },
+  'B+': { text: 'text-sky-400',     bg: 'bg-sky-500/10',     border: 'border-sky-500/20' },
+  'B':  { text: 'text-sky-400',     bg: 'bg-sky-500/8',      border: 'border-sky-500/15' },
+  'B-': { text: 'text-sky-400/80',  bg: 'bg-sky-500/6',      border: 'border-sky-500/10' },
+  'C':  { text: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20' },
+  'F':  { text: 'text-surface-500', bg: 'bg-surface-800',    border: 'border-white/[0.06]' },
+};
 
-function SideCompact({ side, isWinner, isProjected }: {
+// ── Confidence badge config ─────────────────────────────────────────────────
+
+const CONFIDENCE_CFG: Record<EvaluationConfidence, { label: string; color: string; bg: string; tip: string }> = {
+  definitive: { label: 'Final',    color: 'text-emerald-400', bg: 'bg-emerald-500/10', tip: '4+ years of data — clear outcome' },
+  maturing:   { label: 'Maturing', color: 'text-amber-400',   bg: 'bg-amber-500/10',   tip: '2-3 years of data — picture forming' },
+  early:      { label: 'Early',    color: 'text-sky-400',     bg: 'bg-sky-500/10',     tip: 'Recent trade — early returns only' },
+  projected:  { label: 'Too Early',color: 'text-surface-500', bg: 'bg-surface-700',    tip: 'No actual data yet' },
+};
+
+// ── Side column in trade card ───────────────────────────────────────────────
+
+function SideColumn({ side, isWinner, showWar }: {
   side: TradeSideSummary;
   isWinner: boolean;
-  isProjected: boolean;
+  showWar: boolean;
 }) {
   const colors = getTeamColors(side.team);
-  const displayWar = isProjected ? (side.projected_total_war ?? 0) : side.total_war;
 
   return (
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 mb-1.5">
-        <div
-          className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ backgroundColor: colors.primary }}
-        />
-        <span className={`text-[13px] font-semibold truncate ${isWinner ? 'text-surface-100' : 'text-surface-300'}`}>
-          {side.team}
-        </span>
-        {isWinner && (
-          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-px rounded bg-emerald-500/15 text-emerald-400">
-            W
+    <div className="flex-1 min-w-0 px-4 py-3">
+      {/* Team header */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colors.primary }} />
+          <span className={`text-[12px] font-semibold ${isWinner ? 'text-surface-100' : 'text-surface-400'}`}>
+            {side.team}
+            {isWinner && <span className="ml-1 text-emerald-400 text-[10px]">✓</span>}
+          </span>
+        </div>
+        {showWar && (
+          <span className="text-[11px] font-mono tabular-nums text-surface-500">
+            {side.total_war} WAR
           </span>
         )}
       </div>
-      <div className="space-y-px pl-4">
-        {side.players_received.slice(0, 4).map((p) => {
-          const pWar = isProjected && p.has_projection ? (p.projected_war ?? 0) : p.war_with_team;
-          const isPureProspect = !!p.prospect_fv && p.seasons_with_team === 0 && p.war_with_team === 0;
-          const noData = p.has_data === false;
 
-          // Determine link target
-          const prospectLink = p.prospect_id ? `/prospects/${p.prospect_id}` : null;
-          const mlbLink = !isPureProspect ? `/players/${p.mlb_id}` : null;
-          const linkTo = prospectLink || mlbLink;
+      {/* Players */}
+      <div className="space-y-0.5">
+        {side.players_received.slice(0, 4).map((p) => {
+          const isPureProspect = !!p.prospect_fv && p.war_with_team === 0;
 
           return (
-            <div key={p.mlb_id} className="flex items-center gap-1.5">
-              {linkTo ? (
-                <Link
-                  to={linkTo}
-                  className="text-[12px] text-surface-300 hover:text-blue-400 truncate transition-colors"
-                >
-                  {p.name}
-                </Link>
-              ) : (
-                <span className="text-[12px] text-surface-400 truncate">
-                  {p.name}
-                </span>
-              )}
-              {noData ? (
-                <span className="text-[10px] text-surface-600 italic shrink-0">No Data</span>
-              ) : (
-                <>
-                  {!isPureProspect && pWar !== 0 && (
-                    <span className={`text-[11px] flex-shrink-0 font-mono tabular-nums ${isProjected ? 'text-purple-400/60' : 'text-surface-500'}`}>
-                      {pWar > 0 ? '+' : ''}{pWar}
-                    </span>
-                  )}
-                </>
-              )}
-              {p.prospect_fv && (
-                <span className="text-[10px] text-amber-400/60 shrink-0">
-                  FV{p.prospect_fv}
+            <div key={p.mlb_id} className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-[11px] text-surface-300 truncate">{p.name}</span>
+                {p.prospect_fv && (
+                  <span className="text-[9px] text-amber-400/70 shrink-0">FV{p.prospect_fv}</span>
+                )}
+              </div>
+              {showWar && !isPureProspect && p.war_with_team !== 0 && (
+                <span className={`text-[10px] font-mono tabular-nums shrink-0 ${p.war_with_team > 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
+                  {p.war_with_team > 0 ? '+' : ''}{p.war_with_team}
                 </span>
               )}
             </div>
           );
         })}
         {side.players_received.length > 4 && (
-          <span className="text-[11px] text-surface-600">+{side.players_received.length - 4} more</span>
+          <span className="text-[10px] text-surface-600">+{side.players_received.length - 4} more</span>
         )}
-      </div>
-      <div className={`pl-4 mt-1 text-[11px] tabular-nums font-mono ${isProjected ? 'text-purple-400/70' : 'text-surface-500'}`}>
-        {isProjected ? `${displayWar} proj. WAR` : `${displayWar} WAR`}
       </div>
     </div>
   );
 }
 
-// ── Trade row ────────────────────────────────────────────────────────────────
+// ── Trade card ──────────────────────────────────────────────────────────────
 
-function TradeRow({ trade }: { trade: PastTradeSummary }) {
+function TradeCard({ trade }: { trade: PastTradeSummary }) {
+  const confidence = (trade.evaluation_confidence || 'definitive') as EvaluationConfidence;
+  const showWar = confidence !== 'projected';
+  const grade = getTradeGrade(trade.surplus_diff);
+  const gs = GRADE_STYLES[grade];
+  const cc = CONFIDENCE_CFG[confidence];
   const winnerColors = getTeamColors(trade.winner);
-  const isProjected = trade.evaluation_type === 'projected';
-  const confidence = trade.evaluation_confidence || 'definitive';
-  const displaySurplus = isProjected
-    ? (trade.projected_surplus_diff ?? trade.surplus_diff)
-    : trade.surplus_diff;
-
-  const surplusColor = confidence === 'projected' ? 'text-purple-400'
-    : confidence === 'early' ? 'text-sky-400'
-    : confidence === 'maturing' ? 'text-amber-400'
-    : 'text-emerald-400';
+  const loserColors = getTeamColors(trade.loser);
+  const sides = trade.sides || [];
 
   return (
     <Link
       to={`/trades/${trade.trade_id}`}
-      className="group flex items-start gap-4 px-5 py-3.5 hover:bg-white/[0.03] transition-colors border-b border-white/[0.04] last:border-b-0"
+      className="group block rounded-xl border border-white/[0.06] bg-surface-850/60 hover:bg-surface-800/80 hover:border-white/[0.10] transition-all duration-200"
     >
-      {/* Date column */}
-      <div className="w-24 flex-shrink-0 pt-0.5">
-        <span className="text-[12px] text-surface-500 tabular-nums">{fmtDate(trade.date)}</span>
-        <div className="flex items-center gap-1 mt-0.5">
-          {confidence !== 'definitive' && (
-            <ConfidenceBadge confidence={confidence} />
-          )}
-          {trade.is_featured && (
-            <span className="text-[10px] text-amber-400" title="Notable trade">★</span>
-          )}
-          {trade.has_cash && (
-            <span className="text-[9px] px-1 py-px rounded bg-amber-500/8 text-amber-400/50">$</span>
-          )}
+      {/* Top bar */}
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.04]">
+        {/* Grade badge */}
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center border text-sm font-bold shrink-0 ${gs.text} ${gs.bg} ${gs.border}`}>
+          {grade}
         </div>
-      </div>
 
-      {/* Sides */}
-      <div className="flex-1 flex gap-6 min-w-0">
-        {trade.sides.map((side, idx) => (
-          <div key={side.team} className="contents">
-            {idx > 0 && (
-              <div className="flex items-center self-stretch px-1">
-                <div className="w-px h-full bg-white/[0.06]" />
-              </div>
+        {/* Teams & date */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 text-[14px] font-semibold text-surface-100">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: winnerColors.primary }} />
+              <span>{trade.winner}</span>
+            </div>
+            <span className="text-surface-600 text-[12px]">vs</span>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: loserColors.primary }} />
+              <span>{trade.loser}</span>
+            </div>
+            {trade.n_teams > 2 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-medium">
+                {trade.n_teams}-Team
+              </span>
             )}
-            <SideCompact
-              side={side}
-              isWinner={side.team === trade.winner}
-              isProjected={isProjected}
-            />
           </div>
-        ))}
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[12px] text-surface-500">{fmtDate(trade.date)}</span>
+            <span
+              className={`text-[9px] px-1.5 py-px rounded font-medium uppercase tracking-wider ${cc.bg} ${cc.color}`}
+              title={cc.tip}
+            >
+              {cc.label}
+            </span>
+            {trade.is_featured && (
+              <span className="text-[11px] text-amber-400" title="Notable trade">★</span>
+            )}
+          </div>
+        </div>
+
+        {/* Surplus advantage */}
+        <div className="text-right shrink-0">
+          <div className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">{trade.winner} surplus</div>
+          <div className="text-[15px] font-bold text-surface-100 tabular-nums">
+            {fmtMoney(trade.surplus_diff)}
+          </div>
+        </div>
       </div>
 
-      {/* Surplus result */}
-      <div className="w-28 flex-shrink-0 text-right pt-0.5">
-        <div className="flex items-center justify-end gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: winnerColors.primary }} />
-          <span className="text-[12px] font-medium text-surface-300">{trade.winner}</span>
-        </div>
-        <span className={`text-[13px] font-semibold tabular-nums ${surplusColor}`}>
-          {fmtMoney(displaySurplus)}
-        </span>
+      {/* Side-by-side player lists */}
+      <div className="flex divide-x divide-white/[0.04]">
+        {sides.map((side) => (
+          <SideColumn
+            key={side.team}
+            side={side}
+            isWinner={side.team === trade.winner}
+            showWar={showWar}
+          />
+        ))}
       </div>
     </Link>
   );
@@ -205,7 +206,6 @@ function TradeRow({ trade }: { trade: PastTradeSummary }) {
 // ── Main page ───────────────────────────────────────────────────────────────
 
 export default function PastTrades() {
-  // Filters & sorting
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -213,11 +213,10 @@ export default function PastTrades() {
   const [yearFilter, setYearFilter] = useState<number | ''>('');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
-  const [featuredOnly, setFeaturedOnly] = useState(false);
+  const [featuredOnly, setFeaturedOnly] = useState(true);
 
   const pageSize = 25;
 
-  // React Query — replaces useCallback/useEffect/fetch
   const { data: res, isFetching: loading } = usePastTrades({
     page, pageSize, sortBy, sortDir,
     team: teamFilter, year: yearFilter, search,
@@ -228,12 +227,9 @@ export default function PastTrades() {
   const total = res?.total ?? 0;
   const totalPages = res?.total_pages ?? 1;
 
-  // Reset to first page when filters/sort change
   useEffect(() => { setPage(1); }, [sortBy, sortDir, teamFilter, yearFilter, search, featuredOnly]);
 
-  const handleSearch = () => {
-    setSearch(searchInput);
-  };
+  const handleSearch = () => setSearch(searchInput);
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
@@ -245,127 +241,151 @@ export default function PastTrades() {
   };
 
   const sortBtnClass = (field: string) =>
-    `px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+    `px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
       sortBy === field
-        ? 'bg-white/[0.08] text-surface-100'
-        : 'text-surface-500 hover:text-surface-300'
+        ? 'bg-white/[0.08] text-surface-100 shadow-sm'
+        : 'text-surface-500 hover:text-surface-300 hover:bg-white/[0.03]'
     }`;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-6 py-10">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-surface-100 tracking-tight">Past Trades</h1>
-        <p className="text-[13px] text-surface-500 mt-0.5">
-          {total.toLocaleString()} evaluated trades, 2014 &ndash; {CURRENT_YEAR - 1}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-surface-100 tracking-tight">Trade History</h1>
+        <p className="text-[14px] text-surface-500 mt-1">
+          {total.toLocaleString()} evaluated trades &middot; 2014&ndash;Present
         </p>
       </div>
 
-      {/* Controls row */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <div className="flex items-center gap-1">
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3 mb-6 p-4 rounded-xl bg-surface-850/40 border border-white/[0.04]">
+        {/* Search */}
+        <div className="relative">
           <input
             type="text"
-            placeholder="Search players..."
+            placeholder="Search players or teams..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="w-52 px-2.5 py-1.5 rounded bg-surface-800 border border-white/[0.06] text-[12px] text-surface-200 placeholder-surface-600 focus:outline-none focus:border-white/[0.12]"
+            className="w-56 pl-3 pr-8 py-2 rounded-lg bg-surface-800 border border-white/[0.06] text-[13px] text-surface-200 placeholder-surface-600 focus:outline-none focus:border-blue-500/30 focus:ring-1 focus:ring-blue-500/20 transition-all"
           />
           <button
             onClick={handleSearch}
-            className="px-2 py-1.5 rounded bg-surface-800 border border-white/[0.06] text-surface-500 text-[11px] hover:text-surface-300 transition-colors"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300 transition-colors"
           >
-            Go
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
           </button>
         </div>
 
+        {/* Team filter */}
         <select
           value={teamFilter}
           onChange={(e) => setTeamFilter(e.target.value)}
-          className="px-2.5 py-1.5 rounded bg-surface-800 border border-white/[0.06] text-[12px] text-surface-300 focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-surface-800 border border-white/[0.06] text-[13px] text-surface-300 focus:outline-none focus:border-blue-500/30 transition-all"
         >
           <option value="">All Teams</option>
-          {MLB_TEAMS.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
+          {MLB_TEAMS.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
 
+        {/* Year filter */}
         <select
           value={yearFilter}
           onChange={(e) => setYearFilter(e.target.value ? Number(e.target.value) : '')}
-          className="px-2.5 py-1.5 rounded bg-surface-800 border border-white/[0.06] text-[12px] text-surface-300 focus:outline-none"
+          className="px-3 py-2 rounded-lg bg-surface-800 border border-white/[0.06] text-[13px] text-surface-300 focus:outline-none focus:border-blue-500/30 transition-all"
         >
           <option value="">All Years</option>
-          {YEARS.map((y) => (
-            <option key={y} value={y}>{y}</option>
-          ))}
+          {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
 
+        {/* Featured toggle */}
         <button
           onClick={() => setFeaturedOnly((f) => !f)}
-          className={`px-2.5 py-1.5 rounded border text-[12px] font-medium transition-colors ${
+          className={`px-3 py-2 rounded-lg border text-[13px] font-medium transition-all ${
             featuredOnly
-              ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+              ? 'bg-amber-500/12 border-amber-500/25 text-amber-400'
               : 'bg-surface-800 border-white/[0.06] text-surface-500 hover:text-surface-300'
           }`}
-          title="Show only notable trades (blockbusters, top prospects, high WAR)"
         >
-          ★ Featured
+          ★ Blockbusters
         </button>
 
-        <div className="flex items-center gap-0.5 ml-auto">
+        {/* Sort controls */}
+        <div className="flex items-center gap-1 ml-auto">
+          <span className="text-[11px] text-surface-600 mr-1">Sort:</span>
           <button onClick={() => handleSort('date')} className={sortBtnClass('date')}>
-            Date {sortBy === 'date' && (sortDir === 'desc' ? '\u2193' : '\u2191')}
+            Date {sortBy === 'date' && (sortDir === 'desc' ? '↓' : '↑')}
           </button>
           <button onClick={() => handleSort('surplus_diff')} className={sortBtnClass('surplus_diff')}>
-            Surplus {sortBy === 'surplus_diff' && (sortDir === 'desc' ? '\u2193' : '\u2191')}
+            Surplus {sortBy === 'surplus_diff' && (sortDir === 'desc' ? '↓' : '↑')}
           </button>
           <button onClick={() => handleSort('total_trade_war')} className={sortBtnClass('total_trade_war')}>
-            WAR {sortBy === 'total_trade_war' && (sortDir === 'desc' ? '\u2193' : '\u2191')}
-          </button>
-          <button onClick={() => handleSort('max_prospect_fv')} className={sortBtnClass('max_prospect_fv')}>
-            FV {sortBy === 'max_prospect_fv' && (sortDir === 'desc' ? '\u2193' : '\u2191')}
+            WAR {sortBy === 'total_trade_war' && (sortDir === 'desc' ? '↓' : '↑')}
           </button>
         </div>
       </div>
 
       {/* Trade list */}
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        <div className="flex justify-center py-24">
+          <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
         </div>
       ) : trades.length === 0 ? (
-        <div className="text-center py-16 text-surface-500 text-sm">
-          No trades found.
+        <div className="text-center py-20 text-surface-500 text-sm">
+          No trades found matching your filters.
         </div>
       ) : (
-        <div className="rounded-lg border border-white/[0.06] bg-surface-850/50 overflow-hidden">
+        <div className="space-y-3">
           {trades.map((trade) => (
-            <TradeRow key={trade.trade_id} trade={trade} />
+            <TradeCard key={trade.trade_id} trade={trade} />
           ))}
         </div>
       )}
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-6">
+        <div className="flex items-center justify-center gap-4 mt-8">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className="px-3 py-1.5 rounded text-[12px] text-surface-400 hover:text-surface-200 disabled:opacity-30 transition-colors"
+            className="px-4 py-2 rounded-lg text-[13px] font-medium text-surface-400 hover:text-surface-200 hover:bg-white/[0.04] disabled:opacity-30 transition-all"
           >
-            &larr; Previous
+            ← Previous
           </button>
-          <span className="text-[12px] text-surface-500 tabular-nums">
-            {page} / {totalPages}
-          </span>
+          <div className="flex items-center gap-1">
+            {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+              let pageNum: number;
+              if (totalPages <= 7) {
+                pageNum = i + 1;
+              } else if (page <= 4) {
+                pageNum = i + 1;
+              } else if (page >= totalPages - 3) {
+                pageNum = totalPages - 6 + i;
+              } else {
+                pageNum = page - 3 + i;
+              }
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setPage(pageNum)}
+                  className={`w-8 h-8 rounded-lg text-[12px] font-medium transition-all ${
+                    page === pageNum
+                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/25'
+                      : 'text-surface-500 hover:text-surface-300 hover:bg-white/[0.04]'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            className="px-3 py-1.5 rounded text-[12px] text-surface-400 hover:text-surface-200 disabled:opacity-30 transition-colors"
+            className="px-4 py-2 rounded-lg text-[13px] font-medium text-surface-400 hover:text-surface-200 hover:bg-white/[0.04] disabled:opacity-30 transition-all"
           >
-            Next &rarr;
+            Next →
           </button>
         </div>
       )}

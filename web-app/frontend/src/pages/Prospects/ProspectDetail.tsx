@@ -150,7 +150,7 @@ export default function ProspectDetailPage() {
           <img
             src={prospect.mlb_info.headshot_url}
             alt={prospect.name}
-            className="w-20 h-20 rounded-lg object-cover bg-surface-800"
+            className="w-28 h-28 rounded-lg object-cover bg-surface-800"
             onError={(e) => {
               // Hide on error, show initial instead
               (e.target as HTMLImageElement).style.display = 'none';
@@ -159,7 +159,7 @@ export default function ProspectDetailPage() {
           />
         ) : null}
         <div
-          className={`w-20 h-20 rounded-lg flex items-center justify-center text-2xl font-bold ${prospect.mlb_info?.headshot_url ? 'hidden' : ''}`}
+          className={`w-28 h-28 rounded-lg flex items-center justify-center text-3xl font-bold ${prospect.mlb_info?.headshot_url ? 'hidden' : ''}`}
           style={{ backgroundColor: colors.primary + '15', color: colors.primary }}
         >
           {prospect.name.charAt(0)}
@@ -247,10 +247,6 @@ export default function ProspectDetailPage() {
               <div className="flex justify-between items-center text-[13px]">
                 <span className="text-surface-400">Model Value</span>
                 <span className="text-surface-100 font-semibold">{formatValue(latest.value)}</span>
-              </div>
-              <div className="flex justify-between items-center text-[13px]">
-                <span className="text-surface-400">Composite</span>
-                <span className="text-surface-100 font-semibold">{formatValue(latest.composite)}</span>
               </div>
               <div className="flex justify-between items-center text-[13px]">
                 <span className="text-surface-400">FV Grade</span>
