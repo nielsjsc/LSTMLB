@@ -230,6 +230,10 @@ _PAST_TRADES_FILE = (
     Path(__file__).resolve().parents[4] / "data" / "generated" / "past_trades" / "trades.json"
 )
 
+_SALARY_BY_YEAR_DIR = (
+    Path(__file__).resolve().parents[4] / "data" / "salary" / "by_year"
+)
+
 _past_trades_cache: Optional[List[Dict[str, Any]]] = None
 
 # ── Surplus projection data ──────────────────────────────────────────────────
@@ -556,6 +560,138 @@ def _attach_future_projections(trades: List[Dict[str, Any]]) -> None:
 
     if attached:
         logger.info(f"Attached future projections to {attached} still-under-control players")
+
+
+# ── Contract remaining at time of trade (from Cot's by-year CSVs) ────────────
+
+_FG_TO_COTS_TEAM: Dict[str, str] = {
+    "KCR": "KC", "SDP": "SD", "SFG": "SF", "TBR": "TB", "WSN": "WSH",
+}
+
+_cots_salary_cache: Optional[Dict[tuple, int]] = None
+_cots_by_name_year: Optional[Dict[tuple, int]] = None
+
+
+def _load_cots_salary() -> Dict[tuple, int]:
+    """Build (name_lower, team_cots, year) → total_future_salary lookup.
+
+    For duplicate entries (same player/team/year), take the MAX value which
+    represents the full contract obligation.
+    Also builds a secondary index: (name_lower, year) → max total_future_salary
+    for team-agnostic fallback.
+    """
+    global _cots_salary_cache, _cots_by_name_year
+    if _cots_salary_cache is not None:
+        return _cots_salary_cache
+
+    lookup: Dict[tuple, int] = {}
+    name_year: Dict[tuple, int] = {}
+    if not _SALARY_BY_YEAR_DIR.exists():
+        logger.warning(f"Cot's salary directory not found: {_SALARY_BY_YEAR_DIR}")
+        _cots_salary_cache = lookup
+        _cots_by_name_year = name_year
+        return lookup
+
+    for year in range(2014, CURRENT_YEAR):
+        fpath = _SALARY_BY_YEAR_DIR / f"{year}.csv"
+        if not fpath.exists():
+            continue
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    name = (row.get("player") or "").strip()
+                    team = (row.get("team") or "").strip()
+                    tfs_raw = row.get("total_future_salary", "")
+                    if not name or not team or not tfs_raw:
+                        continue
+                    # Skip aggregate rows
+                    if "payroll" in name.lower() or "projected" in name.lower():
+                        continue
+                    try:
+                        tfs = int(float(tfs_raw))
+                    except (ValueError, TypeError):
+                        continue
+                    if tfs <= 0:
+                        continue
+                    name_lc = name.lower()
+                    key = (name_lc, team, year)
+                    # Keep the maximum (main contract, not deferred splits)
+                    if key not in lookup or tfs > lookup[key]:
+                        lookup[key] = tfs
+                    # Secondary index: max across all teams
+                    ny_key = (name_lc, year)
+                    if ny_key not in name_year or tfs > name_year[ny_key]:
+                        name_year[ny_key] = tfs
+        except Exception as e:
+            logger.warning(f"Could not load Cot's {year}: {e}")
+
+    logger.info(f"Loaded {len(lookup)} Cot's salary entries for contract lookup")
+    _cots_salary_cache = lookup
+    _cots_by_name_year = name_year
+    return lookup
+
+
+def _attach_contract_remaining(trades: List[Dict[str, Any]]) -> None:
+    """
+    Attach ``contract_remaining`` to each non-prospect player in a trade.
+    Uses the Cot's by-year data to find the total remaining salary obligation
+    at the time the player was traded.  The lookup checks the sending team
+    (``from_team``) in the trade year, falling back to next year for
+    off-season trades (Nov/Dec).
+    """
+    cots = _load_cots_salary()
+    if not cots:
+        return
+    name_year_idx = _cots_by_name_year or {}
+
+    attached = 0
+    for trade in trades:
+        trade_year = trade.get("year")
+        trade_date = trade.get("date", "")
+        if not trade_year:
+            continue
+        # For off-season trades, the contract data may be under next year
+        trade_month = 0
+        try:
+            trade_month = int(trade_date.split("-")[1]) if "-" in trade_date else 0
+        except (IndexError, ValueError):
+            pass
+        is_offseason = trade_month >= 11 or trade_month <= 2
+
+        for side in trade.get("sides", []):
+            for player in side.get("players_received", []):
+                name = (player.get("name") or "").strip().lower()
+                from_team_fg = player.get("from_team", "")
+                if not name or not from_team_fg:
+                    continue
+                # Convert FG team abbreviation to Cot's format
+                from_team_cots = _FG_TO_COTS_TEAM.get(from_team_fg, from_team_fg)
+                # Also handle OAK→ATH for 2025+
+                if from_team_fg == "OAK" and trade_year >= 2025:
+                    from_team_cots = "ATH"
+
+                # Primary lookup: trade year, from-team
+                key = (name, from_team_cots, trade_year)
+                val = cots.get(key)
+
+                # Fallback: next year for off-season trades
+                if val is None and is_offseason:
+                    key2 = (name, from_team_cots, trade_year + 1)
+                    val = cots.get(key2)
+
+                # Fallback: any team for this name+year (covers team abbreviation mismatches)
+                if val is None:
+                    val = name_year_idx.get((name, trade_year))
+                if val is None and is_offseason:
+                    val = name_year_idx.get((name, trade_year + 1))
+
+                if val is not None and val > 0:
+                    player["contract_remaining"] = val
+                    attached += 1
+
+    if attached:
+        logger.info(f"Attached contract_remaining to {attached} trade players")
 
 
 # ── FV → dollar value fallback (median by FV grade from prospect model) ──────
@@ -930,6 +1066,7 @@ def _load_past_trades() -> List[Dict[str, Any]]:
     _augment_with_projections(_past_trades_cache)
     _augment_with_historical_war(_past_trades_cache)
     _attach_future_projections(_past_trades_cache)
+    _attach_contract_remaining(_past_trades_cache)
     _augment_with_prospect_values(_past_trades_cache)
     _link_prospect_ids(_past_trades_cache)
     _add_has_data_flags(_past_trades_cache)

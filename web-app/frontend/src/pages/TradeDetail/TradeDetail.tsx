@@ -9,6 +9,12 @@ const fmtDate = (d: string) => {
   return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
 };
 
+const fmtSalary = (n: number) => {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${n}`;
+};
+
 /**
  * Parse which team received "cash" in a trade.
  */
@@ -108,6 +114,12 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
               <span className="text-surface-500">Seasons</span>{' '}
               <span className="text-surface-200 font-medium">{player.seasons_with_team}</span>
             </span>
+            {player.contract_remaining != null && player.contract_remaining > 0 && (
+              <span>
+                <span className="text-surface-500">Contract</span>{' '}
+                <span className="text-surface-200 font-medium">{fmtSalary(player.contract_remaining)}</span>
+              </span>
+            )}
           </div>
 
           {/* Year-by-year WAR: actual + projected */}
@@ -117,15 +129,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
               {actualYears.map((yw) => (
                 <span
                   key={yw.year}
-                  className={`text-[10px] px-1.5 py-0.5 rounded font-mono tabular-nums ${
-                    yw.war >= 3
-                      ? 'bg-emerald-500/15 text-emerald-400'
-                      : yw.war >= 1
-                        ? 'bg-sky-500/10 text-sky-400'
-                        : yw.war >= 0
-                          ? 'bg-surface-700/60 text-surface-400'
-                          : 'bg-red-500/10 text-red-400'
-                  }`}
+                  className="text-[10px] px-1.5 py-0.5 rounded font-mono tabular-nums bg-surface-700/60 text-surface-300"
                 >
                   {yw.year}: {yw.war > 0 ? '+' : ''}{yw.war}
                 </span>

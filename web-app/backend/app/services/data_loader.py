@@ -731,6 +731,8 @@ class DataLoader:
             from app.routes.trades import (
                 _augment_with_projections,
                 _augment_with_historical_war,
+                _attach_future_projections,
+                _attach_contract_remaining,
                 _augment_with_prospect_values,
                 _link_prospect_ids,
                 _add_has_data_flags,
@@ -746,6 +748,8 @@ class DataLoader:
 
             _augment_with_projections(trades)
             _augment_with_historical_war(trades)
+            _attach_future_projections(trades)
+            _attach_contract_remaining(trades)
             _augment_with_prospect_values(trades)
             _link_prospect_ids(trades)
             _add_has_data_flags(trades)

@@ -850,6 +850,7 @@ export interface TradePlayerDetail extends TradePlayerSummary {
   projected_war_value?: number | null;
   projected_salary?: number | null;
   projected_yearly_war?: { year: number; war: number }[];
+  contract_remaining?: number | null;
 }
 
 export interface TradeSideSummary {

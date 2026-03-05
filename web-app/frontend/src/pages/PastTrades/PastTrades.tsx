@@ -8,7 +8,7 @@ import { CURRENT_YEAR } from '../../config';
 
 const fmtDate = (d: string) => {
   const dt = new Date(d + 'T12:00:00');
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
 const MLB_TEAMS = [
@@ -53,7 +53,7 @@ function TradeRow({ trade, onClick }: { trade: PastTradeSummary; onClick: () => 
   // Build compact player list: top 3 names
   const playerList = (side: typeof side1) => {
     if (!side) return '';
-    const names = side.players_received.slice(0, 3).map((p) => p.name.split(' ').pop());
+    const names = side.players_received.slice(0, 3).map((p) => p.name);
     const suffix = side.players_received.length > 3 ? ` +${side.players_received.length - 3}` : '';
     return names.join(', ') + suffix;
   };
