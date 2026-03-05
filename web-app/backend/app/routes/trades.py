@@ -521,6 +521,43 @@ def _augment_with_historical_war(trades: List[Dict[str, Any]]) -> None:
     logger.info(f"Augmented {augmented} trade players with historical WAR data")
 
 
+def _attach_future_projections(trades: List[Dict[str, Any]]) -> None:
+    """
+    For actual (non-projected) trades, attach projected future WAR to players
+    who are still under team control.  This must run AFTER
+    _augment_with_historical_war so that still_on_team is already set.
+    """
+    projections = _load_surplus_projections()
+    if not projections:
+        return
+
+    attached = 0
+    for trade in trades:
+        if trade.get("evaluation_type") == "projected":
+            continue  # already handled by _augment_with_projections
+        for side in trade.get("sides", []):
+            for player in side.get("players_received", []):
+                if not player.get("still_on_team"):
+                    continue
+                mlb_id = player.get("mlb_id")
+                proj = projections.get(mlb_id) if mlb_id else None
+                if not proj or not proj.get("projected_yearly_war"):
+                    continue
+                # Only include projected years beyond the player's last actual year
+                actual_years = {yw["year"] for yw in player.get("yearly_war", [])}
+                future = [
+                    yw for yw in proj["projected_yearly_war"]
+                    if yw["year"] not in actual_years
+                ]
+                if future:
+                    player["projected_yearly_war"] = future
+                    player["has_projection"] = True
+                    attached += 1
+
+    if attached:
+        logger.info(f"Attached future projections to {attached} still-under-control players")
+
+
 # ── FV → dollar value fallback (median by FV grade from prospect model) ──────
 
 _FV_VALUE_MAP: Dict[int, int] = {
@@ -892,6 +929,7 @@ def _load_past_trades() -> List[Dict[str, Any]]:
 
     _augment_with_projections(_past_trades_cache)
     _augment_with_historical_war(_past_trades_cache)
+    _attach_future_projections(_past_trades_cache)
     _augment_with_prospect_values(_past_trades_cache)
     _link_prospect_ids(_past_trades_cache)
     _add_has_data_flags(_past_trades_cache)
