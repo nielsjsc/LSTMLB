@@ -28,9 +28,10 @@ SCRIPTS_DIR    = AUTO_TRAIN_DIR / "scripts"
 
 # Input data — salary
 SALARY_DIR            = DATA_DIR / "salary"
-COTS_BY_YEAR_DIR      = SALARY_DIR / "by_year"                  # Cot's per-year CSVs (2014.csv … 2025.csv)
-HISTORICAL_ROSTERS    = SALARY_DIR / "historical_rosters.csv"   # from Cot's scraper (legacy)
-SPOTRAC_SALARY_FILE   = SALARY_DIR / "mlb_salary_data.csv"      # from Spotrac scraper
+UNIVERSAL_SALARY_FILE = SALARY_DIR / "universal_salary.csv"      # canonical merged salary (Lahman+Spotrac+Cot's)
+COTS_BY_YEAR_DIR      = SALARY_DIR / "by_year"                   # Cot's per-year CSVs — used for service_time/contract metadata
+HISTORICAL_ROSTERS    = SALARY_DIR / "historical_rosters.csv"    # from Cot's scraper (legacy)
+SPOTRAC_SALARY_FILE   = SALARY_DIR / "mlb_salary_data.csv"       # from Spotrac scraper — used for contract timeline building
 
 # Input data — transactions
 TRADE_PLAYERS_FILE    = DATA_DIR / "transactions" / "trade_players.csv"

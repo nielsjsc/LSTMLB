@@ -390,6 +390,7 @@ export interface ProjectionResponse {
         pitching?: {
             g_pit: number;
             gs: number;
+            ip: number;
             war_pit: number;
             era: number;
             fip: number;

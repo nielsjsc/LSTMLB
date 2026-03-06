@@ -27,10 +27,10 @@ from app.models.historical import HistoricalPlayer
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ── Legacy file paths (used by ingestion helpers only) ───────────────────
+# ── Salary data (single canonical source: universal_salary.csv) ──────────
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]  # LSTMLB
 _HIST_FILE = _PROJECT_ROOT / "data" / "generated" / "historical_players" / "historical_players.json"
-_SALARY_BY_YEAR_DIR = _PROJECT_ROOT / "data" / "salary" / "by_year"
+_UNIVERSAL_SALARY_FILE = _PROJECT_ROOT / "data" / "salary" / "universal_salary.csv"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -43,55 +43,35 @@ _players: Dict[str, Any] = {}
 _mlbam_to_idfg: Dict[str, int] = {}
 _name_index: List[Dict[str, Any]] = []
 
+# Salary cache (lazily loaded)
+_universal_salary_cache: Optional[Dict[tuple, int]] = None
 
-def _load_salary_supplement() -> Dict[tuple, int]:
-    """Load by_year salary CSVs → {(name_lower, team, year): salary_int}."""
+
+def _load_universal_salary() -> Dict[tuple, int]:
+    """Load universal_salary.csv → {(name_lower, year): salary_int}.
+
+    This is the single canonical salary source for the entire project.
+    The CSV is produced by ``scrapers/salary/build_universal_salary.py``
+    and already contains Lahman + Spotrac + Cot's data, de-duplicated
+    with proper priority ordering.
+    """
+    global _universal_salary_cache
+    if _universal_salary_cache is not None:
+        return _universal_salary_cache
+
     lookup: Dict[tuple, int] = {}
-    if not _SALARY_BY_YEAR_DIR.exists():
+    if not _UNIVERSAL_SALARY_FILE.exists():
+        logger.warning(f"Universal salary file not found: {_UNIVERSAL_SALARY_FILE}")
+        _universal_salary_cache = lookup
         return lookup
-    for fname in sorted(_SALARY_BY_YEAR_DIR.iterdir()):
-        if not fname.suffix == ".csv":
-            continue
-        try:
-            yr = int(fname.stem)
-        except ValueError:
-            continue
-        with open(fname, "r", encoding="utf-8") as f:
-            for row in _csv.DictReader(f):
-                name = (row.get("player") or "").replace("*", "").strip().lower()
-                team = (row.get("team") or "").strip()
-                sal_str = row.get("salary", "")
-                if not name or not team or not sal_str:
-                    continue
-                try:
-                    sal = int(float(sal_str))
-                except (ValueError, TypeError):
-                    continue
-                if sal > 0:
-                    lookup[(name, team, yr)] = sal
-    return lookup
 
-
-_LAHMAN_FILE = _PROJECT_ROOT / "data" / "salary" / "lahman_salaries.csv"
-_LAHMAN_TEAM_MAP: Dict[str, str] = {
-    "ANA": "LAA", "CAL": "LAA", "CHA": "CHW", "CHN": "CHC",
-    "FLO": "FLA", "KCA": "KCR", "LAN": "LAD", "ML4": "MIL",
-    "NYA": "NYY", "NYN": "NYM", "SDN": "SDP", "SFN": "SFG",
-    "SLN": "STL", "TBA": "TBR", "WAS": "WSN", "MON": "MON",
-}
-
-
-def _load_lahman_salaries() -> Dict[tuple, int]:
-    """Load Lahman salary data → {(bbref_id, year): salary_int}."""
-    lookup: Dict[tuple, int] = {}
-    if not _LAHMAN_FILE.exists():
-        return lookup
-    with open(_LAHMAN_FILE, "r", encoding="utf-8") as f:
+    with open(_UNIVERSAL_SALARY_FILE, "r", encoding="utf-8") as f:
         for row in _csv.DictReader(f):
-            bbref = (row.get("playerID") or "").strip()
-            yr_str = row.get("yearID", "")
+            name = (row.get("player") or "").strip().lower()
+            yr_str = row.get("year", "")
             sal_str = row.get("salary", "")
-            if not bbref or not yr_str or not sal_str:
+            team = (row.get("team") or "").strip()
+            if not name or not yr_str or not sal_str:
                 continue
             try:
                 yr = int(yr_str)
@@ -99,62 +79,47 @@ def _load_lahman_salaries() -> Dict[tuple, int]:
             except (ValueError, TypeError):
                 continue
             if sal > 0:
-                lookup[(bbref, yr)] = sal
+                # Primary key: (name, year) — works for all consumers.
+                # Also store (name, team, year) for team-specific lookups.
+                name_yr = (name, yr)
+                if name_yr not in lookup or sal > lookup[name_yr]:
+                    lookup[name_yr] = sal
+                lookup[(name, team, yr)] = sal
+
+    logger.info(f"Loaded universal salary data: {len(lookup):,} entries")
+    _universal_salary_cache = lookup
     return lookup
 
 
-_SPOTRAC_FILE = _PROJECT_ROOT / "data" / "salary" / "mlb_salary_data.csv"
-_SPOTRAC_TEAM_MAP: Dict[str, str] = {
-    "Arizona Diamondbacks": "ARI", "Atlanta Braves": "ATL",
-    "Baltimore Orioles": "BAL", "Boston Red Sox": "BOS",
-    "Chicago Cubs": "CHC", "Chicago White Sox": "CHW",
-    "Cincinnati Reds": "CIN", "Cleveland Guardians": "CLE",
-    "Cleveland Indians": "CLE", "Colorado Rockies": "COL",
-    "Detroit Tigers": "DET", "Houston Astros": "HOU",
-    "Kansas City Royals": "KCR", "Los Angeles Angels": "LAA",
-    "Los Angeles Dodgers": "LAD", "Miami Marlins": "MIA",
-    "Florida Marlins": "FLA", "Milwaukee Brewers": "MIL",
-    "Minnesota Twins": "MIN", "New York Mets": "NYM",
-    "New York Yankees": "NYY", "Oakland Athletics": "OAK",
-    "Philadelphia Phillies": "PHI", "Pittsburgh Pirates": "PIT",
-    "San Diego Padres": "SDP", "San Francisco Giants": "SFG",
-    "Seattle Mariners": "SEA", "St. Louis Cardinals": "STL",
-    "Tampa Bay Rays": "TBR", "Tampa Bay Devil Rays": "TBR",
-    "Texas Rangers": "TEX", "Toronto Blue Jays": "TOR",
-    "Washington Nationals": "WSN", "Montreal Expos": "MON",
-}
+def _load_salary_supplement() -> Dict[tuple, int]:
+    """Backward-compatible wrapper: {(name_lower, team, year): salary_int}.
+
+    Callers (data_loader, trades) expect (name, team, year) keys.
+    Delegates to the canonical universal_salary.csv loader.
+    """
+    full = _load_universal_salary()
+    # Return only the 3-tuple keys (name, team, year)
+    return {k: v for k, v in full.items() if len(k) == 3}
+
+
+def _load_lahman_salaries() -> Dict[tuple, int]:
+    """Backward-compatible stub — returns empty dict.
+
+    Lahman data is already merged into universal_salary.csv and served
+    via ``_load_universal_salary()``.  This stub exists so that any
+    remaining callers don't break.
+    """
+    return {}
 
 
 def _load_spotrac_salaries() -> Dict[tuple, int]:
-    """Load Spotrac salary data → {(name_lower, team_abbrev, year): salary_int}."""
-    lookup: Dict[tuple, int] = {}
-    if not _SPOTRAC_FILE.exists():
-        return lookup
-    with open(_SPOTRAC_FILE, "r", encoding="utf-8-sig") as f:
-        for row in _csv.DictReader(f):
-            name = ""
-            for key in row:
-                if "player_name" in key:
-                    name = (row[key] or "").strip().lower()
-                    break
-            team_full = (row.get("team") or "").strip()
-            yr_str = row.get("year", "")
-            sal_str = row.get("payroll_annual", "") or row.get("cash_annual", "")
-            if not name or not team_full or not yr_str or not sal_str:
-                continue
-            team_abbrev = _SPOTRAC_TEAM_MAP.get(team_full, "")
-            if not team_abbrev:
-                continue
-            try:
-                yr = int(yr_str)
-                sal = int(float(sal_str.replace("$", "").replace(",", "")))
-            except (ValueError, TypeError):
-                continue
-            if sal > 0:
-                key = (name, team_abbrev, yr)
-                if key not in lookup:
-                    lookup[key] = sal
-    return lookup
+    """Backward-compatible stub — returns empty dict.
+
+    Spotrac data is already merged into universal_salary.csv and served
+    via ``_load_universal_salary()``.  This stub exists so that any
+    remaining callers don't break.
+    """
+    return {}
 
 
 def _load_historical():

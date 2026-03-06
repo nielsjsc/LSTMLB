@@ -36,8 +36,6 @@ TRADE_PLAYERS_FILE = DATA_DIR / "transactions" / "trade_players.csv"
 MATCHED_FILE = DATA_DIR / "generated" / "trade_analysis" / "results" / "matched_trade_players.csv"
 BATTING_FILE = DATA_DIR / "historic_mlb" / "mlb_batting_data_1950_2025.csv"
 PITCHING_FILE = DATA_DIR / "historic_mlb" / "mlb_pitching_data_1950_2025.csv"
-SALARY_DIR = DATA_DIR / "salary" / "by_year"
-SPOTRAC_FILE = DATA_DIR / "salary" / "mlb_salary_data.csv"
 PROSPECT_FILE = DATA_DIR / "prospect_data" / "prospects_2014_2026_with_top100.csv"
 DB_FILE = ROOT_DIR / "web-app" / "backend" / "longball_local.db"
 OUTPUT_DIR = DATA_DIR / "generated" / "past_trades"
@@ -189,33 +187,42 @@ def load_war_data() -> pd.DataFrame:
 
 # ── Load salary data ─────────────────────────────────────────────────────────
 
+UNIVERSAL_SALARY_FILE = DATA_DIR / "salary" / "universal_salary.csv"
+
+
 def load_salary_data() -> Dict[Tuple[str, str, int], float]:
-    """Build (name_lower, team_canonical, year) → annual_salary lookup."""
+    """Build (name_lower, team_canonical, year) → annual_salary lookup.
+
+    Reads from the single canonical ``universal_salary.csv`` which already
+    merges Lahman + Spotrac + Cot's with proper dedup/priority.
+    """
     salary_map = {}
 
-    # Source: Cot's by-year CSVs (2014-2025)
-    for year in range(2014, 2026):
-        fpath = SALARY_DIR / f"{year}.csv"
-        if not fpath.exists():
-            continue
-        try:
-            df = pd.read_csv(fpath)
-            for _, row in df.iterrows():
-                name = str(row.get("player", "")).strip()
-                team = str(row.get("team", "")).strip()
-                sal = row.get("salary")
-                if not name or not team or pd.isna(sal) or not isinstance(sal, (int, float)):
-                    continue
-                # Skip aggregate rows
-                if "payroll" in name.lower() or "projected" in name.lower():
-                    continue
-                team_fg = TEAM_NAME_TO_FG.get(team, canonical_team(team))
-                key = (name.lower().strip(), canonical_team(team_fg), year)
-                salary_map[key] = float(sal)
-        except Exception as e:
-            logger.warning(f"  Could not load Cot's {year}: {e}")
+    if not UNIVERSAL_SALARY_FILE.exists():
+        logger.warning(f"  Universal salary file not found: {UNIVERSAL_SALARY_FILE}")
+        return salary_map
 
-    logger.info(f"  Loaded {len(salary_map)} salary entries from Cot's")
+    try:
+        df = pd.read_csv(UNIVERSAL_SALARY_FILE)
+        for _, row in df.iterrows():
+            name = str(row.get("player", "")).strip()
+            team = str(row.get("team", "")).strip()
+            sal = row.get("salary")
+            yr = row.get("year")
+            if not name or not team or pd.isna(sal) or pd.isna(yr):
+                continue
+            try:
+                sal_f = float(sal)
+            except (TypeError, ValueError):
+                continue
+            if sal_f <= 0:
+                continue
+            key = (name.lower().strip(), canonical_team(team), int(yr))
+            salary_map[key] = sal_f
+    except Exception as e:
+        logger.warning(f"  Could not load universal salary: {e}")
+
+    logger.info(f"  Loaded {len(salary_map)} salary entries from universal_salary.csv")
     return salary_map
 
 

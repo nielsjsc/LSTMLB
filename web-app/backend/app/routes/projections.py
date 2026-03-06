@@ -137,6 +137,7 @@ async def get_projections(
                 }} if player_type == "hitter" else {"pitching": {
                     "g_pit": p.g_pit,
                     "gs": p.gs,
+                    "ip": p.ip,
                     "war_pit": p.war_pit,
                     "era": p.era,
                     "fip": p.fip,

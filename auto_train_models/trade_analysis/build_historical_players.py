@@ -19,7 +19,6 @@ ROOT = Path(__file__).resolve().parents[2]
 BATTING_CSV = ROOT / "data" / "historic_mlb" / "mlb_batting_data_1950_2025.csv"
 PITCHING_CSV = ROOT / "data" / "historic_mlb" / "mlb_pitching_data_1950_2025.csv"
 CHADWICK_DIR = ROOT / "data" / "register" / "data"
-LAHMAN_SALARY_CSV = ROOT / "data" / "salary" / "lahman_salaries.csv"
 OUTPUT_DIR = ROOT / "data" / "generated" / "historical_players"
 
 DOLLAR_PER_WAR_KNOWN = {
@@ -76,14 +75,13 @@ def main():
     print(f"  Crosswalk: {len(cw_map):,} entries")
 
     # ── Salaries ─────────────────────────────────────────────
-    print("Loading Lahman salaries...")
-    lahman = pd.read_csv(LAHMAN_SALARY_CSV)
-    bbref_map = cw.dropna(subset=["key_bbref"])[["key_bbref", "key_fangraphs"]].drop_duplicates("key_bbref")
-    b2f = dict(zip(bbref_map["key_bbref"], bbref_map["key_fangraphs"]))
-    lahman["IDfg"] = lahman["playerID"].map(b2f)
-    lahman = lahman.dropna(subset=["IDfg"])
-    lahman["IDfg"] = lahman["IDfg"].astype(int)
-    sal_df = lahman.groupby(["IDfg", "yearID"])["salary"].sum().reset_index()
+    print("Loading universal salary data...")
+    UNIVERSAL_CSV = ROOT / "data" / "salary" / "universal_salary.csv"
+    usal = pd.read_csv(UNIVERSAL_CSV)
+    usal = usal.dropna(subset=["fg_id", "salary"])
+    usal["IDfg"] = usal["fg_id"].astype(int)
+    usal["yearID"] = usal["year"].astype(int)
+    sal_df = usal.groupby(["IDfg", "yearID"])["salary"].sum().reset_index()
     sal_lookup = {}
     for row in sal_df.itertuples():
         sal_lookup[(row.IDfg, row.yearID)] = int(row.salary)

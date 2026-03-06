@@ -304,10 +304,20 @@ const ProspectProfile: React.FC<{
 }> = ({ prospectData, teamColor }) => {
   const { tools, history, fv, is_pitcher } = prospectData;
   const latest = history[0];
+  // Compute peak Top 100 value across all prospect years
+  const peakTop100Value = history.reduce<number | null>((best, h) => {
+    if (h.value != null && h.top_100 != null) {
+      return best == null ? h.value : Math.max(best, h.value);
+    }
+    return best;
+  }, null);
+  // Year range the player was a prospect
+  const years = history.map(h => h.year).sort((a, b) => a - b);
+  const yearLabel = years.length === 1 ? `${years[0]}` : `${years[0]}–${years[years.length - 1]}`;
   return (
     <div className="p-6 space-y-6">
       {/* FV + ranking badges */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <div className={`flex flex-col items-center px-4 py-2 rounded-lg border ${fvBg(fv)}`}>
           <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">FV</span>
           <span className={`text-2xl font-bold ${fvColor(fv)}`}>{fv}</span>
@@ -318,12 +328,22 @@ const ProspectProfile: React.FC<{
             <span className="text-2xl font-bold text-amber-400">#{latest.top_100}</span>
           </div>
         )}
+        {peakTop100Value != null && (
+          <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-emerald-500/10 border-emerald-500/20">
+            <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">Top 100 Value</span>
+            <span className="text-2xl font-bold text-emerald-400">${(peakTop100Value / 1_000_000).toFixed(1)}M</span>
+          </div>
+        )}
         {latest?.org_rank && (
           <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-surface-800 border-white/[0.06]">
             <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">Org Rank</span>
             <span className="text-2xl font-bold text-surface-200">#{latest.org_rank}</span>
           </div>
         )}
+        <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-surface-800 border-white/[0.06]">
+          <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">Prospect Years</span>
+          <span className="text-lg font-bold text-surface-300">{yearLabel}</span>
+        </div>
       </div>
 
       {/* Tool grades */}
@@ -364,6 +384,7 @@ const ProspectProfile: React.FC<{
                   <th className="px-2 py-2 text-left text-[10px] text-surface-500 uppercase tracking-wider">FV</th>
                   <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">T100</th>
                   <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Org#</th>
+                  <th className="px-2 py-2 text-right text-[10px] text-surface-500 uppercase tracking-wider">Value</th>
                   {is_pitcher ? (
                     <>
                       <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">FB</th>
@@ -393,6 +414,7 @@ const ProspectProfile: React.FC<{
                     <td className={`px-2 py-1.5 font-semibold ${fvColor(h.fv)}`}>{h.fv}</td>
                     <td className="px-2 py-1.5 text-center font-mono text-amber-400">{h.top_100 ? '#' + h.top_100 : '-'}</td>
                     <td className="px-2 py-1.5 text-center font-mono text-surface-400">{h.org_rank ? '#' + h.org_rank : '-'}</td>
+                    <td className="px-2 py-1.5 text-right font-mono text-emerald-400">{h.value != null ? `$${(h.value / 1_000_000).toFixed(1)}M` : '-'}</td>
                     {is_pitcher ? (
                       <>
                         <td className={`px-2 py-1.5 text-center font-mono ${gradeColor(h.fastball)}`}>{h.fastball ?? '-'}</td>

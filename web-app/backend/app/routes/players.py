@@ -331,10 +331,17 @@ def _build_historical_response(hist: dict) -> dict:
             "so": s.get("so"), "bb": s.get("bb"),
             "k_9": s.get("k_9"), "bb_9": s.get("bb_9"), "hr_9": s.get("hr_9"),
         }
+        # Always accumulate pitching war_value/surplus (they are computed
+        # independently of batting war_value in build_historical_players).
+        # Only salary is guarded to avoid double-counting.
+        pit_wv = s.get("war_value")
+        if pit_wv is not None:
+            entry["war_value"] = (entry.get("war_value") or 0) + pit_wv
+        pit_surplus = s.get("surplus")
+        if pit_surplus is not None:
+            entry["surplus"] = (entry.get("surplus") or 0) + pit_surplus
         if entry.get("salary") is None:
             entry["salary"] = s.get("salary")
-            entry["war_value"] = s.get("war_value")
-            entry["surplus"] = s.get("surplus")
 
     projections = []
     for yr in sorted(by_year.keys()):
@@ -737,7 +744,14 @@ async def get_player_info(player_id: str, db: Session = Depends(get_db)):
             pass
 
     if mlb_id is None:
-        return JSONResponse({})
+        # Last resort: try the raw player_id as an mlbam_id directly.
+        # This covers prospect-only players who have an mlbam_id but no
+        # Player or HistoricalPlayer rows — the MLB Stats API will still
+        # return bio data for them (draft info, height, bats/throws, etc.).
+        try:
+            mlb_id = int(player_id)
+        except (ValueError, TypeError):
+            return JSONResponse({})
 
     info = await _fetch_player_info(mlb_id)
     return JSONResponse(info)

@@ -42,6 +42,7 @@ interface FormattedPlayerRow extends Record<string, any> {
   // Pitching stats
   g_pit?: number;
   gs?: number;
+  ip?: number;
   war_pit?: number;
   era?: number;
   fip?: number;
@@ -92,6 +93,7 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
     { key: 'age', label: 'Age' },
     { key: 'g_pit', label: 'G' },
     { key: 'gs', label: 'GS' },
+    { key: 'ip', label: 'IP' },
     { key: 'war_pit', label: 'WAR' },
     { key: 'era', label: 'ERA' },
     { key: 'fip', label: 'FIP' },
@@ -145,6 +147,8 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
       case 'slg':
       case 'ops':
       case 'woba':
+      case 'ip':
+        return formatDecimal(value, 1);
       case 'era':
       case 'fip':
         return formatDecimal(value, 3);

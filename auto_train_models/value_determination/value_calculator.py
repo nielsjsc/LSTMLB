@@ -30,48 +30,47 @@ from .constants import (
 )
 from .config import Config, CURRENT_YEAR
 
-# ── Cot's salary lookup for historical years ─────────────────────────────
-_SALARY_BY_YEAR_DIR = Path(__file__).resolve().parents[2] / "data" / "salary" / "by_year"
+# ── Universal salary lookup ───────────────────────────────────────────────
+_UNIVERSAL_SALARY_FILE = Path(__file__).resolve().parents[2] / "data" / "salary" / "universal_salary.csv"
 _historical_salary_cache: dict | None = None
 
 
 def _load_historical_salary() -> dict:
-    """Load Cot's by-year salary CSVs into a lookup dict.
+    """Load universal_salary.csv into a lookup dict.
 
     Returns ``{(name_lower, year) -> salary}`` where *salary* is the
-    annual salary for that year (not total future).
+    annual salary for that year.
+
+    This replaces the old per-year Cot's CSV loader — universal_salary.csv
+    already merges Lahman + Spotrac + Cot's with proper dedup/priority.
     """
     global _historical_salary_cache
     if _historical_salary_cache is not None:
         return _historical_salary_cache
     lookup: dict[tuple[str, int], float] = {}
-    if not _SALARY_BY_YEAR_DIR.exists():
-        logger.warning("Cot's salary directory not found: %s", _SALARY_BY_YEAR_DIR)
+    if not _UNIVERSAL_SALARY_FILE.exists():
+        logger.warning("Universal salary file not found: %s", _UNIVERSAL_SALARY_FILE)
         _historical_salary_cache = lookup
         return lookup
-    for csv_path in sorted(_SALARY_BY_YEAR_DIR.glob("*.csv")):
-        try:
-            year = int(csv_path.stem)
-        except ValueError:
+    try:
+        df = pd.read_csv(_UNIVERSAL_SALARY_FILE)
+    except Exception:
+        logger.warning("Could not read universal salary file: %s", _UNIVERSAL_SALARY_FILE)
+        _historical_salary_cache = lookup
+        return lookup
+    for _, row in df.iterrows():
+        name = str(row.get("player", "")).strip().lower()
+        yr = row.get("year")
+        sal = row.get("salary")
+        if not name or pd.isna(yr) or pd.isna(sal):
             continue
         try:
-            df = pd.read_csv(csv_path)
-        except Exception:
+            sal_f = float(sal)
+        except (TypeError, ValueError):
             continue
-        if "player" not in df.columns or "salary" not in df.columns:
-            continue
-        for _, row in df.iterrows():
-            name = str(row.get("player", "")).strip().lower()
-            sal = row.get("salary")
-            if not name or pd.isna(sal):
-                continue
-            try:
-                sal_f = float(sal)
-            except (TypeError, ValueError):
-                continue
-            if sal_f > 0:
-                lookup[(name, year)] = sal_f
-    logger.info("Loaded historical salary data: %d entries from Cot's by-year CSVs", len(lookup))
+        if sal_f > 0:
+            lookup[(name, int(yr))] = sal_f
+    logger.info("Loaded historical salary data: %d entries from universal_salary.csv", len(lookup))
     _historical_salary_cache = lookup
     return lookup
 

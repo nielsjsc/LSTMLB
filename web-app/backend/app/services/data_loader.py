@@ -348,12 +348,11 @@ class DataLoader:
 
     @staticmethod
     def _augment_player_salary(df: pd.DataFrame) -> None:
-        """Fill NaN ``contract_value`` from Cot's by-year CSVs (in-place).
+        """Fill NaN ``contract_value`` from the universal salary CSV (in-place).
 
         Also recalculates ``surplus_value`` for rows that gained a salary.
-        Uses (name_lower, team, year) as the primary key, falling back to
-        (name_lower, year) if the team doesn't match (teams can differ due
-        to mid-season trades or abbreviation mismatches).
+        Uses (name_lower, year) as the primary key, with a (name_lower,
+        team, year) check first for specificity.
         """
         if "contract_value" not in df.columns:
             return
@@ -363,19 +362,11 @@ class DataLoader:
             return
 
         # Lazy import to avoid circular deps at module level
-        from app.routes.historical import _load_salary_supplement
+        from app.routes.historical import _load_universal_salary
 
-        by_year_team = _load_salary_supplement()  # {(name_lower, team, yr): int}
-        if not by_year_team:
+        salary_lookup = _load_universal_salary()  # {(name, yr): int, (name, team, yr): int}
+        if not salary_lookup:
             return
-
-        # Also build a team-agnostic fallback: {(name_lower, yr): int}
-        by_year_only: dict[tuple, int] = {}
-        for (n, _t, y), sal in by_year_team.items():
-            key = (n, y)
-            # Keep the larger salary if multi-team year
-            if key not in by_year_only or sal > by_year_only[key]:
-                by_year_only[key] = sal
 
         filled = 0
         idxs = df.index[mask]
@@ -388,9 +379,10 @@ class DataLoader:
                 continue
             yr = int(yr)
 
-            sal = by_year_team.get((nm, team, yr))
+            # Try team-specific first, then name+year
+            sal = salary_lookup.get((nm, team, yr))
             if sal is None:
-                sal = by_year_only.get((nm, yr))
+                sal = salary_lookup.get((nm, yr))
             if sal is not None:
                 df.at[idx, "contract_value"] = float(sal)
                 bv = row.get("base_value")
@@ -694,11 +686,7 @@ class DataLoader:
                 logger.warning(f"  File not found: {json_path}")
                 return
 
-            from app.routes.historical import (
-                _load_salary_supplement,
-                _load_spotrac_salaries,
-                _load_lahman_salaries,
-            )
+            from app.routes.historical import _load_universal_salary
 
             with open(json_path, "r") as f:
                 data = _json.load(f)
@@ -706,19 +694,12 @@ class DataLoader:
             players = data.get("players", {})
             logger.info(f"    {len(players):,} players read from JSON")
 
-            # ── Salary augmentation (three-source merge) ──────────────────
-            by_year = _load_salary_supplement()
-            spotrac = _load_spotrac_salaries()
-            lahman = _load_lahman_salaries()
-
-            for key, sal in spotrac.items():
-                if key not in by_year:
-                    by_year[key] = sal
+            # ── Salary augmentation (single canonical source) ─────────────
+            salary = _load_universal_salary()  # {(name,yr): int, (name,team,yr): int}
 
             filled = 0
             for pl in players.values():
                 name_lower = pl["name"].lower().strip()
-                bbref_id = pl.get("bbref", "")
                 career_salary_add = 0
 
                 for section in ("batting", "pitching"):
@@ -727,9 +708,9 @@ class DataLoader:
                             continue
                         yr = s.get("year", 0)
                         team = s.get("team", "")
-                        sal = by_year.get((name_lower, team, yr))
-                        if sal is None and bbref_id:
-                            sal = lahman.get((bbref_id, yr))
+                        sal = salary.get((name_lower, team, yr))
+                        if sal is None:
+                            sal = salary.get((name_lower, yr))
                         if sal:
                             s["salary"] = sal
                             s["surplus"] = (s.get("war_value") or 0) - sal
