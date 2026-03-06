@@ -21,6 +21,7 @@ Legacy Tiered Model (deprecated, kept for reference):
 
 import pandas as pd
 import numpy as np
+from pathlib import Path
 
 from .constants import (
     logger, WAR_VALUE_TIERS, INFLATION_RATE, BASE_YEAR,
@@ -28,6 +29,51 @@ from .constants import (
     HITTER_COLUMNS, PITCHER_COLUMNS, get_war_value
 )
 from .config import Config, CURRENT_YEAR
+
+# ── Cot's salary lookup for historical years ─────────────────────────────
+_SALARY_BY_YEAR_DIR = Path(__file__).resolve().parents[2] / "data" / "salary" / "by_year"
+_historical_salary_cache: dict | None = None
+
+
+def _load_historical_salary() -> dict:
+    """Load Cot's by-year salary CSVs into a lookup dict.
+
+    Returns ``{(name_lower, year) -> salary}`` where *salary* is the
+    annual salary for that year (not total future).
+    """
+    global _historical_salary_cache
+    if _historical_salary_cache is not None:
+        return _historical_salary_cache
+    lookup: dict[tuple[str, int], float] = {}
+    if not _SALARY_BY_YEAR_DIR.exists():
+        logger.warning("Cot's salary directory not found: %s", _SALARY_BY_YEAR_DIR)
+        _historical_salary_cache = lookup
+        return lookup
+    for csv_path in sorted(_SALARY_BY_YEAR_DIR.glob("*.csv")):
+        try:
+            year = int(csv_path.stem)
+        except ValueError:
+            continue
+        try:
+            df = pd.read_csv(csv_path)
+        except Exception:
+            continue
+        if "player" not in df.columns or "salary" not in df.columns:
+            continue
+        for _, row in df.iterrows():
+            name = str(row.get("player", "")).strip().lower()
+            sal = row.get("salary")
+            if not name or pd.isna(sal):
+                continue
+            try:
+                sal_f = float(sal)
+            except (TypeError, ValueError):
+                continue
+            if sal_f > 0:
+                lookup[(name, year)] = sal_f
+    logger.info("Loaded historical salary data: %d entries from Cot's by-year CSVs", len(lookup))
+    _historical_salary_cache = lookup
+    return lookup
 
 
 # ---------------------------------------------------------------------------
@@ -403,16 +449,57 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     historical['Base_Value'] = historical.apply(
         lambda x: calculate_war_value(x['WAR'], int(x['Year'])), axis=1
     )
-    historical['Contract_Value'] = np.nan
-    historical['surplus_value'] = np.nan
-    
+
+    # ── Populate salary for historical rows from Cot's by-year data ──────
+    # Use lowercase ``contract_value`` to match the column already present in
+    # the timeline DataFrame (which was created by calculate_contract_value).
+    salary_lookup = _load_historical_salary()
+    contract_vals = []
+    for _, row in historical.iterrows():
+        name_key = str(row.get("Name", "")).strip().lower()
+        year_key = int(row["Year"]) if pd.notna(row["Year"]) else 0
+        sal = salary_lookup.get((name_key, year_key))
+        contract_vals.append(sal)
+    historical['contract_value'] = contract_vals
+    historical['surplus_value'] = np.where(
+        pd.notna(historical['contract_value']),
+        historical['Base_Value'] - historical['contract_value'],
+        np.nan,
+    )
+
+    # ── Preserve salary data from timeline before merging ────────────────
+    # The timeline_df has real contract_value (from Spotrac/contract_processor)
+    # for current-contract years.  Historical rows will overwrite these via
+    # drop_duplicates(keep='last'), so we save a mapping and patch afterwards.
+    timeline_salary = (
+        timeline_df[timeline_df['contract_value'].notna()]
+        .set_index(['IDfg', 'Year'])['contract_value']
+        .to_dict()
+    )
+
     # Combine with timeline
     complete_timeline = pd.concat([timeline_df, historical])
     
-    # Sort and remove duplicates, keeping LAST (historical data) not first
+    # Sort and remove duplicates, keeping LAST (historical data) so that
+    # real game stats replace prediction-based rows.
     complete_timeline = (complete_timeline
                         .sort_values(['IDfg', 'Year'])
                         .drop_duplicates(subset=['IDfg', 'Year'], keep='last'))
+
+    # ── Restore salary for overlapping years ─────────────────────────────
+    # For rows where the historical dedup clobbered the timeline salary,
+    # reinstate the contract_value from the timeline (Spotrac).
+    if timeline_salary:
+        for (idfg, yr), sal in timeline_salary.items():
+            mask = (complete_timeline['IDfg'] == idfg) & (complete_timeline['Year'] == yr)
+            idx = complete_timeline.index[mask]
+            if len(idx) > 0:
+                existing = complete_timeline.loc[idx[0], 'contract_value']
+                if pd.isna(existing):
+                    complete_timeline.loc[idx[0], 'contract_value'] = sal
+                    bv = complete_timeline.loc[idx[0], 'Base_Value']
+                    if pd.notna(bv):
+                        complete_timeline.loc[idx[0], 'surplus_value'] = bv - sal
     
     logger.info(f"Added historical records. New shape: {complete_timeline.shape}")
     

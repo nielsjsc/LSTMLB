@@ -248,6 +248,7 @@ async def get_prospects(
                 entry = {
                     "id": p.id,
                     "IDfg": p.IDfg,
+                    "mlbam_id": p.mlbam_id,
                     "name": p.name,
                     "org": p.org,
                     "position": p.position,

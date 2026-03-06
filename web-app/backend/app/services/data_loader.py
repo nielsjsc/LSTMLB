@@ -333,11 +333,73 @@ class DataLoader:
                 if col not in PLAYER_STR_COLS:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
 
+            # ── Fill missing salary from Cot's by-year data ──────────────
+            # Historical rows in the pipeline may have NaN contract_value
+            # even though Cot's by-year CSVs have the actual salary.
+            self._augment_player_salary(df)
+
             records = _clean_records(df)
             _coerce_int_cols(records, PLAYER_INT_COLS)
 
             n = _bulk_insert(self.db, Player, records)
             logger.info(f"    {n:,} players loaded ({initial - n:,} skipped — no mlb_id)")
+
+    # ── Salary augmentation for players ───────────────────────────────────
+
+    @staticmethod
+    def _augment_player_salary(df: pd.DataFrame) -> None:
+        """Fill NaN ``contract_value`` from Cot's by-year CSVs (in-place).
+
+        Also recalculates ``surplus_value`` for rows that gained a salary.
+        Uses (name_lower, team, year) as the primary key, falling back to
+        (name_lower, year) if the team doesn't match (teams can differ due
+        to mid-season trades or abbreviation mismatches).
+        """
+        if "contract_value" not in df.columns:
+            return
+
+        mask = df["contract_value"].isna()
+        if not mask.any():
+            return
+
+        # Lazy import to avoid circular deps at module level
+        from app.routes.historical import _load_salary_supplement
+
+        by_year_team = _load_salary_supplement()  # {(name_lower, team, yr): int}
+        if not by_year_team:
+            return
+
+        # Also build a team-agnostic fallback: {(name_lower, yr): int}
+        by_year_only: dict[tuple, int] = {}
+        for (n, _t, y), sal in by_year_team.items():
+            key = (n, y)
+            # Keep the larger salary if multi-team year
+            if key not in by_year_only or sal > by_year_only[key]:
+                by_year_only[key] = sal
+
+        filled = 0
+        idxs = df.index[mask]
+        for idx in idxs:
+            row = df.loc[idx]
+            nm = str(row.get("name", "")).lower().strip()
+            team = str(row.get("team", "")).strip()
+            yr = row.get("year")
+            if pd.isna(yr) or not nm:
+                continue
+            yr = int(yr)
+
+            sal = by_year_team.get((nm, team, yr))
+            if sal is None:
+                sal = by_year_only.get((nm, yr))
+            if sal is not None:
+                df.at[idx, "contract_value"] = float(sal)
+                bv = row.get("base_value")
+                if pd.notna(bv):
+                    df.at[idx, "surplus_value"] = float(bv) - float(sal)
+                filled += 1
+
+        if filled:
+            logger.info(f"    Salary augmentation: filled {filled:,}/{mask.sum():,} missing contract_value rows")
 
     # ── Prospects ─────────────────────────────────────────────────────────
 

@@ -27,10 +27,91 @@ if str(backend_dir) not in sys.path:
 # Change to absolute imports
 from app.database import get_db
 from app.models.player import Player
+from app.models.prospect import Prospect
 from app.config import CURRENT_YEAR
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# ── Prospect data helper ──────────────────────────────────────────────────
+def _build_prospect_data(db: Session, *, mlbam_id: int = None, name: str = None) -> Optional[Dict[str, Any]]:
+    """Look up prospect records and build a ProspectDetail-style dict.
+
+    Tries to match by *mlbam_id* first (most reliable), then falls back
+    to a name match.  Returns ``None`` when no prospect data is found.
+    """
+    anchor: Optional[Prospect] = None
+    if mlbam_id:
+        anchor = db.query(Prospect).filter(
+            Prospect.mlbam_id == mlbam_id
+        ).order_by(Prospect.year.desc()).first()
+    if anchor is None and name:
+        anchor = db.query(Prospect).filter(
+            Prospect.name == name
+        ).order_by(Prospect.year.desc()).first()
+    if anchor is None:
+        return None
+
+    records = (
+        db.query(Prospect)
+        .filter(Prospect.name == anchor.name)
+        .order_by(Prospect.year.desc())
+        .all()
+    )
+    if not records:
+        return None
+
+    latest = records[0]
+    is_pitcher_flag = "p" in (latest.position or "").lower()
+
+    if is_pitcher_flag:
+        tools = {
+            "fastball": latest.fastball, "slider": latest.slider,
+            "curve": latest.curve, "changeup": latest.changeup,
+            "command": latest.command,
+        }
+    else:
+        tools = {
+            "hit": latest.hit, "game_power": latest.game_power,
+            "raw_power": latest.raw_power, "speed": latest.speed,
+        }
+
+    history: List[Dict[str, Any]] = []
+    for r in records:
+        entry: Dict[str, Any] = {
+            "year": r.year, "age": r.age, "org": r.org,
+            "position": r.position, "fv": r.fv, "value": r.value,
+            "composite": r.composite, "top_100": r.top_100,
+            "org_rank": r.org_rank,
+        }
+        if is_pitcher_flag:
+            entry.update({
+                "fastball": r.fastball, "slider": r.slider,
+                "curve": r.curve, "changeup": r.changeup, "command": r.command,
+            })
+        else:
+            entry.update({
+                "hit": r.hit, "game_power": r.game_power,
+                "raw_power": r.raw_power, "speed": r.speed,
+            })
+        history.append(entry)
+
+    return {
+        "prospect_id": anchor.id,
+        "IDfg": latest.IDfg,
+        "mlbam_id": latest.mlbam_id,
+        "name": latest.name,
+        "org": latest.org,
+        "position": latest.position,
+        "age": latest.age,
+        "fv": latest.fv,
+        "has_mlb": latest.has_mlb,
+        "is_pitcher": is_pitcher_flag,
+        "tools": tools,
+        "history": history,
+    }
+
 
 # ── Trade Value History (CSV-backed, loaded once at startup) ──────────────
 _TRADE_HISTORY_CSV = (
@@ -344,6 +425,28 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
             if hist is not None:
                 logger.info(f"Found historical player: {hist['name']} (IDfg={hist['idfg']})")
                 return _build_historical_response(hist)
+
+            # Fall back to prospect-only data (player has mlbam_id but no
+            # Player rows — e.g. a prospect who hasn't accumulated MLB stats)
+            prospect_data = _build_prospect_data(db, mlbam_id=player_id)
+            if prospect_data is not None:
+                logger.info(f"Found prospect-only player: {prospect_data['name']} (mlbam={player_id})")
+                headshot_url = (
+                    f"https://img.mlbstatic.com/mlb-photos/image/upload/"
+                    f"w_213,d_people:generic:headshot:silo:current.png,"
+                    f"q_auto:best,f_auto/v1/people/{player_id}/headshot/67/current"
+                )
+                return {
+                    "name": prospect_data["name"],
+                    "team": prospect_data["org"],
+                    "position": prospect_data["position"],
+                    "mlb_id": player_id,
+                    "isProspectOnly": True,
+                    "prospectData": prospect_data,
+                    "headshot_url": headshot_url,
+                    "projections": [],
+                }
+
             raise HTTPException(
                 status_code=404, 
                 detail=f"Player not found with ID: {player_id}"
@@ -419,6 +522,16 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
                 }} if p.war_pit is not None else {})
             } for p in player_years]
         }
+
+        # Attach prospect data if available (looked up by mlbam_id or name)
+        prospect_data = _build_prospect_data(
+            db,
+            mlbam_id=current_year_data.mlb_id,
+            name=current_year_data.name,
+        )
+        if prospect_data is not None:
+            response["prospectData"] = prospect_data
+
         return response
         
     except Exception as e:

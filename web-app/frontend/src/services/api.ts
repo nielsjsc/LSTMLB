@@ -222,6 +222,22 @@ export interface PlayerStats {
     position: string;
     mlb_id: number | null;
     isHistorical?: boolean;
+    isProspectOnly?: boolean;
+    headshot_url?: string;
+    prospectData?: {
+        prospect_id: number;
+        IDfg: string | null;
+        mlbam_id: number | null;
+        name: string;
+        org: string;
+        position: string;
+        age: number | null;
+        fv: string;
+        has_mlb: boolean;
+        is_pitcher: boolean;
+        tools: Record<string, string | null>;
+        history: ProspectDetailHistory[];
+    };
     historicalMeta?: {
         idfg: number;
         bbref: string | null;
