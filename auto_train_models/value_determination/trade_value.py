@@ -152,7 +152,7 @@ def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
     Additional rules:
         • Arb/Pre-Arb players are floored at 0 (team can non-tender).
         • Signed players with ≤2 years left are floored at 0.
-        • Recent prospects get a blended value (see _apply_prospect_adjustments).
+        • Recent prospects get a confidence-blended value (see _apply_confidence_adjustments).
     """
     result = df.copy()
     result["trade_value"] = np.nan
@@ -194,31 +194,43 @@ def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
         f"median=${result['trade_value'].median():,.0f}"
     )
 
-    # Prospect adjustments
+    # Prospect adjustments → confidence-based blending
     prospect_file = Config.Paths.PROSPECT_FILE
     if prospect_file.exists():
-        result = _apply_prospect_adjustments(result, prospect_file)
+        result = _apply_confidence_adjustments(result, prospect_file)
     else:
         logger.warning(f"Prospect file not found: {prospect_file}")
+        # Still populate confidence columns for all players
+        result["projection_confidence"] = 1.0
+        result["raw_trade_value"] = result["trade_value"]
 
     return result
 
 
 # ---------------------------------------------------------------------------
-# Prospect blending
+# Confidence-based trade-value blending (replaces legacy prospect blending)
 # ---------------------------------------------------------------------------
 
-def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.DataFrame:
+def _apply_confidence_adjustments(result_df: pd.DataFrame,
+                                  prospect_file) -> pd.DataFrame:
     """
-    Blend prospect value with performance-based trade value for young players.
+    Blend prospect-grade value with performance-based trade value using
+    a stabilisation-based confidence score.
 
-    For a player with limited MLB experience their trade value is:
-        trade_value = (MLB weight × performance value) + (prospect weight × prospect value)
+    For every player:
+        1. Compute ``projection_confidence`` from career MLB games vs
+           ``TradeConfidence.STABILIZATION_GAMES`` thresholds.
+        2. Store the performance-based trade value as ``raw_trade_value``.
 
-    The prospect weight decays linearly from 1.0 (no MLB games) to 0.0 once the
-    player reaches the experience threshold defined in Config.Prospects.
+    For recent prospects (FV grade available, ranked within the recency window):
+        3. Compute a prospect-grade trade value from FV + rank.
+        4. Blend: ``trade_value = conf * perf_value + (1 - conf) * prospect_value``
 
-    Only prospects ranked within the last 3 years are considered.
+    Players without prospect data or with full confidence are untouched.
+
+    Config reference:
+        ``Config.TradeConfidence`` — thresholds, floor, FV prior WAR, recency.
+        ``Config.Prospects``       — FV_BASE_VALUES, rank adjustments.
     """
     prospect_df = pd.read_csv(prospect_file)
     logger.info(
@@ -239,60 +251,64 @@ def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.Da
     )
     logger.info(f"Unique prospects: {len(latest)}")
 
-    # Only apply adjustments to recent prospects (ranked in last 3 years)
-    recent_cutoff = CURRENT_YEAR - 3
+    # Only consider recent prospects (within recency window)
+    recency = Config.TradeConfidence.PROSPECT_RECENCY_YEARS
+    recent_cutoff = CURRENT_YEAR - recency
     latest = latest[latest["year"] >= recent_cutoff]
     logger.info(f"Recent prospects (since {recent_cutoff}): {len(latest)}")
 
-    if latest.empty:
-        return result_df
+    # ── Career games per player ──────────────────────────────────────────
+    # Column names vary depending on upstream pipeline steps; use whatever
+    # game-count columns are available.
+    has_g_bat = "G_bat" in result_df.columns
+    has_g_pit = "G_pit" in result_df.columns
+    has_gs    = "GS"    in result_df.columns
+    has_g     = "G"     in result_df.columns  # fallback: un-suffixed G
 
-    # Pre-compute career MLB games per player
-    career_games = (
-        result_df[
-            (result_df["Year"] < CURRENT_YEAR)
-            & (result_df["G_bat"].notna() | result_df["G_pit"].notna() | result_df["GS"].notna())
-        ]
-        .groupby("IDfg")
-        .agg(G_bat=("G_bat", "sum"), G_pit=("G_pit", "sum"),
-             GS=("GS", "sum"), position_group=("position_group", "first"))
-        .reset_index()
-    )
+    game_filter = result_df["Year"] < CURRENT_YEAR
+    if has_g_bat:
+        game_filter = game_filter & (result_df["G_bat"].notna())
+    elif has_g_pit:
+        game_filter = game_filter & (result_df["G_pit"].notna())
+    elif has_gs:
+        game_filter = game_filter & (result_df["GS"].notna())
+    elif has_g:
+        game_filter = game_filter & (result_df["G"].notna())
 
-    # Determine matching key
-    use_mlbam = "mlbam_id" in result_df.columns
+    agg_dict: dict = {}
+    if has_g_bat:
+        agg_dict["G_bat"] = ("G_bat", "sum")
+    if has_g_pit:
+        agg_dict["G_pit"] = ("G_pit", "sum")
+    elif has_g:
+        agg_dict["G_pit"] = ("G", "sum")       # approximate pitcher G from total G
+    if has_gs:
+        agg_dict["GS"] = ("GS", "sum")
+    if "position_group" in result_df.columns:
+        agg_dict["position_group"] = ("position_group", "first")
 
-    if use_mlbam:
-        merge_cols = {"left_on": "mlbam_id", "right_on": "prospect_mlb_id"}
+    if agg_dict:
+        career_games = (
+            result_df[game_filter]
+            .groupby("IDfg")
+            .agg(**agg_dict)
+            .reset_index()
+        )
     else:
-        logger.warning("mlbam_id not available — falling back to name matching")
-        _norm = lambda s: re.sub(r"[^A-Z]", "", s.upper()) if pd.notna(s) else None
-        result_df["_name_key"] = result_df["Name"].apply(_norm)
-        latest["_name_key"] = latest["name"].apply(_norm)
-        merge_cols = {"left_on": "_name_key", "right_on": "_name_key"}
+        career_games = pd.DataFrame(columns=["IDfg"])
 
-    # Identify prospect rows in current-year data that already have trade values
-    candidates = result_df[
-        (result_df["Year"] >= CURRENT_YEAR)
-        & result_df["trade_value"].notna()
-    ].drop_duplicates("IDfg" if use_mlbam else "_name_key")
+    # ── Compute confidence for ALL players ───────────────────────────────
+    result_df["projection_confidence"] = 1.0   # default: fully confident
+    result_df["raw_trade_value"] = result_df["trade_value"]
 
-    matched = candidates.merge(
-        latest[["prospect_mlb_id", "name", "year", "rank", "grade_overall",
-                "top_100"] + (["_name_key"] if not use_mlbam else [])],
-        **merge_cols, how="inner"
-    )
-    logger.info(f"Matched {len(matched)} prospects with trade values")
+    for pid in result_df.loc[result_df["trade_value"].notna(), "IDfg"].unique():
+        pmask = (result_df["IDfg"] == pid) & (result_df["Year"] >= CURRENT_YEAR)
+        if not pmask.any():
+            continue
 
-    adjusted = 0
-    for _, row in matched.iterrows():
-        pid = row["IDfg"]
-
-        # Determine position type
-        pos = row.get("position_group", "batter")
+        pos = result_df.loc[pmask, "position_group"].iloc[0]
         pos_type = "sp" if pos == "SP" else ("rp" if pos == "RP" else "batter")
 
-        # Career games
         if pid in career_games["IDfg"].values:
             cg = career_games[career_games["IDfg"] == pid].iloc[0]
             gs = cg.get("GS", 0) or 0
@@ -308,16 +324,49 @@ def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.Da
         else:
             games = 0
 
-        prospect_wt = Config.Prospects.calculate_prospect_weight(games, pos_type)
-        if prospect_wt == 0.0:
-            continue  # established — no adjustment needed
+        conf = Config.TradeConfidence.calculate_confidence(games, pos_type)
+        result_df.loc[pmask, "projection_confidence"] = round(conf, 3)
 
-        # Determine which rank to use
+    # ── Prospect matching & blending ─────────────────────────────────────
+    if latest.empty:
+        logger.info("No recent prospects to blend — returning with confidence only")
+        return result_df
+
+    use_mlbam = "mlbam_id" in result_df.columns
+    if use_mlbam:
+        merge_cols = {"left_on": "mlbam_id", "right_on": "prospect_mlb_id"}
+    else:
+        logger.warning("mlbam_id not available — falling back to name matching")
+        _norm = lambda s: re.sub(r"[^A-Z]", "", s.upper()) if pd.notna(s) else None
+        result_df["_name_key"] = result_df["Name"].apply(_norm)
+        latest["_name_key"] = latest["name"].apply(_norm)
+        merge_cols = {"left_on": "_name_key", "right_on": "_name_key"}
+
+    candidates = result_df[
+        (result_df["Year"] >= CURRENT_YEAR)
+        & result_df["trade_value"].notna()
+    ].drop_duplicates("IDfg" if use_mlbam else "_name_key")
+
+    matched = candidates.merge(
+        latest[["prospect_mlb_id", "name", "year", "rank", "grade_overall",
+                "top_100"] + (["_name_key"] if not use_mlbam else [])],
+        **merge_cols, how="inner"
+    )
+    logger.info(f"Matched {len(matched)} prospects with trade values")
+
+    adjusted = 0
+    for _, row in matched.iterrows():
+        pid = row["IDfg"]
+        pmask = (result_df["IDfg"] == pid) & (result_df["Year"] >= CURRENT_YEAR)
+        conf = result_df.loc[pmask, "projection_confidence"].iloc[0]
+
+        if conf >= Config.TradeConfidence.CONFIDENCE_CEILING:
+            continue  # fully established — no blending needed
+
+        # Determine rank to use
         prospect_year = row.get("year", None)
         org_rank = row.get("rank", None)
         top_100 = row.get("top_100", None)
-
-        # For current-year lists that only have top-100 (no org lists yet)
         if prospect_year == CURRENT_YEAR and pd.notna(org_rank):
             top_100 = org_rank
             org_rank = None
@@ -327,27 +376,26 @@ def _apply_prospect_adjustments(result_df: pd.DataFrame, prospect_file) -> pd.Da
             continue
 
         perf_value = row["trade_value"]
-        blended = (1 - prospect_wt) * perf_value + prospect_wt * prospect_val
+        blended = conf * perf_value + (1 - conf) * prospect_val
 
         # Sanity: don't let a negative-value player jump to 10× their absolute value
         if perf_value < 0 and blended > abs(perf_value) * 10:
             logger.warning(
-                f"Skipping prospect adjustment for {row.get('Name', 'Unknown')}: "
+                f"Skipping confidence blend for {row.get('Name', 'Unknown')}: "
                 f"would create unrealistic value (perf=${perf_value:,.0f}, blended=${blended:,.0f})"
             )
             continue
 
-        mask = (result_df["IDfg"] == pid) & (result_df["Year"] >= CURRENT_YEAR)
-        result_df.loc[mask, "trade_value"] = blended
+        result_df.loc[pmask, "trade_value"] = blended
         adjusted += 1
 
         logger.debug(
             f"  {row.get('Name', f'ID{pid}')}: FV={row.get('grade_overall')}, "
-            f"games={games}, pw={prospect_wt:.2f}, "
-            f"prospect=${prospect_val:,.0f}, final=${blended:,.0f}"
+            f"conf={conf:.2f}, prospect=${prospect_val:,.0f}, "
+            f"perf=${perf_value:,.0f}, final=${blended:,.0f}"
         )
 
-    logger.info(f"Applied prospect adjustments to {adjusted} players")
+    logger.info(f"Applied confidence blending to {adjusted} prospects")
 
     # Clean up temp column
     result_df.drop("_name_key", axis=1, errors="ignore", inplace=True)

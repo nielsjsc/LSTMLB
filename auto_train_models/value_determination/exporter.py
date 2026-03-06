@@ -24,7 +24,8 @@ def export_value_data(df: pd.DataFrame, output_dir: Path) -> None:
     base_cols = [
         'Player Name', 'Team', 'Status', 'Position', 'Age', 'WAR',
         'Base_Value', 'Contract_Value', 'Surplus_Value', 'IDfg', 'mlb_id', 'Year', 'FA_Year',
-        'Probable_FA_Year', 'Earliest_FA_Year', 'trade_value', 'contract_war', 'avg_war',
+        'Probable_FA_Year', 'Earliest_FA_Year', 'trade_value', 'raw_trade_value',
+        'projection_confidence', 'contract_war', 'avg_war',
         'total_contract', 'avg_contract', 'total_surplus', 'years_control', 'control_through',
         'total_future_war', 'total_future_value', 'total_value', 'total_war',
         'historical_value', 'historical_war', 'contract_base_value'

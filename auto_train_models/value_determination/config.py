@@ -281,10 +281,10 @@ class ConvexModel:
         - Roster-slot cost: each player occupies a 26-man roster spot,
           so one 6-WAR player is worth more than two 3-WAR players
     
-    Reference values (2025 dollars, alpha=$8.59M, beta=1.323):
-        1 WAR  =   $8.6M       4 WAR  =  $53.8M
-        2 WAR  =  $21.5M       5 WAR  =  $72.3M
-        3 WAR  =  $36.8M       8 WAR  = $134.6M
+    Reference values (2025 dollars, alpha=$8.59M, beta=1.18, replacement floor=0.5):
+        0.5 WAR =      $0       3 WAR  =  $24.5M
+        1.0 WAR =   $3.8M       5 WAR  =  $49.2M
+        2.0 WAR =  $13.8M       8 WAR  = $121.9M
     
     Usage:
         from value_determination.config import Config
@@ -337,13 +337,16 @@ class ConvexModel:
                         alpha: float = None, beta: float = None) -> float:
         """
         Convert WAR to dollar value using the convex power-law model.
-        
+
+        Applies the replacement-level floor from ``TradeConfidence`` before
+        the convex curve — only marginal WAR above the floor produces value.
+
         Args:
-            war: WAR value (negative WAR returns $0).
+            war: WAR value (sub-replacement returns $0).
             year: Season year (for inflation adjustment from BASE_YEAR).
             alpha: Override alpha parameter (defaults to ALPHA_DEFAULT).
             beta: Override beta parameter (defaults to BETA_DEFAULT).
-        
+
         Returns:
             Dollar value of player's WAR production for that year.
         """
@@ -356,8 +359,13 @@ class ConvexModel:
         if war is None or (isinstance(war, float) and math.isnan(war)) or war <= 0:
             return 0.0
         
+        # Apply replacement-level floor (consistent with value_calculator.calculate_war_value)
+        marginal = war - TradeConfidence.REPLACEMENT_LEVEL_WAR
+        if marginal <= 0:
+            return 0.0
+        
         inflation = (1 + ContractConstants.INFLATION_RATE) ** (year - ContractConstants.BASE_YEAR)
-        return alpha * (war ** beta) * inflation
+        return alpha * (marginal ** beta) * inflation
 
 
 class ContractConstants:
@@ -530,6 +538,109 @@ class ProspectConstants:
 
 
 # =============================================================================
+# TRADE CONFIDENCE & REPLACEMENT LEVEL
+# =============================================================================
+class TradeConfidence:
+    """
+    Replacement-level floor and projection confidence for trade values.
+
+    Two mechanisms adjust raw trade values to better reflect real market behavior:
+
+    1. **Replacement-level floor** — WAR below ``REPLACEMENT_LEVEL_WAR`` is freely
+       available (waiver claims, minor-league FAs) and commands no trade capital.
+       Only *marginal* WAR above this floor enters the convex dollar conversion.
+       Effect: a true-talent 1 WAR player → 0.5 marginal WAR → ~$3.7M/yr
+       (instead of the full-curve $8.6M/yr).
+
+    2. **Projection confidence** — Players with limited MLB track records have
+       their trade value blended between the performance projection and a
+       prospect-grade prior.  Confidence scales linearly from
+       ``CONFIDENCE_FLOOR`` (no games) to 1.0 (fully stabilised).
+       Only players with a prospect FV grade receive blending; established
+       players and non-prospects pass through at full confidence.
+
+    All parameters are configurable here so the pipeline can be tuned without
+    editing calculation code.
+    """
+
+    # -- Replacement-level floor -----------------------------------------------
+    # WAR at or below this level is replacement-level production — available
+    # for league minimum on waivers.  Only WAR above this threshold produces
+    # trade value through the convex curve.
+    #   0.0 WAR → $0,  0.5 WAR → $0,  1.0 WAR → ~$3.7M,  5.0 WAR → ~$49M
+    REPLACEMENT_LEVEL_WAR = 0.5
+
+    # -- Stabilisation thresholds (career games for full confidence) -----------
+    # Below these thresholds trade value is blended with the prospect prior.
+    # ~3 full batter seasons, ~2 SP seasons, ~1.5 RP seasons.
+    STABILIZATION_GAMES: dict[str, int] = {
+        'batter': 450,
+        'sp':      65,   # starts
+        'rp':     100,   # appearances
+    }
+
+    # Confidence range
+    CONFIDENCE_FLOOR = 0.10   # 0-game prospect still gets 10 % performance weight
+    CONFIDENCE_CEILING = 1.0  # fully stabilised — no blending
+
+    # -- FV-grade prior (annual WAR expectation by prospect grade) -------------
+    # Used to compute the prospect-side trade value for blending.
+    FV_PRIOR_WAR: dict[int, float] = {
+        70: 4.0,   # Generational — perennial MVP candidate
+        65: 3.0,   # Perennial All-Star
+        60: 2.5,   # All-Star caliber
+        55: 2.0,   # Above-average regular
+        50: 1.5,   # Average regular
+        45: 1.0,   # Bench / utility
+        40: 0.5,   # Fringe major-leaguer
+    }
+    DEFAULT_PRIOR_WAR = 1.0   # fallback for non-prospects with limited games
+
+    # -- Recent-prospect window ------------------------------------------------
+    # Only prospects ranked within this many years of CURRENT_YEAR are eligible
+    # for confidence blending.  Older rankings are considered stale.
+    PROSPECT_RECENCY_YEARS = 3
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+
+    @classmethod
+    def calculate_confidence(cls, games: float, position_type: str) -> float:
+        """
+        Projection confidence from career MLB games.
+
+        Returns a float in [CONFIDENCE_FLOOR, CONFIDENCE_CEILING].  Scales
+        linearly between the two based on ``games / threshold``.
+        """
+        threshold = cls.STABILIZATION_GAMES.get(position_type, 450)
+        if threshold <= 0:
+            return cls.CONFIDENCE_CEILING
+        raw = games / threshold
+        return min(cls.CONFIDENCE_CEILING, max(cls.CONFIDENCE_FLOOR, raw))
+
+    @classmethod
+    def get_prior_war(cls, fv_grade) -> float:
+        """
+        Map a FanGraphs FV grade to an expected annual WAR prior.
+
+        Handles '+' grades (e.g. '55+' → 57.5) and falls back to
+        ``DEFAULT_PRIOR_WAR`` when the grade is missing or unrecognised.
+        """
+        import math
+        if fv_grade is None or (isinstance(fv_grade, float) and math.isnan(fv_grade)):
+            return cls.DEFAULT_PRIOR_WAR
+        try:
+            fv = float(str(fv_grade).replace('+', ''))
+        except (TypeError, ValueError):
+            return cls.DEFAULT_PRIOR_WAR
+        # Find highest tier ≤ fv
+        tiers = sorted(cls.FV_PRIOR_WAR.keys(), reverse=True)
+        for t in tiers:
+            if fv >= t:
+                return cls.FV_PRIOR_WAR[t]
+        return cls.DEFAULT_PRIOR_WAR
+
+
+# =============================================================================
 # PIPELINE SETTINGS
 # =============================================================================
 class PipelineSettings:
@@ -579,6 +690,7 @@ class Config:
     Contracts = ContractConstants
     ConvexModel = ConvexModel
     Prospects = ProspectConstants
+    TradeConfidence = TradeConfidence
     Pipeline = PipelineSettings
     
     # Convenience re-export of logger

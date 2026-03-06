@@ -141,36 +141,40 @@ def calculate_inflation_multiplier(year: int) -> float:
 
 def calculate_war_value(war: float, year: int) -> float:
     """
-    Calculate WAR dollar value using the empirically calibrated convex power-law.
-    
+    Calculate WAR dollar value using the empirically calibrated convex power-law
+    with a replacement-level floor.
+
     Formula:
-        value = alpha * max(WAR, 0)^beta * (1 + inflation_rate)^(year - base_year)
-    
-    Parameters alpha and beta are loaded from the trade-analysis calibration file
-    (convex_calibration.json) at module startup. If unavailable, defaults are used:
-        alpha = $8,592,188  (~$8.59M base per WAR)
-        beta  = 1.323       (convex exponent)
-    
-    The convex shape (beta > 1) means each additional WAR is worth MORE than
-    the last, reflecting the scarcity premium for elite players.
-    
-    Reference values (2025 dollars):
-        1 WAR  =   $8.6M       4 WAR  =  $53.8M
-        2 WAR  =  $21.5M       5 WAR  =  $72.3M
-        3 WAR  =  $36.8M       8 WAR  = $134.6M
-    
+        marginal_war = max(0, WAR - REPLACEMENT_LEVEL_WAR)
+        value = alpha * marginal_war^beta * inflation(year)
+
+    The replacement-level floor (default 0.5 WAR) reflects that sub-replacement
+    production is freely available on waivers and commands no trade capital.
+    Only *marginal* WAR above the floor enters the convex curve.
+
+    Reference values (2025 dollars, alpha=$8.59M, beta=1.18, floor=0.5):
+        0.5 WAR →   $0          3 WAR →  $24.5M
+        1.0 WAR →   $3.8M       5 WAR →  $49.2M
+        2.0 WAR →  $13.8M       8 WAR → $121.9M
+
     Args:
-        war: WAR value (negative WAR returns $0)
+        war: WAR value (negative or sub-replacement returns $0)
         year: Year for inflation adjustment (relative to BASE_YEAR)
-    
+
     Returns:
         Dollar value of WAR production for that year
     """
     if pd.isna(war) or war <= 0:
         return 0.0
-    
+
+    # Only WAR above replacement level produces trade value
+    replacement = Config.TradeConfidence.REPLACEMENT_LEVEL_WAR
+    marginal = war - replacement
+    if marginal <= 0:
+        return 0.0
+
     inflation = calculate_inflation_multiplier(year)
-    return _CONVEX_ALPHA * (war ** _CONVEX_BETA) * inflation
+    return _CONVEX_ALPHA * (marginal ** _CONVEX_BETA) * inflation
 
 
 def _calculate_war_value_tiered(war: float, year: int) -> float:
