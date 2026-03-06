@@ -39,20 +39,20 @@ const PlayerHeadshot: React.FC<{ mlbId: number | null; name: string; teamColor: 
   mlbId,
   name,
   teamColor,
-  size = 'w-40 h-40 md:w-48 md:h-48',
+  size = 'w-40 md:w-48',
 }) => {
   const [imgError, setImgError] = useState(false);
 
   return (
     <div
-      className={`relative ${size} rounded-2xl overflow-hidden shrink-0 ring-1 ring-white/10`}
+      className={`relative ${size} aspect-[79/119] rounded-2xl overflow-hidden shrink-0`}
       style={{ background: `linear-gradient(135deg, ${teamColor}18, ${teamColor}08)` }}
     >
       {mlbId && !imgError ? (
         <img
           src={MLB_HEADSHOT_URL(mlbId)}
           alt={name}
-          className="w-full h-full object-contain object-bottom"
+          className="w-full h-full object-cover object-top"
           onError={() => setImgError(true)}
         />
       ) : (
@@ -529,7 +529,9 @@ const PlayerDetails: React.FC = () => {
     return player.projections
       .filter(
         (proj): proj is typeof proj & { pitching: NonNullable<typeof proj.pitching> } =>
-          proj.pitching?.war_pit != null && (isHistorical || proj.year <= MAX_PROJECTION_YEAR)
+          proj.pitching?.war_pit != null
+          && (proj.pitching.g_pit > 0 || proj.pitching.ip > 0)
+          && (isHistorical || proj.year <= MAX_PROJECTION_YEAR)
       )
       .map((proj) => ({ year: proj.year, age: proj.age, team: proj.team, status: proj.status, value: proj.value, pitching: proj.pitching }));
   }, [player, MAX_PROJECTION_YEAR, isHistorical]);
@@ -539,7 +541,9 @@ const PlayerDetails: React.FC = () => {
     return player.projections
       .filter(
         (proj): proj is typeof proj & { hitting: NonNullable<typeof proj.hitting> } =>
-          proj.hitting?.war_bat != null && (isHistorical || proj.year <= MAX_PROJECTION_YEAR)
+          proj.hitting?.war_bat != null
+          && proj.hitting.g_bat > 0
+          && (isHistorical || proj.year <= MAX_PROJECTION_YEAR)
       )
       .map((proj) => ({ year: proj.year, age: proj.age, team: proj.team, status: proj.status, value: proj.value, hitting: proj.hitting }));
   }, [player, MAX_PROJECTION_YEAR, isHistorical]);

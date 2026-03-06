@@ -186,7 +186,10 @@ def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
         if is_team_control:
             trade_value = max(0, trade_value)
 
-        result.loc[pmask & (result["Year"] >= CURRENT_YEAR), "trade_value"] = trade_value
+        future_mask = pmask & (result["Year"] >= CURRENT_YEAR)
+        result.loc[future_mask, "trade_value"] = trade_value
+        result.loc[future_mask, "_proj_value_sum"] = war_dollars
+        result.loc[future_mask, "_contract_sum"] = contract_cost
 
     logger.info(
         f"Trade values: {result['trade_value'].notna().sum()} players, "
@@ -375,9 +378,22 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
         if prospect_val is None:
             continue
 
-        perf_value = row["trade_value"]
-        blended = conf * perf_value + (1 - conf) * prospect_val
+        proj_value = row.get("_proj_value_sum", None)
+        contract = row.get("_contract_sum", 0) or 0
+        if proj_value is None or pd.isna(proj_value):
+            continue
 
+        blended_proj = conf * proj_value + (1 - conf) * prospect_val
+        blended = blended_proj - contract
+
+        # Floor arb/pre-arb players at 0 after blending
+        pdata_status = result_df.loc[
+            (result_df["IDfg"] == pid), "Status"
+        ]
+        if pdata_status.str.contains("Arb|Pre-Arb", regex=True).any():
+            blended = max(0, blended)
+
+        perf_value = row["trade_value"]
         # Sanity: don't let a negative-value player jump to 10× their absolute value
         if perf_value < 0 and blended > abs(perf_value) * 10:
             logger.warning(
@@ -391,14 +407,16 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
 
         logger.debug(
             f"  {row.get('Name', f'ID{pid}')}: FV={row.get('grade_overall')}, "
-            f"conf={conf:.2f}, prospect=${prospect_val:,.0f}, "
-            f"perf=${perf_value:,.0f}, final=${blended:,.0f}"
+            f"conf={conf:.2f}, prospect_val=${prospect_val:,.0f}, "
+            f"proj_value=${proj_value:,.0f}, blended_proj=${blended_proj:,.0f}, "
+            f"contract=${contract:,.0f}, trade_value=${blended:,.0f}"
         )
 
     logger.info(f"Applied confidence blending to {adjusted} prospects")
 
-    # Clean up temp column
-    result_df.drop("_name_key", axis=1, errors="ignore", inplace=True)
+    # Clean up temp columns
+    result_df.drop(["_name_key", "_proj_value_sum", "_contract_sum"],
+                   axis=1, errors="ignore", inplace=True)
 
     return result_df
 
