@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { CURRENT_YEAR } from '../../../config';
 
 interface CombinedHittingTableProps {
   data: Array<{
@@ -36,6 +35,7 @@ interface CombinedHittingTableProps {
     };
   }>;
   dividerYear?: number;
+  showCareerTotals?: boolean;
 }
 interface FormattedRow extends Record<string, any> {
   year: number;
@@ -66,7 +66,7 @@ interface FormattedRow extends Record<string, any> {
   sb: number;
   cs: number;
 }
-const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, dividerYear }) => {
+const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, dividerYear, showCareerTotals = false }) => {
   const [sortKey, setSortKey] = useState<string>('year');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
@@ -255,38 +255,22 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
           </tr>
         </thead>
         <tbody>
-          {sortedData.map((row, i) => {
-            const isProjYear = row.year >= CURRENT_YEAR;
-            const isFirstProjYear = isProjYear && (!sortedData[i - 1] || sortedData[i - 1].year < CURRENT_YEAR);
-            
-            return (
-              <React.Fragment key={i}>
-                {isFirstProjYear && (
-                  <tr>
-                    <td 
-                      colSpan={headers.length} 
-                      className="bg-brand-400/10 text-brand-400 text-xs font-semibold px-3 py-1.5 text-center border-y border-brand-400/20"
-                    >
-                      ▾ Projected Stats
-                    </td>
-                  </tr>
-                )}
-                <tr 
-                  className={`
-                    text-[11px] border-b border-white/[0.03] hover:bg-white/[0.04] transition-colors
-                    ${isProjYear ? 'bg-brand-400/[0.02]' : (i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]')}
-                  `}
-                >
-                  {headers.map((header) => (
-                    <td key={header.key} className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">
-                      {formatCell(header.key, row[header.key])}
-                    </td>
-                  ))}
-                </tr>
-              </React.Fragment>
-            );
-          })}
-          {careerTotals && (
+          {sortedData.map((row, i) => (
+            <tr
+              key={i}
+              className={`
+                text-[11px] border-b border-white/[0.03] hover:bg-white/[0.04] transition-colors
+                ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}
+              `}
+            >
+              {headers.map((header) => (
+                <td key={header.key} className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">
+                  {formatCell(header.key, row[header.key])}
+                </td>
+              ))}
+            </tr>
+          ))}
+          {showCareerTotals && careerTotals && (
             <tr className="bg-surface-850 border-t-2 border-white/[0.12] text-[11px] font-bold sticky bottom-0">
               {headers.map((header) => (
                 <td key={header.key} className="px-1.5 py-2 whitespace-nowrap text-white font-mono">

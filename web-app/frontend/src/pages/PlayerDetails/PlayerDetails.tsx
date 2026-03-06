@@ -544,6 +544,12 @@ const PlayerDetails: React.FC = () => {
       .map((proj) => ({ year: proj.year, age: proj.age, team: proj.team, status: proj.status, value: proj.value, hitting: proj.hitting }));
   }, [player, MAX_PROJECTION_YEAR, isHistorical]);
 
+  // Split historical vs projected data for separate tables
+  const historicalPitching = useMemo(() => pitchingTableData.filter(d => d.year < CURRENT_YEAR), [pitchingTableData]);
+  const projectedPitching = useMemo(() => pitchingTableData.filter(d => d.year >= CURRENT_YEAR), [pitchingTableData]);
+  const historicalHitting = useMemo(() => hittingTableData.filter(d => d.year < CURRENT_YEAR), [hittingTableData]);
+  const projectedHitting = useMemo(() => hittingTableData.filter(d => d.year >= CURRENT_YEAR), [hittingTableData]);
+
   // ── Loading / Error ──
   if (loading) {
     return (
@@ -802,15 +808,27 @@ const PlayerDetails: React.FC = () => {
        *  STAT TABLES — "Projections" for active, "Career Statistics" for historical
        *  ════════════════════════════════════════════════════ */}
       <div className="max-w-6xl mx-auto px-4 pb-16 space-y-4">
-        {hasPitching && hasCurrentPitching && (
-          <CollapsibleSection title={isHistorical ? "Pitching Statistics" : "Pitching Projections"} teamColor={colors.primary} defaultOpen>
-            <CombinedPitchingTable data={pitchingTableData.sort((a, b) => b.year - a.year)} />
+        {hasPitching && historicalPitching.length > 0 && (
+          <CollapsibleSection title="Pitching Statistics" teamColor={colors.primary} defaultOpen>
+            <CombinedPitchingTable data={historicalPitching.sort((a, b) => b.year - a.year)} showCareerTotals />
           </CollapsibleSection>
         )}
 
-        {showHitting && hasCurrentHitting && (
-          <CollapsibleSection title={isHistorical ? "Hitting Statistics" : "Hitting Projections"} teamColor={colors.primary} defaultOpen={hittingDefaultOpen}>
-            <CombinedHittingTable data={hittingTableData.sort((a, b) => b.year - a.year)} />
+        {hasPitching && hasCurrentPitching && projectedPitching.length > 0 && !isHistorical && (
+          <CollapsibleSection title="Pitching Projections" teamColor={colors.primary} defaultOpen>
+            <CombinedPitchingTable data={projectedPitching.sort((a, b) => a.year - b.year)} />
+          </CollapsibleSection>
+        )}
+
+        {showHitting && historicalHitting.length > 0 && (
+          <CollapsibleSection title="Hitting Statistics" teamColor={colors.primary} defaultOpen={hittingDefaultOpen}>
+            <CombinedHittingTable data={historicalHitting.sort((a, b) => b.year - a.year)} showCareerTotals />
+          </CollapsibleSection>
+        )}
+
+        {showHitting && hasCurrentHitting && projectedHitting.length > 0 && !isHistorical && (
+          <CollapsibleSection title="Hitting Projections" teamColor={colors.primary} defaultOpen={hittingDefaultOpen}>
+            <CombinedHittingTable data={projectedHitting.sort((a, b) => a.year - b.year)} />
           </CollapsibleSection>
         )}
 
