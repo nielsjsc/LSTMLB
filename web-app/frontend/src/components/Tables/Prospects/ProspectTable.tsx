@@ -197,6 +197,13 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
                           >
                             {player.name}
                           </Link>
+                        ) : (player as any).mlbam_id ? (
+                          <Link
+                            to={`/players/${(player as any).mlbam_id}`}
+                            className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                          >
+                            {player.name}
+                          </Link>
                         ) : player.id ? (
                           <Link
                             to={`/prospects/${player.id}`}

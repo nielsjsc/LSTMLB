@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { getPlayerDetails, getTradeValueHistory, getPlayerTransactions, getPlayerInfo, getPlayerPastTrades, getPlayerMiLBStats, PlayerStats } from '../../services/api';
-import type { TradeValuePoint, Transaction, PlayerInfo, PastTradeDetail, MiLBStatsResponse } from '../../services/api';
+import type { TradeValuePoint, Transaction, PlayerInfo, PastTradeDetail, MiLBStatsResponse, ProspectDetailHistory } from '../../services/api';
 import { CURRENT_YEAR, MAX_PROJECTION_YEARS } from '../../config';
 import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
 import { getTeamColors, getTeamName } from '../../utils/teamColors';
@@ -240,6 +240,186 @@ const CollapsibleSection: React.FC<{
   );
 };
 
+// ─── Prospect helpers ───────────────────────────────────────
+
+const fvColor = (fv: string) => {
+  const n = parseInt(fv);
+  if (n >= 70) return 'text-emerald-400';
+  if (n >= 60) return 'text-blue-400';
+  if (n >= 55) return 'text-sky-400';
+  if (n >= 50) return 'text-amber-400';
+  if (n >= 45) return 'text-orange-400';
+  return 'text-surface-400';
+};
+
+const fvBg = (fv: string) => {
+  const n = parseInt(fv);
+  if (n >= 70) return 'bg-emerald-500/10 border-emerald-500/20';
+  if (n >= 60) return 'bg-blue-500/10 border-blue-500/20';
+  if (n >= 55) return 'bg-sky-500/10 border-sky-500/20';
+  if (n >= 50) return 'bg-amber-500/10 border-amber-500/20';
+  if (n >= 45) return 'bg-orange-500/10 border-orange-500/20';
+  return 'bg-surface-800 border-white/[0.06]';
+};
+
+const gradeColor = (grade: string | null | undefined) => {
+  if (!grade) return 'text-surface-600';
+  const n = parseInt(grade);
+  if (isNaN(n)) return 'text-surface-400';
+  if (n >= 70) return 'text-emerald-400';
+  if (n >= 60) return 'text-blue-400';
+  if (n >= 55) return 'text-sky-400';
+  if (n >= 50) return 'text-surface-200';
+  if (n >= 45) return 'text-amber-400';
+  if (n >= 40) return 'text-orange-400';
+  return 'text-red-400';
+};
+
+const GradeBar: React.FC<{ label: string; grade: string | null | undefined }> = ({ label, grade }) => {
+  const value = grade ? parseInt(grade) : 0;
+  const pct = Math.min(100, Math.max(0, ((value - 20) / 60) * 100));
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-20 text-[11px] text-surface-400 text-right">{label}</span>
+      <div className="flex-1 h-2 bg-surface-800 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{
+            width: `${pct}%`,
+            backgroundColor: value >= 60 ? '#60a5fa' : value >= 50 ? '#fbbf24' : '#f97316',
+          }}
+        />
+      </div>
+      <span className={`w-8 text-[12px] font-mono font-semibold text-right ${gradeColor(grade)}`}>
+        {grade ?? '-'}
+      </span>
+    </div>
+  );
+};
+
+/** Prospect Profile section — collapsible, shows tool grades, FV, rankings, and year history */
+const ProspectProfile: React.FC<{
+  prospectData: NonNullable<PlayerStats['prospectData']>;
+  teamColor: string;
+}> = ({ prospectData, teamColor }) => {
+  const { tools, history, fv, is_pitcher } = prospectData;
+  const latest = history[0];
+  return (
+    <div className="p-6 space-y-6">
+      {/* FV + ranking badges */}
+      <div className="flex items-center gap-4">
+        <div className={`flex flex-col items-center px-4 py-2 rounded-lg border ${fvBg(fv)}`}>
+          <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">FV</span>
+          <span className={`text-2xl font-bold ${fvColor(fv)}`}>{fv}</span>
+        </div>
+        {latest?.top_100 && (
+          <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-amber-500/10 border-amber-500/20">
+            <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">Top 100</span>
+            <span className="text-2xl font-bold text-amber-400">#{latest.top_100}</span>
+          </div>
+        )}
+        {latest?.org_rank && (
+          <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-surface-800 border-white/[0.06]">
+            <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">Org Rank</span>
+            <span className="text-2xl font-bold text-surface-200">#{latest.org_rank}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Tool grades */}
+      <div>
+        <h3 className="text-[11px] uppercase tracking-wider text-surface-500 mb-3">
+          {is_pitcher ? 'Pitch Grades' : 'Tool Grades'}
+        </h3>
+        <div className="space-y-2.5 max-w-md">
+          {is_pitcher ? (
+            <>
+              <GradeBar label="Fastball" grade={tools.fastball} />
+              <GradeBar label="Slider" grade={tools.slider} />
+              <GradeBar label="Curve" grade={tools.curve} />
+              <GradeBar label="Changeup" grade={tools.changeup} />
+              <GradeBar label="Command" grade={tools.command} />
+            </>
+          ) : (
+            <>
+              <GradeBar label="Hit" grade={tools.hit} />
+              <GradeBar label="Game Power" grade={tools.game_power} />
+              <GradeBar label="Raw Power" grade={tools.raw_power} />
+              <GradeBar label="Speed" grade={tools.speed} />
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Year-by-year ranking history */}
+      {history.length > 1 && (
+        <div>
+          <h3 className="text-[11px] uppercase tracking-wider text-surface-500 mb-3">Ranking History</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  <th className="px-2 py-2 text-left text-[10px] text-surface-500 uppercase tracking-wider">Year</th>
+                  <th className="px-2 py-2 text-left text-[10px] text-surface-500 uppercase tracking-wider">Org</th>
+                  <th className="px-2 py-2 text-left text-[10px] text-surface-500 uppercase tracking-wider">FV</th>
+                  <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">T100</th>
+                  <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Org#</th>
+                  {is_pitcher ? (
+                    <>
+                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">FB</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">SL</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">CB</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">CH</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">CMD</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Hit</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Game</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Raw</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Spd</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h: ProspectDetailHistory, i: number) => (
+                  <tr
+                    key={h.year}
+                    className={`text-[11px] border-b border-white/[0.03] ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}`}
+                  >
+                    <td className="px-2 py-1.5 text-surface-200 font-medium">{h.year}</td>
+                    <td className="px-2 py-1.5 text-surface-400">{h.org}</td>
+                    <td className={`px-2 py-1.5 font-semibold ${fvColor(h.fv)}`}>{h.fv}</td>
+                    <td className="px-2 py-1.5 text-center font-mono text-amber-400">{h.top_100 ? '#' + h.top_100 : '-'}</td>
+                    <td className="px-2 py-1.5 text-center font-mono text-surface-400">{h.org_rank ? '#' + h.org_rank : '-'}</td>
+                    {is_pitcher ? (
+                      <>
+                        <td className={`px-2 py-1.5 text-center font-mono ${gradeColor(h.fastball)}`}>{h.fastball ?? '-'}</td>
+                        <td className={`px-2 py-1.5 text-center font-mono ${gradeColor(h.slider)}`}>{h.slider ?? '-'}</td>
+                        <td className={`px-2 py-1.5 text-center font-mono ${gradeColor(h.curve)}`}>{h.curve ?? '-'}</td>
+                        <td className={`px-2 py-1.5 text-center font-mono ${gradeColor(h.changeup)}`}>{h.changeup ?? '-'}</td>
+                        <td className={`px-2 py-1.5 text-center font-mono ${gradeColor(h.command)}`}>{h.command ?? '-'}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className={`px-2 py-1.5 text-center font-mono ${gradeColor(h.hit)}`}>{h.hit ?? '-'}</td>
+                        <td className={`px-2 py-1.5 text-center font-mono ${gradeColor(h.game_power)}`}>{h.game_power ?? '-'}</td>
+                        <td className={`px-2 py-1.5 text-center font-mono ${gradeColor(h.raw_power)}`}>{h.raw_power ?? '-'}</td>
+                        <td className={`px-2 py-1.5 text-center font-mono ${gradeColor(h.speed)}`}>{h.speed ?? '-'}</td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Main Component ─────────────────────────────────────────
 
 const PlayerDetails: React.FC = () => {
@@ -435,9 +615,19 @@ const PlayerDetails: React.FC = () => {
                     Age {cur.age}
                   </span>
                 )}
+                {!isHistorical && !cur?.age && player.prospectData?.age && (
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-300 border border-white/[0.08]">
+                    Age {Math.floor(player.prospectData.age)}
+                  </span>
+                )}
                 {!isHistorical && cur?.status && (
                   <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-300 border border-white/[0.08]">
                     {cur.status}
+                  </span>
+                )}
+                {player.isProspectOnly && (
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    Prospect
                   </span>
                 )}
                 {isHistorical && (
@@ -607,6 +797,16 @@ const PlayerDetails: React.FC = () => {
             <div className="p-4">
               <MiLBStatsTable stats={milbStats} expandLatest />
             </div>
+          </CollapsibleSection>
+        )}
+
+        {player.prospectData && (
+          <CollapsibleSection
+            title="Prospect Profile"
+            teamColor={colors.primary}
+            defaultOpen={!!player.isProspectOnly}
+          >
+            <ProspectProfile prospectData={player.prospectData} teamColor={colors.primary} />
           </CollapsibleSection>
         )}
 

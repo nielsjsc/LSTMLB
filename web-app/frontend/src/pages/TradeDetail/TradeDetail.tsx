@@ -37,10 +37,9 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
   const isPureProspect = isProspect && player.seasons_with_team === 0 && player.war_with_team === 0;
   const noData = player.has_data === false;
 
-  // Link target
-  const prospectLink = player.prospect_id ? `/prospects/${player.prospect_id}` : null;
-  const mlbLink = !isPureProspect ? `/players/${player.mlb_id}` : null;
-  const linkTo = prospectLink || mlbLink;
+  // Link target — always prefer player page if they have an mlb_id
+  const mlbLink = player.mlb_id ? `/players/${player.mlb_id}` : null;
+  const linkTo = mlbLink || null;
 
   // Combine actual + projected WAR into one timeline
   const actualYears = player.yearly_war || [];
@@ -114,13 +113,15 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
               <span className="text-surface-500">Seasons</span>{' '}
               <span className="text-surface-200 font-medium">{player.seasons_with_team}</span>
             </span>
-            {player.contract_remaining != null && player.contract_remaining > 0 && (
-              <span>
-                <span className="text-surface-500">Contract</span>{' '}
-                <span className="text-surface-200 font-medium">{fmtSalary(player.contract_remaining)}</span>
-              </span>
-            )}
           </div>
+
+          {/* Salary owed at time of trade */}
+          {player.contract_remaining != null && player.contract_remaining > 0 && (
+            <div className="flex items-center gap-1.5 mt-1 text-[11px]">
+              <span className="text-surface-500">Salary Owed</span>
+              <span className="text-red-400/80 font-medium">{fmtSalary(player.contract_remaining)}</span>
+            </div>
+          )}
 
           {/* Year-by-year WAR: actual + projected */}
           {(actualYears.length > 0 || projectedYears.length > 0) && (
@@ -181,11 +182,6 @@ function SidePanel({
         <h3 className="text-base font-bold text-surface-100 truncate">
           {side.team_name}
         </h3>
-        {isWinner && (
-          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 flex-shrink-0">
-            Winner
-          </span>
-        )}
       </div>
 
       {/* Aggregate: Total WAR */}
