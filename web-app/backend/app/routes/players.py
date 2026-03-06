@@ -331,17 +331,21 @@ def _build_historical_response(hist: dict) -> dict:
             "so": s.get("so"), "bb": s.get("bb"),
             "k_9": s.get("k_9"), "bb_9": s.get("bb_9"), "hr_9": s.get("hr_9"),
         }
-        # Always accumulate pitching war_value/surplus (they are computed
-        # independently of batting war_value in build_historical_players).
-        # Only salary is guarded to avoid double-counting.
+        # Accumulate pitching war_value into the combined entry.
+        # Salary is only set once (from whichever section provided it
+        # first) to avoid double-counting.
         pit_wv = s.get("war_value")
         if pit_wv is not None:
             entry["war_value"] = (entry.get("war_value") or 0) + pit_wv
-        pit_surplus = s.get("surplus")
-        if pit_surplus is not None:
-            entry["surplus"] = (entry.get("surplus") or 0) + pit_surplus
         if entry.get("salary") is None:
             entry["salary"] = s.get("salary")
+        # Recalculate surplus from combined war_value minus the single
+        # salary.  Do NOT sum individual surplus values — each component's
+        # surplus was computed independently with the full salary, so
+        # summing them would subtract the contract twice.
+        wv = entry.get("war_value") or 0
+        sal = entry.get("salary")
+        entry["surplus"] = (wv - sal) if sal else None
 
     projections = []
     for yr in sorted(by_year.keys()):

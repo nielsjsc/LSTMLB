@@ -236,9 +236,18 @@ def join_predictions_with_timeline(extended_timeline: pd.DataFrame,
     Returns:
         Timeline with WAR values calculated
     """
+    # Aggregate WAR by (IDfg, prediction_year) before merging so that
+    # two-way players (who appear in both batter and pitcher datasets)
+    # produce ONE timeline row with their combined WAR, not two rows.
+    war_agg = (
+        player_predictions
+        .groupby(['IDfg', 'prediction_year'], as_index=False)['WAR']
+        .sum()
+    )
+
     # Join predictions with timeline
     timeline_with_war = extended_timeline.merge(
-        player_predictions[['IDfg', 'prediction_year', 'WAR']],
+        war_agg,
         left_on=['IDfg', 'Year'],
         right_on=['IDfg', 'prediction_year'],
         how='left'
@@ -481,13 +490,14 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     )
 
     # Combine with timeline
-    complete_timeline = pd.concat([timeline_df, historical])
+    complete_timeline = pd.concat([timeline_df, historical], ignore_index=True)
     
     # Sort and remove duplicates, keeping LAST (historical data) so that
     # real game stats replace prediction-based rows.
     complete_timeline = (complete_timeline
                         .sort_values(['IDfg', 'Year'])
-                        .drop_duplicates(subset=['IDfg', 'Year'], keep='last'))
+                        .drop_duplicates(subset=['IDfg', 'Year'], keep='last')
+                        .reset_index(drop=True))
 
     # ── Restore salary for overlapping years ─────────────────────────────
     # For rows where the historical dedup clobbered the timeline salary,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { CURRENT_YEAR } from '../../../config';
 
 interface CombinedHittingTableProps {
@@ -158,6 +158,67 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
     ...row.hitting
   })) as FormattedRow[];
 
+  const careerTotals = useMemo((): Record<string, any> | null => {
+    if (formattedData.length === 0) return null;
+
+    const sum = (key: string): number | null => {
+      let total = 0;
+      let hasValue = false;
+      for (const row of formattedData) {
+        const v = row[key];
+        if (v != null && typeof v === 'number' && !isNaN(v)) {
+          total += v;
+          hasValue = true;
+        }
+      }
+      return hasValue ? total : null;
+    };
+
+    const gamesWeightedAvg = (key: string): number | null => {
+      let weightedSum = 0;
+      let totalWeight = 0;
+      for (const row of formattedData) {
+        const v = row[key];
+        const w = row.g_bat;
+        if (v != null && typeof v === 'number' && !isNaN(v) && w != null && w > 0) {
+          weightedSum += v * w;
+          totalWeight += w;
+        }
+      }
+      return totalWeight > 0 ? weightedSum / totalWeight : null;
+    };
+
+    return {
+      year: 'Career',
+      age: '',
+      team: '',
+      status: '',
+      g_bat: sum('g_bat'),
+      war_bat: sum('war_bat'),
+      hr: sum('hr'),
+      doubles: sum('doubles'),
+      triples: sum('triples'),
+      r: sum('r'),
+      rbi: sum('rbi'),
+      sb: sum('sb'),
+      cs: sum('cs'),
+      off: sum('off'),
+      bsr: sum('bsr'),
+      def_value: sum('def_value'),
+      avg: gamesWeightedAvg('avg'),
+      obp: gamesWeightedAvg('obp'),
+      slg: gamesWeightedAvg('slg'),
+      ops: gamesWeightedAvg('ops'),
+      woba: gamesWeightedAvg('woba'),
+      wrc_plus: gamesWeightedAvg('wrc_plus'),
+      bb_pct_bat: gamesWeightedAvg('bb_pct_bat'),
+      k_pct_bat: gamesWeightedAvg('k_pct_bat'),
+      base_value: sum('base_value'),
+      contract_value: sum('contract_value'),
+      surplus_value: sum('surplus_value'),
+    };
+  }, [formattedData]);
+
   const handleSort = (key: string) => {
     const newDirection = sortKey === key && sortDirection === 'asc' ? 'desc' : 'asc';
     setSortKey(key);
@@ -225,6 +286,15 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
               </React.Fragment>
             );
           })}
+          {careerTotals && (
+            <tr className="bg-surface-850 border-t-2 border-white/[0.12] text-[11px] font-bold sticky bottom-0">
+              {headers.map((header) => (
+                <td key={header.key} className="px-1.5 py-2 whitespace-nowrap text-white font-mono">
+                  {formatCell(header.key, careerTotals[header.key])}
+                </td>
+              ))}
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
