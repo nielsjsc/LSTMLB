@@ -52,6 +52,7 @@ AUTO_TRAIN_DIR = SCRIPTS_DIR.parent  # auto_train_models/
 DATA_DIR = AUTO_TRAIN_DIR.parent / 'data'  # LSTMLB/data/
 GENERATED_DIR = DATA_DIR / 'generated'
 PIPELINE_DIR = GENERATED_DIR / 'pipeline'
+ROSTER_FILE = DATA_DIR / 'active_roster' / 'current_rosters.csv'
 
 # Ensure directories exist
 GENERATED_DIR.mkdir(exist_ok=True)
@@ -60,6 +61,25 @@ PIPELINE_DIR.mkdir(exist_ok=True)
 # Device configuration
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 logger.info(f"Using device: {device}")
+
+
+def load_roster_ids() -> Optional[set]:
+    """
+    Load active 40-man roster player IDs (FanGraphs IDfg) from current_rosters.csv.
+    
+    Returns:
+        Set of integer IDfg values for all roster players with known FanGraphs IDs,
+        or None if the roster file does not exist.
+    """
+    if not ROSTER_FILE.exists():
+        logger.warning(f"Roster file not found at {ROSTER_FILE} — roster recovery disabled")
+        return None
+    
+    roster = pd.read_csv(ROSTER_FILE)
+    roster_with_fg = roster.dropna(subset=['fg_id'])
+    roster_ids = set(roster_with_fg['fg_id'].astype(int))
+    logger.info(f"Loaded {len(roster_ids)} roster player IDs from {ROSTER_FILE.name}")
+    return roster_ids
 
 
 def resolve_data_path(config_data_file: str) -> Path:
@@ -198,7 +218,8 @@ def load_fielding_models_and_scalers() -> tuple:
 def generate_pitcher_predictions(
     output_file: str = None, 
     use_pretrained: bool = False,
-    cutoff_year: int = None
+    cutoff_year: int = None,
+    roster_ids: set = None
 ) -> Optional[pd.DataFrame]:
     """Generate pitcher predictions for SP and RP
     
@@ -247,7 +268,8 @@ def generate_pitcher_predictions(
         future_years=15,
         cutoff_year=cutoff_year,
         sp_config=sp_config,
-        rp_config=rp_config
+        rp_config=rp_config,
+        roster_ids=roster_ids
     )
     
     if predictions_df is not None:
@@ -270,7 +292,8 @@ def generate_pitcher_predictions(
 def generate_batter_predictions(
     output_file: str = None, 
     use_pretrained: bool = False,
-    cutoff_year: int = None
+    cutoff_year: int = None,
+    roster_ids: set = None
 ) -> Optional[pd.DataFrame]:
     """Generate batter predictions matching notebook functionality
     
@@ -360,7 +383,8 @@ def generate_batter_predictions(
         seq_length=data_config.seq_length,
         future_years=15,
         cutoff_year=cutoff_year,
-        min_pa_current=config.MIN_PA_CURRENT if hasattr(config, 'MIN_PA_CURRENT') else 100
+        min_pa_current=config.MIN_PA_CURRENT if hasattr(config, 'MIN_PA_CURRENT') else 100,
+        roster_ids=roster_ids
     )
     
     if predictions_df is not None:
@@ -380,7 +404,8 @@ def generate_batter_predictions(
 
 def generate_integrated_batter_predictions(
     output_file: str = None,
-    cutoff_year: int = None
+    cutoff_year: int = None,
+    roster_ids: set = None
 ) -> Optional[pd.DataFrame]:
     """
     Generate batter predictions with proper WAR calculation using position-specific fielding data.
@@ -466,7 +491,8 @@ def generate_integrated_batter_predictions(
         seq_length=data_config.seq_length,
         future_years=15,
         cutoff_year=cutoff_year,
-        min_pa_current=config.MIN_PA_CURRENT if hasattr(config, 'MIN_PA_CURRENT') else 100
+        min_pa_current=config.MIN_PA_CURRENT if hasattr(config, 'MIN_PA_CURRENT') else 100,
+        roster_ids=roster_ids
     )
     
     if batter_df is None:
@@ -559,7 +585,8 @@ def generate_integrated_batter_predictions(
 def generate_fielding_predictions(
     output_file: str = None,
     cutoff_year: int = None,
-    use_aging_enforcer: bool = False
+    use_aging_enforcer: bool = False,
+    roster_ids: set = None
 ) -> Optional[pd.DataFrame]:
     """Generate fielding predictions matching notebook functionality
     
@@ -602,7 +629,8 @@ def generate_fielding_predictions(
         seq_length_map=seq_length_map,
         future_years=15,
         cutoff_year=cutoff_year,
-        use_aging_enforcer=use_aging_enforcer
+        use_aging_enforcer=use_aging_enforcer,
+        roster_ids=roster_ids
     )
     
     if predictions_df is not None:
@@ -644,7 +672,8 @@ def generate_fielding_predictions(
 
 def generate_baserunning_predictions(
     output_file: str = None,
-    cutoff_year: int = None
+    cutoff_year: int = None,
+    roster_ids: set = None
 ) -> Optional[pd.DataFrame]:
     """Generate baserunning predictions matching notebook functionality
     
@@ -696,7 +725,8 @@ def generate_baserunning_predictions(
         input_features=config.INPUT_FEATURES,
         seq_length=data_config.seq_length,
         future_years=15,
-        cutoff_year=cutoff_year
+        cutoff_year=cutoff_year,
+        roster_ids=roster_ids
     )
     
     if predictions_df is not None:
@@ -769,6 +799,9 @@ Examples:
     logger.info(f"Using pretrained model: {args.use_pretrained}")
     logger.info(f"Using aging enforcer: {args.use_aging_enforcer}")
     
+    # Load active roster IDs for recovery of missing players
+    roster_ids = load_roster_ids()
+    
     success = True
     
     try:
@@ -777,7 +810,8 @@ Examples:
             result = generate_pitcher_predictions(
                 output_file, 
                 use_pretrained=args.use_pretrained,
-                cutoff_year=args.cutoff_year
+                cutoff_year=args.cutoff_year,
+                roster_ids=roster_ids
             )
             if result is None:
                 success = False
@@ -787,7 +821,8 @@ Examples:
             result = generate_batter_predictions(
                 output_file, 
                 use_pretrained=args.use_pretrained,
-                cutoff_year=args.cutoff_year
+                cutoff_year=args.cutoff_year,
+                roster_ids=roster_ids
             )
             if result is None:
                 success = False
@@ -797,7 +832,8 @@ Examples:
             result = generate_fielding_predictions(
                 output_file,
                 cutoff_year=args.cutoff_year,
-                use_aging_enforcer=args.use_aging_enforcer
+                use_aging_enforcer=args.use_aging_enforcer,
+                roster_ids=roster_ids
             )
             if result is None:
                 success = False
@@ -806,7 +842,8 @@ Examples:
             output_file = str(output_dir / 'baserunning_predictions.csv')
             result = generate_baserunning_predictions(
                 output_file,
-                cutoff_year=args.cutoff_year
+                cutoff_year=args.cutoff_year,
+                roster_ids=roster_ids
             )
             if result is None:
                 success = False
@@ -816,7 +853,8 @@ Examples:
             output_file = str(output_dir / 'integrated_batter_predictions.csv')
             result = generate_integrated_batter_predictions(
                 output_file,
-                cutoff_year=args.cutoff_year
+                cutoff_year=args.cutoff_year,
+                roster_ids=roster_ids
             )
             if result is None:
                 success = False

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import torch
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Set
 import logging
 from tqdm import tqdm
 from pathlib import Path
@@ -1328,7 +1328,8 @@ def predict_all_pitchers(
     future_years: int = 16, 
     cutoff_year: int = 2024,
     sp_config = None,
-    rp_config = None
+    rp_config = None,
+    roster_ids: Optional[Set[int]] = None
 ) -> Optional[pd.DataFrame]:
     """
     Generate future predictions for all qualified pitchers.
@@ -1348,6 +1349,9 @@ def predict_all_pitchers(
         seq_length: Number of historical seasons used as input sequence
         future_years: Number of years to project into the future
         cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
+        roster_ids: Optional set of IDfg values for players on active rosters.
+                   Roster pitchers who don't meet normal IP/G thresholds will be
+                   recovered from historical data.
         
     Returns:
         DataFrame with predictions for all pitchers, or None if no predictions generated
@@ -1423,6 +1427,43 @@ def predict_all_pitchers(
     
     logger.info(f"Found {len(sp_ids_current)} qualified {cutoff_year} SPs and {len(sp_ids_prev)} returning/recovering SPs")
     logger.info(f"Found {len(rp_ids_current)} qualified {cutoff_year} RPs and {len(rp_ids_prev)} returning/recovering RPs")
+    
+    # =========================================================================
+    # ROSTER RECOVERY: recover roster pitchers who didn't meet normal thresholds
+    # =========================================================================
+    # Catches pitchers who:
+    #   - Have cutoff_year data but below IP/G thresholds (e.g. Bieber: 40.1 IP, 4 G)
+    #   - Are absent from both cutoff_year AND cutoff_year-1 (e.g. long-term injury)
+    # We recover them if they have at least one usable season (IP >= 10) in history.
+    if roster_ids is not None:
+        all_pitcher_ids = sp_ids | rp_ids
+        missing_roster = roster_ids - all_pitcher_ids
+        if missing_roster:
+            recovered_sp = set()
+            recovered_rp = set()
+            for pid in missing_roster:
+                pitcher_hist = raw_df[
+                    (raw_df['IDfg'] == pid) &
+                    (raw_df['Season'] <= cutoff_year) &
+                    (raw_df['IP'] >= 10)
+                ]
+                if len(pitcher_hist) == 0:
+                    continue
+                # Determine role from most recent substantial season
+                recent = pitcher_hist.sort_values('Season').iloc[-1]
+                gs_rate = recent['GS'] / recent['G'] if recent['G'] > 0 else 0
+                if gs_rate >= 0.8:
+                    sp_ids.add(pid)
+                    recovered_sp.add(pid)
+                else:
+                    rp_ids.add(pid)
+                    recovered_rp.add(pid)
+            total_recovered = len(recovered_sp) + len(recovered_rp)
+            logger.info(
+                f"Roster recovery: {total_recovered} pitchers recovered "
+                f"({len(recovered_sp)} SP, {len(recovered_rp)} RP) from historical data "
+                f"({len(missing_roster)} roster pitchers were missing)"
+            )
     
     # Target year is cutoff_year + 1 (e.g., if cutoff_year=2025, projections start at 2026)
     target_year = cutoff_year + 1
@@ -1558,7 +1599,8 @@ def predict_all_batters(
     seq_length: int = 5,
     future_years: int = 16, 
     cutoff_year: int = 2024,
-    min_pa_current: int = 100
+    min_pa_current: int = 100,
+    roster_ids: Optional[Set[int]] = None
 ) -> Optional[pd.DataFrame]:
     """
     Generate future predictions for all qualified batters.
@@ -1580,6 +1622,9 @@ def predict_all_batters(
         future_years: Number of years to project into the future
         cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
         min_pa_current: Minimum PA in cutoff year to qualify for predictions
+        roster_ids: Optional set of IDfg values for players on active rosters.
+                   Players in this set who don't meet normal thresholds will be
+                   recovered from historical data if they have any season with PA >= 50.
         
     Returns:
         DataFrame with predictions for all batters, or None if no predictions generated
@@ -1597,6 +1642,31 @@ def predict_all_batters(
         (raw_df['PA'] >= min_pa_current)
     ]['IDfg'])
     
+    # =========================================================================
+    # ROSTER RECOVERY: recover roster players who didn't meet normal thresholds
+    # =========================================================================
+    # Players on active 40-man rosters should get projections even if they:
+    #   - Had a low-PA season in cutoff_year (below min_pa_current)
+    #   - Missed cutoff_year entirely (injury, MiLB, etc.)
+    # We recover them if they have at least one usable season (PA >= 50) in
+    # the historical data. The per-player loop already handles short sequences
+    # via padding, and _prepare_player_sequence adjusts age for gap years.
+    if roster_ids is not None:
+        missing_roster = roster_ids - all_players
+        if missing_roster:
+            # Find roster players with at least one usable batting season
+            historical_batters = set(raw_df[
+                (raw_df['IDfg'].isin(missing_roster)) &
+                (raw_df['Season'] <= cutoff_year) &
+                (raw_df['PA'] >= 50)
+            ]['IDfg'].unique())
+            recovered = historical_batters
+            all_players = all_players | recovered
+            logger.info(
+                f"Roster recovery: {len(recovered)} batters recovered from historical data "
+                f"({len(missing_roster)} roster players were missing, "
+                f"{len(missing_roster) - len(recovered)} have no usable batting history)"
+            )
     
     # Check if xStat substitutions are enabled
     try:
@@ -1713,7 +1783,8 @@ def predict_all_fielders(
     seq_length_map: Dict[str, int],
     future_years: int = 16, 
     cutoff_year: int = 2025,
-    use_aging_enforcer: bool = False
+    use_aging_enforcer: bool = False,
+    roster_ids: Optional[Set[int]] = None
 ) -> Optional[pd.DataFrame]:
     """
     Generate future predictions for all qualified fielders.
@@ -1731,9 +1802,11 @@ def predict_all_fielders(
         seq_length_map: Dict mapping position group to sequence length
         future_years: Number of years to project into the future
         cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
+        roster_ids: Optional set of IDfg values for players on active rosters.
+                   Roster fielders who don't meet the 50-inning threshold will be
+                   recovered from historical data.
         
     Returns:
-        DataFrame with predictions for all fielders, or None if no predictions generated
     """
     # Define minimum innings threshold (matches notebook MIN_POSITION_INNINGS)
     MIN_POSITION_INNINGS = 50
@@ -1792,6 +1865,34 @@ def predict_all_fielders(
         primary_positions.columns = ['IDfg', 'Primary_Pos']
         
         logger.info(f"\nProcessing {model_key} - {len(primary_positions)} players with primary positions")
+        
+        # =================================================================
+        # ROSTER RECOVERY for this position group
+        # =================================================================
+        # Recover roster players who have historical data at valid positions
+        # in this group but didn't qualify in cutoff_year (low innings or absent).
+        if roster_ids is not None:
+            current_qualified_ids = set(primary_positions['IDfg']) if len(primary_positions) > 0 else set()
+            missing_roster = roster_ids - current_qualified_ids
+            if missing_roster:
+                # Find roster players with at least one usable season at this position group
+                recovery_candidates = group_df[
+                    (group_df['IDfg'].isin(missing_roster)) &
+                    (group_df['Season'] <= cutoff_year) &
+                    (group_df['Inn'] >= MIN_POSITION_INNINGS) &
+                    (group_df['Pos'].isin(valid_positions))
+                ]
+                if not recovery_candidates.empty:
+                    # For each recovered player, find their primary position (most innings in most recent qualifying season)
+                    recovery_primary = recovery_candidates.sort_values(['Season', 'Inn']).groupby('IDfg').apply(
+                        lambda x: x.iloc[-1]['Pos']
+                    ).reset_index()
+                    recovery_primary.columns = ['IDfg', 'Primary_Pos']
+                    # Remove any that are already in primary_positions
+                    recovery_primary = recovery_primary[~recovery_primary['IDfg'].isin(current_qualified_ids)]
+                    if len(recovery_primary) > 0:
+                        primary_positions = pd.concat([primary_positions, recovery_primary], ignore_index=True)
+                        logger.info(f"  Roster recovery: {len(recovery_primary)} {model_key} fielders recovered from historical data")
         
         # Generate predictions for each player at their PRIMARY position only
         for _, row in tqdm(primary_positions.iterrows(), desc=f"{model_key} predictions"):
@@ -1951,7 +2052,8 @@ def predict_all_baserunners(
     input_features: List[str],
     seq_length: int = 4, 
     future_years: int = 16, 
-    cutoff_year: int = 2024
+    cutoff_year: int = 2024,
+    roster_ids: Optional[Set[int]] = None
 ) -> Optional[pd.DataFrame]:
     """
     Generate future predictions for all baserunners.
@@ -1968,16 +2070,36 @@ def predict_all_baserunners(
         seq_length: Number of historical seasons used as input sequence
         future_years: Number of years to project into the future
         cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
+        roster_ids: Optional set of IDfg values for players on active rosters.
+                   Roster players absent from cutoff_year will be recovered from
+                   historical baserunning data.
         
     Returns:
         DataFrame with predictions for all baserunners, or None if no predictions generated
     """
     # Get unique players from cutoff year data
-    current_players = raw_df[raw_df['Season'] == cutoff_year]['IDfg'].unique()
+    current_players = set(raw_df[raw_df['Season'] == cutoff_year]['IDfg'].unique())
+    
+    # =========================================================================
+    # ROSTER RECOVERY: recover roster players absent from cutoff_year
+    # =========================================================================
+    if roster_ids is not None:
+        missing_roster = roster_ids - current_players
+        if missing_roster:
+            # Find roster players with any historical baserunning data
+            historical_baserunners = set(raw_df[
+                (raw_df['IDfg'].isin(missing_roster)) &
+                (raw_df['Season'] <= cutoff_year)
+            ]['IDfg'].unique())
+            current_players = current_players | historical_baserunners
+            logger.info(
+                f"Roster recovery: {len(historical_baserunners)} baserunners recovered from historical data "
+                f"({len(missing_roster)} roster players were missing)"
+            )
     
     all_predictions = []
     
-    logger.info(f"Found {len(current_players)} unique players in {cutoff_year} data")
+    logger.info(f"Found {len(current_players)} unique players for baserunning predictions")
     
     # Pre-compute league priors for reliability regression (if enabled)
     baserunning_league_priors = None
