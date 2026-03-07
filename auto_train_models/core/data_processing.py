@@ -480,20 +480,65 @@ def load_and_extend_scaler(
     
     return extended_scaler
 
+def _maybe_build_hybrid_scaler(
+    model_type: str,
+    features: List[str],
+) -> Optional['HybridScaler']:  # noqa: F821 — forward ref; imported lazily
+    """Return a HybridScaler if the config requests it, else None.
+
+    Only applies to batter models — all other model types return None and the
+    caller falls back to the legacy MinMaxScaler path.
+    """
+    if model_type != "batter":
+        return None
+    try:
+        from configs.batter_config import BatterConfig
+        if not getattr(BatterConfig, 'USE_HYBRID_SCALER', False):
+            return None
+
+        counting_feats = set(getattr(BatterConfig, 'CLASSICAL_COUNTING_FEATURES', []))
+        counting_feats |= set(getattr(BatterConfig, 'STATCAST_COUNTING_FEATURES', []))
+        log_transform = getattr(BatterConfig, 'LOG_TRANSFORM_COUNTING_STATS', True)
+
+        counting_indices = [i for i, f in enumerate(features) if f in counting_feats]
+        rate_indices     = [i for i, f in enumerate(features) if f not in counting_feats]
+
+        if not counting_indices:
+            logger.warning("HybridScaler requested but no counting features found — falling back to MinMaxScaler")
+            return None
+
+        from core.hybrid_scaler import HybridScaler
+        return HybridScaler(
+            counting_indices=counting_indices,
+            rate_indices=rate_indices,
+            feature_range=(-1, 1),
+            log_transform_counting=log_transform,
+        )
+    except (ImportError, AttributeError) as exc:
+        logger.debug(f"HybridScaler not available ({exc}), using MinMaxScaler")
+        return None
+
+
 def scale_features(df: pd.DataFrame, 
                   features: List[str], 
-                  scaler: Optional[MinMaxScaler] = None,
+                  scaler=None,
                   model_type: str = "baserunning",
                   mode: str = "pretrain",
-                  pretrain_scaler_path: Optional[str] = None) -> Tuple[pd.DataFrame, MinMaxScaler]:
+                  pretrain_scaler_path: Optional[str] = None):
     """
-    Scale features using MinMaxScaler and add player-specific normalized features.
-    
+    Scale features using the appropriate scaler strategy.
+
+    For batter models with ``BatterConfig.USE_HYBRID_SCALER = True``:
+        - Rate stats  → MinMaxScaler[-1, 1]
+        - Counting stats → log1p (optional) + StandardScaler (z-score)
+    For all other models (or when USE_HYBRID_SCALER is False):
+        - All features → MinMaxScaler[-1, 1]  (legacy behaviour)
+
     Args:
         df: DataFrame with features
         features: List of feature columns to scale
-        scaler: Existing scaler (optional)
-        model_type: Type of model (for scaler filename)
+        scaler: Existing fitted scaler (optional — if provided, transform only)
+        model_type: Type of model (for scaler filename and hybrid scaler check)
         mode: 'pretrain' or 'finetune'
         pretrain_scaler_path: Path to pre-trained scaler (required for fine-tuning)
     
@@ -518,10 +563,16 @@ def scale_features(df: pd.DataFrame,
             scaled_data = scaler.fit_transform(df[all_features])
             logger.info("Updated scaler statistics with fine-tuning data")
         else:
-            # Pre-training: Create new scaler
-            scaler = MinMaxScaler(feature_range=(-1, 1))
-            scaled_data = scaler.fit_transform(df[all_features])
-            logger.info(f"Created new MinMaxScaler for {model_type} ({mode} mode)")
+            # Pre-training: Create new scaler (hybrid or legacy)
+            hybrid = _maybe_build_hybrid_scaler(model_type, all_features)
+            if hybrid is not None:
+                scaler = hybrid
+                scaled_data = scaler.fit_transform(df[all_features])
+                logger.info(f"Created HybridScaler for {model_type} ({mode} mode)")
+            else:
+                scaler = MinMaxScaler(feature_range=(-1, 1))
+                scaled_data = scaler.fit_transform(df[all_features])
+                logger.info(f"Created new MinMaxScaler for {model_type} ({mode} mode)")
         
         # Save scaler
         import os

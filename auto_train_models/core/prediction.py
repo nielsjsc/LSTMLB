@@ -55,28 +55,149 @@ def _is_park_factor_enabled(model_type: str) -> bool:
 # COUNTING-STAT ADJUSTMENT FOR X-STAT CONSISTENCY
 # =============================================================================
 
+def _compute_player_counting_residuals(
+    player_data: pd.DataFrame,
+    coefficients: dict,
+    input_features: list[str],
+) -> dict[str, float]:
+    """Compute a player's PA-weighted mean residual for each counting stat.
+
+    For each season where the player has both actual counting stats and actual
+    rate stats (wOBA, SLG, AVG), we compute:
+
+        OLS_predicted_C = intercept + β_wOBA * wOBA + β_SLG * SLG + β_AVG * AVG
+        residual        = actual_C − OLS_predicted_C
+
+    Then the PA-weighted mean residual across seasons is returned.  This is
+    the player's "personal offset" — positive means they consistently produce
+    more of that counting stat than the OLS predicts (e.g. Ramirez's HR
+    relative to his xSLG).
+
+    Returns a dict  ``{stat_name: mean_residual}``.  Stats not present or not
+    in input_features are omitted.
+    """
+    from core.rate_stats_config import BATTING_COUNTING_STATS
+    residuals: dict[str, float] = {}
+
+    # Need wOBA/SLG/AVG and PA to compute residuals
+    required = {'wOBA', 'SLG', 'AVG', 'PA', 'G'}
+    if not required.issubset(player_data.columns):
+        return residuals
+
+    # Only use seasons with enough PA and non-NaN rate stats
+    mask = (
+        (player_data['PA'] >= 50) &
+        player_data['wOBA'].notna() &
+        player_data['SLG'].notna() &
+        player_data['AVG'].notna()
+    )
+    valid = player_data.loc[mask]
+    if len(valid) == 0:
+        return residuals
+
+    pa = valid['PA'].values.astype(float)
+
+    for stat, coefs in coefficients.items():
+        if stat not in valid.columns or stat not in input_features:
+            continue
+
+        # Per-150 counting stat.  If the data has already been through
+        # calculate_rate_stats the column is already per-150; otherwise
+        # convert raw → per-150 on the fly.
+        raw_c = valid[stat].values.astype(float)
+        g = valid['G'].values.astype(float)
+
+        # Heuristic: if mean(stat) > 100 and stat is in BATTING_COUNTING_STATS,
+        # it's likely still raw (not per-150).  Per-150 HR rarely exceeds 80.
+        if stat in BATTING_COUNTING_STATS and np.nanmean(raw_c) > 80 and np.nanmean(g) > 0:
+            c_per150 = np.where(g > 0, raw_c / g * 150, 0.0)
+        else:
+            c_per150 = raw_c
+
+        woba = valid['wOBA'].values.astype(float)
+        slg = valid['SLG'].values.astype(float)
+        avg = valid['AVG'].values.astype(float)
+
+        intercept = coefs.get('intercept', 0.0)
+        ols_pred = intercept + coefs['wOBA'] * woba + coefs['SLG'] * slg + coefs['AVG'] * avg
+        season_resid = c_per150 - ols_pred
+
+        # PA-weighted mean
+        total_pa = pa.sum()
+        if total_pa > 0:
+            residuals[stat] = float(np.sum(season_resid * pa) / total_pa)
+
+    return residuals
+
+
+def _compute_player_woba_gap(
+    player_data: pd.DataFrame,
+) -> tuple[float, float]:
+    """Compute a player's PA-weighted career (wOBA − xwOBA) gap.
+
+    Returns ``(career_gap, statcast_pa)`` where *career_gap* is the
+    PA-weighted mean of  ``wOBA − xwOBA``  across all statcast-era seasons
+    (those that have a non-null xwOBA).  Positive = player consistently
+    outperforms xwOBA (e.g. Ramirez).
+
+    *statcast_pa* is the total PA from those seasons — used downstream
+    to blend the gap toward zero for small samples.
+    """
+    if 'xwOBA' not in player_data.columns or 'wOBA' not in player_data.columns:
+        return 0.0, 0.0
+    mask = player_data['xwOBA'].notna() & player_data['wOBA'].notna() & (player_data['PA'] >= 50)
+    valid = player_data.loc[mask]
+    if len(valid) == 0:
+        return 0.0, 0.0
+    pa = valid['PA'].values.astype(float)
+    gaps = (valid['wOBA'].values - valid['xwOBA'].values).astype(float)
+    total_pa = pa.sum()
+    if total_pa == 0:
+        return 0.0, 0.0
+    return float(np.sum(gaps * pa) / total_pa), float(total_pa)
+
+
 def _adjust_counting_stats_for_xstats(
     data: pd.DataFrame,
     orig_woba: np.ndarray | None,
     orig_slg: np.ndarray | None,
     orig_avg: np.ndarray | None,
     input_features: list[str],
+    player_data: pd.DataFrame | None = None,
 ) -> None:
     """Adjust counting stats so they are consistent with x-stat substitutions.
 
-    When xwOBA / xSLG / xBA replace their actual counterparts, counting stats
-    (HR, 2B, 3B, RBI, R, HBP) still reflect actual outcomes.  This creates an
-    inconsistency that propagates into downstream wOBA / OBP / SLG calculations.
+    **Population mode** (``USE_PLAYER_SPECIFIC_XSTAT_ADJUSTMENT = False``)
 
-    For each counting stat the adjustment is::
+    Uses additive OLS-derived coefficients::
 
         Δ = β_wOBA·(new_wOBA − orig_wOBA)
           + β_SLG ·(new_SLG  − orig_SLG)
           + β_AVG ·(new_AVG  − orig_AVG)
         stat_adjusted = max(0, stat + Δ)
 
-    where the βs are OLS coefficients stored in
-    ``BatterConfig.XSTAT_COUNTING_ADJUSTMENT_COEFFICIENTS``.
+    **Player-specific mode** (``USE_PLAYER_SPECIFIC_XSTAT_ADJUSTMENT = True``)
+
+    Replaces the OLS delta with a **proportional wOBA-ratio** adjustment that
+    naturally preserves each player's counting-stat mix (e.g. Raleigh's
+    HR-heavy / low-2B profile).  The wOBA ratio is softened for players who
+    consistently outperform xwOBA (Ramirez)::
+
+        career_gap   = PA-weighted mean(wOBA − xwOBA)  across statcast seasons
+        weight       = min(statcast_PA / XSTAT_PA_FULL_WEIGHT, 1.0)
+        effective_Δ  = (new_wOBA − orig_wOBA) − weight × career_gap
+        ratio        = max(0.5, 1 + effective_Δ / orig_wOBA)
+        stat_adjusted = max(0, stat × ratio)
+
+    For a Ramirez-type player with career_gap ≈ +0.02 and full weight:
+    the ratio is closer to 1.0, producing a much smaller adjustment than
+    the population OLS.  For a 1-year player with no statcast history,
+    weight → 0 and the ratio adjustment uses the raw xwOBA delta (roughly
+    equivalent to the population model).
+
+    Also blends in an OLS-derived residual offset for each counting stat
+    (additive) to capture player-level intercept differences — e.g. Judge
+    producing +5.5 HR/150 more than the OLS predicts given his rate stats.
 
     Modifies *data* **in-place**.  No-op when no substitution deltas exist.
     """
@@ -101,6 +222,72 @@ def _adjust_counting_stats_for_xstats(
     if np.allclose(d_woba, 0) and np.allclose(d_slg, 0) and np.allclose(d_avg, 0):
         return
 
+    # ------------------------------------------------------------------
+    # Player-specific mode: proportional wOBA-ratio + residual offset
+    # ------------------------------------------------------------------
+    use_player_specific = False
+    try:
+        from configs.batter_config import BatterConfig
+        use_player_specific = getattr(BatterConfig, 'USE_PLAYER_SPECIFIC_XSTAT_ADJUSTMENT', False)
+    except (ImportError, AttributeError):
+        pass
+
+    if use_player_specific and player_data is not None and len(player_data) > 0:
+        # Career wOBA overperformance gap
+        career_gap, statcast_pa = _compute_player_woba_gap(player_data)
+        pa_full = getattr(BatterConfig, 'XSTAT_PA_FULL_WEIGHT', 2000)
+        gap_weight = min(statcast_pa / pa_full, 1.0)
+
+        # Effective wOBA delta — shrunk for consistent outperformers
+        effective_d_woba = d_woba - gap_weight * career_gap  # row-level (n,)
+
+        # Proportional ratio (bounded to avoid extreme or negative values)
+        safe_orig_woba = np.where(
+            (orig_woba is not None) & (orig_woba > 0.15),
+            orig_woba, 0.300,
+        )
+        ratio = np.clip(1.0 + effective_d_woba / safe_orig_woba, 0.50, 1.50)
+
+        # OLS residuals (intercept-corrected) — for additive player-level offset
+        player_residuals = _compute_player_counting_residuals(
+            player_data, coefficients, input_features,
+        )
+        career_pa = float(player_data['PA'].sum()) if 'PA' in player_data.columns else 0.0
+        resid_weight = min(career_pa / pa_full, 1.0)
+
+        adjusted_any = False
+        for stat, coefs in coefficients.items():
+            if stat not in data.columns or stat not in input_features:
+                continue
+
+            # Proportional adjustment (preserves player's counting-stat profile)
+            stat_vals = data[stat].values.astype(float)
+            new_vals = stat_vals * ratio
+
+            # Add player-specific residual offset (additive, captures level diff)
+            if stat in player_residuals and resid_weight > 0:
+                new_vals += resid_weight * player_residuals[stat]
+
+            data[stat] = np.maximum(0.0, new_vals)
+            adjusted_any = True
+
+            logger.debug(
+                f"  {stat}: proportional ratio mean={ratio.mean():.4f}, "
+                f"career_gap={career_gap:+.4f}, gap_weight={gap_weight:.2f}, "
+                f"residual={player_residuals.get(stat, 0):+.2f}"
+            )
+
+        if adjusted_any:
+            logger.debug(
+                f"Player-specific counting adjustment applied "
+                f"(effective Δ_wOBA mean={effective_d_woba.mean():.4f}, "
+                f"career_gap={career_gap:+.4f}, gap_weight={gap_weight:.2f})"
+            )
+        return
+
+    # ------------------------------------------------------------------
+    # Population mode: additive OLS delta (original behaviour)
+    # ------------------------------------------------------------------
     adjusted_any = False
     for stat, coefs in coefficients.items():
         if stat not in data.columns or stat not in input_features:
@@ -473,7 +660,8 @@ def _prepare_player_sequence(
         from configs.batter_config import BatterConfig
         if getattr(BatterConfig, 'ADJUST_COUNTING_STATS_TO_XSTATS', False):
             _adjust_counting_stats_for_xstats(
-                recent_data, _orig_woba, _orig_slg, _orig_avg, input_features
+                recent_data, _orig_woba, _orig_slg, _orig_avg, input_features,
+                player_data=player_data,
             )
     except (ImportError, AttributeError):
         pass

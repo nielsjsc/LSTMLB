@@ -53,6 +53,29 @@ class BatterConfig:
     MIN_PA_CURRENT = 70  # Minimum PA in current year to generate predictions
     
     # ============================================================================
+    # SCALER CONFIGURATION
+    # ============================================================================
+    # Controls how features are scaled before the LSTM sees them.
+    #
+    # USE_HYBRID_SCALER = True  (recommended)
+    #   Rate stats  (BB%, K%, AVG, OBP, SLG, wOBA, Age) → MinMaxScaler[-1, 1]
+    #   Counting stats (HR, 2B, 3B, RBI, R, HBP)        → StandardScaler (z-score)
+    #   This prevents the right-skewed counting-stat distributions from being
+    #   compressed into a narrow band near 0 in MinMax space, which causes the
+    #   LSTM to over-regress elite power numbers toward the population mean.
+    #
+    # USE_HYBRID_SCALER = False
+    #   All features use MinMaxScaler[-1, 1] (legacy behaviour).
+    #
+    # LOG_TRANSFORM_COUNTING_STATS = True  (recommended with hybrid scaler)
+    #   Apply log1p to counting stats *before* StandardScaler, and expm1 on
+    #   inverse.  Compresses the heavy right tail (e.g. 50 HR/150 → log(51)=3.93
+    #   vs mean log(12)=2.48) so the Gaussian assumption of StandardScaler holds
+    #   better.  No-op when USE_HYBRID_SCALER = False.
+    USE_HYBRID_SCALER = True
+    LOG_TRANSFORM_COUNTING_STATS = True
+
+    # ============================================================================
     # RELIABILITY REGRESSION
     # ============================================================================
     # Bayesian shrinkage of rate stats toward a career/league-average prior,
@@ -158,15 +181,50 @@ class BatterConfig:
     # corresponding x-stat columns to exist on the player-season row.
     ADJUST_COUNTING_STATS_TO_XSTATS = True
 
-    # OLS coefficients: counting_stat_per150 ~ wOBA + SLG + AVG
+    # ............................................................................
+    # PLAYER-SPECIFIC X-STAT COUNTING ADJUSTMENT
+    # ............................................................................
+    # When enabled, the counting-stat adjustment uses each player's own
+    # historical ratio of counting stats to rate stats, weighted by sample size,
+    # instead of the population-wide OLS coefficients above.
+    #
+    # Why: Some players consistently outperform their xSLG (Jose Ramirez — pull
+    # hitter, shift exploiter) or consistently under-perform (flyball outs).  The
+    # population OLS ignores this and can shift HR by ±10/150 in the wrong
+    # direction.  Player-specific ratios, shrunk toward the population mean for
+    # small samples, solve both problems:
+    #     • A 1-year player gets ~population coefficients (we don't know their
+    #       true ratio yet).
+    #     • A 6-year veteran with a stable HR/wOBA ratio keeps their own ratio.
+    #
+    # Implementation:
+    #   For each counting stat C and each rate stat R in {wOBA, SLG, AVG}:
+    #     player_ratio = career_C / career_R   (across available seasons)
+    #     weight       = min(career_PA / XSTAT_PA_FULL_WEIGHT, 1.0)
+    #     blended      = weight * player_ratio + (1 - weight) * OLS_β
+    #   Then the adjustment is the same formula using blended β's.
+    #
+    # XSTAT_PA_FULL_WEIGHT: PA threshold at which the player's own ratio is
+    #   trusted 100%.  At half this value the blend is 50/50.
+    USE_PLAYER_SPECIFIC_XSTAT_ADJUSTMENT = True
+    XSTAT_PA_FULL_WEIGHT = 2000  # ~3-4 full seasons
+
+    # OLS coefficients: counting_stat_per150 ~ intercept + wOBA + SLG + AVG
     # Keyed by the per-150 column name that appears after calculate_rate_stats().
+    # When USE_PLAYER_SPECIFIC_XSTAT_ADJUSTMENT is enabled these serve as the
+    # population priors that small-sample players are shrunk toward.
+    #
+    # The 'intercept' is used ONLY for computing player-specific residuals so
+    # the offset is properly centred.  It does NOT affect the delta-based
+    # adjustment itself (Δ_wOBA, Δ_SLG, Δ_AVG deltas already cancel it).
+    # Intercepts were derived from 2015-2024+ statcast data (PA >= 100).
     XSTAT_COUNTING_ADJUSTMENT_COEFFICIENTS = {
-        'HR':  {'wOBA':   +2.575, 'SLG': +159.102, 'AVG': -163.902},  # R²=0.86
-        '2B':  {'wOBA':  -39.707, 'SLG':  +56.790, 'AVG':  +93.301},  # R²=0.40
-        '3B':  {'wOBA':  -17.878, 'SLG':   +8.405, 'AVG':  +18.513},  # R²=0.05
-        'RBI': {'wOBA':  -42.814, 'SLG': +279.536, 'AVG':  -76.336},  # R²=0.64
-        'R':   {'wOBA': +273.212, 'SLG':  +56.306, 'AVG':   -7.282},  # R²=0.56
-        'HBP': {'wOBA': +127.679, 'SLG':  -41.019, 'AVG':  -48.149},  # R²=0.13
+        'HR':  {'intercept': -8.277, 'wOBA':   +2.575, 'SLG': +159.102, 'AVG': -163.902},  # R²=0.86
+        '2B':  {'intercept': -9.829, 'wOBA':  -39.707, 'SLG':  +56.790, 'AVG':  +93.301},  # R²=0.40
+        '3B':  {'intercept': -0.178, 'wOBA':  -17.878, 'SLG':   +8.405, 'AVG':  +18.513},  # R²=0.05
+        'RBI': {'intercept': -20.086, 'wOBA': -42.814, 'SLG': +279.536, 'AVG':  -76.336},  # R²=0.64
+        'R':   {'intercept': -42.640, 'wOBA': +273.212, 'SLG':  +56.306, 'AVG':   -7.282},  # R²=0.56
+        'HBP': {'intercept': -5.594, 'wOBA': +127.679, 'SLG':  -41.019, 'AVG':  -48.149},  # R²=0.13
     }
 
     # ============================================================================
