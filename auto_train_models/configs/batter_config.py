@@ -65,7 +65,7 @@ class BatterConfig:
     #                building the input window, so padding and per-season weights
     #                reflect regressed (less noisy) values at inference time.
     ENABLE_RELIABILITY_REGRESSION_TRAINING   = False
-    ENABLE_RELIABILITY_REGRESSION_PREDICTION = False
+    ENABLE_RELIABILITY_REGRESSION_PREDICTION = True
      # ============================================================================
     # PREDICTION CONFIGURATION
     # ============================================================================
