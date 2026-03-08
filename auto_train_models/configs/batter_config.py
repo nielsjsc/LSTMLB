@@ -123,7 +123,7 @@ class BatterConfig:
     #                building the input window, so padding and per-season weights
     #                reflect regressed (less noisy) values at inference time.
     ENABLE_RELIABILITY_REGRESSION_TRAINING   = False
-    ENABLE_RELIABILITY_REGRESSION_PREDICTION = False
+    ENABLE_RELIABILITY_REGRESSION_PREDICTION = True
      # ============================================================================
     # PREDICTION CONFIGURATION
     # ============================================================================
@@ -139,7 +139,7 @@ class BatterConfig:
     USE_XWOBA_BLEND_FOR_PREDICTIONS = False
     
     # Use xBA instead of AVG for predictions (more predictive for recent players)
-    USE_XBA_FOR_PREDICTIONS = False
+    USE_XBA_FOR_PREDICTIONS = True
     
     # Use xSLG instead of SLG for predictions (more predictive for recent players)
     USE_XSLG_FOR_PREDICTIONS = True
