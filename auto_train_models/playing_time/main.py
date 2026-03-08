@@ -275,6 +275,7 @@ def calculate_war_for_allocations(
                     'K%': pred_data.get('K%', 0.20),
                     'BB%': pred_data.get('BB%', 0.08),
                     'SV%': pred_data.get('SV%', 0),
+                    'ERA': pred_data.get('ERA', 4.50),
                 }
                 
                 war_result = calculator.calculate_pitcher_war(

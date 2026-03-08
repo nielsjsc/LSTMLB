@@ -52,6 +52,61 @@ LG_WRC_PER_PA = Config.WAR.LG_WRC_PER_PA
 POSITIONAL_ADJUSTMENTS = Config.WAR.POSITIONAL_ADJUSTMENTS
 REPLACEMENT_LEVEL_RUNS_200IP = Config.WAR.REPLACEMENT_LEVEL_RUNS_200IP
 TEAM_ABBREVIATIONS = Config.WAR.TEAM_ABBREVIATIONS
+LG_RA9 = Config.WAR.LG_RA9
+DEFAULT_IP_PER_START = Config.WAR.DEFAULT_IP_PER_START
+DEFAULT_IP_PER_APPEARANCE_RP = Config.WAR.DEFAULT_IP_PER_APPEARANCE_RP
+
+
+def _dynamic_pitcher_rpw(era: float, ip: float, role: str = 'SP') -> float:
+    """
+    Compute pitcher-specific Runs Per Win (FanGraphs methodology).
+
+    Unlike batters, a pitcher directly affects the run environment while on
+    the mound.  An ace suppresses scoring, making each run saved worth MORE
+    wins.  This dynamic RPW accounts for that by blending the league run
+    environment (when the pitcher is NOT on the mound) with the pitcher's
+    own run rate (when they ARE pitching).
+
+    Formula (FanGraphs):
+        RPW = ((18 - ip_per_game) * lgRA9 + ip_per_game * RA9) / 18 + 2) * 1.5
+
+    Where:
+        - ip_per_game: average IP per appearance (SP ≈ 5.75, RP ≈ 1.0)
+        - lgRA9: league average runs per 9 innings (~4.50)
+        - RA9: pitcher's own run rate (approximated by ERA)
+        - 18 = total half-innings in a regulation game
+        - +2 accounts for the non-linear Pythagorean win% effect
+        - ×1.5 converts from runs-per-game to runs-per-win
+
+    Examples (SP at 180 IP):
+        ERA=2.70 → RPW≈8.88  (ace: each run worth more)
+        ERA=4.50 → RPW≈9.75  (average: close to league RPW)
+        ERA=5.50 → RPW≈10.07 (bad: runs worth less because game is already lost)
+
+    Args:
+        era: Pitcher's projected ERA (used as proxy for RA9)
+        ip: Total innings pitched (used only for fallback; ip_per_game from defaults)
+        role: 'SP' or 'RP'
+
+    Returns:
+        Pitcher-specific runs per win value
+    """
+    if role == 'RP':
+        ip_per_game = DEFAULT_IP_PER_APPEARANCE_RP
+    else:
+        ip_per_game = DEFAULT_IP_PER_START
+
+    # Use ERA as proxy for RA9 (unearned runs add ~0.15;
+    # close enough for projection purposes)
+    ra9 = era if era > 0 else LG_RA9
+
+    # FanGraphs dynamic RPW formula
+    game_ra9 = ((18 - ip_per_game) * LG_RA9 + ip_per_game * ra9) / 18
+    rpw = (game_ra9 + 2) * 1.5
+
+    # Safety floor: RPW should never be absurdly low
+    return max(rpw, 5.0)
+
 
 def load_player_orgs(data_dir: Path = None) -> pd.DataFrame:
     """
@@ -396,10 +451,14 @@ def calculate_pitcher_war(fip: float,
     """
     Calculate pitcher WAR from FIP and allocated innings.
     
-    FIP-based WAR formula:
-    - Runs prevented = (LG_FIP - FIP) / 9 * IP
-    - Replacement level = IP / 9 * (replacement_runs_per_9)
-    - WAR = (Runs prevented + Replacement) / RPW
+    Uses FanGraphs-style dynamic RPW: an ace's runs are worth more wins
+    because they compress the run environment while on the mound.
+    
+    Formula:
+        FIP_runs  = (lgFIP - park_adj_FIP) / 9 × IP
+        Repl_runs = replacement_per_200IP × (IP / 200)
+        RPW       = dynamic (pitcher-specific, based on ERA)
+        WAR       = (FIP_runs + Repl_runs) / RPW
     
     Args:
         fip: Projected FIP
@@ -426,13 +485,18 @@ def calculate_pitcher_war(fip: float,
     # Total runs above replacement
     rar = fip_runs + replacement_runs
     
+    # Dynamic RPW — aces get more credit per run saved
+    era = rate_stats.get('ERA', LG_RA9) if rate_stats else LG_RA9
+    pitcher_rpw = _dynamic_pitcher_rpw(era, ip, role)
+    
     # WAR
-    war = rar / RPW
+    war = rar / pitcher_rpw
     
     # Build components dict
     components = {
         'FIP_Runs': fip_runs,
         'Replacement_Runs': replacement_runs,
+        'Pitcher_RPW': pitcher_rpw,
         'WAR': war,
         'IP': ip,
         'Team': team,

@@ -213,8 +213,11 @@ class WARConstants:
     }
     
     # Pitcher-specific constants
-    LG_FIP = 4.20  # League average FIP
-    REPLACEMENT_LEVEL_RUNS_200IP = 20.0  # Replacement level runs per 200 IP
+    LG_FIP = 4.14  # League average FIP (2024 actual ≈ 4.14)
+    LG_RA9 = 4.50  # League average runs allowed per 9 IP (incl. unearned)
+    REPLACEMENT_LEVEL_RUNS_200IP = 22.0  # Replacement level runs per 200 IP
+    DEFAULT_IP_PER_START = 5.75  # Average IP per start (for dynamic RPW)
+    DEFAULT_IP_PER_APPEARANCE_RP = 1.0  # Average IP per RP appearance
     
     # Default IP assumptions for projections
     DEFAULT_SP_IP = 180  # Standard full season for SP
