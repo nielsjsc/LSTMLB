@@ -204,6 +204,7 @@ def calculate_woba_from_predictions(batter_df: pd.DataFrame, use_calculated_woba
     # Load all three toggles from BatterConfig
     use_calculated_obp = False
     use_calculated_slg = False
+    components_from_woba = False
     if use_calculated_woba is None:
         try:
             try:
@@ -216,9 +217,21 @@ def calculate_woba_from_predictions(batter_df: pd.DataFrame, use_calculated_woba
             use_calculated_woba = BatterConfig.CALCULATE_WOBA_FROM_COMPONENTS
             use_calculated_obp  = getattr(BatterConfig, 'CALCULATE_OBP_FROM_COMPONENTS', False)
             use_calculated_slg  = getattr(BatterConfig, 'CALCULATE_SLG_FROM_COMPONENTS', False)
+            components_from_woba = getattr(BatterConfig, 'CALCULATE_COMPONENTS_FROM_WOBA', False)
+
+            # When counting stats are derived FROM wOBA, recalculating wOBA from
+            # those components is circular — skip it and keep the model's wOBA.
+            if components_from_woba and use_calculated_woba:
+                logger.info(
+                    "CALCULATE_COMPONENTS_FROM_WOBA is True — overriding "
+                    "CALCULATE_WOBA_FROM_COMPONENTS to False (wOBA is the source)."
+                )
+                use_calculated_woba = False
+
             logger.info(
                 f"Loaded BatterConfig: wOBA={use_calculated_woba}, "
-                f"OBP={use_calculated_obp}, SLG={use_calculated_slg}"
+                f"OBP={use_calculated_obp}, SLG={use_calculated_slg}, "
+                f"components_from_wOBA={components_from_woba}"
             )
         except (ImportError, AttributeError) as e:
             use_calculated_woba = True

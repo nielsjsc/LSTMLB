@@ -744,7 +744,7 @@ def _run_prediction_loop(
     player_name: str,
     player_id: str,
     extra_fields: Optional[Dict] = None,
-    non_negative_features: Optional[List[str]] = None
+    non_negative_features: Optional[List[str]] = None,
 ) -> List[Dict]:
     """
     Run the prediction loop for multiple future years.
@@ -793,7 +793,7 @@ def _run_prediction_loop(
         # Inverse transform to get actual values
         try:
             unscaled_pred = scaler.inverse_transform(pred_numpy.reshape(1, -1))[0]
-            
+
             # Build prediction dictionary
             prediction_dict = {
                 'Name': player_name,
@@ -820,17 +820,14 @@ def _run_prediction_loop(
             predictions.append(prediction_dict)
             
             # Update sequence for next prediction
-            # NOTE: pred_numpy is already in scaled space (direct model output)
-            # Only the age component needs to be updated with the scaled next year's age
             age_index = input_features.index('Age')
             age_update = np.zeros(n_features)
             age_update[age_index] = age + 1  # Next year's age (unscaled)
-            
-            # Update just the age in the already-scaled prediction
-            pred_numpy[age_index] = scaler.transform(age_update.reshape(1, -1))[0][age_index]
-            
-            # Slide the sequence window
-            sequence_scaled = np.vstack([sequence_scaled[1:], pred_numpy])
+            scaled_next_age = scaler.transform(age_update.reshape(1, -1))[0][age_index]
+
+            feedback = pred_numpy
+            feedback[age_index] = scaled_next_age
+            sequence_scaled = np.vstack([sequence_scaled[1:], feedback])
             
         except Exception as e:
             logger.error(f"Prediction error for player {player_id}, year {year}: {e}")
@@ -927,7 +924,7 @@ def predict_future_stats(
             player_name=prep['player_name'],
             player_id=player_id,
             extra_fields=extra_fields,
-            non_negative_features=non_negative_features
+            non_negative_features=non_negative_features,
         )
 
 
@@ -1131,7 +1128,7 @@ def _predict_with_regression(
         player_name=player_name,
         player_id=player_id,
         extra_fields=extra_fields,
-        non_negative_features=non_negative_features
+        non_negative_features=non_negative_features,
     )
 
 
@@ -2132,7 +2129,7 @@ def predict_all_fielders(
                     all_predictions.extend(predictions)
                     
             except Exception as e:
-                logger.error(f"Error predicting for fielder {player_id} at {specific_position}: {str(e)}")
+                logger.error(f"Error predicting for fielder {player_id} at {primary_position}: {str(e)}")
                 continue
     
     if all_predictions:

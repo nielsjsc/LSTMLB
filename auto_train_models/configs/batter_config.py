@@ -72,8 +72,43 @@ class BatterConfig:
     #   inverse.  Compresses the heavy right tail (e.g. 50 HR/150 → log(51)=3.93
     #   vs mean log(12)=2.48) so the Gaussian assumption of StandardScaler holds
     #   better.  No-op when USE_HYBRID_SCALER = False.
-    USE_HYBRID_SCALER = True
+    #
+    # IMPORTANT: HybridScaler is INCOMPATIBLE with tanh-bounded outputs.
+    # The LSTM uses tanh(x)*1.7079, capping output at ~±1.71.  With StandardScaler,
+    # elite HR hitters (30+ HR/150) require z > 1.2, deep in tanh saturation where
+    # gradients vanish.  This causes the model to under-predict counting stats for
+    # above-average hitters.  MinMaxScaler keeps all counting values in the linear
+    # zone of tanh (e.g. 30 HR → -0.2, 50 HR → +0.33).
+    USE_HYBRID_SCALER = False
     LOG_TRANSFORM_COUNTING_STATS = True
+
+    # ============================================================================
+    # CALCULATE COMPONENTS FROM WOBA  (value_determination pipeline)
+    # ============================================================================
+    # The LSTM systematically mean-regresses counting stats (HR, 2B, 3B, RBI,
+    # R, HBP) toward the training population average, but its rate-stat
+    # predictions (wOBA, SLG, OBP, BB%, K%) are well-calibrated.
+    #
+    # This is the inverse of CALCULATE_WOBA_FROM_COMPONENTS: instead of
+    # deriving wOBA from counting stats, we derive counting stats from wOBA.
+    #
+    # When enabled in value_determination, each counting stat is replaced by:
+    #
+    #   ratio         = predicted_wOBA / career_wOBA      (clipped 0.5–1.5)
+    #   derived_count = career_count_per150 × ratio
+    #   final         = blend × derived_count + (1 - blend) × model_prediction
+    #   blend         = min(career_PA / COMPONENTS_FROM_WOBA_PA_WEIGHT, 1.0)
+    #
+    # Each player keeps their OWN HR/2B/3B/RBI/R profile (Raleigh's HR-heavy
+    # mix, Witt's doubles+triples, Henderson's power).  The quality ratio
+    # scales the entire profile up or down based on the model's projected wOBA.
+    #
+    # When this is True, CALCULATE_WOBA_FROM_COMPONENTS is automatically
+    # skipped (since wOBA is the source, not the derived quantity).  OBP and
+    # SLG from components still use the recalibrated counting stats.
+    CALCULATE_COMPONENTS_FROM_WOBA = True
+    COMPONENTS_FROM_WOBA_PA_WEIGHT = 1500       # ~2.5 full seasons for full trust
+    COMPONENTS_FROM_WOBA_RECENT_SEASONS = 3     # seasons for career average
 
     # ============================================================================
     # RELIABILITY REGRESSION
