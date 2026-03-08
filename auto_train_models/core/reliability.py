@@ -17,12 +17,12 @@ Where:
 
 The prior is a continuous blend of the player's career mean and league average:
 
-    career_weight = total_career_volume / (total_career_volume + career_stabilization)
+    career_weight = min(1.0, total_career_volume / full_weight_threshold)
     effective_prior = career_weight * career_mean + (1 - career_weight) * league_mean
 
-This ensures rookies/small-sample players regress heavily toward league average,
-while established veterans regress toward their own career mean, with a smooth
-transition in between.
+Veterans above the full-weight threshold have 100% career prior (zero league-
+average influence).  Rookies and small-sample players regress heavily toward
+league average, with a smooth linear ramp in between.
 
 Stabilization points represent the sample size required for a stat to become
 50% signal / 50% noise. These are well-established from FanGraphs research
@@ -169,21 +169,37 @@ BF_PER_IP = 4.3
 # Approximate PA per game for batters
 PA_PER_GAME = 3.9
 
+# Floor fraction for adaptive stabilization — even the most established
+# player still gets at least this fraction of the base stabilization point.
+ADAPTIVE_STAB_FLOOR = 0.10
+
+# Rookie boost — players with very little career data get n0 ABOVE base,
+# meaning stronger regression.  The boost fades linearly to zero at
+# ADAPTIVE_BOOST_CAREER_FRACTION × career_stab.
+ADAPTIVE_BOOST_MAX = 1.0           # At 0 career volume, n0 is (1 + this) × base
+ADAPTIVE_BOOST_CAREER_FRACTION = 0.4  # Fraction of career_stab where boost ends
+
 # =============================================================================
-# CAREER STABILIZATION (for blending career vs league priors)
+# CAREER WEIGHT — prior blending between career mean and league average
 # =============================================================================
-# When regressing a stat toward a prior, we blend the player's OWN career
-# mean with the LEAGUE average, weighted by total career volume.
+# career_weight determines what fraction of the prior comes from the
+# player's OWN career mean vs the LEAGUE average.
 #
-# This replaces the old binary threshold (min_career_seasons) with a smooth
-# spectrum: rookies/small-sample players regress heavily toward league avg,
-# while established veterans regress toward their own career mean.
+# We use a linear ramp that saturates at 1.0 once career volume reaches
+# the full-weight threshold.  This ensures established veterans have ZERO
+# league-average influence, while rookies regress heavily toward league avg.
 #
 # Formula:
-#   career_weight = total_career_volume / (total_career_volume + career_stab)
+#   career_weight = min(1.0, career_volume / full_weight_threshold)
 #   effective_prior = career_weight * career_mean + (1 - career_weight) * league_mean
 #
-# At career_stab volume, the blend is exactly 50/50.
+# Examples (batters, threshold=2500):
+#     58 PA  → career_weight = 0.023  (97.7% league average)
+#    232 PA  → career_weight = 0.093  (90.7% league average)
+#    700 PA  → career_weight = 0.280  (72.0% league average)
+#   1200 PA  → career_weight = 0.480  (52.0% league average)
+#   2500 PA  → career_weight = 1.000  (  0% league average)
+#   5000 PA  → career_weight = 1.000  (  0% league average)
 
 
 def _get_career_stabilization(model_type: str) -> int:
@@ -210,7 +226,107 @@ def _get_career_stabilization(model_type: str) -> int:
     return 1200       # fallback
 
 
+def _get_career_full_weight_threshold(model_type: str) -> float:
+    """
+    Volume at which career_weight saturates to 1.0 (no league-avg influence).
 
+    At or above this volume, the prior is 100% career mean.
+    Below, career_weight increases linearly: vol / threshold.
+
+    Returns:
+        Career full-weight threshold in the appropriate volume unit
+    """
+    if model_type == 'pitcher':
+        return 2000    # ~460 IP of TBF
+    elif model_type == 'batter':
+        return 2500    # ~4 full seasons of PA
+    elif model_type == 'baserunning':
+        return 400     # ~2.5 full seasons of games
+    elif model_type.startswith('defense') or model_type.startswith('fielding'):
+        return 3000    # ~2 full seasons of innings as starter
+    return 2500        # fallback
+
+
+def _compute_career_weight(career_volume: float, model_type: str) -> float:
+    """
+    Fraction of the prior that comes from the player's career mean (vs league avg).
+
+    Uses a linear ramp that saturates at 1.0: once a player has enough career
+    volume, their prior is 100% career mean with ZERO league-average influence.
+
+    This replaces the old hyperbolic formula v/(v+s) which asymptotically
+    approached but never reached 1.0, leaving even 10-year veterans with
+    residual league-average bleed.
+
+    Examples (batters, threshold=2500):
+        58 PA  → 0.023   232 PA → 0.093   700 PA → 0.280
+        1200 PA → 0.480   2500 PA → 1.000   5000 PA → 1.000
+    """
+    threshold = _get_career_full_weight_threshold(model_type)
+    if threshold <= 0:
+        return 1.0
+    return min(1.0, career_volume / threshold)
+
+
+def _effective_stabilization_point(
+    base_n0: int,
+    career_volume: float,
+    career_stab: float,
+    floor_fraction: float = ADAPTIVE_STAB_FLOOR,
+) -> float:
+    """
+    Scale a stat's stabilization point based on accumulated career volume.
+
+    Two regimes:
+
+    1. **Rookie boost** (career_volume < boost_threshold):
+       Players with very little career data get n0 ABOVE the base, meaning
+       *stronger* regression.  An extra additive term fades linearly to zero
+       as career volume approaches the boost threshold.
+
+    2. **Veteran reduction** (career_volume >= boost_threshold):
+       The standard adaptive formula reduces n0 as career evidence grows,
+       so established players are barely regressed.
+
+    The two regimes are *continuous* — at the boost threshold, the additive
+    boost term reaches zero and the standard formula takes over seamlessly.
+
+    A floor ensures even the most established player still gets a minimal
+    amount of regression (default 10% of base_n0).
+
+    Examples (batter, wOBA n0=200, career_stab=1200, boost_threshold=480):
+        Debut    (  10 PA): n0 ≈ 200 (base) + 196 (boost) + 1.6 (base reduction) = 398 → very heavy regression
+        Rookie   (  69 PA): n0 ≈ 189 (base) + 171 (boost)                         = 360 → heavy regression
+        Prospect ( 232 PA): n0 ≈ 168 (base) + 103 (boost)                         = 271 → strong regression
+        Breakout ( 480 PA): n0 ≈ 143 (base) +   0 (boost)                         = 143 → moderate
+        2nd year ( 700 PA): n0 ≈ 126                                               = 126 → moderate
+        Veteran  (3000 PA): n0 ≈  57                                               =  57 → light
+        Star     (5000 PA): n0 ≈  39                                               =  39 → minimal
+
+    Args:
+        base_n0: Raw stabilization point from the lookup tables
+        career_volume: Total career exposure (PA / TBF / G / Inn)
+        career_stab: Career stabilization threshold for the model type
+        floor_fraction: Minimum fraction of base_n0 to preserve
+
+    Returns:
+        Effective stabilization point (always >= base_n0 * floor_fraction)
+    """
+    if career_volume <= 0 or career_stab <= 0:
+        return float(base_n0) * (1 + ADAPTIVE_BOOST_MAX)
+
+    # Standard adaptive reduction (applies at all career volumes)
+    standard_n0 = base_n0 * (career_stab / (career_volume + career_stab))
+
+    # Rookie boost: extra regression for very low career volume
+    boost_threshold = career_stab * ADAPTIVE_BOOST_CAREER_FRACTION
+    if career_volume < boost_threshold:
+        boost_fraction = 1.0 - (career_volume / boost_threshold)
+        extra = base_n0 * ADAPTIVE_BOOST_MAX * boost_fraction
+        return standard_n0 + extra
+
+    # Veteran regime: pure adaptive reduction with floor
+    return max(standard_n0, base_n0 * floor_fraction)
 
 def _get_stabilization_point(feature: str, era: str = 'statcast', model_type: str = 'pitcher') -> Optional[int]:
     """
@@ -625,16 +741,20 @@ def regress_stats(
             volume = _estimate_volume(row, model_type)
             cumulative_volume += volume
 
-            # Career weight increases smoothly with total career exposure.
-            # Replaces the old binary min_career_seasons threshold.
-            career_weight = cumulative_volume / (cumulative_volume + career_stab)
+            # Career weight: linear ramp to 1.0 (saturating).
+            # Veterans get pure career prior; rookies get mostly league average.
+            career_weight = _compute_career_weight(cumulative_volume, model_type)
 
             for feat in regressable:
                 observed = row[feat]
                 if np.isnan(observed):
                     continue
 
-                n0 = stab_points[feat]
+                # Adaptive stabilization: reduce n0 as career evidence grows.
+                # Established players barely get regressed; rookies get full regression.
+                n0 = _effective_stabilization_point(
+                    stab_points[feat], cumulative_volume, career_stab
+                )
                 total_count += 1
 
                 # Compute career and league priors, then blend them.
@@ -692,12 +812,12 @@ def regress_player_sequence(
     we want the best possible estimate of the player's true talent.
 
     Career vs league priors are blended based on total career volume:
-        career_weight = total_vol / (total_vol + career_stabilization)
+        career_weight = min(1.0, total_vol / full_weight_threshold)
         effective_prior = career_weight * career_mean + (1 - career_weight) * league_mean
 
     This ensures rookies and small-sample players regress heavily toward
-    league average, while established veterans regress toward their own
-    career mean.
+    league average, while established veterans (above the threshold) regress
+    purely toward their own career mean with zero league-average influence.
 
     The volume column (n in the shrinkage formula) is model-type-dependent:
         - pitcher: TBF (batters faced)
@@ -751,8 +871,7 @@ def regress_player_sequence(
         for _, row in result.iterrows()
     )
     career_stab = _get_career_stabilization(model_type)
-    career_weight = (total_career_volume / (total_career_volume + career_stab)
-                     if (total_career_volume + career_stab) > 0 else 0.0)
+    career_weight = _compute_career_weight(total_career_volume, model_type)
 
     # Compute age-adjusted volume-weighted means using only the most recent
     # PRIOR_MAX_SEASONS. Each historical season is age-adjusted to the
@@ -817,6 +936,16 @@ def regress_player_sequence(
         f"career_stab={career_stab}, career_weight={career_weight:.3f}"
     )
 
+    # Log adaptive stabilization for the most important stat (wOBA or first regressable)
+    _example_feat = 'wOBA' if 'wOBA' in stab_points else regressable[0]
+    _example_eff = _effective_stabilization_point(
+        stab_points[_example_feat], total_career_volume, career_stab
+    )
+    logger.debug(
+        f"Adaptive stabilization: {_example_feat} base_n0={stab_points[_example_feat]} → "
+        f"effective_n0={_example_eff:.1f} (career_vol={total_career_volume:.0f})"
+    )
+
     # Regress each season
     for idx, row in result.iterrows():
         volume = _estimate_volume(row, model_type)
@@ -826,7 +955,10 @@ def regress_player_sequence(
             if np.isnan(observed):
                 continue
 
-            n0 = stab_points[feat]
+            # Adaptive stabilization: reduce n0 as career evidence grows.
+            n0 = _effective_stabilization_point(
+                stab_points[feat], total_career_volume, career_stab
+            )
 
             prior = blended_priors.get(feat)
             if prior is None or np.isnan(prior):

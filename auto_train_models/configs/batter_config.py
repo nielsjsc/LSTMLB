@@ -103,9 +103,9 @@ class BatterConfig:
     # mix, Witt's doubles+triples, Henderson's power).  The quality ratio
     # scales the entire profile up or down based on the model's projected wOBA.
     #
-    # When this is True, CALCULATE_WOBA_FROM_COMPONENTS is automatically
-    # skipped (since wOBA is the source, not the derived quantity).  OBP and
-    # SLG from components still use the recalibrated counting stats.
+    # When this is True, all legacy CALCULATE_*_FROM_COMPONENTS flags are
+    # ignored — wOBA, OBP, SLG, and AVG are kept as the model predicted them,
+    # and only counting stats are derived from career profiles.
     CALCULATE_COMPONENTS_FROM_WOBA = True
     COMPONENTS_FROM_WOBA_PA_WEIGHT = 1500       # ~2.5 full seasons for full trust
     COMPONENTS_FROM_WOBA_RECENT_SEASONS = 3     # seasons for career average
@@ -150,22 +150,11 @@ class BatterConfig:
     # ============================================================================
     # WAR CALCULATION CONFIGURATION
     # ============================================================================
-    # Calculate wOBA from component stats (HR, 2B, 3B, BB, etc.) instead of using
-    # the LSTM's predicted wOBA directly. This can provide more consistent wOBA values
-    # when the model's wOBA predictions don't perfectly align with the counting stats.
-    # Set to False to use the LSTM's direct wOBA prediction.
+    # These legacy toggles only apply when CALCULATE_COMPONENTS_FROM_WOBA = False.
+    # When CALCULATE_COMPONENTS_FROM_WOBA = True (Mode A), the model's wOBA/OBP/SLG
+    # are kept as-is and counting stats are derived — these flags are ignored.
     CALCULATE_WOBA_FROM_COMPONENTS = True
-
-    # Calculate OBP from components: (H + BB + HBP) / (AB + BB + HBP + SF)
-    # Uses the same AVG, BB%, HR, 2B, 3B predictions as the wOBA calculation.
-    # HBP is taken directly from the model's predicted HBP (per-150) value;
-    # falls back to 1% of PA only when HBP is absent from predictions.
-    # Set to False to use the LSTM's direct OBP prediction.
     CALCULATE_OBP_FROM_COMPONENTS = True
-
-    # Calculate SLG from components: (1B + 2*2B + 3*3B + 4*HR) / AB
-    # Uses the same AVG, HR, 2B, 3B predictions as the wOBA calculation.
-    # Set to False to use the LSTM's direct SLG prediction.
     CALCULATE_SLG_FROM_COMPONENTS = True
 
     # ============================================================================

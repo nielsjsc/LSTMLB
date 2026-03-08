@@ -179,115 +179,103 @@ def calculate_wrc_plus(woba: float, team: str, pa: float,
 
 def calculate_woba_from_predictions(batter_df: pd.DataFrame, use_calculated_woba: bool = None) -> pd.DataFrame:
     """
-    Calculate wOBA, OBP, and/or SLG from batter prediction counting stats.
+    Reconcile rate stats and counting stats for batter predictions.
 
-    Expects rate stats (HR, 2B, 3B per 150 games) and rate stats (BB%, AVG).
-    Each of the three stats is controlled independently by its BatterConfig toggle:
-        CALCULATE_WOBA_FROM_COMPONENTS
-        CALCULATE_OBP_FROM_COMPONENTS
-        CALCULATE_SLG_FROM_COMPONENTS
+    Two mutually exclusive modes controlled by ``BatterConfig``:
 
-    Formulas used:
-        OBP = (H + BB + HBP) / (AB + BB + HBP + SF)
-        SLG = (1B + 2*2B + 3*3B + 4*HR) / AB
+    **Mode A — CALCULATE_COMPONENTS_FROM_WOBA = True** (recommended)
+        The model's rate stats (wOBA, OBP, SLG, AVG, BB%, K%) are kept as-is.
+        Counting stats (HR, 2B, 3B, RBI, R, HBP) are *derived* from each
+        player's career counting profile scaled by (*predicted_wOBA / career_wOBA*).
+        PA is set to 650.  This is the inverse of "wOBA from components" — it
+        uses the model's well-calibrated wOBA as the source of truth and
+        produces player-specific counting stats (Raleigh's HR-heavy mix,
+        Witt's doubles+triples).
+
+    **Mode B — CALCULATE_WOBA_FROM_COMPONENTS = True** (legacy)
+        Counting stats are taken from the model.  wOBA/OBP/SLG are optionally
+        recalculated from those counting stats.
+
+    The two modes never run together — Mode A takes priority when enabled.
 
     Args:
-        batter_df: DataFrame with batter predictions (PA, rate stats, AVG, BB%, K%)
-        use_calculated_woba: If True, calculate wOBA from components. If False, use LSTM's wOBA.
-                            If None, reads from BatterConfig.CALCULATE_WOBA_FROM_COMPONENTS
+        batter_df: DataFrame with batter predictions (per-150-game rates).
+        use_calculated_woba: Legacy override for Mode B.  Ignored in Mode A.
 
     Returns:
-        DataFrame with wOBA/OBP/SLG columns updated based on active toggles.
+        DataFrame with reconciled rate + counting stats and PA set.
     """
     from .config import Config
 
-    # Load all three toggles from BatterConfig
+    # ── Load config ──────────────────────────────────────────────────────
+    components_from_woba = False
     use_calculated_obp = False
     use_calculated_slg = False
-    components_from_woba = False
-    if use_calculated_woba is None:
+    pa_full = 1500.0
+    n_recent = 3
+
+    try:
         try:
-            try:
-                from ..configs.batter_config import BatterConfig
-            except (ImportError, ValueError):
-                import sys
-                sys.path.insert(0, str(Path(__file__).parent.parent))
-                from configs.batter_config import BatterConfig
+            from ..configs.batter_config import BatterConfig
+        except (ImportError, ValueError):
+            import sys
+            sys.path.insert(0, str(Path(__file__).parent.parent))
+            from configs.batter_config import BatterConfig
 
+        components_from_woba = getattr(BatterConfig, 'CALCULATE_COMPONENTS_FROM_WOBA', False)
+        pa_full = getattr(BatterConfig, 'COMPONENTS_FROM_WOBA_PA_WEIGHT', 1500.0)
+        n_recent = getattr(BatterConfig, 'COMPONENTS_FROM_WOBA_RECENT_SEASONS', 3)
+
+        if use_calculated_woba is None:
             use_calculated_woba = BatterConfig.CALCULATE_WOBA_FROM_COMPONENTS
-            use_calculated_obp  = getattr(BatterConfig, 'CALCULATE_OBP_FROM_COMPONENTS', False)
-            use_calculated_slg  = getattr(BatterConfig, 'CALCULATE_SLG_FROM_COMPONENTS', False)
-            components_from_woba = getattr(BatterConfig, 'CALCULATE_COMPONENTS_FROM_WOBA', False)
+        use_calculated_obp = getattr(BatterConfig, 'CALCULATE_OBP_FROM_COMPONENTS', False)
+        use_calculated_slg = getattr(BatterConfig, 'CALCULATE_SLG_FROM_COMPONENTS', False)
 
-            # When counting stats are derived FROM wOBA, recalculating wOBA from
-            # those components is circular — skip it and keep the model's wOBA.
-            if components_from_woba and use_calculated_woba:
-                logger.info(
-                    "CALCULATE_COMPONENTS_FROM_WOBA is True — overriding "
-                    "CALCULATE_WOBA_FROM_COMPONENTS to False (wOBA is the source)."
-                )
-                use_calculated_woba = False
-
-            logger.info(
-                f"Loaded BatterConfig: wOBA={use_calculated_woba}, "
-                f"OBP={use_calculated_obp}, SLG={use_calculated_slg}, "
-                f"components_from_wOBA={components_from_woba}"
-            )
-        except (ImportError, AttributeError) as e:
+    except (ImportError, AttributeError) as e:
+        if use_calculated_woba is None:
             use_calculated_woba = True
-            logger.warning(
-                f"Could not load BatterConfig component flags (error: {e}), defaulting wOBA=True"
-            )
-    else:
-        logger.info(f"Using provided use_calculated_woba parameter = {use_calculated_woba}")
+        logger.warning(f"Could not load BatterConfig ({e}), using defaults")
+
+    # ==================================================================
+    # MODE A — Derive counting stats from wOBA × career profile
+    # ==================================================================
+    if components_from_woba:
+        logger.info("CALCULATE_COMPONENTS_FROM_WOBA = True — deriving counting stats from predicted wOBA")
+        return _derive_components_from_woba(batter_df, pa_full, n_recent)
+
+    # ==================================================================
+    # MODE B — Legacy: optionally recalculate wOBA/OBP/SLG from counting stats
+    # ==================================================================
+    if not (use_calculated_woba or use_calculated_obp or use_calculated_slg):
+        logger.info("All component calculations disabled — using LSTM's direct predictions.")
+        return batter_df
 
     df = batter_df.copy()
 
-    # Early exit if no component calculations are needed
-    if not (use_calculated_woba or use_calculated_obp or use_calculated_slg):
-        logger.info("All component calculations disabled — using LSTM's direct predictions.")
-        return df
-
-    # ------------------------------------------------------------------
-    # Build counting stats from rate stats (shared by wOBA / OBP / SLG)
-    # ------------------------------------------------------------------
-    # Force PA to 650 per 150 games for a consistent baseline
+    # Build intermediate counting stats from predictions
     df['PA'] = 650.0
     games_estimate = 150.0
-
-    # Walks and strikeouts from rate stats (decimals, e.g. 0.083 = 8.3%)
     df['BB'] = df['BB%'] * df['PA']
     df['K'] = df['K%'] * df['PA']
-
-    # Extra-base hits are stored per 150 games in the model output
     df['HR_count'] = df['HR'] * (games_estimate / 150)
     df['2B_count'] = df['2B'] * (games_estimate / 150)
     df['3B_count'] = df['3B'] * (games_estimate / 150)
 
-    # HBP and SF: use model-predicted per-150 values when available (preferred),
-    # falling back to league-average estimates only when the column is absent.
-    # HBP is predicted directly by the LSTM when it is in CLASSICAL_COUNTING_FEATURES.
     if 'HBP' in df.columns:
         df['HBP_count'] = df['HBP'] * (games_estimate / 150)
     else:
-        df['HBP_count'] = df['PA'] * 0.01  # fallback: ~1% of PA (league average)
+        df['HBP_count'] = df['PA'] * 0.01
 
     if 'SF' in df.columns:
         df['SF_count'] = df['SF'] * (games_estimate / 150)
     else:
-        df['SF_count'] = df['PA'] * 0.007  # fallback: ~0.7% of PA (league average)
+        df['SF_count'] = df['PA'] * 0.007
 
-    # AB, hits, singles
     df['AB'] = df['PA'] - df['BB'] - df['HBP_count'] - df['SF_count']
     df['H'] = df['AVG'] * df['AB']
     df['1B'] = df['H'] - df['2B_count'] - df['3B_count'] - df['HR_count']
-
-    # IBB estimated at ~10% of BB (used only for wOBA)
     df['IBB'] = df['BB'] * 0.10
 
-    # ------------------------------------------------------------------
-    # wOBA
-    # ------------------------------------------------------------------
     if use_calculated_woba:
         weights = Config.WAR.WOBA_WEIGHTS
         df['wOBA_calculated'] = df.apply(
@@ -300,37 +288,92 @@ def calculate_woba_from_predictions(batter_df: pd.DataFrame, use_calculated_woba
             ),
             axis=1
         )
-        if 'wOBA' in df.columns:
-            logger.info(f"Average wOBA - LSTM: {df['wOBA'].mean():.3f}, Calculated: {df['wOBA_calculated'].mean():.3f}")
-        logger.info("Using calculated wOBA from component stats (CALCULATE_WOBA_FROM_COMPONENTS=True)")
+        logger.info(f"Average wOBA — LSTM: {df['wOBA'].mean():.3f}, Calculated: {df['wOBA_calculated'].mean():.3f}")
         df['wOBA'] = df['wOBA_calculated']
         df = df.drop(columns=['wOBA_calculated'])
 
-    # ------------------------------------------------------------------
-    # OBP  =  (H + BB + HBP) / (AB + BB + HBP + SF)
-    # ------------------------------------------------------------------
     if use_calculated_obp:
         obp_num = df['H'] + df['BB'] + df['HBP_count']
         obp_den = df['AB'] + df['BB'] + df['HBP_count'] + df['SF_count']
-        df['OBP_calculated'] = (obp_num / obp_den).clip(0, 1)
-        if 'OBP' in df.columns:
-            logger.info(f"Average OBP - LSTM: {df['OBP'].mean():.3f}, Calculated: {df['OBP_calculated'].mean():.3f}")
-        logger.info("Using calculated OBP from component stats (CALCULATE_OBP_FROM_COMPONENTS=True)")
-        df['OBP'] = df['OBP_calculated']
-        df = df.drop(columns=['OBP_calculated'])
+        df['OBP'] = (obp_num / obp_den).clip(0, 1)
+        logger.info("Recalculated OBP from components")
 
-    # ------------------------------------------------------------------
-    # SLG  =  (1B + 2*2B + 3*3B + 4*HR) / AB
-    # ------------------------------------------------------------------
     if use_calculated_slg:
         slg_num = df['1B'] + 2 * df['2B_count'] + 3 * df['3B_count'] + 4 * df['HR_count']
-        df['SLG_calculated'] = (slg_num / df['AB']).clip(0, 4)
-        if 'SLG' in df.columns:
-            logger.info(f"Average SLG - LSTM: {df['SLG'].mean():.3f}, Calculated: {df['SLG_calculated'].mean():.3f}")
-        logger.info("Using calculated SLG from component stats (CALCULATE_SLG_FROM_COMPONENTS=True)")
-        df['SLG'] = df['SLG_calculated']
-        df = df.drop(columns=['SLG_calculated'])
+        df['SLG'] = (slg_num / df['AB']).clip(0, 4)
+        logger.info("Recalculated SLG from components")
 
+    return df
+
+
+def _derive_components_from_woba(
+    batter_df: pd.DataFrame,
+    pa_full: float = 1500.0,
+    n_recent: int = 3,
+) -> pd.DataFrame:
+    """
+    Derive counting stats from the model's predicted wOBA.
+
+    Rate stats (wOBA, OBP, SLG, AVG, BB%, K%) are KEPT as the model predicted.
+    Counting stats (HR, 2B, 3B, RBI, R, HBP) are replaced by each player's
+    career per-150 profile scaled by (predicted_wOBA / career_wOBA).
+
+    For young players (career PA < ``pa_full``), a blend of career-derived and
+    model-predicted values is used.  Players without a historical profile are
+    left unchanged.
+    """
+    from .counting_recalibration import build_career_profiles, _load_historical_batting
+
+    COUNTING_STATS = ['HR', '2B', '3B', 'RBI', 'R', 'HBP']
+
+    df = batter_df.copy()
+    df['PA'] = 650.0
+
+    # Build career profiles from historical data
+    hist_df = _load_historical_batting()
+    if hist_df.empty:
+        logger.warning("No historical data — counting stats unchanged")
+        return df
+
+    career_profiles = build_career_profiles(hist_df, n_recent=n_recent, min_pa=50)
+    if not career_profiles:
+        logger.warning("No career profiles built — counting stats unchanged")
+        return df
+
+    available_stats = [s for s in COUNTING_STATS if s in df.columns]
+    n_recalibrated = 0
+
+    # Ensure counting stat columns are float so we can write blended values
+    for s in available_stats:
+        df[s] = df[s].astype(float)
+
+    for idx, row in df.iterrows():
+        player_id = int(row['IDfg'])
+        profile = career_profiles.get(player_id)
+        if profile is None:
+            continue
+
+        pred_woba = row['wOBA']
+        base_woba = profile['base_woba']
+        if base_woba < 0.15 or pd.isna(pred_woba):
+            continue
+
+        ratio = max(0.50, min(1.50, pred_woba / base_woba))
+        blend = min(profile['career_pa'] / pa_full, 1.0)
+
+        for stat in available_stats:
+            if stat not in profile['base_counts']:
+                continue
+            derived = profile['base_counts'][stat] * ratio
+            model_pred = row[stat]
+            df.at[idx, stat] = max(0.0, blend * derived + (1.0 - blend) * model_pred)
+
+        n_recalibrated += 1
+
+    logger.info(
+        f"Derived counting stats from wOBA for {n_recalibrated}/{len(df)} player-year rows "
+        f"({len(available_stats)} stats: {available_stats})"
+    )
     return df
 
 def calculate_baserunning_value(row: pd.Series, games: int) -> float:

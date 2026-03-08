@@ -256,16 +256,10 @@ def main():
         from value_determination.calculate_war import _apply_park_factors_to_batter_predictions
         batter_data = _apply_park_factors_to_batter_predictions(batter_data)
         
-        # Derive counting stats from predicted wOBA × player career profiles.
-        # This is the inverse of CALCULATE_WOBA_FROM_COMPONENTS: the model's
-        # wOBA (well-calibrated) drives the counting stat level, while each
-        # player's career HR/2B/3B/RBI/R profile determines the mix.
-        from .counting_recalibration import recalibrate_batter_counting_stats
-        batter_data = recalibrate_batter_counting_stats(batter_data)
-        
-        # Calculate wOBA/OBP/SLG from components (or use LSTM prediction based on config).
-        # When CALCULATE_COMPONENTS_FROM_WOBA is True, the wOBA-from-components
-        # path is automatically skipped (wOBA is the source, not derived).
+        # Reconcile rate stats and counting stats.
+        # Mode A (CALCULATE_COMPONENTS_FROM_WOBA): keep wOBA/OBP/SLG/AVG from model,
+        #   derive counting stats (HR, 2B, 3B, ...) from career profiles × wOBA ratio.
+        # Mode B (legacy): optionally recalculate wOBA/OBP/SLG from counting stats.
         from .calculate_war import calculate_woba_from_predictions
         batter_data = calculate_woba_from_predictions(batter_data)
         

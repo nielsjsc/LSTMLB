@@ -1890,9 +1890,31 @@ def predict_all_batters(
     all_predictions = []
     failed_count = 0
     error_sample = []
-    xwoba_substitution_count = 0
-    xba_substitution_count = 0
-    xslg_substitution_count = 0
+    
+    # Summarise xStat config once (actual substitution is per-player inside _predict_with_regression)
+    _xstat_flags = {}
+    try:
+        from auto_train_models.configs.batter_config import BatterConfig as _BC
+        _xstat_flags = {
+            'xwOBA': getattr(_BC, 'USE_XWOBA_FOR_PREDICTIONS', False),
+            'xBA':   getattr(_BC, 'USE_XBA_FOR_PREDICTIONS', False),
+            'xSLG':  getattr(_BC, 'USE_XSLG_FOR_PREDICTIONS', False),
+        }
+    except ImportError:
+        try:
+            from configs.batter_config import BatterConfig as _BC
+            _xstat_flags = {
+                'xwOBA': getattr(_BC, 'USE_XWOBA_FOR_PREDICTIONS', False),
+                'xBA':   getattr(_BC, 'USE_XBA_FOR_PREDICTIONS', False),
+                'xSLG':  getattr(_BC, 'USE_XSLG_FOR_PREDICTIONS', False),
+            }
+        except ImportError:
+            pass
+    _active = [k for k, v in _xstat_flags.items() if v]
+    if _active:
+        logger.info(f"xStat substitution enabled for: {', '.join(_active)} (applied per-player in _predict_with_regression)")
+    else:
+        logger.info("xStat substitution disabled (all USE_X*_FOR_PREDICTIONS flags are False)")
     
     for player_id in tqdm(all_players, desc="Generating batter predictions"):
         try:
@@ -1929,17 +1951,6 @@ def predict_all_batters(
             if len(error_sample) < 5:
                 error_sample.append((player_id, str(e)))
             continue
-    
-    # Log xStat substitution summary
-    total_players = len(all_players)
-    if xwoba_substitution_count > 0:
-        logger.info(f"✓ xwOBA substitution applied to {xwoba_substitution_count}/{total_players} players ({xwoba_substitution_count/total_players*100:.1f}%)")
-    if xba_substitution_count > 0:
-        logger.info(f"✓ xBA substitution applied to {xba_substitution_count}/{total_players} players ({xba_substitution_count/total_players*100:.1f}%)")
-    if xslg_substitution_count > 0:
-        logger.info(f"✓ xSLG substitution applied to {xslg_substitution_count}/{total_players} players ({xslg_substitution_count/total_players*100:.1f}%)")
-    if xwoba_substitution_count == 0 and xba_substitution_count == 0 and xslg_substitution_count == 0:
-        logger.info("No xStat substitutions applied (all toggles may be False or xStat data not available)")
     
     # Log error details if any failures occurred
     if failed_count > 0:
