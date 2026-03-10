@@ -37,6 +37,7 @@ interface FormattedPlayerRow extends Record<string, any> {
   hr?: number;
   sb?: number;
   off?: number;
+  bat?: number;
   def_value?: number;
   bsr?: number;
   // Pitching stats
@@ -48,6 +49,10 @@ interface FormattedPlayerRow extends Record<string, any> {
   fip?: number;
   k_pct_pit?: number;
   bb_pct_pit?: number;
+  gb_pct?: number;
+  fb_pct?: number;
+  hr_fb?: number;
+  hr_9?: number;
 }
 const ProjectionsTable: React.FC<ProjectionsTableProps> = ({ 
   data, 
@@ -77,7 +82,7 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
     { key: 'k_pct_bat', label: 'K%' },
     { key: 'hr', label: 'HR' },
     { key: 'sb', label: 'SB' },
-    { key: 'off', label: 'Off' },
+    { key: 'bat', label: 'Bat' },
     { key: 'def_value', label: 'Def' },
     { key: 'bsr', label: 'BsR' },
     { key: 'base_value', label: 'Value ($M)' },
@@ -99,6 +104,10 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
     { key: 'fip', label: 'FIP' },
     { key: 'k_pct_pit', label: 'K%' },
     { key: 'bb_pct_pit', label: 'BB%' },
+    { key: 'gb_pct', label: 'GB%' },
+    { key: 'fb_pct', label: 'FB%' },
+    { key: 'hr_9', label: 'HR/9' },
+    { key: 'hr_fb', label: 'HR/FB' },
     { key: 'base_value', label: 'Value ($M)' },
     { key: 'contract_value', label: 'Contract ($M)' },
     { key: 'surplus_value', label: 'Surplus ($M)' },
@@ -138,7 +147,7 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
         return formatDecimal(value, 0);
       case 'war_bat':
       case 'war_pit':
-      case 'off':
+      case 'bat':
       case 'bsr':
       case 'def_value':
         return formatDecimal(value, 1);
@@ -147,11 +156,16 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
       case 'slg':
       case 'ops':
       case 'woba':
+        return formatDecimal(value, 3);
       case 'ip':
         return formatDecimal(value, 1);
       case 'era':
       case 'fip':
-        return formatDecimal(value, 3);
+      case 'hr_9':
+        return formatDecimal(value, 2);
+      case 'gb_pct':
+      case 'fb_pct':
+      case 'hr_fb':
       case 'k_pct_pit':
       case 'bb_pct_pit':
       case 'bb_pct_bat':

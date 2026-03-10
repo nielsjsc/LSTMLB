@@ -136,6 +136,52 @@ def _get_trade_history() -> pd.DataFrame:
             )
     return _trade_history_df
 
+# ── Statcast expected stats (CSV-backed, loaded once) ─────────────────────
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+_STATCAST_BATTER_CSV = _PROJECT_ROOT / "data" / "statcast" / "statcast_batter_expected_stats_2015_2025.csv"
+_STATCAST_PITCHER_CSV = _PROJECT_ROOT / "data" / "statcast" / "statcast_pitcher_expected_stats_2015_2025.csv"
+_statcast_batter: Optional[Dict[Tuple[int, int], Dict[str, float]]] = None
+_statcast_pitcher: Optional[Dict[Tuple[int, int], Dict[str, float]]] = None
+
+
+def _get_statcast_batter() -> Dict[Tuple[int, int], Dict[str, float]]:
+    """Lazy-load batter expected stats keyed by (mlbam_id, year)."""
+    global _statcast_batter
+    if _statcast_batter is None:
+        _statcast_batter = {}
+        if _STATCAST_BATTER_CSV.exists():
+            df = pd.read_csv(_STATCAST_BATTER_CSV)
+            for _, r in df.iterrows():
+                key = (int(r["player_id"]), int(r["year"]))
+                _statcast_batter[key] = {
+                    "xba": r.get("est_ba"),
+                    "xslg": r.get("est_slg"),
+                    "xwoba": r.get("est_woba"),
+                }
+            logger.info(f"Loaded statcast batter expected stats: {len(_statcast_batter)} entries")
+        else:
+            logger.warning(f"Statcast batter CSV not found: {_STATCAST_BATTER_CSV}")
+    return _statcast_batter
+
+
+def _get_statcast_pitcher() -> Dict[Tuple[int, int], Dict[str, float]]:
+    """Lazy-load pitcher expected stats keyed by (mlbam_id, year)."""
+    global _statcast_pitcher
+    if _statcast_pitcher is None:
+        _statcast_pitcher = {}
+        if _STATCAST_PITCHER_CSV.exists():
+            df = pd.read_csv(_STATCAST_PITCHER_CSV)
+            for _, r in df.iterrows():
+                key = (int(r["player_id"]), int(r["year"]))
+                _statcast_pitcher[key] = {
+                    "xera": r.get("xera"),
+                }
+            logger.info(f"Loaded statcast pitcher expected stats: {len(_statcast_pitcher)} entries")
+        else:
+            logger.warning(f"Statcast pitcher CSV not found: {_STATCAST_PITCHER_CSV}")
+    return _statcast_pitcher
+
+
 def normalize_team_abbreviation(team: str) -> str:
     """Normalize team abbreviations - players use 2-letter codes, prospects use 3-letter codes"""
     # Map from prospect 3-letter codes to player 2-letter codes for output consistency
@@ -305,7 +351,7 @@ def _build_historical_response(hist: dict) -> dict:
             "bb_pct_bat": s.get("bb_pct"), "k_pct_bat": s.get("k_pct"),
             "avg": s.get("avg"), "obp": s.get("obp"), "slg": s.get("slg"),
             "ops": s.get("ops"), "woba": s.get("woba"), "wrc_plus": s.get("wrc_plus"),
-            "off": s.get("off"), "bsr": s.get("bsr"), "def_value": s.get("def_value"),
+            "off": s.get("off"), "bat": s.get("bat", s.get("off")), "bsr": s.get("bsr"), "def_value": s.get("def_value"),
             "hr": s.get("hr"), "doubles": s.get("doubles") if "doubles" in s else None,
             "triples": s.get("triples") if "triples" in s else None,
             "r": s.get("r"), "rbi": s.get("rbi"), "sb": s.get("sb"), "cs": s.get("cs"),
@@ -346,6 +392,24 @@ def _build_historical_response(hist: dict) -> dict:
         wv = entry.get("war_value") or 0
         sal = entry.get("salary")
         entry["surplus"] = (wv - sal) if sal else None
+
+    # Augment with statcast expected stats
+    mlbam = hist.get("mlbam")
+    if mlbam:
+        sc_bat = _get_statcast_batter()
+        sc_pit = _get_statcast_pitcher()
+        for yr, entry in by_year.items():
+            key = (int(mlbam), int(yr))
+            if "hitting" in entry:
+                sc = sc_bat.get(key)
+                if sc:
+                    entry["hitting"]["xba"] = sc.get("xba")
+                    entry["hitting"]["xslg"] = sc.get("xslg")
+                    entry["hitting"]["xwoba"] = sc.get("xwoba")
+            if "pitching" in entry:
+                sc = sc_pit.get(key)
+                if sc:
+                    entry["pitching"]["xera"] = sc.get("xera")
 
     projections = []
     for yr in sorted(by_year.keys()):
@@ -510,7 +574,7 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
                     "ops": p.ops,
                     "woba": p.woba,
                     "wrc_plus": p.wrc_plus,
-                    "off": p.off,
+                    "bat": p.bat,
                     "bsr": p.bsr,
                     "def_value": p.def_value,
                     "hr": p.hr,
@@ -529,7 +593,11 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
                     "era": p.era,
                     "fip": p.fip,
                     "k_pct_pit": p.k_pct_pit,
-                    "bb_pct_pit": p.bb_pct_pit
+                    "bb_pct_pit": p.bb_pct_pit,
+                    "gb_pct": p.gb_pct,
+                    "fb_pct": p.fb_pct,
+                    "hr_fb": p.hr_fb,
+                    "hr_9": p.hr_9
                 }} if p.war_pit is not None else {})
             } for p in player_years]
         }

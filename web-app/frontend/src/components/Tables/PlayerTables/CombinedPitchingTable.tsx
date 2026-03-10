@@ -20,6 +20,11 @@ interface CombinedPitchingTableProps {
       fip: number;
       k_pct_pit: number;
       bb_pct_pit: number;
+      gb_pct?: number;
+      fb_pct?: number;
+      hr_fb?: number;
+      hr_9?: number;
+      xera?: number;
     };
   }>;
   dividerYear?: number;
@@ -41,6 +46,11 @@ interface FormattedPitchingRow extends Record<string, any> {
   fip: number;
   k_pct_pit: number;
   bb_pct_pit: number;
+  gb_pct?: number;
+  fb_pct?: number;
+  hr_fb?: number;
+  hr_9?: number;
+  xera?: number;
 }
 const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, dividerYear, showCareerTotals = false }) => {
   const [sortKey, setSortKey] = useState<string>('year');
@@ -58,6 +68,11 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
     { key: 'fip', label: 'FIP' },
     { key: 'k_pct_pit', label: 'K%' },
     { key: 'bb_pct_pit', label: 'BB%' },
+    { key: 'gb_pct', label: 'GB%' },
+    { key: 'fb_pct', label: 'FB%' },
+    { key: 'hr_9', label: 'HR/9' },
+    { key: 'hr_fb', label: 'HR/FB' },
+    { key: 'xera', label: 'xERA' },
     { key: 'base_value', label: 'Value ($M)' },
     { key: 'contract_value', label: 'Contract ($M)' },
     { key: 'surplus_value', label: 'Surplus ($M)' },
@@ -87,11 +102,16 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
         return formatDecimal(value, 1);
       case 'era':
       case 'fip':
+      case 'hr_9':
+      case 'xera':
         return formatDecimal(value, 2);
       case 'ip':
         return formatDecimal(value, 1);
       case 'k_pct_pit':
       case 'bb_pct_pit':
+      case 'gb_pct':
+      case 'fb_pct':
+      case 'hr_fb':
         return formatPercent(value);
       case 'base_value':
       case 'contract_value':
@@ -155,6 +175,11 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
       fip: ipWeightedAvg('fip'),
       k_pct_pit: ipWeightedAvg('k_pct_pit'),
       bb_pct_pit: ipWeightedAvg('bb_pct_pit'),
+      gb_pct: ipWeightedAvg('gb_pct'),
+      fb_pct: ipWeightedAvg('fb_pct'),
+      hr_fb: ipWeightedAvg('hr_fb'),
+      hr_9: ipWeightedAvg('hr_9'),
+      xera: ipWeightedAvg('xera'),
       base_value: sum('base_value'),
       contract_value: sum('contract_value'),
       surplus_value: sum('surplus_value'),

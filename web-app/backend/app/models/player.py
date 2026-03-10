@@ -61,6 +61,7 @@ class Player(Base):
     woba = Column(Float)
     wrc_plus = Column(Float)
     ev = Column(Float)
+    bat = Column(Float)
     off = Column(Float)
     bsr = Column(Float)
     def_value = Column(Float)
@@ -81,6 +82,10 @@ class Player(Base):
     fip = Column(Float)
     k_pct_pit = Column(Float)
     bb_pct_pit = Column(Float)
+    gb_pct = Column(Float)
+    fb_pct = Column(Float)
+    hr_fb = Column(Float)
+    hr_9 = Column(Float)
     
     # Composite Indices
     __table_args__ = (

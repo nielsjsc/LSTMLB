@@ -294,7 +294,7 @@ export interface PlayerStats {
             ops: number;
             woba: number;
             wrc_plus: number;
-            off: number;
+            bat: number;
             bsr: number;
             def_value: number;
             hr: number;
@@ -304,6 +304,9 @@ export interface PlayerStats {
             rbi: number;
             sb: number;
             cs: number;
+            xba?: number;
+            xslg?: number;
+            xwoba?: number;
         };
         pitching?: {
             g_pit: number;
@@ -323,6 +326,7 @@ export interface PlayerStats {
             k_9?: number;
             bb_9?: number;
             hr_9?: number;
+            xera?: number;
         };
         
     }>;
@@ -376,7 +380,7 @@ export interface ProjectionResponse {
             ops: number;
             woba: number;
             wrc_plus: number;
-            off: number;
+            bat: number;
             bsr: number;
             def_value: number;
             hr: number;
@@ -398,6 +402,8 @@ export interface ProjectionResponse {
             bb_pct_pit: number;
             gb_pct: number;
             fb_pct: number;
+            hr_fb: number;
+            hr_9: number;
             stuff_plus: number;
             location_plus: number;
             pitching_plus: number;

@@ -23,6 +23,7 @@ interface CombinedHittingTableProps {
       woba: number;
       wrc_plus: number;
       off: number;
+      bat: number;
       bsr: number;
       def_value: number;
       hr: number;
@@ -32,6 +33,9 @@ interface CombinedHittingTableProps {
       rbi: number;
       sb: number;
       cs: number;
+      xba?: number;
+      xslg?: number;
+      xwoba?: number;
     };
   }>;
   dividerYear?: number;
@@ -56,6 +60,7 @@ interface FormattedRow extends Record<string, any> {
   woba: number;
   wrc_plus: number;
   off: number;
+  bat: number;
   bsr: number;
   def_value: number;
   hr: number;
@@ -65,6 +70,9 @@ interface FormattedRow extends Record<string, any> {
   rbi: number;
   sb: number;
   cs: number;
+  xba?: number;
+  xslg?: number;
+  xwoba?: number;
 }
 const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, dividerYear, showCareerTotals = false }) => {
   const [sortKey, setSortKey] = useState<string>('year');
@@ -94,7 +102,10 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
     { key: 'wrc_plus', label: 'wRC+' },
     { key: 'bb_pct_bat', label: 'BB%' },
     { key: 'k_pct_bat', label: 'K%' },
-    { key: 'off', label: 'Off' },
+    { key: 'xba', label: 'xBA' },
+    { key: 'xslg', label: 'xSLG' },
+    { key: 'xwoba', label: 'xwOBA' },
+    { key: 'bat', label: 'Bat' },
     { key: 'bsr', label: 'BsR' },
     { key: 'def_value', label: 'Def' },
     // Value
@@ -125,7 +136,7 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
       case 'wrc_plus':
         return formatDecimal(value, 0);
       case 'war_bat':
-      case 'off':
+      case 'bat':
       case 'bsr':
       case 'def_value':
       
@@ -135,6 +146,9 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
       case 'slg':
       case 'ops':
       case 'woba':
+      case 'xba':
+      case 'xslg':
+      case 'xwoba':
         return formatDecimal(value, 3);
       case 'bb_pct_bat':
       case 'k_pct_bat':
@@ -202,7 +216,7 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
       rbi: sum('rbi'),
       sb: sum('sb'),
       cs: sum('cs'),
-      off: sum('off'),
+      bat: sum('bat'),
       bsr: sum('bsr'),
       def_value: sum('def_value'),
       avg: gamesWeightedAvg('avg'),
@@ -213,6 +227,9 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
       wrc_plus: gamesWeightedAvg('wrc_plus'),
       bb_pct_bat: gamesWeightedAvg('bb_pct_bat'),
       k_pct_bat: gamesWeightedAvg('k_pct_bat'),
+      xba: gamesWeightedAvg('xba'),
+      xslg: gamesWeightedAvg('xslg'),
+      xwoba: gamesWeightedAvg('xwoba'),
       base_value: sum('base_value'),
       contract_value: sum('contract_value'),
       surplus_value: sum('surplus_value'),

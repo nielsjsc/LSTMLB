@@ -124,7 +124,7 @@ async def get_projections(
                     "ops": p.ops,
                     "woba": p.woba,
                     "wrc_plus": p.wrc_plus,
-                    "off": p.off,
+                    "bat": p.bat,
                     "bsr": p.bsr,
                     "def_value": p.def_value,
                     "hr": p.hr,
@@ -142,7 +142,11 @@ async def get_projections(
                     "era": p.era,
                     "fip": p.fip,
                     "k_pct_pit": p.k_pct_pit,
-                    "bb_pct_pit": p.bb_pct_pit
+                    "bb_pct_pit": p.bb_pct_pit,
+                    "gb_pct": p.gb_pct,
+                    "fb_pct": p.fb_pct,
+                    "hr_fb": p.hr_fb,
+                    "hr_9": p.hr_9
                 }})
             } for p in players]
         }

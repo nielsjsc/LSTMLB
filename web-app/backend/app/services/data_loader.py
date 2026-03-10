@@ -165,12 +165,13 @@ PLAYER_COL_MAP = {
     "BB%_bat": "bb_pct_bat", "K%_bat": "k_pct_bat",
     "AVG": "avg", "OBP": "obp", "SLG": "slg", "OPS": "ops",
     "wOBA": "woba", "wRC+": "wrc_plus",
-    "Off": "off", "BsR": "bsr", "Def": "def_value",
+    "Bat": "bat", "Off": "off", "BsR": "bsr", "Def": "def_value",
     "HR": "hr", "2B": "doubles", "3B": "triples",
     "R": "r", "RBI": "rbi", "SB": "sb", "CS": "cs",
     # Pitching
     "G_pit": "g_pit", "GS": "gs", "IP": "ip", "WAR_pitcher": "war_pit",
     "ERA": "era", "FIP": "fip", "K%_pit": "k_pct_pit", "BB%_pit": "bb_pct_pit",
+    "GB%_pit": "gb_pct", "FB%_pit": "fb_pct", "HR/FB_pit": "hr_fb", "HR/9": "hr_9",
     # Aggregate values
     "avg_war": "avg_war", "total_contract": "total_contract",
     "avg_contract": "avg_contract",
