@@ -602,6 +602,24 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
             } for p in player_years]
         }
 
+        # Augment historical seasons with statcast expected stats
+        mlbam = current_year_data.mlb_id
+        if mlbam:
+            sc_bat = _get_statcast_batter()
+            sc_pit = _get_statcast_pitcher()
+            for proj in response["projections"]:
+                key = (int(mlbam), int(proj["year"]))
+                if "hitting" in proj:
+                    sc = sc_bat.get(key)
+                    if sc:
+                        proj["hitting"]["xba"] = sc.get("xba")
+                        proj["hitting"]["xslg"] = sc.get("xslg")
+                        proj["hitting"]["xwoba"] = sc.get("xwoba")
+                if "pitching" in proj:
+                    sc = sc_pit.get(key)
+                    if sc:
+                        proj["pitching"]["xera"] = sc.get("xera")
+
         # Attach prospect data if available (looked up by mlbam_id or name)
         prospect_data = _build_prospect_data(
             db,

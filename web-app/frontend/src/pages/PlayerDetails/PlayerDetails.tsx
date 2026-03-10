@@ -820,7 +820,7 @@ const PlayerDetails: React.FC = () => {
 
         {hasPitching && hasCurrentPitching && projectedPitching.length > 0 && !isHistorical && (
           <CollapsibleSection title="Pitching Projections" teamColor={colors.primary} defaultOpen>
-            <CombinedPitchingTable data={projectedPitching.sort((a, b) => a.year - b.year)} />
+            <CombinedPitchingTable data={projectedPitching.sort((a, b) => a.year - b.year)} hideXStats />
           </CollapsibleSection>
         )}
 
@@ -832,7 +832,7 @@ const PlayerDetails: React.FC = () => {
 
         {showHitting && hasCurrentHitting && projectedHitting.length > 0 && !isHistorical && (
           <CollapsibleSection title="Hitting Projections" teamColor={colors.primary} defaultOpen={hittingDefaultOpen}>
-            <CombinedHittingTable data={projectedHitting.sort((a, b) => a.year - b.year)} />
+            <CombinedHittingTable data={projectedHitting.sort((a, b) => a.year - b.year)} hideXStats />
           </CollapsibleSection>
         )}
 

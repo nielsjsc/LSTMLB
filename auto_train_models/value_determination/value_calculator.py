@@ -540,24 +540,6 @@ def integrate_player_statistics(value_data: pd.DataFrame,
     batter_ids = set(batter_data['IDfg'].unique())
     pitcher_ids = set(sp_data['IDfg'].unique()) | set(rp_data['IDfg'].unique())
     two_way_players = batter_ids.intersection(pitcher_ids)
-
-    # Remove pitcher batting projections for pitchers with < 30 PA
-    if 'PA' in batter_data.columns:
-        low_pa_pitchers = set()
-        for pid in two_way_players:
-            pa_vals = batter_data.loc[
-                (batter_data['IDfg'] == pid)
-                & (batter_data['prediction_year'] == CURRENT_YEAR),
-                'PA'
-            ]
-            if pa_vals.empty or pa_vals.iloc[0] < 30:
-                low_pa_pitchers.add(pid)
-        if low_pa_pitchers:
-            print(f"Removing batting projections for {len(low_pa_pitchers)} pitchers with < 30 PA")
-            batter_data = batter_data[~batter_data['IDfg'].isin(low_pa_pitchers)].copy()
-            two_way_players -= low_pa_pitchers
-            batter_ids -= low_pa_pitchers
-
     print(f"Found {len(two_way_players)} two-way players")
     
     # Add two-way flag

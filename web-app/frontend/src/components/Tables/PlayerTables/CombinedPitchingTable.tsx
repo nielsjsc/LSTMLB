@@ -29,6 +29,7 @@ interface CombinedPitchingTableProps {
   }>;
   dividerYear?: number;
   showCareerTotals?: boolean;
+  hideXStats?: boolean;
 }
 interface FormattedPitchingRow extends Record<string, any> {
   year: number;
@@ -52,7 +53,7 @@ interface FormattedPitchingRow extends Record<string, any> {
   hr_9?: number;
   xera?: number;
 }
-const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, dividerYear, showCareerTotals = false }) => {
+const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, dividerYear, showCareerTotals = false, hideXStats = false }) => {
   const [sortKey, setSortKey] = useState<string>('year');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
@@ -72,7 +73,7 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
     { key: 'fb_pct', label: 'FB%' },
     { key: 'hr_9', label: 'HR/9' },
     { key: 'hr_fb', label: 'HR/FB' },
-    { key: 'xera', label: 'xERA' },
+    ...(!hideXStats ? [{ key: 'xera', label: 'xERA' }] : []),
     { key: 'base_value', label: 'Value ($M)' },
     { key: 'contract_value', label: 'Contract ($M)' },
     { key: 'surplus_value', label: 'Surplus ($M)' },

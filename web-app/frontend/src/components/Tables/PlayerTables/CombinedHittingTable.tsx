@@ -40,6 +40,7 @@ interface CombinedHittingTableProps {
   }>;
   dividerYear?: number;
   showCareerTotals?: boolean;
+  hideXStats?: boolean;
 }
 interface FormattedRow extends Record<string, any> {
   year: number;
@@ -74,7 +75,7 @@ interface FormattedRow extends Record<string, any> {
   xslg?: number;
   xwoba?: number;
 }
-const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, dividerYear, showCareerTotals = false }) => {
+const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, dividerYear, showCareerTotals = false, hideXStats = false }) => {
   const [sortKey, setSortKey] = useState<string>('year');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
@@ -102,9 +103,11 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
     { key: 'wrc_plus', label: 'wRC+' },
     { key: 'bb_pct_bat', label: 'BB%' },
     { key: 'k_pct_bat', label: 'K%' },
-    { key: 'xba', label: 'xBA' },
-    { key: 'xslg', label: 'xSLG' },
-    { key: 'xwoba', label: 'xwOBA' },
+    ...(!hideXStats ? [
+      { key: 'xba', label: 'xBA' },
+      { key: 'xslg', label: 'xSLG' },
+      { key: 'xwoba', label: 'xwOBA' },
+    ] : []),
     { key: 'bat', label: 'Bat' },
     { key: 'bsr', label: 'BsR' },
     { key: 'def_value', label: 'Def' },
