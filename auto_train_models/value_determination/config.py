@@ -91,11 +91,12 @@ class Columns:
     # Output column sets
     HITTER_COLUMNS = [
         'Name', 'Age', 'G', 'PA', 'BB_bat', 'K_bat', 'IDfg', 'BB%', 'K%', 'AVG', 'OBP', 'SLG', 'wOBA',
-        'wRC+', 'Off', 'BsR', 'Def', 'WAR', 'HR', '2B', '3B', 'SB', 'CS', 'R', 'RBI'
+        'wRC+', 'Bat', 'BsR', 'Def', 'WAR', 'HR', '2B', '3B', 'SB', 'CS', 'R', 'RBI'
     ]
 
     PITCHER_COLUMNS = [
         'Name', 'Age', 'GS', 'G', 'IP', 'BB_pit', 'K_pit', 'ER_pit', 'IDfg', 'ERA', 'FIP', 'K%', 'BB%', 'WAR',
+        'HR%', 'HR/FB', 'K/9', 'BB/9', 'HR/9', 'FB%', 'GB%', 'SIERA',
     ]
     # ID column mappings (for transitioning from FG ID to MLB ID)
     # TODO: Complete migration to mlbam_id as primary identifier
@@ -362,13 +363,8 @@ class ConvexModel:
         if war is None or (isinstance(war, float) and math.isnan(war)) or war <= 0:
             return 0.0
         
-        # Apply replacement-level floor (consistent with value_calculator.calculate_war_value)
-        marginal = war - TradeConfidence.REPLACEMENT_LEVEL_WAR
-        if marginal <= 0:
-            return 0.0
-        
         inflation = (1 + ContractConstants.INFLATION_RATE) ** (year - ContractConstants.BASE_YEAR)
-        return alpha * (marginal ** beta) * inflation
+        return alpha * (war ** beta) * inflation
 
 
 class ContractConstants:
@@ -549,11 +545,9 @@ class TradeConfidence:
 
     Two mechanisms adjust raw trade values to better reflect real market behavior:
 
-    1. **Replacement-level floor** — WAR below ``REPLACEMENT_LEVEL_WAR`` is freely
-       available (waiver claims, minor-league FAs) and commands no trade capital.
-       Only *marginal* WAR above this floor enters the convex dollar conversion.
-       Effect: a true-talent 1 WAR player → 0.5 marginal WAR → ~$3.7M/yr
-       (instead of the full-curve $8.6M/yr).
+    1. **Convex power-law valuation** — WAR is converted to dollar value using
+       a convex curve (value = alpha * WAR^beta * inflation). Any positive WAR
+       contributes trade value.
 
     2. **Projection confidence** — Players with limited MLB track records have
        their trade value blended between the performance projection and a
@@ -565,13 +559,6 @@ class TradeConfidence:
     All parameters are configurable here so the pipeline can be tuned without
     editing calculation code.
     """
-
-    # -- Replacement-level floor -----------------------------------------------
-    # WAR at or below this level is replacement-level production — available
-    # for league minimum on waivers.  Only WAR above this threshold produces
-    # trade value through the convex curve.
-    #   0.0 WAR → $0,  0.5 WAR → $0,  1.0 WAR → ~$3.7M,  5.0 WAR → ~$49M
-    REPLACEMENT_LEVEL_WAR = 0.5
 
     # -- Stabilisation thresholds (career games for full confidence) -----------
     # Below these thresholds trade value is blended with the prospect prior.

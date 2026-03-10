@@ -183,8 +183,14 @@ def normalize_contract_status(df: pd.DataFrame) -> pd.DataFrame:
         
         return 'Unknown'
     
-    # Process by player group
-    result_df = result_df.groupby('IDfg', group_keys=False).apply(get_next_year_status)
+    # Process by player group (explicit loop to preserve IDfg across pandas 3.0+)
+    groups = []
+    for player_id, group in result_df.groupby('IDfg'):
+        processed = get_next_year_status(group)
+        if 'IDfg' not in processed.columns:
+            processed['IDfg'] = player_id
+        groups.append(processed)
+    result_df = pd.concat(groups, ignore_index=True)
     
     # Apply normalization
     result_df['Normalized_Status'] = result_df.apply(_normalize_single_status, axis=1)
@@ -355,8 +361,14 @@ def generate_contract_timeline(df: pd.DataFrame) -> pd.DataFrame:
         
         return player_rows
     
-    # Process each player
-    result_df = result_df.groupby('IDfg', group_keys=False).apply(process_player_timeline)
+    # Process each player (explicit loop to preserve IDfg across pandas versions)
+    groups = []
+    for player_id, group in result_df.groupby('IDfg'):
+        processed = process_player_timeline(group)
+        if 'IDfg' not in processed.columns:
+            processed['IDfg'] = player_id
+        groups.append(processed)
+    result_df = pd.concat(groups, ignore_index=True)
     
     return result_df.sort_values(['IDfg', 'Year']).reset_index(drop=True)
 

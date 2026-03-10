@@ -128,6 +128,11 @@ def calculate_pitcher_war_for_dataframe(pitcher_df: pd.DataFrame,
     pitcher_df['BB_pit'] = (pitcher_df.get('BB%', pd.Series(0.0, index=pitcher_df.index)) * bf).round().astype(int)
     pitcher_df['ER_pit'] = (pitcher_df.get('ERA', pd.Series(0.0, index=pitcher_df.index)) * pitcher_df['IP'] / 9).round().astype(int)
 
+    # Compute per-9 rates from per-TBF rates
+    pitcher_df['K/9']  = pitcher_df.get('K%',  pd.Series(0.0, index=pitcher_df.index)) * bf_per_ip * 9
+    pitcher_df['BB/9'] = pitcher_df.get('BB%', pd.Series(0.0, index=pitcher_df.index)) * bf_per_ip * 9
+    pitcher_df['HR/9'] = pitcher_df.get('HR%', pd.Series(0.0, index=pitcher_df.index)) * bf_per_ip * 9
+
     return pitcher_df
 
 
@@ -236,6 +241,12 @@ def main():
         sp_data = combined_pitcher[combined_pitcher['Role'] == 'SP'].copy()
         rp_data = combined_pitcher[combined_pitcher['Role'] == 'RP'].copy()
         
+        # NOTE: Pitcher post-processing (output regression, FIP/SIERA reconstruction,
+        # HR% decomposition, ERA derivation) has been removed. All reconstruction
+        # and rate normalization is now handled inside the autoregressive loop in
+        # core/pitcher_prediction.py. Output regression and aging constraints are
+        # no longer applied — input regression + in-loop constraints are sufficient.
+        
         # Calculate WAR for SP and RP using proper function
         sp_data = calculate_pitcher_war_for_dataframe(sp_data, org_data, role='SP')
         rp_data = calculate_pitcher_war_for_dataframe(rp_data, org_data, role='RP')
@@ -286,7 +297,7 @@ def main():
                     'IDfg': row['IDfg'],
                     'Year': row['Year'],
                     'WAR': 0.0,
-                    'Off': 0.0,
+                    'Bat': 0.0,
                     'BsR': 0.0,
                     'Fld': 0.0,
                     'Pos': 0.0,

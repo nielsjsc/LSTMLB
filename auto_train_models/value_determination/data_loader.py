@@ -140,7 +140,7 @@ def merge_prediction_data(sp_df: pd.DataFrame,
     ]
     
     # Additional stat columns to preserve if they exist
-    stat_cols = ['BsR', 'Def', 'Off', 'G', 'PA', 'BB%', 'K%', 'AVG', 'OBP', 'SLG',
+    stat_cols = ['BsR', 'Def', 'Bat', 'G', 'PA', 'BB%', 'K%', 'AVG', 'OBP', 'SLG',
                  'wOBA', 'wRC+', 'HR', '2B', '3B', 'RBI', 'R', 'SB', 'CS', 'HBP', 'SF',
                  'ERA', 'FIP', 'SIERA', 'IP', 'GS', 'Role']
     
@@ -188,6 +188,10 @@ def load_historical_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     
     batting_history = pd.read_csv(batting_file)
     pitching_history = pd.read_csv(pitching_file)
+    
+    # Compute HR% for pitching if not present (HR / TBF)
+    if 'HR%' not in pitching_history.columns and 'HR' in pitching_history.columns and 'TBF' in pitching_history.columns:
+        pitching_history['HR%'] = pitching_history['HR'] / pitching_history['TBF'].replace(0, float('nan'))
     
     logger.info(f"Loaded historical data: {len(batting_history)} batting, {len(pitching_history)} pitching records")
     

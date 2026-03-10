@@ -33,11 +33,14 @@ def export_value_data(df: pd.DataFrame, output_dir: Path) -> None:
     
     hitting_cols = [
         'BB%_bat', 'K%_bat', 'BB_bat', 'K_bat', 'G_bat', 'PA', 'AVG', 'OBP', 'SLG', 'OPS',
-        'wOBA', 'wRC+', 'Off', 'BsR', 'Def', 'WAR_batter', 'HR', '2B', '3B', 'SB', 'CS', 'R', 'RBI'
+        'wOBA', 'wRC+', 'Bat', 'BsR', 'Def', 'WAR_batter', 'HR', '2B', '3B', 'SB', 'CS', 'R', 'RBI'
     ]
 
     pitching_cols = [
-        'ERA', 'FIP', 'K%_pit', 'BB%_pit', 'K_pit', 'BB_pit', 'ER_pit', 'WAR_pitcher', 'IP', 'GS', 'G_pit']
+        'ERA', 'FIP', 'SIERA', 'K%_pit', 'BB%_pit', 'HR%_pit', 'HR/FB_pit',
+        'FB%_pit', 'GB%_pit',
+        'K/9', 'BB/9', 'HR/9',
+        'K_pit', 'BB_pit', 'ER_pit', 'WAR_pitcher', 'IP', 'GS', 'G_pit']
     
     export_cols = base_cols + hitting_cols + pitching_cols
     

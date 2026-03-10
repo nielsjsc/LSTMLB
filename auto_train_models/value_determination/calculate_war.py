@@ -429,6 +429,51 @@ def _derive_components_from_woba(
         f"Derived counting stats from wOBA for {n_recalibrated}/{len(df)} player-year rows "
         f"({len(available_stats)} stats: {available_stats})"
     )
+
+    # =====================================================================
+    # RECONSTRUCT OBP AND wOBA FOR INTERNAL CONSISTENCY
+    # =====================================================================
+    # The model predicts AVG, OBP, SLG, wOBA independently — they may not
+    # be self-consistent.  After deriving counting stats above, recompute
+    # OBP from AVG + BB% + HBP, and wOBA from the counting stats using
+    # standard linear weights.  This guarantees everything displayed matches.
+    from .config import Config
+    weights = Config.WAR.WOBA_WEIGHTS
+
+    pa = df['PA'].fillna(650.0)
+    bb = df['BB%'] * pa
+    hbp_count = df['HBP'] if 'HBP' in df.columns else pa * 0.01
+    sf_count = pa * 0.007  # sacrifice fly estimate
+    ab = pa - bb - hbp_count - sf_count
+
+    # Hits from AVG × AB
+    h = df['AVG'] * ab
+    hr = df['HR'] if 'HR' in df.columns else 0.0
+    doubles = df['2B'] if '2B' in df.columns else 0.0
+    triples = df['3B'] if '3B' in df.columns else 0.0
+    singles = (h - doubles - triples - hr).clip(lower=0)
+
+    # Reconstruct OBP = (H + BB + HBP) / (AB + BB + HBP + SF)
+    obp_num = h + bb + hbp_count
+    obp_den = ab + bb + hbp_count + sf_count
+    df['OBP'] = (obp_num / obp_den.replace(0, 1)).clip(0, 1)
+
+    # Reconstruct wOBA from counting stats
+    woba_num = (weights['wBB'] * bb + weights['wHBP'] * hbp_count +
+                weights['w1B'] * singles + weights['w2B'] * doubles +
+                weights['w3B'] * triples + weights['wHR'] * hr)
+    df['wOBA'] = (woba_num / pa.replace(0, 1)).clip(0, 1)
+
+    # Also reconstruct SLG for consistency
+    slg_num = singles + 2 * doubles + 3 * triples + 4 * hr
+    df['SLG'] = (slg_num / ab.replace(0, 1)).clip(0, 4)
+
+    logger.info(
+        f"Reconstructed OBP (mean={df['OBP'].mean():.3f}), "
+        f"wOBA (mean={df['wOBA'].mean():.3f}), "
+        f"SLG (mean={df['SLG'].mean():.3f}) from components for internal consistency"
+    )
+
     return df
 
 def calculate_baserunning_value(row: pd.Series, games: int) -> float:
@@ -699,7 +744,7 @@ def calculate_war_components(row: pd.Series, baserunning_data: pd.DataFrame,
         counting_stats['CS'] = 0.0
     
     return war, {
-        'Off': off,
+        'Bat': batting_runs,
         'BsR': bsr,
         'Fld': fld_value,  # Raw Statcast FRV fielding runs
         'Pos': pos_adjustment,  # Positional adjustment
@@ -973,7 +1018,7 @@ def process_predictions(data_dir: Path, output_dir: Path, target_year: Optional[
     # Reorder columns for better readability
     column_order = ['Name', 'IDfg', 'Year', 'Age', 'Team', 'Position', 'BB%', 'K%', 'AVG', 'OBP', 'SLG', 
                    'wOBA', 'wRC+',
-                   'Off', 'BsR', 'Fld', 'Pos', 'Def', 'WAR', 'PA', 'G', 
+                   'Bat', 'BsR', 'Fld', 'Pos', 'Def', 'WAR', 'PA', 'G', 
                    'HR', '2B','3B', 'RBI', 'R', 'SB', 'CS']
     
     # Keep only columns that exist in the DataFrame
@@ -993,7 +1038,7 @@ def process_predictions(data_dir: Path, output_dir: Path, target_year: Optional[
     # Display top performers for latest year
     latest_year = batter_df['Year'].max()
     top_performers = (batter_df[batter_df['Year'] == latest_year]
-                     .nlargest(10, 'WAR')[['Name', 'Age', 'Position', 'wOBA', 'wRC+', 'Off', 'BsR', 'Fld', 'Pos', 'Def', 'WAR']])
+                     .nlargest(10, 'WAR')[['Name', 'Age', 'Position', 'wOBA', 'wRC+', 'Bat', 'BsR', 'Fld', 'Pos', 'Def', 'WAR']])
     
     print(f"\nTop 10 Predicted WAR for {latest_year}:")
     print(top_performers.to_string(index=False))

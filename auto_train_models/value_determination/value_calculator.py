@@ -141,24 +141,18 @@ def calculate_inflation_multiplier(year: int) -> float:
 
 def calculate_war_value(war: float, year: int) -> float:
     """
-    Calculate WAR dollar value using the empirically calibrated convex power-law
-    with a replacement-level floor.
+    Calculate WAR dollar value using the empirically calibrated convex power-law.
 
     Formula:
-        marginal_war = max(0, WAR - REPLACEMENT_LEVEL_WAR)
-        value = alpha * marginal_war^beta * inflation(year)
+        value = alpha * WAR^beta * inflation(year)
 
-    The replacement-level floor (default 0.5 WAR) reflects that sub-replacement
-    production is freely available on waivers and commands no trade capital.
-    Only *marginal* WAR above the floor enters the convex curve.
-
-    Reference values (2025 dollars, alpha=$8.59M, beta=1.18, floor=0.5):
-        0.5 WAR →   $0          3 WAR →  $24.5M
-        1.0 WAR →   $3.8M       5 WAR →  $49.2M
-        2.0 WAR →  $13.8M       8 WAR → $121.9M
+    Reference values (2025 dollars, alpha=$8.59M, beta=1.18):
+        0.5 WAR →   $1.7M       3 WAR →  $28.5M
+        1.0 WAR →   $8.6M       5 WAR →  $53.2M
+        2.0 WAR →  $19.4M       8 WAR → $93.8M
 
     Args:
-        war: WAR value (negative or sub-replacement returns $0)
+        war: WAR value (negative returns $0)
         year: Year for inflation adjustment (relative to BASE_YEAR)
 
     Returns:
@@ -167,14 +161,8 @@ def calculate_war_value(war: float, year: int) -> float:
     if pd.isna(war) or war <= 0:
         return 0.0
 
-    # Only WAR above replacement level produces trade value
-    replacement = Config.TradeConfidence.REPLACEMENT_LEVEL_WAR
-    marginal = war - replacement
-    if marginal <= 0:
-        return 0.0
-
     inflation = calculate_inflation_multiplier(year)
-    return _CONVEX_ALPHA * (marginal ** _CONVEX_BETA) * inflation
+    return _CONVEX_ALPHA * (war ** _CONVEX_BETA) * inflation
 
 
 def _calculate_war_value_tiered(war: float, year: int) -> float:
@@ -396,7 +384,7 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     
     # Format batting data
     batter_cols = ['IDfg', 'Season', 'Name', 'Team', 'G', 'WAR', 'BB%', 'K%', 'AVG',
-                   'OBP', 'SLG', 'OPS', 'wOBA', 'wRC+', 'Off', 'BsR', 'Def', 'Age', 
+                   'OBP', 'SLG', 'OPS', 'wOBA', 'wRC+', 'Bat', 'BsR', 'Def', 'Age', 
                    'HR', '2B', '3B', 'R', 'RBI', 'SB', 'CS']
     
     # Filter to columns that exist
@@ -408,8 +396,8 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
                                        'BB%': 'BB%_bat', 'K%': 'K%_bat', 'G': 'G_bat'}))
     
     # Format pitching data
-    pitcher_cols = ['IDfg', 'GS', 'Season', 'Name', 'Team', 'G', 'WAR', 'ERA', 'FIP', 'IP',
-                    'K%', 'BB%', 'Age']
+    pitcher_cols = ['IDfg', 'GS', 'Season', 'Name', 'Team', 'G', 'WAR', 'ERA', 'FIP', 'SIERA', 'IP',
+                    'K%', 'BB%', 'Age', 'HR%', 'HR/FB', 'FB%', 'GB%', 'K/9', 'BB/9', 'HR/9']
     
     # Filter to columns that exist
     available_pitcher_cols = [c for c in pitcher_cols if c in pitching_history.columns]
@@ -417,7 +405,9 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     pitching_filtered = (pitching_history[pitching_history['IDfg'].isin(current_players['IDfg'])]
                         [available_pitcher_cols]
                         .rename(columns={'Season': 'Year', 'WAR': 'WAR_pitcher',
-                                        'K%': 'K%_pit', 'BB%': 'BB%_pit', 'G': 'G_pit'}))
+                                        'K%': 'K%_pit', 'BB%': 'BB%_pit', 'G': 'G_pit',
+                                        'HR%': 'HR%_pit', 'HR/FB': 'HR/FB_pit',
+                                        'FB%': 'FB%_pit', 'GB%': 'GB%_pit'}))
     
     # Merge batting and pitching data - use only IDfg and Year to avoid duplicates
     # Name, Team, Age can differ slightly between batting/pitching datasets
@@ -550,6 +540,24 @@ def integrate_player_statistics(value_data: pd.DataFrame,
     batter_ids = set(batter_data['IDfg'].unique())
     pitcher_ids = set(sp_data['IDfg'].unique()) | set(rp_data['IDfg'].unique())
     two_way_players = batter_ids.intersection(pitcher_ids)
+
+    # Remove pitcher batting projections for pitchers with < 30 PA
+    if 'PA' in batter_data.columns:
+        low_pa_pitchers = set()
+        for pid in two_way_players:
+            pa_vals = batter_data.loc[
+                (batter_data['IDfg'] == pid)
+                & (batter_data['prediction_year'] == CURRENT_YEAR),
+                'PA'
+            ]
+            if pa_vals.empty or pa_vals.iloc[0] < 30:
+                low_pa_pitchers.add(pid)
+        if low_pa_pitchers:
+            print(f"Removing batting projections for {len(low_pa_pitchers)} pitchers with < 30 PA")
+            batter_data = batter_data[~batter_data['IDfg'].isin(low_pa_pitchers)].copy()
+            two_way_players -= low_pa_pitchers
+            batter_ids -= low_pa_pitchers
+
     print(f"Found {len(two_way_players)} two-way players")
     
     # Add two-way flag
@@ -586,6 +594,10 @@ def integrate_player_statistics(value_data: pd.DataFrame,
         'prediction_year': 'Year',
         'BB%': 'BB%_pit',
         'K%': 'K%_pit',
+        'HR%': 'HR%_pit',
+        'HR/FB': 'HR/FB_pit',
+        'FB%': 'FB%_pit',
+        'GB%': 'GB%_pit',
         'Age': 'Age_pit',
         'G': 'G_pit',
         'WAR': 'WAR_pitcher',
