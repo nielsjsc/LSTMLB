@@ -27,7 +27,7 @@ class DefenseCatcherConfig:
     def get_data_config():
         return DataConfig(
             input_features=DefenseCatcherConfig.INPUT_FEATURES,
-            seq_length=4,  # C_SEQ_LENGTH from notebook
+            seq_length=3,  # C_SEQ_LENGTH from notebook
             start_season=2002,
             min_pa=40,  # C_MIN_INNINGS from notebook (converted to min_pa for compatibility)
             train_ratio=0.7, 
@@ -52,7 +52,7 @@ class DefenseCatcherConfig:
     HIDDEN_SIZE = 128
     NUM_LAYERS = 2 # Notebook hardcodes this in ImprovedLSTM.__init__
     NUM_HEADS = 1 # Notebook hardcodes this in attention layer
-    DROPOUT = 0.4  
+    DROPOUT = 0.2  
     BIDIRECTIONAL = False
     GRADIENT_CLIP = 1.0
     
@@ -67,7 +67,6 @@ class DefenseCatcherConfig:
     # Position-specific weights for loss function
     FEATURE_WEIGHTS = {
         'Age': 1.0,
-
         'sc_total_runs/150': 1
     }
     

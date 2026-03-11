@@ -203,7 +203,7 @@ class BatterConfig:
     # Only affects PREDICTIONS — training data is not modified.
     # Requires at least one of USE_XWOBA/USE_XSLG/USE_XBA to be True, and the
     # corresponding x-stat columns to exist on the player-season row.
-    ADJUST_COUNTING_STATS_TO_XSTATS = True
+    ADJUST_COUNTING_STATS_TO_XSTATS = False
 
     # ............................................................................
     # PLAYER-SPECIFIC X-STAT COUNTING ADJUSTMENT
