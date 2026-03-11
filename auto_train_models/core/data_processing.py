@@ -6,8 +6,8 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import joblib
-from typing import Tuple, List, Optional
-from dataclasses import dataclass
+from typing import Tuple, List, Optional, Dict
+from dataclasses import dataclass, field
 import logging
 import torch
 
@@ -92,6 +92,17 @@ class DataConfig:
     valid_ratio: float = 0.2
     random_seed: int = 42
     
+    # ===== Scaler alignment =====
+    # Groups of features that must share the same min/max scaling range.
+    # Equal raw values will map to equal scaled values, eliminating phantom
+    # gaps caused by different data ranges (e.g. ERA max=11.27 vs FIP max=8.62).
+    linked_scale_groups: List[List[str]] = None
+    
+    # Per-feature percentile clipping applied before scaler fitting.
+    # Removes extreme outliers that compress the useful range into a tiny band.
+    # Format: {'feature_name': (lower_percentile, upper_percentile)}
+    stat_clip_percentiles: Dict[str, tuple] = None
+    
     def __post_init__(self):
         if self.input_features is None:
             # No default features - must be specified explicitly by each model config
@@ -115,13 +126,14 @@ class SequenceHandler:
             sequence = player_data.iloc[-self.seq_length:][input_features].values
             mask = torch.ones(self.seq_length, dtype=torch.bool)
         else:
-            # Create padding
+            # Right-pad: real data first, padding at end.
+            # pack_padded_sequence expects real data at positions 0..lengths-1.
             padding_size = self.seq_length - available_seasons
             real_data = player_data[input_features].values
             padding = np.full((padding_size, len(input_features)), self.pad_value)
-            sequence = np.vstack([padding, real_data])
+            sequence = np.vstack([real_data, padding])
             mask = torch.zeros(self.seq_length, dtype=torch.bool)
-            mask[padding_size:] = 1
+            mask[:available_seasons] = 1
             
         return sequence, mask
 def prepare_sequences(df: pd.DataFrame, 
@@ -149,6 +161,30 @@ def prepare_sequences(df: pd.DataFrame,
 def calculate_rate_stats(df: pd.DataFrame) -> pd.DataFrame:
     """Calculate rate statistics for all model types: defense, baserunning, batting, pitching"""
     df = df.copy()
+    
+    # =========================================================================
+    # PITCHING COMPONENT RATE STATS (per TBF)
+    # =========================================================================
+    # HR% and HBP% must be computed FIRST, before the batting per-150 conversion
+    # below which overwrites HR and HBP in-place (suffix='').
+    # K% and BB% already come pre-computed from FanGraphs.
+    #
+    # Stabilization (from data analysis):
+    #   HR%  stabilizes at ~1108 TBF (~258 IP)  — Y-o-Y r ≈ 0.26
+    #   HBP% stabilizes at ~995 TBF  (~231 IP)  — Y-o-Y r ≈ 0.30
+    if 'TBF' in df.columns:
+        if 'HR' in df.columns and 'HR%' not in df.columns:
+            df['HR%'] = np.where(
+                df['TBF'] > 0,
+                df['HR'] / df['TBF'],
+                0.0
+            )
+        if 'HBP' in df.columns and 'HBP%' not in df.columns:
+            df['HBP%'] = np.where(
+                df['TBF'] > 0,
+                df['HBP'] / df['TBF'],
+                0.0
+            )
     
     # Import the master list of batting counting stats (single source of truth)
     from core.rate_stats_config import BATTING_COUNTING_STATS as _batting_counting_stats
@@ -309,8 +345,12 @@ def apply_model_specific_filters(df: pd.DataFrame, model_type: str) -> pd.DataFr
         logger.info(f"Filtered to {len(df)} catcher position records")
         
     elif model_type == 'pitcher_sp':
-        # Filter for starting pitchers (GS_rate >= 0.8)
-        if 'GS' in df.columns and 'G' in df.columns:
+        # Check for unified pitcher model mode
+        from configs.pitcher_sp_config import PitcherSPConfig
+        unified = getattr(PitcherSPConfig, 'UNIFIED_PITCHER_MODEL', False)
+        if unified:
+            logger.info(f"UNIFIED_PITCHER_MODEL=True — using all {len(df)} pitcher records (SP+RP)")
+        elif 'GS' in df.columns and 'G' in df.columns:
             df['GS_rate'] = np.where(df['G'] > 0, df['GS'] / df['G'], 0)
             df = df[df['GS_rate'] >= 0.8]
             logger.info(f"Filtered to {len(df)} starting pitcher records")
@@ -519,12 +559,107 @@ def _maybe_build_hybrid_scaler(
         return None
 
 
+def _clip_features_by_percentile(
+    df: pd.DataFrame,
+    features: List[str],
+    clip_config: Dict[str, tuple],
+) -> pd.DataFrame:
+    """
+    Clip feature values at specified percentiles before scaler fitting.
+    
+    This removes extreme outliers (e.g. 11.0 ERA in 40 IP) that compress the
+    useful range into a tiny band of [-1, 1].  After clipping, a typical
+    3.50-4.50 FIP range occupies significantly more of the scaled space,
+    giving the model much better resolution where it matters.
+    
+    Args:
+        df: DataFrame to clip (modified in-place on a copy)
+        features: All feature column names
+        clip_config: Mapping of feature name → (lower_pct, upper_pct)
+                     e.g. {'ERA': (0.5, 99.5)}
+    Returns:
+        DataFrame with clipped values
+    """
+    df = df.copy()
+    for feat, (lo_pct, hi_pct) in clip_config.items():
+        if feat not in features or feat not in df.columns:
+            continue
+        lo_val = np.percentile(df[feat].dropna(), lo_pct)
+        hi_val = np.percentile(df[feat].dropna(), hi_pct)
+        n_clipped = ((df[feat] < lo_val) | (df[feat] > hi_val)).sum()
+        df[feat] = df[feat].clip(lower=lo_val, upper=hi_val)
+        logger.info(
+            f"Clipped {feat} to [{lo_val:.3f}, {hi_val:.3f}] "
+            f"(p{lo_pct}-p{hi_pct}), {n_clipped} values affected"
+        )
+    return df
+
+
+def _unify_linked_scale_groups(
+    scaler: MinMaxScaler,
+    features: List[str],
+    linked_groups: List[List[str]],
+) -> None:
+    """
+    After fitting a MinMaxScaler, unify data_min/data_max for linked feature
+    groups so that equal raw values map to identical scaled values.
+    
+    For example, with linked_group=['FIP', 'ERA', 'xFIP', 'SIERA']:
+    - Take the minimum data_min across all four → unified_min
+    - Take the maximum data_max across all four → unified_max
+    - Set all four features to use [unified_min, unified_max]
+    - Recalculate scale_ and min_ accordingly
+    
+    This eliminates the phantom gap where, e.g., FIP=4.00 maps to -0.252 but
+    ERA=4.00 maps to -0.427 because ERA's outliers stretched its range further.
+    """
+    feat_range = scaler.feature_range  # typically (-1, 1)
+    
+    for group in linked_groups:
+        indices = [features.index(f) for f in group if f in features]
+        if len(indices) < 2:
+            continue
+        
+        # Unify to the broadest range so no data falls outside
+        unified_min = scaler.data_min_[indices].min()
+        unified_max = scaler.data_max_[indices].max()
+        unified_range = unified_max - unified_min
+        
+        if unified_range == 0:
+            logger.warning(f"Linked group {group} has zero range — skipping")
+            continue
+        
+        group_names = [features[i] for i in indices]
+        logger.info(
+            f"Unifying scale group {group_names}: "
+            f"range [{unified_min:.3f}, {unified_max:.3f}]"
+        )
+        
+        for idx in indices:
+            old_min = scaler.data_min_[idx]
+            old_max = scaler.data_max_[idx]
+            scaler.data_min_[idx] = unified_min
+            scaler.data_max_[idx] = unified_max
+            scaler.data_range_[idx] = unified_range
+            # Recalculate derived parameters: X_scaled = X * scale_ + min_
+            # where scale_ = (feat_hi - feat_lo) / data_range
+            #       min_   = feat_lo - data_min * scale_
+            scaler.scale_[idx] = (feat_range[1] - feat_range[0]) / unified_range
+            scaler.min_[idx] = feat_range[0] - unified_min * scaler.scale_[idx]
+            logger.debug(
+                f"  {features[idx]}: [{old_min:.3f}, {old_max:.3f}] → "
+                f"[{unified_min:.3f}, {unified_max:.3f}]"
+            )
+
+
 def scale_features(df: pd.DataFrame, 
                   features: List[str], 
                   scaler=None,
                   model_type: str = "baserunning",
                   mode: str = "pretrain",
-                  pretrain_scaler_path: Optional[str] = None):
+                  pretrain_scaler_path: Optional[str] = None,
+                  linked_scale_groups: Optional[List[List[str]]] = None,
+                  stat_clip_percentiles: Optional[Dict[str, tuple]] = None):
     """
     Scale features using the appropriate scaler strategy.
 
@@ -541,6 +676,12 @@ def scale_features(df: pd.DataFrame,
         model_type: Type of model (for scaler filename and hybrid scaler check)
         mode: 'pretrain' or 'finetune'
         pretrain_scaler_path: Path to pre-trained scaler (required for fine-tuning)
+        linked_scale_groups: Groups of features that share the same min/max range.
+            e.g. [['FIP', 'ERA', 'xFIP', 'SIERA']] ensures equal raw values map
+            to equal scaled values, eliminating phantom gaps.
+        stat_clip_percentiles: Per-feature percentile clipping before fitting.
+            e.g. {'ERA': (0.5, 99.5)} clips ERA at the 0.5th and 99.5th percentiles,
+            removing extreme outliers that compress the useful scaling range.
     
     Returns:
         Scaled DataFrame and scaler
@@ -550,29 +691,49 @@ def scale_features(df: pd.DataFrame,
     
     # Handle scaler based on mode
     if scaler is None:
+        # =====================================================================
+        # STEP 1: Clip extreme values before fitting the scaler.
+        # This prevents outliers (e.g. 11.0 ERA in 40 IP) from compressing the
+        # useful range (2.5-5.5) into a tiny band of [-1, 1].
+        # Only applied during fitting, not during transform-only calls.
+        # =====================================================================
+        fit_df = df
+        if stat_clip_percentiles:
+            fit_df = _clip_features_by_percentile(df, all_features, stat_clip_percentiles)
+        
         # For fine-tuning, load and extend pre-trained scaler
         if mode == 'finetune' and pretrain_scaler_path:
             logger.info(f"Fine-tuning mode: Loading pre-trained scaler")
-            # For fine-tuning, we need to identify classical vs statcast features
-            # Assume features are ordered: [classical..., statcast...]
-            # This will be handled by the calling code passing the right scaler
             scaler = joblib.load(pretrain_scaler_path)
             logger.info(f"Loaded pre-trained scaler from {pretrain_scaler_path}")
             
-            # Fit on new data to update Statcast statistics
-            scaled_data = scaler.fit_transform(df[all_features])
+            # Fit on (clipped) data to update statistics
+            scaler.fit(fit_df[all_features])
             logger.info("Updated scaler statistics with fine-tuning data")
         else:
             # Pre-training: Create new scaler (hybrid or legacy)
             hybrid = _maybe_build_hybrid_scaler(model_type, all_features)
             if hybrid is not None:
                 scaler = hybrid
-                scaled_data = scaler.fit_transform(df[all_features])
+                scaler.fit(fit_df[all_features])
                 logger.info(f"Created HybridScaler for {model_type} ({mode} mode)")
             else:
                 scaler = MinMaxScaler(feature_range=(-1, 1))
-                scaled_data = scaler.fit_transform(df[all_features])
+                scaler.fit(fit_df[all_features])
                 logger.info(f"Created new MinMaxScaler for {model_type} ({mode} mode)")
+        
+        # =====================================================================
+        # STEP 2: Unify linked feature groups so equal raw → equal scaled.
+        # Must happen AFTER fit but BEFORE transform/save.
+        # =====================================================================
+        if linked_scale_groups and isinstance(scaler, MinMaxScaler):
+            _unify_linked_scale_groups(scaler, all_features, linked_scale_groups)
+        
+        # Now transform the ORIGINAL (unclipped) data with the adjusted scaler.
+        # Values outside the clipped range simply map outside [-1, 1], which is
+        # fine — the model's tanh*output_scale handles bounded prediction, and
+        # extreme historical seasons are rare in practice.
+        scaled_data = scaler.transform(df[all_features])
         
         # Save scaler
         import os
@@ -669,9 +830,9 @@ def prepare_sequences(df: pd.DataFrame,
             if len(volume_stat) > seq_length:
                 volume_stat = volume_stat[-seq_length:]
             
-            # Pad with zeros to match sequence length
+            # Pad with zeros to match sequence length (right-pad: real data first)
             padded_volume = np.zeros(seq_length)
-            padded_volume[-len(volume_stat):] = volume_stat
+            padded_volume[:len(volume_stat)] = volume_stat
             
             # Store RAW volume stats - let the loss function handle normalization
             # This allows IPWeightedMSELoss to properly weight by actual IP
@@ -794,7 +955,9 @@ def preprocess_data(
             config.input_features, 
             model_type=model_name,
             mode=mode,
-            pretrain_scaler_path=pretrain_scaler_path
+            pretrain_scaler_path=pretrain_scaler_path,
+            linked_scale_groups=config.linked_scale_groups,
+            stat_clip_percentiles=config.stat_clip_percentiles,
         )
         
         training_features = config.input_features  # Input features (may include Statcast)

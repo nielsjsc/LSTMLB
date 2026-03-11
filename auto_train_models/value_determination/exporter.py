@@ -37,7 +37,7 @@ def export_value_data(df: pd.DataFrame, output_dir: Path) -> None:
     ]
 
     pitching_cols = [
-        'ERA', 'FIP', 'SIERA', 'K%_pit', 'BB%_pit', 'HR%_pit', 'HR/FB_pit',
+        'ERA', 'FIP', 'SIERA', 'K%_pit', 'BB%_pit', 'HR/FB_pit',
         'FB%_pit', 'GB%_pit',
         'K/9', 'BB/9', 'HR/9',
         'K_pit', 'BB_pit', 'ER_pit', 'WAR_pitcher', 'IP', 'GS', 'G_pit']

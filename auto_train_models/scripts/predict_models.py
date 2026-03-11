@@ -33,11 +33,11 @@ from core.data_processing import DataConfig, calculate_rate_stats
 from core.prediction import (
     generate_batter_names, 
     load_model_from_checkpoint,
-    predict_all_pitchers, 
     predict_all_batters,
     predict_all_fielders, 
     predict_all_baserunners
 )
+from core.pitcher_prediction import predict_all_pitchers
 
 # Configure logging
 logging.basicConfig(
@@ -82,6 +82,19 @@ def load_roster_ids() -> Optional[set]:
     return roster_ids
 
 
+def load_pitcher_ids() -> Optional[set]:
+    """Load IDfg values for known pitchers from the pitching data CSV."""
+    sp_config = ModelFactory.get_config('pitcher_sp')
+    data_path = resolve_data_path(sp_config.DATA_FILE)
+    if not data_path.exists():
+        logger.warning(f"Pitcher data file not found at {data_path}")
+        return None
+    pitcher_df = pd.read_csv(data_path, usecols=['IDfg'])
+    ids = set(pitcher_df['IDfg'].dropna().astype(int).unique())
+    logger.info(f"Loaded {len(ids)} pitcher IDfg values for batting filter")
+    return ids
+
+
 def resolve_data_path(config_data_file: str) -> Path:
     """
     Resolve data file path from config.
@@ -106,10 +119,14 @@ def load_pitcher_models_and_scalers(use_pretrained: bool = False) -> tuple:
     Args:
         use_pretrained: If True, use pretrained model (classical features).
                        If False, try finetuned model first.
+    
+    When UNIFIED_PITCHER_MODEL is True in PitcherSPConfig, a single model/scaler
+    is loaded and returned for both SP and RP slots.
     """
     
     # Load SP model
     sp_config = ModelFactory.get_config('pitcher_sp')
+    unified = getattr(sp_config, 'UNIFIED_PITCHER_MODEL', False)
     
     # Determine which checkpoint and config to use
     sp_pretrain_checkpoint = AUTO_TRAIN_DIR / sp_config.CHECKPOINT_DIR / sp_config.PRETRAIN_CHECKPOINT_FILE
@@ -133,7 +150,12 @@ def load_pitcher_models_and_scalers(use_pretrained: bool = False) -> tuple:
     )
     sp_scaler = joblib.load(sp_scaler_path)
     
-    # Load RP model
+    if unified:
+        # Unified mode: reuse the SP model/scaler/config for RP as well
+        logger.info("UNIFIED_PITCHER_MODEL=True — using SP model for all pitchers (no separate RP model)")
+        return sp_model, sp_model, sp_scaler, sp_scaler, sp_config, sp_config, sp_data_config, sp_data_config
+    
+    # Load RP model (separate mode only)
     rp_config = ModelFactory.get_config('pitcher_rp')
     
     rp_pretrain_checkpoint = AUTO_TRAIN_DIR / rp_config.CHECKPOINT_DIR / rp_config.PRETRAIN_CHECKPOINT_FILE
@@ -240,8 +262,9 @@ def generate_pitcher_predictions(
     sp_config_class = ModelFactory.get_config('pitcher_sp')
     data_file_path = resolve_data_path(sp_config_class.DATA_FILE)
     
-    # Load data
+    # Load data and compute derived rate stats (HR%, HBP% from counting stats)
     raw_df = pd.read_csv(data_file_path)
+    raw_df = calculate_rate_stats(raw_df)
     
     # Generate or load pitcher names
     pitcher_names_path = DATA_DIR / 'pitcher_names.csv'
@@ -374,6 +397,7 @@ def generate_batter_predictions(
         input_features = config.INPUT_FEATURES
     
     # Generate predictions
+    pitcher_ids = load_pitcher_ids()
     predictions_df = predict_all_batters(
         raw_df=raw_df,
         player_names=player_names,
@@ -384,7 +408,8 @@ def generate_batter_predictions(
         future_years=15,
         cutoff_year=cutoff_year,
         min_pa_current=config.MIN_PA_CURRENT if hasattr(config, 'MIN_PA_CURRENT') else 100,
-        roster_ids=roster_ids
+        roster_ids=roster_ids,
+        pitcher_ids=pitcher_ids
     )
     
     if predictions_df is not None:
@@ -482,6 +507,7 @@ def generate_integrated_batter_predictions(
         input_features = config.INPUT_FEATURES
     
     # Get batter predictions without WAR calculation (WAR calculated in post-processing via calculate_war.py)
+    pitcher_ids = load_pitcher_ids()
     batter_df = predict_all_batters(
         raw_df=raw_df,
         player_names=player_names,
@@ -492,7 +518,8 @@ def generate_integrated_batter_predictions(
         future_years=15,
         cutoff_year=cutoff_year,
         min_pa_current=config.MIN_PA_CURRENT if hasattr(config, 'MIN_PA_CURRENT') else 100,
-        roster_ids=roster_ids
+        roster_ids=roster_ids,
+        pitcher_ids=pitcher_ids
     )
     
     if batter_df is None:

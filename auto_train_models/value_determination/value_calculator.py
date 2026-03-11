@@ -397,7 +397,7 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     
     # Format pitching data
     pitcher_cols = ['IDfg', 'GS', 'Season', 'Name', 'Team', 'G', 'WAR', 'ERA', 'FIP', 'SIERA', 'IP',
-                    'K%', 'BB%', 'Age', 'HR%', 'HR/FB', 'FB%', 'GB%', 'K/9', 'BB/9', 'HR/9']
+                    'K%', 'BB%', 'Age', 'HR/FB', 'FB%', 'GB%', 'K/9', 'BB/9', 'HR/9']
     
     # Filter to columns that exist
     available_pitcher_cols = [c for c in pitcher_cols if c in pitching_history.columns]
@@ -406,7 +406,7 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
                         [available_pitcher_cols]
                         .rename(columns={'Season': 'Year', 'WAR': 'WAR_pitcher',
                                         'K%': 'K%_pit', 'BB%': 'BB%_pit', 'G': 'G_pit',
-                                        'HR%': 'HR%_pit', 'HR/FB': 'HR/FB_pit',
+                                        'HR/FB': 'HR/FB_pit',
                                         'FB%': 'FB%_pit', 'GB%': 'GB%_pit'}))
     
     # Merge batting and pitching data - use only IDfg and Year to avoid duplicates
@@ -576,7 +576,6 @@ def integrate_player_statistics(value_data: pd.DataFrame,
         'prediction_year': 'Year',
         'BB%': 'BB%_pit',
         'K%': 'K%_pit',
-        'HR%': 'HR%_pit',
         'HR/FB': 'HR/FB_pit',
         'FB%': 'FB%_pit',
         'GB%': 'GB%_pit',

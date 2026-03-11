@@ -62,35 +62,32 @@ logger = logging.getLogger(__name__)
 # BATTER stabilization is in PLATE APPEARANCES (PA)
 # BASERUNNING stabilization is in GAMES (G)
 # DEFENSE stabilization is in INNINGS (Inn)
-#
-# Three eras are defined for pitcher stats because pitch-tracking data
-# availability changed the reliability of certain metrics across time periods.
 
-STABILIZATION_POINTS: Dict[str, Dict[str, int]] = {
-    # =========================================================================
-    # PITCHER STATS (unit: Batters Faced)
-    # =========================================================================
+PITCHER_STABILIZATION_POINTS: Dict[str, int] = {
     # Classical stats (available 1950+)
-    'K%':       {'classical': 70,   'pitchfx': 70,   'statcast': 70},
-    'BB%':      {'classical': 170,  'pitchfx': 170,  'statcast': 170},
-    'ERA':      {'classical': 1320, 'pitchfx': 1320, 'statcast': 1320},
-    'FIP':      {'classical': 1320, 'pitchfx': 1320, 'statcast': 1320},
-
+    'K%':       500,
+    'BB%':      500,
+    'HR%':      300,    # ~258 IP to stabilize (data-derived)
+    'HBP%':     300,    # ~231 IP to stabilize (data-derived)
+    'BABIP':    1200,    # ~190 IP; YoY r~0.30, mostly noise
+    'ERA':      1320,
+    'FIP':      1320,
     # PITCHf/x era stats (2002+)
-    'FBv':      {'pitchfx': 50,   'statcast': 50},
-    'SwStr%':   {'pitchfx': 200,  'statcast': 200},
-    'CSW%':     {'pitchfx': 250,  'statcast': 250},
-    'GB%':      {'pitchfx': 70,   'statcast': 70},
-    'FB%':      {'pitchfx': 70,   'statcast': 70},
-    'Contact%': {'pitchfx': 100,  'statcast': 100},
-    'xFIP':     {'pitchfx': 1320, 'statcast': 1320},
-    'SIERA':    {'pitchfx': 1320, 'statcast': 1320},
-
+    'FBv':      50,
+    'SwStr%':   200,
+    'CSW%':     250,
+    'GB%':      70,
+    'FB%':      70,
+    'LD%':      70,
+    'HR/FB':    1600,    # ~300 FB x ~4 TBF/FB ~ 1200 TBF
+    'Contact%': 100,
+    'xFIP':     1320,
+    'SIERA':    1320,
     # Statcast era stats (2020+)
-    'Stuff+':    {'statcast': 20},
-    'Location+': {'statcast': 100},
-    'Pitching+': {'statcast': 60},
-    'xERA':      {'statcast': 1320},
+    'Stuff+':    20,
+    'Location+': 100,
+    'Pitching+': 60,
+    'xERA':      1320,
 }
 
 # =========================================================================
@@ -179,6 +176,7 @@ ADAPTIVE_STAB_FLOOR = 0.10
 ADAPTIVE_BOOST_MAX = 1.0           # At 0 career volume, n0 is (1 + this) × base
 ADAPTIVE_BOOST_CAREER_FRACTION = 0.4  # Fraction of career_stab where boost ends
 
+
 # =============================================================================
 # CAREER WEIGHT — prior blending between career mean and league average
 # =============================================================================
@@ -189,17 +187,25 @@ ADAPTIVE_BOOST_CAREER_FRACTION = 0.4  # Fraction of career_stab where boost ends
 # the full-weight threshold.  This ensures established veterans have ZERO
 # league-average influence, while rookies regress heavily toward league avg.
 #
+# PER-STAT THRESHOLDS: When a stabilization point (n0) is provided, the
+# threshold scales proportionally: threshold = n0 × CAREER_WEIGHT_N0_MULTIPLIER.
+# This means fast-stabilizing stats (K%, GB%) reach full career weight sooner,
+# while noisy stats (BABIP, HR/FB, ERA) require more career data.
+#
+# Examples with n0 multiplier = 1.25:
+#   K%    (n0= 800): full career weight at 1000 TBF
+#   BABIP (n0=1200): full career weight at 1500 TBF
+#   ERA   (n0=1320): full career weight at 1650 TBF
+#   GB%   (n0=  70): full career weight at   88 TBF
+#
 # Formula:
 #   career_weight = min(1.0, career_volume / full_weight_threshold)
 #   effective_prior = career_weight * career_mean + (1 - career_weight) * league_mean
-#
-# Examples (batters, threshold=2500):
-#     58 PA  → career_weight = 0.023  (97.7% league average)
-#    232 PA  → career_weight = 0.093  (90.7% league average)
-#    700 PA  → career_weight = 0.280  (72.0% league average)
-#   1200 PA  → career_weight = 0.480  (52.0% league average)
-#   2500 PA  → career_weight = 1.000  (  0% league average)
-#   5000 PA  → career_weight = 1.000  (  0% league average)
+
+# Multiplier applied to each feature's stabilization point to derive the
+# career-weight saturation threshold.  Higher → more data needed before
+# the career mean fully replaces the league average.
+CAREER_WEIGHT_N0_MULTIPLIER = 1.25
 
 
 def _get_career_stabilization(model_type: str) -> int:
@@ -218,7 +224,7 @@ def _get_career_stabilization(model_type: str) -> int:
     if model_type == 'pitcher':
         return 1000   # ~230 IP worth of TBF
     elif model_type == 'batter':
-        return 1200   # ~2 full seasons of PA
+        return 800   # ~2 full seasons of PA
     elif model_type == 'baserunning':
         return 200    # ~200 games (~1.3 full seasons)
     elif model_type.startswith('defense') or model_type.startswith('fielding'):
@@ -237,7 +243,7 @@ def _get_career_full_weight_threshold(model_type: str) -> float:
         Career full-weight threshold in the appropriate volume unit
     """
     if model_type == 'pitcher':
-        return 2000    # ~460 IP of TBF
+        return 1000    # ~460 IP of TBF
     elif model_type == 'batter':
         return 2500    # ~4 full seasons of PA
     elif model_type == 'baserunning':
@@ -247,22 +253,27 @@ def _get_career_full_weight_threshold(model_type: str) -> float:
     return 2500        # fallback
 
 
-def _compute_career_weight(career_volume: float, model_type: str) -> float:
+def _compute_career_weight(career_volume: float, model_type: str,
+                           stab_point: Optional[int] = None) -> float:
     """
     Fraction of the prior that comes from the player's career mean (vs league avg).
 
     Uses a linear ramp that saturates at 1.0: once a player has enough career
     volume, their prior is 100% career mean with ZERO league-average influence.
 
-    This replaces the old hyperbolic formula v/(v+s) which asymptotically
-    approached but never reached 1.0, leaving even 10-year veterans with
-    residual league-average bleed.
+    When stab_point is provided, the threshold is PER-FEATURE:
+        threshold = stab_point × CAREER_WEIGHT_N0_MULTIPLIER
+    This lets fast-stabilizing stats (K%, GB%) reach full career weight sooner
+    than noisy ones (BABIP, ERA, HR/FB).
 
-    Examples (batters, threshold=2500):
-        58 PA  → 0.023   232 PA → 0.093   700 PA → 0.280
-        1200 PA → 0.480   2500 PA → 1.000   5000 PA → 1.000
+    When stab_point is None, falls back to the flat model-type threshold
+    (backward-compatible with callers that don't have per-feature context).
     """
-    threshold = _get_career_full_weight_threshold(model_type)
+    if stab_point is not None:
+        threshold = stab_point * CAREER_WEIGHT_N0_MULTIPLIER
+        threshold = max(threshold, 50.0)  # floor: prevent degenerate thresholds
+    else:
+        threshold = _get_career_full_weight_threshold(model_type)
     if threshold <= 0:
         return 1.0
     return min(1.0, career_volume / threshold)
@@ -333,14 +344,14 @@ def _get_stabilization_point(feature: str, era: str = 'statcast', model_type: st
     Get the stabilization point for a feature.
 
     Looks up the correct stabilization table based on model_type:
-        - pitcher: STABILIZATION_POINTS (era-dependent, unit=BF)
+        - pitcher: PITCHER_STABILIZATION_POINTS (unit=BF)
         - batter: BATTER_STABILIZATION_POINTS (unit=PA)
         - baserunning: BASERUNNING_STABILIZATION_POINTS (unit=G)
         - defense_*: DEFENSE_STABILIZATION_POINTS (unit=Inn)
 
     Args:
         feature: Stat name (e.g., 'K%', 'ERA', 'wRC+', 'sc_total_runs/150')
-        era: One of 'classical', 'pitchfx', 'statcast' (pitcher only)
+        era: Kept for backward compatibility (unused).
         model_type: 'pitcher', 'batter', 'baserunning', 'defense_infield',
                     'defense_outfield', 'defense_catcher'
 
@@ -352,15 +363,7 @@ def _get_stabilization_point(feature: str, era: str = 'statcast', model_type: st
 
     # Route to the correct stabilization table
     if model_type == 'pitcher':
-        if feature not in STABILIZATION_POINTS:
-            return None
-        era_points = STABILIZATION_POINTS[feature]
-        if era in era_points:
-            return era_points[era]
-        for fallback in ['statcast', 'pitchfx', 'classical']:
-            if fallback in era_points:
-                return era_points[fallback]
-        return None
+        return PITCHER_STABILIZATION_POINTS.get(feature)
 
     elif model_type == 'batter':
         return BATTER_STABILIZATION_POINTS.get(feature)
@@ -400,10 +403,15 @@ def _get_volume_column(model_type: str) -> str:
 
 def _get_weight_column(model_type: str) -> str:
     """
-    Get the column used for IP-weighting career priors.
+    Get the column used for volume-weighting career priors.
 
     This determines how seasons are weighted when computing the career mean.
     More playing time = more weight.
+
+    For pitchers, TBF (total batters faced) is used because rate stats like
+    K%, BB%, HR%, HBP% are per-TBF rates. Weighting by TBF ensures that
+    the career mean equals the true career rate (e.g., career HR% = total HR /
+    total TBF). Falls back to IP if TBF is unavailable.
 
     Args:
         model_type: One of 'pitcher', 'batter', 'baserunning', 'defense_*'
@@ -412,7 +420,7 @@ def _get_weight_column(model_type: str) -> str:
         Column name string
     """
     if model_type == 'pitcher':
-        return 'IP'
+        return 'TBF'
     elif model_type == 'batter':
         return 'PA'
     elif model_type == 'baserunning':
@@ -462,6 +470,7 @@ def _compute_career_prior(
     max_seasons: int = PRIOR_MAX_SEASONS,
     current_age: Optional[float] = None,
     model_type: str = 'pitcher',
+    recency_halflife: float = 0,
 ) -> float:
     """
     Compute a volume-weighted recent career mean for a single feature.
@@ -476,8 +485,14 @@ def _compute_career_prior(
     This ensures the prior reflects the player's expected talent NOW,
     not what it was at a younger age.
 
+    If `recency_halflife` > 0, an exponential decay is applied so that
+    more recent seasons receive higher effective weight. A season N years
+    ago gets a multiplier of 2^(-N / recency_halflife). For example, with
+    halflife=3, a season from 3 years ago gets half the weight of the most
+    recent season (in addition to volume weighting).
+
     The weight column is model-type-dependent:
-        - pitcher: IP (innings pitched)
+        - pitcher: TBF (total batters faced — matches per-TBF rate stats)
         - batter: PA (plate appearances)
         - baserunning: G (games)
         - defense_*: Inn (innings)
@@ -489,6 +504,7 @@ def _compute_career_prior(
         max_seasons: Maximum number of recent seasons to include in the prior
         current_age: If provided, age-adjust each season to this age
         model_type: 'pitcher', 'batter', etc. (used for aging curves and weight column)
+        recency_halflife: Exponential decay half-life in seasons (0 = no decay)
 
     Returns:
         Volume-weighted recent career mean (optionally age-adjusted), or NaN
@@ -502,12 +518,16 @@ def _compute_career_prior(
         career = career.tail(max_seasons)
 
     # Drop rows where the feature or weight column is missing
+    # Fall back from TBF → IP for pitchers if TBF is unavailable
     if weight_col not in career.columns:
-        # Fallback: unweighted mean
-        valid = career.dropna(subset=[feature])
-        if valid.empty:
-            return np.nan
-        return valid[feature].mean()
+        if model_type == 'pitcher' and 'IP' in career.columns:
+            weight_col = 'IP'
+        else:
+            # Fallback: unweighted mean
+            valid = career.dropna(subset=[feature])
+            if valid.empty:
+                return np.nan
+            return valid[feature].mean()
 
     valid = career.dropna(subset=[feature, weight_col])
     valid = valid[valid[weight_col] > 0]
@@ -515,8 +535,15 @@ def _compute_career_prior(
     if valid.empty:
         return np.nan
 
-    weights = valid[weight_col].values
-    values = valid[feature].values
+    weights = valid[weight_col].values.astype(np.float64)
+    values = valid[feature].values.astype(np.float64)
+
+    # Apply recency decay: multiply volume weights by 2^(-years_ago / halflife)
+    if recency_halflife > 0 and 'Season' in valid.columns:
+        seasons = valid['Season'].values
+        years_ago = current_season - seasons  # 0 for most recent, 1, 2, ...
+        decay = np.power(2.0, -years_ago / recency_halflife)
+        weights = weights * decay
 
     # Age-adjust if current_age is provided and Age column exists
     if current_age is not None and 'Age' in valid.columns:
@@ -527,7 +554,7 @@ def _compute_career_prior(
                 row[feature], feature, obs_age, current_age, model_type
             )
             adjusted_values.append(adjusted)
-        values = np.array(adjusted_values)
+        values = np.array(adjusted_values, dtype=np.float64)
 
     return np.average(values, weights=weights)
 
@@ -741,14 +768,16 @@ def regress_stats(
             volume = _estimate_volume(row, model_type)
             cumulative_volume += volume
 
-            # Career weight: linear ramp to 1.0 (saturating).
-            # Veterans get pure career prior; rookies get mostly league average.
-            career_weight = _compute_career_weight(cumulative_volume, model_type)
-
             for feat in regressable:
                 observed = row[feat]
                 if np.isnan(observed):
                     continue
+
+                # Per-feature career weight: fast-stabilizing stats reach full
+                # career weight sooner than noisy ones.
+                feat_career_wt = _compute_career_weight(
+                    cumulative_volume, model_type, stab_point=stab_points[feat]
+                )
 
                 # Adaptive stabilization: reduce n0 as career evidence grows.
                 # Established players barely get regressed; rookies get full regression.
@@ -770,7 +799,7 @@ def regress_stats(
                 # Players with little career data regress toward league average;
                 # established players regress toward their own career mean.
                 if not np.isnan(career_prior):
-                    prior = career_weight * career_prior + (1 - career_weight) * league_prior
+                    prior = feat_career_wt * career_prior + (1 - feat_career_wt) * league_prior
                 else:
                     prior = league_prior
 
@@ -800,6 +829,10 @@ def regress_player_sequence(
     era: str = 'classical',
     league_priors: Optional[Dict[str, float]] = None,
     min_career_seasons: int = 2,
+    recency_halflife: float = 0,
+    league_weight_overrides: Optional[Dict[str, float]] = None,
+    seq_length: Optional[int] = None,
+    sequence_ip_threshold: Optional[float] = None,
 ) -> pd.DataFrame:
     """
     Apply reliability regression to a single player's historical data.
@@ -807,17 +840,24 @@ def regress_player_sequence(
     This is the entry point for the PREDICTION pipeline. It operates on
     one player's data before sequence construction.
 
-    The key difference from training: we compute the career prior using
-    ALL available seasons (not just up-to-season), since at prediction time
-    we want the best possible estimate of the player's true talent.
+    **Sequence-based regression** (when seq_length is provided):
+    The regression prior is computed from the SEQUENCE WINDOW — the same
+    seasons the model will actually see — rather than the full career.
+    This prevents distant peak seasons (e.g. 2014 Kershaw) from pulling
+    the regression target away from current talent.
 
-    Career vs league priors are blended based on total career volume:
-        career_weight = min(1.0, total_vol / full_weight_threshold)
-        effective_prior = career_weight * career_mean + (1 - career_weight) * league_mean
+    When the sequence window has sufficient volume (>= career_stab threshold,
+    e.g. 1000 TBF for pitchers), the prior is 100% sequence mean.
+    Below that threshold, the sequence mean is blended with league average:
+        seq_weight = min(1.0, sequence_TBF / career_stab)
+        prior = seq_weight * sequence_mean + (1 - seq_weight) * league_mean
 
-    This ensures rookies and small-sample players regress heavily toward
-    league average, while established veterans (above the threshold) regress
-    purely toward their own career mean with zero league-average influence.
+    **Legacy mode** (when seq_length is None):
+    Falls back to the previous behavior using PRIOR_MAX_SEASONS career mean.
+
+    For features listed in league_weight_overrides, the league-average
+    fraction of the prior is floored at the specified value regardless of
+    sequence volume.
 
     The volume column (n in the shrinkage formula) is model-type-dependent:
         - pitcher: TBF (batters faced)
@@ -833,8 +873,15 @@ def regress_player_sequence(
         era: Data era for stabilization points
         league_priors: Pre-computed league averages per feature.
                       If None, uses the player's own data (less accurate for rookies)
-        min_career_seasons: Deprecated — blended priors are now used instead.
-                           Kept for backward compatibility.
+        min_career_seasons: Deprecated — kept for backward compatibility.
+        recency_halflife: Exponential decay half-life in seasons (0 = no decay)
+        league_weight_overrides: Per-feature minimum league-average weight in
+            the prior blend. Maps feature name → float in [0, 1].
+        seq_length: Number of seasons in the model's input sequence. When
+            provided, the prior is computed from the sequence window only.
+        sequence_ip_threshold: Minimum IP for a season to qualify for the
+            sequence (e.g. 20 for SP, 10 for RP). Required when seq_length
+            is provided for pitchers.
 
     Returns:
         DataFrame with regressed values (copy — does not modify input)
@@ -862,26 +909,10 @@ def regress_player_sequence(
     if not regressable:
         return result
 
-    n_total_seasons = len(result)
-
-    # Compute total career volume for blending career vs league priors.
-    # More career exposure → more trust in the player's own career mean.
-    total_career_volume = sum(
-        _estimate_volume(row, model_type)
-        for _, row in result.iterrows()
-    )
     career_stab = _get_career_stabilization(model_type)
-    career_weight = _compute_career_weight(total_career_volume, model_type)
-
-    # Compute age-adjusted volume-weighted means using only the most recent
-    # PRIOR_MAX_SEASONS. Each historical season is age-adjusted to the
-    # player's CURRENT age so the prior reflects where talent is NOW,
-    # not where it was at a younger age.
-    recent_data = result.tail(PRIOR_MAX_SEASONS)
     current_age = result['Age'].iloc[-1] if 'Age' in result.columns else None
 
     # Determine the aging model_type key for lookup
-    # defense_infield → fielding_infield in aging_parameters.json
     aging_key = model_type
     if model_type.startswith('defense_'):
         aging_key = model_type.replace('defense_', 'fielding_')
@@ -891,18 +922,53 @@ def regress_player_sequence(
         if feat in result.columns:
             result[feat] = result[feat].astype('float64')
 
+    # =====================================================================
+    # IDENTIFY SEQUENCE WINDOW
+    # =====================================================================
+    # When seq_length is provided, the prior is computed from the seasons
+    # the model will actually see (matching predict_future_stats logic).
+    # Otherwise fall back to PRIOR_MAX_SEASONS career window.
+    if seq_length is not None:
+        ip_thresh = sequence_ip_threshold or 0
+        # Mirror predict_future_stats: take tail(seq_length + 2), filter by IP
+        candidates = result.tail(seq_length + 2)
+        if 'IP' in candidates.columns and ip_thresh > 0:
+            seq_rows = candidates[candidates['IP'] >= ip_thresh].tail(seq_length)
+        else:
+            seq_rows = candidates.tail(seq_length)
+        prior_source = seq_rows
+        prior_volume = sum(
+            _estimate_volume(row, model_type) for _, row in seq_rows.iterrows()
+        )
+    else:
+        prior_source = result.tail(PRIOR_MAX_SEASONS)
+        prior_volume = sum(
+            _estimate_volume(row, model_type) for _, row in result.iterrows()
+        )
+
+    # Career weight: per-feature blend between sequence/career mean and league average.
+    # Fast-stabilizing stats (K%, GB%) reach full career weight sooner than noisy ones.
+    career_weights: Dict[str, float] = {}
+    for feat in regressable:
+        career_weights[feat] = _compute_career_weight(
+            prior_volume, model_type, stab_point=stab_points[feat]
+        )
+
+    # =====================================================================
+    # COMPUTE PRIOR MEANS (from sequence window or career window)
+    # =====================================================================
     career_means: Dict[str, float] = {}
     for feat in regressable:
-        if current_age is not None and 'Age' in recent_data.columns:
-            # Use age-adjusted career prior
+        if current_age is not None and 'Age' in prior_source.columns:
+            # Age-adjusted, volume-weighted mean of the prior source window
             career_means[feat] = compute_age_adjusted_career_prior(
-                result, feat, current_age,
-                max_seasons=PRIOR_MAX_SEASONS, model_type=aging_key
+                prior_source, feat, current_age,
+                max_seasons=len(prior_source), model_type=aging_key,
+                recency_halflife=recency_halflife
             )
         else:
-            # Fallback: volume-weighted mean
-            if weight_col in recent_data.columns:
-                valid = recent_data.dropna(subset=[feat, weight_col])
+            if weight_col in prior_source.columns:
+                valid = prior_source.dropna(subset=[feat, weight_col])
                 valid = valid[valid[weight_col] > 0]
                 if not valid.empty:
                     career_means[feat] = np.average(
@@ -911,42 +977,52 @@ def regress_player_sequence(
                 else:
                     career_means[feat] = np.nan
             else:
-                valid = recent_data.dropna(subset=[feat])
+                valid = prior_source.dropna(subset=[feat])
                 if not valid.empty:
                     career_means[feat] = valid[feat].mean()
                 else:
                     career_means[feat] = np.nan
 
-    # Compute blended priors (career mean ↔ league average)
+    # =====================================================================
+    # BLEND PRIORS (sequence/career mean ↔ league average)
+    # =====================================================================
     blended_priors: Dict[str, float] = {}
+    _overrides = league_weight_overrides or {}
     for feat in regressable:
         career_mean = career_means.get(feat, np.nan)
         league_mean = league_priors.get(feat, np.nan) if league_priors else np.nan
+        feat_career_wt = career_weights.get(feat, 0.5)
 
         if not np.isnan(career_mean) and not np.isnan(league_mean):
-            blended_priors[feat] = career_weight * career_mean + (1 - career_weight) * league_mean
+            min_league_wt = _overrides.get(feat, 0.0)
+            effective_career_wt = min(feat_career_wt, 1.0 - min_league_wt)
+            blended_priors[feat] = effective_career_wt * career_mean + (1 - effective_career_wt) * league_mean
         elif not np.isnan(career_mean):
             blended_priors[feat] = career_mean
         elif not np.isnan(league_mean):
             blended_priors[feat] = league_mean
-        # else: no prior available → will skip regression
 
+    # Log representative career weights (min/max range across features)
+    _cw_values = list(career_weights.values())
     logger.debug(
-        f"Prior blending: career_vol={total_career_volume:.0f}, "
-        f"career_stab={career_stab}, career_weight={career_weight:.3f}"
+        f"Prior blending: prior_vol={prior_volume:.0f}, "
+        f"career_stab={career_stab}, "
+        f"career_weight=[{min(_cw_values):.3f}..{max(_cw_values):.3f}], "
+        f"source={'sequence' if seq_length else 'career'}({len(prior_source)} seasons)"
     )
 
-    # Log adaptive stabilization for the most important stat (wOBA or first regressable)
     _example_feat = 'wOBA' if 'wOBA' in stab_points else regressable[0]
     _example_eff = _effective_stabilization_point(
-        stab_points[_example_feat], total_career_volume, career_stab
+        stab_points[_example_feat], prior_volume, career_stab
     )
     logger.debug(
         f"Adaptive stabilization: {_example_feat} base_n0={stab_points[_example_feat]} → "
-        f"effective_n0={_example_eff:.1f} (career_vol={total_career_volume:.0f})"
+        f"effective_n0={_example_eff:.1f} (prior_vol={prior_volume:.0f})"
     )
 
-    # Regress each season
+    # =====================================================================
+    # REGRESS EACH SEASON
+    # =====================================================================
     for idx, row in result.iterrows():
         volume = _estimate_volume(row, model_type)
 
@@ -955,9 +1031,9 @@ def regress_player_sequence(
             if np.isnan(observed):
                 continue
 
-            # Adaptive stabilization: reduce n0 as career evidence grows.
+            # Adaptive stabilization keyed off prior_volume (sequence or career)
             n0 = _effective_stabilization_point(
-                stab_points[feat], total_career_volume, career_stab
+                stab_points[feat], prior_volume, career_stab
             )
 
             prior = blended_priors.get(feat)
@@ -975,6 +1051,10 @@ def compute_regressed_career_mean(
     model_type: str = 'pitcher',
     era: str = 'classical',
     league_priors: Optional[Dict[str, float]] = None,
+    recency_halflife: float = 0,
+    league_weight_overrides: Optional[Dict[str, float]] = None,
+    seq_length: Optional[int] = None,
+    sequence_ip_threshold: Optional[float] = None,
 ) -> Dict[str, float]:
     """
     Compute the best available "true talent" estimate for padding.
@@ -987,18 +1067,16 @@ def compute_regressed_career_mean(
     then takes the volume-weighted mean of the regressed values. This prevents
     small-sample seasons from distorting the padding values.
 
-    The weight column is model-type-dependent:
-        - pitcher: IP
-        - batter: PA
-        - baserunning: G
-        - defense_*: Inn
-
     Args:
         player_data: One player's historical DataFrame
         features: List of features
         model_type: 'pitcher', 'batter', 'baserunning', 'defense_*'
         era: Data era
         league_priors: Pre-computed league averages
+        recency_halflife: Exponential decay half-life in seasons (0 = no decay)
+        league_weight_overrides: Per-feature minimum league weight
+        seq_length: Forwarded to regress_player_sequence for sequence-based priors
+        sequence_ip_threshold: Forwarded to regress_player_sequence
 
     Returns:
         Dict mapping feature name to regressed career mean
@@ -1008,29 +1086,39 @@ def compute_regressed_career_mean(
 
     weight_col = _get_weight_column(model_type)
 
-    # First regress the player's data
+    # First regress the player's data (with sequence-based priors if configured)
     regressed = regress_player_sequence(
         player_data, features, model_type=model_type, era=era,
-        league_priors=league_priors
+        league_priors=league_priors, recency_halflife=recency_halflife,
+        league_weight_overrides=league_weight_overrides,
+        seq_length=seq_length, sequence_ip_threshold=sequence_ip_threshold,
     )
+
+    # When using sequence-based priors, limit the career mean to the sequence
+    # window so padding matches the prior source.
+    if seq_length is not None:
+        ip_thresh = sequence_ip_threshold or 0
+        candidates = regressed.tail(seq_length + 2)
+        if 'IP' in candidates.columns and ip_thresh > 0:
+            recent = candidates[candidates['IP'] >= ip_thresh].tail(seq_length)
+        else:
+            recent = candidates.tail(seq_length)
+    else:
+        recent = regressed.tail(PRIOR_MAX_SEASONS)
 
     result = {}
     for feat in features:
         if feat in SKIP_FEATURES:
-            # For Age, use latest
             if feat == 'Age':
                 result[feat] = regressed['Age'].iloc[-1]
             continue
 
-        # Use only the most recent seasons for the career mean (same window
-        # as the prior itself) so padding reflects current talent, not peak.
-        recent = regressed.tail(PRIOR_MAX_SEASONS)
         valid = recent.dropna(subset=[feat])
 
         if weight_col in valid.columns:
             valid_with_weight = valid[valid[weight_col] > 0]
         else:
-            valid_with_weight = pd.DataFrame()  # force fallback
+            valid_with_weight = pd.DataFrame()
 
         if not valid_with_weight.empty and weight_col in valid_with_weight.columns:
             result[feat] = np.average(
@@ -1360,6 +1448,7 @@ def compute_age_adjusted_career_prior(
     current_age: float,
     max_seasons: int = PRIOR_MAX_SEASONS,
     model_type: str = 'pitcher',
+    recency_halflife: float = 0,
 ) -> float:
     """
     Compute a volume-weighted career mean with aging adjustment.
@@ -1369,11 +1458,16 @@ def compute_age_adjusted_career_prior(
     reflects where the player's talent should be NOW, not where it was
     in past years.
 
+    If `recency_halflife` > 0, an exponential decay is applied so that
+    more recent seasons receive higher effective weight. A season N years
+    ago gets a multiplier of 2^(-N / recency_halflife). This is applied
+    on top of volume weighting.
+
     The weight column is model-type-dependent:
-        - pitcher: IP
-        - batter: PA
-        - baserunning: G
-        - defense_*: Inn
+        - pitcher: TBF (total batters faced)
+        - batter: PA (plate appearances)
+        - baserunning: G (games)
+        - defense_*: Inn (innings)
 
     Example (Chris Sale):
         Age 33: FIP 2.80 → age-adjusted to 37: ~3.86 (4 years × ~0.27/year)
@@ -1388,6 +1482,7 @@ def compute_age_adjusted_career_prior(
         current_age: The player's age to adjust all seasons to
         max_seasons: Maximum number of recent seasons to include
         model_type: 'pitcher', 'batter', 'baserunning', 'fielding_infield', etc.
+        recency_halflife: Exponential decay half-life in seasons (0 = no decay)
 
     Returns:
         Volume-weighted, age-adjusted career mean (or NaN if no valid data)
@@ -1398,6 +1493,12 @@ def compute_age_adjusted_career_prior(
     # Determine required columns for validation
     required_cols = [feature, 'Age']
     if weight_col in recent.columns:
+        required_cols.append(weight_col)
+        valid = recent.dropna(subset=required_cols)
+        valid = valid[valid[weight_col] > 0]
+    elif model_type == 'pitcher' and 'IP' in recent.columns:
+        # Fallback from TBF to IP for pitchers
+        weight_col = 'IP'
         required_cols.append(weight_col)
         valid = recent.dropna(subset=required_cols)
         valid = valid[valid[weight_col] > 0]
@@ -1421,5 +1522,14 @@ def compute_age_adjusted_career_prior(
             weights.append(row[weight_col])
         else:
             weights.append(1.0)  # equal weight fallback
+
+    weights = np.array(weights, dtype=np.float64)
+
+    # Apply recency decay: multiply volume weights by 2^(-years_ago / halflife)
+    if recency_halflife > 0 and 'Season' in valid.columns:
+        most_recent_season = valid['Season'].max()
+        years_ago = most_recent_season - valid['Season'].values
+        decay = np.power(2.0, -years_ago / recency_halflife)
+        weights = weights * decay
 
     return np.average(adjusted_values, weights=weights)

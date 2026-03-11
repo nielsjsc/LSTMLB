@@ -67,7 +67,10 @@ PARK_FACTORS_5YR = {
 }
 
 # Stats that should NEVER be park-adjusted
-EXCLUDED_STATS = frozenset({'Age', 'wRC+'})
+# BABIP: park effect on BABIP is ~.010-.020, not proportional to run-scoring
+# park factor. Applying the full 1.13x Coors factor to .290 BABIP gives .257,
+# which massively overcorrects. Requires a BABIP-specific park factor.
+EXCLUDED_STATS = frozenset({'Age', 'wRC+', 'BABIP'})
 
 
 # =============================================================================

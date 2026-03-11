@@ -128,10 +128,21 @@ def calculate_pitcher_war_for_dataframe(pitcher_df: pd.DataFrame,
     pitcher_df['BB_pit'] = (pitcher_df.get('BB%', pd.Series(0.0, index=pitcher_df.index)) * bf).round().astype(int)
     pitcher_df['ER_pit'] = (pitcher_df.get('ERA', pd.Series(0.0, index=pitcher_df.index)) * pitcher_df['IP'] / 9).round().astype(int)
 
-    # Compute per-9 rates from per-TBF rates
-    pitcher_df['K/9']  = pitcher_df.get('K%',  pd.Series(0.0, index=pitcher_df.index)) * bf_per_ip * 9
-    pitcher_df['BB/9'] = pitcher_df.get('BB%', pd.Series(0.0, index=pitcher_df.index)) * bf_per_ip * 9
-    pitcher_df['HR/9'] = pitcher_df.get('HR%', pd.Series(0.0, index=pitcher_df.index)) * bf_per_ip * 9
+    # Compute per-9 rates from per-TBF rates (only if not already supplied by prediction)
+    if 'K/9' not in pitcher_df.columns:
+        pitcher_df['K/9']  = pitcher_df.get('K%',  pd.Series(0.0, index=pitcher_df.index)) * bf_per_ip * 9
+    if 'BB/9' not in pitcher_df.columns:
+        pitcher_df['BB/9'] = pitcher_df.get('BB%', pd.Series(0.0, index=pitcher_df.index)) * bf_per_ip * 9
+    if 'HR/9' not in pitcher_df.columns:
+        # Derive HR% from HR/FB × FB% × BIP_rate when HR% is not a direct model feature
+        _hrfb = pitcher_df.get('HR/FB', pd.Series(0.10, index=pitcher_df.index))
+        _fb = pitcher_df.get('FB%', pd.Series(0.35, index=pitcher_df.index))
+        _k = pitcher_df.get('K%', pd.Series(0.22, index=pitcher_df.index))
+        _bb = pitcher_df.get('BB%', pd.Series(0.08, index=pitcher_df.index))
+        _hbp = pitcher_df.get('HBP%', pd.Series(0.01, index=pitcher_df.index))
+        _bip_rate = (1.0 - _k - _bb - _hbp).clip(lower=0.3)
+        _hr_pct = (_hrfb * _fb * _bip_rate).clip(lower=0.005, upper=0.06)
+        pitcher_df['HR/9'] = _hr_pct * bf_per_ip * 9
 
     return pitcher_df
 

@@ -58,6 +58,10 @@ MODEL_TYPES = {
     # =========================================================================
     # STARTING PITCHER MODELS
     # =========================================================================
+    # NOTE: When UNIFIED_PITCHER_MODEL=True in PitcherSPConfig, the SP pretrain
+    # step trains on ALL pitcher data (SP+RP combined) and prediction uses the
+    # single model for every pitcher.  The RP pretrain/finetune steps are
+    # unnecessary in that mode.
     'pitcher_sp_pretrain': {
         'training_command': 'python scripts/train_models.py --model pitcher_sp --pretrain',
         'prediction_command': 'python scripts/predict_models.py --model-type pitcher --use-pretrained',

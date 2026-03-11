@@ -1,4 +1,4 @@
-import pandas as pd
+﻿import pandas as pd
 import numpy as np
 import torch
 from typing import Dict, Any, Optional, List, Set
@@ -16,10 +16,42 @@ from .model_architecture import ImprovedLSTM
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# PITCHER-SPECIFIC FUNCTIONS (delegated to core/pitcher_prediction.py)
+# =============================================================================
+# Re-exported here for backward compatibility. All pitcher reconstruction,
+# aging, and prediction logic lives in core/pitcher_prediction.py.
+from .pitcher_prediction import (
+    # Constants
+    FIP_CONSTANT,
+    BF_PER_IP_RATIO,
+    ERA_FIP_STABILIZATION_TBF,
+    ERA_SIERA_STABILIZATION_TBF,
+    PITCHER_PHYSICAL_BOUNDS,
+    PITCHER_AGING_PARAMS,
+    _SIERA_INTERCEPT,
+    _SIERA_COEFS,
+    _OUTPUT_REGRESSION_SKIP,
+    # Reconstruction functions
+    reconstruct_fip_from_components,
+    _apply_fip_reconstruction,
+    reconstruct_siera_from_components,
+    _apply_siera_reconstruction,
+    # ERA gap computation and adjustment
+    compute_career_era_fip_gap,
+    _apply_era_fip_adjustment,
+    compute_career_era_siera_gap,
+    _apply_era_siera_adjustment,
+    # Aging constraints
+    _get_max_improvement,
+    _apply_pitcher_aging_constraints,
+    # Output regression
+    _apply_output_regression,
+    # Prediction pipelines
+    predict_future_stats_pitcher,
+    predict_all_pitchers,
+)
 
-# =============================================================================
-# PARK FACTOR TOGGLE HELPER
-# =============================================================================
 
 def _is_park_factor_enabled(model_type: str) -> bool:
     """
@@ -65,11 +97,11 @@ def _compute_player_counting_residuals(
     For each season where the player has both actual counting stats and actual
     rate stats (wOBA, SLG, AVG), we compute:
 
-        OLS_predicted_C = intercept + β_wOBA * wOBA + β_SLG * SLG + β_AVG * AVG
-        residual        = actual_C − OLS_predicted_C
+        OLS_predicted_C = intercept + Î²_wOBA * wOBA + Î²_SLG * SLG + Î²_AVG * AVG
+        residual        = actual_C âˆ’ OLS_predicted_C
 
     Then the PA-weighted mean residual across seasons is returned.  This is
-    the player's "personal offset" — positive means they consistently produce
+    the player's "personal offset" â€” positive means they consistently produce
     more of that counting stat than the OLS predicts (e.g. Ramirez's HR
     relative to his xSLG).
 
@@ -103,7 +135,7 @@ def _compute_player_counting_residuals(
 
         # Per-150 counting stat.  If the data has already been through
         # calculate_rate_stats the column is already per-150; otherwise
-        # convert raw → per-150 on the fly.
+        # convert raw â†’ per-150 on the fly.
         raw_c = valid[stat].values.astype(float)
         g = valid['G'].values.astype(float)
 
@@ -133,14 +165,14 @@ def _compute_player_counting_residuals(
 def _compute_player_woba_gap(
     player_data: pd.DataFrame,
 ) -> tuple[float, float]:
-    """Compute a player's PA-weighted career (wOBA − xwOBA) gap.
+    """Compute a player's PA-weighted career (wOBA âˆ’ xwOBA) gap.
 
     Returns ``(career_gap, statcast_pa)`` where *career_gap* is the
-    PA-weighted mean of  ``wOBA − xwOBA``  across all statcast-era seasons
+    PA-weighted mean of  ``wOBA âˆ’ xwOBA``  across all statcast-era seasons
     (those that have a non-null xwOBA).  Positive = player consistently
     outperforms xwOBA (e.g. Ramirez).
 
-    *statcast_pa* is the total PA from those seasons — used downstream
+    *statcast_pa* is the total PA from those seasons â€” used downstream
     to blend the gap toward zero for small samples.
     """
     if 'xwOBA' not in player_data.columns or 'wOBA' not in player_data.columns:
@@ -171,10 +203,10 @@ def _adjust_counting_stats_for_xstats(
 
     Uses additive OLS-derived coefficients::
 
-        Δ = β_wOBA·(new_wOBA − orig_wOBA)
-          + β_SLG ·(new_SLG  − orig_SLG)
-          + β_AVG ·(new_AVG  − orig_AVG)
-        stat_adjusted = max(0, stat + Δ)
+        Î” = Î²_wOBAÂ·(new_wOBA âˆ’ orig_wOBA)
+          + Î²_SLG Â·(new_SLG  âˆ’ orig_SLG)
+          + Î²_AVG Â·(new_AVG  âˆ’ orig_AVG)
+        stat_adjusted = max(0, stat + Î”)
 
     **Player-specific mode** (``USE_PLAYER_SPECIFIC_XSTAT_ADJUSTMENT = True``)
 
@@ -183,20 +215,20 @@ def _adjust_counting_stats_for_xstats(
     HR-heavy / low-2B profile).  The wOBA ratio is softened for players who
     consistently outperform xwOBA (Ramirez)::
 
-        career_gap   = PA-weighted mean(wOBA − xwOBA)  across statcast seasons
+        career_gap   = PA-weighted mean(wOBA âˆ’ xwOBA)  across statcast seasons
         weight       = min(statcast_PA / XSTAT_PA_FULL_WEIGHT, 1.0)
-        effective_Δ  = (new_wOBA − orig_wOBA) − weight × career_gap
-        ratio        = max(0.5, 1 + effective_Δ / orig_wOBA)
-        stat_adjusted = max(0, stat × ratio)
+        effective_Î”  = (new_wOBA âˆ’ orig_wOBA) âˆ’ weight Ã— career_gap
+        ratio        = max(0.5, 1 + effective_Î” / orig_wOBA)
+        stat_adjusted = max(0, stat Ã— ratio)
 
-    For a Ramirez-type player with career_gap ≈ +0.02 and full weight:
+    For a Ramirez-type player with career_gap â‰ˆ +0.02 and full weight:
     the ratio is closer to 1.0, producing a much smaller adjustment than
     the population OLS.  For a 1-year player with no statcast history,
-    weight → 0 and the ratio adjustment uses the raw xwOBA delta (roughly
+    weight â†’ 0 and the ratio adjustment uses the raw xwOBA delta (roughly
     equivalent to the population model).
 
     Also blends in an OLS-derived residual offset for each counting stat
-    (additive) to capture player-level intercept differences — e.g. Judge
+    (additive) to capture player-level intercept differences â€” e.g. Judge
     producing +5.5 HR/150 more than the OLS predicts given his rate stats.
 
     Modifies *data* **in-place**.  No-op when no substitution deltas exist.
@@ -212,7 +244,7 @@ def _adjust_counting_stats_for_xstats(
 
     n = len(data)
 
-    # Compute per-row deltas (current value − original value).  If a stat was
+    # Compute per-row deltas (current value âˆ’ original value).  If a stat was
     # not substituted (or not present), delta is 0.
     d_woba = (data['wOBA'].values - orig_woba) if ('wOBA' in data.columns and orig_woba is not None) else np.zeros(n)
     d_slg  = (data['SLG'].values - orig_slg)  if ('SLG' in data.columns and orig_slg is not None)  else np.zeros(n)
@@ -238,7 +270,7 @@ def _adjust_counting_stats_for_xstats(
         pa_full = getattr(BatterConfig, 'XSTAT_PA_FULL_WEIGHT', 2000)
         gap_weight = min(statcast_pa / pa_full, 1.0)
 
-        # Effective wOBA delta — shrunk for consistent outperformers
+        # Effective wOBA delta â€” shrunk for consistent outperformers
         effective_d_woba = d_woba - gap_weight * career_gap  # row-level (n,)
 
         # Proportional ratio (bounded to avoid extreme or negative values)
@@ -248,7 +280,7 @@ def _adjust_counting_stats_for_xstats(
         )
         ratio = np.clip(1.0 + effective_d_woba / safe_orig_woba, 0.50, 1.50)
 
-        # OLS residuals (intercept-corrected) — for additive player-level offset
+        # OLS residuals (intercept-corrected) â€” for additive player-level offset
         player_residuals = _compute_player_counting_residuals(
             player_data, coefficients, input_features,
         )
@@ -280,7 +312,7 @@ def _adjust_counting_stats_for_xstats(
         if adjusted_any:
             logger.debug(
                 f"Player-specific counting adjustment applied "
-                f"(effective Δ_wOBA mean={effective_d_woba.mean():.4f}, "
+                f"(effective Î”_wOBA mean={effective_d_woba.mean():.4f}, "
                 f"career_gap={career_gap:+.4f}, gap_weight={gap_weight:.2f})"
             )
         return
@@ -300,8 +332,8 @@ def _adjust_counting_stats_for_xstats(
 
     if adjusted_any:
         logger.debug("Counting stats adjusted for x-stat consistency "
-                     f"(Δ_wOBA mean={d_woba.mean():.4f}, Δ_SLG mean={d_slg.mean():.4f}, "
-                     f"Δ_AVG mean={d_avg.mean():.4f})")
+                     f"(Î”_wOBA mean={d_woba.mean():.4f}, Î”_SLG mean={d_slg.mean():.4f}, "
+                     f"Î”_AVG mean={d_avg.mean():.4f})")
 
 
 # =============================================================================
@@ -565,7 +597,7 @@ def _prepare_player_sequence(
     # x-stats replace traditional counterparts first so that park factor
     # neutralization operates on the final values the model will see.
     #
-    # Save originals before substitution — needed by counting-stat adjustment.
+    # Save originals before substitution â€” needed by counting-stat adjustment.
     _orig_woba = recent_data['wOBA'].values.copy() if 'wOBA' in recent_data.columns else None
     _orig_slg  = recent_data['SLG'].values.copy() if 'SLG' in recent_data.columns else None
     _orig_avg  = recent_data['AVG'].values.copy() if 'AVG' in recent_data.columns else None
@@ -591,16 +623,16 @@ def _prepare_player_sequence(
             else:
                 xwoba_candidate = player_data['xwOBA'].iloc[-seq_length:].values
 
-            # Only substitute if all values are valid — avoids introducing NaN for pre-Statcast seasons
+            # Only substitute if all values are valid â€” avoids introducing NaN for pre-Statcast seasons
             if not pd.isna(xwoba_candidate).any():
                 recent_data['wOBA'] = xwoba_candidate
                 xwoba_substituted = True
-                logger.debug(f"Player {player_id}: Substituted xwOBA → wOBA position. "
+                logger.debug(f"Player {player_id}: Substituted xwOBA â†’ wOBA position. "
                              f"Original wOBA: {original_woba}, New xwOBA: {recent_data['wOBA'].values}")
             else:
-                logger.debug(f"Player {player_id}: Skipped xwOBA substitution — NaN values present for this sequence")
+                logger.debug(f"Player {player_id}: Skipped xwOBA substitution â€” NaN values present for this sequence")
 
-        # xBA substitution (AVG → xBA)
+        # xBA substitution (AVG â†’ xBA)
         if (BatterConfig.USE_XBA_FOR_PREDICTIONS and
                 'AVG' in input_features and
                 'xBA' in player_data.columns):
@@ -614,16 +646,16 @@ def _prepare_player_sequence(
             else:
                 xba_candidate = player_data['xBA'].iloc[-seq_length:].values
 
-            # Only substitute if all values are valid — avoids introducing NaN for pre-Statcast seasons
+            # Only substitute if all values are valid â€” avoids introducing NaN for pre-Statcast seasons
             if not pd.isna(xba_candidate).any():
                 recent_data['AVG'] = xba_candidate
                 xba_substituted = True
-                logger.debug(f"Player {player_id}: Substituted xBA → AVG position. "
+                logger.debug(f"Player {player_id}: Substituted xBA â†’ AVG position. "
                              f"Original AVG: {original_avg}, New xBA: {recent_data['AVG'].values}")
             else:
-                logger.debug(f"Player {player_id}: Skipped xBA substitution — NaN values present for this sequence")
+                logger.debug(f"Player {player_id}: Skipped xBA substitution â€” NaN values present for this sequence")
 
-        # xSLG substitution (SLG → xSLG)
+        # xSLG substitution (SLG â†’ xSLG)
         if (BatterConfig.USE_XSLG_FOR_PREDICTIONS and
                 'SLG' in input_features and
                 'xSLG' in player_data.columns):
@@ -637,14 +669,14 @@ def _prepare_player_sequence(
             else:
                 xslg_candidate = player_data['xSLG'].iloc[-seq_length:].values
 
-            # Only substitute if all values are valid — avoids introducing NaN for pre-Statcast seasons
+            # Only substitute if all values are valid â€” avoids introducing NaN for pre-Statcast seasons
             if not pd.isna(xslg_candidate).any():
                 recent_data['SLG'] = xslg_candidate
                 xslg_substituted = True
-                logger.debug(f"Player {player_id}: Substituted xSLG → SLG position. "
+                logger.debug(f"Player {player_id}: Substituted xSLG â†’ SLG position. "
                              f"Original SLG: {original_slg}, New xSLG: {recent_data['SLG'].values}")
             else:
-                logger.debug(f"Player {player_id}: Skipped xSLG substitution — NaN values present for this sequence")
+                logger.debug(f"Player {player_id}: Skipped xSLG substitution â€” NaN values present for this sequence")
 
     except (ImportError, AttributeError):
         # Config not available, skip substitution
@@ -653,7 +685,7 @@ def _prepare_player_sequence(
     # =========================================================================
     # COUNTING-STAT ADJUSTMENT FOR X-STAT CONSISTENCY
     # =========================================================================
-    # When x-stats were substituted above, counting stats (HR, 2B, …) still
+    # When x-stats were substituted above, counting stats (HR, 2B, â€¦) still
     # reflect actual outcomes.  Adjust them so they are consistent with the
     # substituted rate stats, using regression-derived coefficients.
     try:
@@ -669,8 +701,8 @@ def _prepare_player_sequence(
     # =========================================================================
     # PARK FACTOR NEUTRALIZATION (after x-stat substitution)
     # =========================================================================
-    # Applied to all adjustable features — including whichever positions now hold
-    # x-stat values — so every value in the sequence is park-neutral before the model.
+    # Applied to all adjustable features â€” including whichever positions now hold
+    # x-stat values â€” so every value in the sequence is park-neutral before the model.
     park_factor_enabled = False
     try:
         from configs.batter_config import BatterConfig
@@ -987,14 +1019,14 @@ def _predict_with_regression(
     reliability_model_type = model_type
 
     # =========================================================================
-    # STATCAST METRIC SUBSTITUTION (batter only) — BEFORE REGRESSION
+    # STATCAST METRIC SUBSTITUTION (batter only) â€” BEFORE REGRESSION
     # xStats replace their traditional counterparts in player_data so that
     # regression operates on the more-predictive expected metrics.
     # Park neutralization (below) then applies to all adjustable features,
     # including the positions now holding x-stat values.
     # =========================================================================
     if model_type == 'batter':
-        # Save originals before substitution — needed by counting-stat adjustment
+        # Save originals before substitution â€” needed by counting-stat adjustment
         _orig_woba = player_data['wOBA'].values.copy() if 'wOBA' in player_data.columns else None
         _orig_slg  = player_data['SLG'].values.copy() if 'SLG' in player_data.columns else None
         _orig_avg  = player_data['AVG'].values.copy() if 'AVG' in player_data.columns else None
@@ -1063,7 +1095,7 @@ def _predict_with_regression(
     # =========================================================================
     recent_data = player_data_regressed[input_features].iloc[-seq_length:].copy().reset_index(drop=True)
     
-    # Pad with regressed career mean if not enough seasons
+    # Pad with regressed career mean if not enough seasons (right-pad: real data first)
     num_seasons = len(recent_data)
     if num_seasons < seq_length:
         padding_vector = np.array(
@@ -1074,11 +1106,11 @@ def _predict_with_regression(
             [padding_vector] * n_pad,
             columns=input_features
         )
-        recent_data = pd.concat([padding_df, recent_data], ignore_index=True)
+        recent_data = pd.concat([recent_data, padding_df], ignore_index=True)
     
     # Check for NaN
     if recent_data.isna().any().any():
-        logger.debug(f"NaN in sequence for player {player_id} — filling with career mean")
+        logger.debug(f"NaN in sequence for player {player_id} â€” filling with career mean")
         for feat in input_features:
             if recent_data[feat].isna().any():
                 fill_val = career_mean.get(feat, 0.0)
@@ -1102,7 +1134,7 @@ def _predict_with_regression(
         season_teams = player_data_regressed['Team'].iloc[-num_actual:].tolist() if 'Team' in player_data_regressed.columns else []
         last_team = player_data['Team'].iloc[-1] if len(player_data) > 0 else None
         n_pad = seq_length - len(season_teams)
-        all_teams = [last_team] * n_pad + season_teams
+        all_teams = season_teams + [last_team] * n_pad
         
         for row_idx, team in enumerate(all_teams):
             pf = get_park_factor(team)
@@ -1201,522 +1233,6 @@ def predict_future_stats_baserunning(player_id: str, input_features: List[str], 
         league_priors=league_priors,
     )
 
-
-# =============================================================================
-# PITCHER PREDICTION (kept separate due to additional complexity)
-# =============================================================================
-
-def predict_future_stats_pitcher(player_id: str, input_features: List[str], model, 
-                                scaler, raw_df: pd.DataFrame, player_names: pd.DataFrame,
-                                role: str, future_years: int = 16, seq_length: int = 4,
-                                target_year: int = None,
-                                league_priors: Optional[Dict[str, float]] = None) -> List[Dict]:
-    """
-    Predict future stats for a pitcher with reliability regression.
-    
-    Key design:
-    1. Reliability regression: each season's rate stats are regressed toward the
-       player's IP-weighted career mean (or league average for rookies) based on
-       sample size and stat-specific stabilization rates. This means a 75 IP season
-       keeps its K% mostly intact but its ERA gets pulled toward career norm.
-    2. Regressed career mean padding: when the sequence is shorter than seq_length,
-       padding uses the player's regressed career average — a principled true-talent
-       estimate rather than duplicating the earliest season.
-    3. Lower IP threshold for inclusion: since regression handles reliability, we
-       can include more seasons (≥20 IP for SP, ≥10 IP for RP) without worrying
-       about small-sample noise distorting the sequence.
-    
-    Args:
-        model: Trained ImprovedLSTM model
-        scaler: Fitted scaler
-        target_year: The year projections should start from (e.g., 2026).
-        league_priors: Pre-computed league average priors per feature (from caller).
-                      Used as fallback for rookies with <2 career seasons.
-    """
-    from core.reliability import (
-        regress_player_sequence, 
-        compute_regressed_career_mean, 
-        get_era_for_features,
-    )
-    
-    # Get initial player data
-    player_data = raw_df[raw_df['IDfg'] == player_id].sort_values('Season')
-    if len(player_data) < 1:
-        return []
-    
-    # Check for required features — skip players with too many NaN values
-    required_features = [f for f in input_features if f != 'Age']
-    last_valid_season = player_data[player_data['IP'] >= 15].tail(1)
-    if last_valid_season.empty:
-        last_valid_season = player_data.tail(1)
-    
-    nan_count = last_valid_season[required_features].isna().sum().sum()
-    if nan_count > len(required_features) * 0.3:
-        logger.debug(f"Skipping player {player_id} - too many NaN features ({nan_count}/{len(required_features)})")
-        return []
-        
-    # Get player info
-    try:
-        player_name = player_names[player_names['IDfg'] == player_id]['Name'].iloc[0]
-    except IndexError:
-        return []
-        
-    last_season = player_data['Season'].max()
-    last_age = player_data[player_data['Season'] == last_season]['Age'].iloc[0]
-    
-    # Determine the projection start year
-    if target_year is not None and last_season < target_year:
-        years_missed = target_year - 1 - last_season
-        last_age = last_age + years_missed
-        last_season = target_year - 1
-    
-    # Store player context for post-processing
-    player_context = {
-        'career_high_ip': player_data['IP'].max(),
-        'recent_ip': player_data.tail(3)['IP'].mean(),
-        'last_fbv': None,
-        'last_age': last_age,
-        'role': role,
-        'recent_surgery': False,
-        'recent_performance': {},
-    }
-    
-    # Detect recent surgery/injury
-    recent_surgery_detected = False
-    if len(player_data) >= 2:
-        recent_ip = player_data.tail(2)['IP'].values
-        prior_avg = player_data.iloc[:-2]['IP'].mean() if len(player_data) > 2 else player_data.iloc[0]['IP']
-        if len(recent_ip) >= 2:
-            if (recent_ip[-2] < 50 and prior_avg > 100) or (recent_ip[-1] >= 80 and prior_avg > 130):
-                recent_surgery_detected = True
-        elif len(recent_ip) > 0 and recent_ip[-1] < 50 and prior_avg > 100:
-            recent_surgery_detected = True
-    
-    player_context['recent_surgery'] = recent_surgery_detected
-    
-    if recent_surgery_detected:
-        valid_seasons = player_data[player_data['IP'] >= 30]
-        if not valid_seasons.empty:
-            most_recent_valid = valid_seasons.iloc[-1]
-            player_context['recent_performance'] = {
-                'recent_era': most_recent_valid.get('ERA', 4.5),
-                'recent_fip': most_recent_valid.get('FIP', 4.5),
-                'recent_k_pct': most_recent_valid.get('K%', 0.22),
-                'recent_bb_pct': most_recent_valid.get('BB%', 0.09),
-            }
-    
-    if 'FBv' in player_data.columns:
-        valid_seasons = player_data[player_data['IP'] >= 30]
-        if not valid_seasons.empty:
-            player_context['last_fbv'] = valid_seasons.iloc[-1]['FBv']
-    if 'Stuff+' in player_data.columns:
-        valid_seasons = player_data[player_data['IP'] >= 30]
-        if not valid_seasons.empty:
-            player_context['last_stuff'] = valid_seasons.iloc[-1]['Stuff+']
-    
-    # =========================================================================
-    # QUALIFICATION & IP THRESHOLDS
-    # =========================================================================
-    # With reliability regression, we can include lower-IP seasons because
-    # their noisy rate stats get regressed toward the career mean. The
-    # regression itself handles reliability — we no longer need harsh cutoffs.
-    #
-    # SEQUENCE_THRESHOLD: Minimum IP for inclusion in the input sequence.
-    #   Lowered from 50/30 to 20/10 because regression handles sample size.
-    #   Still excludes truly meaningless appearances (1-5 IP rehab stints).
-    #
-    # QUALIFICATION_THRESHOLD: Minimum recent IP to generate predictions at all.
-    #   Unchanged — a player needs to have pitched meaningfully recently.
-    # =========================================================================
-    sequence_ip_threshold = 20 if role == 'SP' else 10
-    qualification_ip_threshold = 45 if role == 'SP' else 15
-    
-    # Check if player qualifies for predictions
-    recent_ip = player_data.tail(2)['IP'].max()
-    if recent_ip < qualification_ip_threshold:
-        logger.debug(f"Skipping {player_name} - insufficient recent IP ({recent_ip:.1f} < {qualification_ip_threshold})")
-        return []
-    
-    # =========================================================================
-    # RELIABILITY REGRESSION
-    # =========================================================================
-    # Regress each season's rate stats toward the player's career mean (or
-    # league average for rookies) based on BF and stat-specific stabilization
-    # rates. This transforms raw observations into true-talent estimates.
-    #
-    # Example (200→100→75→200 IP pitcher):
-    #   K% (stabilizes at 70 BF): barely changes for any season
-    #   ERA (stabilizes at 1320 BF): 75 IP season → heavy regression toward career avg
-    # =========================================================================
-    era = get_era_for_features(input_features)
-    player_data_regressed = regress_player_sequence(
-        player_data, input_features, model_type='pitcher', era=era,
-        league_priors=league_priors
-    )
-    
-    # Compute regressed career mean for padding
-    # This is the best available estimate of the player's true talent level,
-    # used when the sequence is shorter than seq_length.
-    career_mean = compute_regressed_career_mean(
-        player_data, input_features, model_type='pitcher', era=era,
-        league_priors=league_priors
-    )
-    
-    # Build sequence from regressed data
-    recent_seasons = player_data_regressed.tail(seq_length + 2)  # extra buffer for skipping
-    sequence_data = []
-    mask = []
-    
-    for idx, season in recent_seasons.iterrows():
-        if season['IP'] >= sequence_ip_threshold:
-            base_features = season[input_features].values
-            sequence_data.append(base_features)
-            mask.append(1)
-    
-    # Keep only the most recent seq_length valid seasons
-    if len(sequence_data) > seq_length:
-        sequence_data = sequence_data[-seq_length:]
-        mask = mask[-seq_length:]
-    
-    # Check if we have any valid seasons at all
-    if len(sequence_data) == 0:
-        logger.debug(f"Skipping pitcher {player_name} - no seasons with IP >= {sequence_ip_threshold}")
-        return []
-    
-    # Pad with regressed career mean if not enough seasons
-    if len(sequence_data) < seq_length:
-        # Build padding vector from regressed career mean
-        padding_vector = np.array(
-            [career_mean.get(f, 0.0) for f in input_features], dtype=np.float32
-        )
-        n_pad = seq_length - len(sequence_data)
-        sequence_data = [padding_vector] * n_pad + sequence_data
-        mask = [0] * n_pad + mask
-    
-    # Ensure numeric array
-    current_sequence = np.array(sequence_data[-seq_length:], dtype=np.float32)
-    mask = np.array(mask[-seq_length:], dtype=np.int64)
-    
-    # Park factor neutralization: convert stats to park-neutral (true talent)
-    # Only applied when ENABLE_PARK_FACTOR_ADJUSTMENT is True in the relevant config
-    park_factor_enabled = _is_park_factor_enabled(role)
-    
-    if park_factor_enabled and 'Team' in player_data.columns:
-        from core.park_factors import get_park_factor, EXCLUDED_STATS
-        adjustable_indices = [
-            i for i, f in enumerate(input_features) if f not in EXCLUDED_STATS
-        ]
-        # Get the teams for the valid seasons used in the sequence
-        valid_seasons_with_team = recent_seasons[recent_seasons['IP'] >= sequence_ip_threshold].tail(seq_length)
-        season_teams = valid_seasons_with_team['Team'].tolist() if 'Team' in valid_seasons_with_team.columns else []
-        # For padded rows, use the earliest available team
-        last_team = player_data['Team'].iloc[-1] if len(player_data) > 0 else None
-        n_actual = len(season_teams)
-        n_pad = seq_length - n_actual
-        all_teams = [last_team] * n_pad + season_teams
-        
-        for row_idx, team in enumerate(all_teams):
-            pf = get_park_factor(team)
-            if pf != 1.0:
-                for col_idx in adjustable_indices:
-                    current_sequence[row_idx, col_idx] = current_sequence[row_idx, col_idx] / pf
-    
-    # Final NaN/Inf safety check
-    if np.isnan(current_sequence).any() or np.isinf(current_sequence).any():
-        current_sequence = np.nan_to_num(current_sequence, nan=0.0, posinf=0.0, neginf=0.0)
-        logger.warning(f"NaN/Inf cleaned from sequence for {player_name}")
-    
-    device = next(model.parameters()).device
-    predictions_list = []
-    
-    # Get number of base features (model was trained on base features only)
-    n_features = len(input_features)
-    
-    # Generate predictions
-    for year in range(1, future_years + 1):
-        # Scale the sequence
-        sequence_scaled = scaler.transform(current_sequence)
-        
-        sequence_tensor = torch.FloatTensor(sequence_scaled).unsqueeze(0).to(device)
-        mask_tensor = torch.LongTensor(mask).unsqueeze(0).to(device)
-        
-        with torch.no_grad():
-            prediction = model(sequence_tensor, mask_tensor.sum(1))
-            prediction = prediction.cpu().numpy()
-        
-        # Inverse transform to get actual values
-        prediction_constrained = scaler.inverse_transform(prediction)[0]
-        
-        # NOTE: Aging curves are applied through the age-adjusted regression
-        # prior (in regress_player_sequence / compute_regressed_career_mean),
-        # NOT as a post-model adjustment here. This lets the LSTM learn its
-        # own aging signal from the Age input feature while the regression
-        # prior anchors low-sample seasons to an age-appropriate baseline.
-        
-        # NOTE: Physical constraints removed for consistency with backtest
-        # Previously applied velocity caps, IP limits, and post-surgery constraints
-        # These are now handled in post-processing if needed
-        
-        pred_dict = {
-            'Name': player_name,
-            'Year': last_season + year,  # Changed from 'Season' to 'Year' for consistency
-            'Age': last_age + year,
-            'Role': role,
-            'IDfg': player_id
-        }
-        
-        # Add predicted stats (except Age)
-        for i, feature in enumerate(input_features):
-            if feature != 'Age':
-                pred_dict[feature] = prediction_constrained[i]
-        
-        predictions_list.append(pred_dict)
-        
-        # Update player_context for next year's constraints
-        # The constrained velocity becomes the baseline for next year
-        if 'FBv' in input_features:
-            fbv_idx = input_features.index('FBv')
-            player_context['last_fbv'] = prediction_constrained[fbv_idx]
-        
-        # Update sequence for next prediction - use constrained values for continuity
-        next_sequence = prediction_constrained.copy()
-        age_index = input_features.index('Age')
-        next_sequence[age_index] = last_age + year + 1
-        
-        # Safety check: ensure no NaN/Inf in prediction before adding to sequence
-        if np.isnan(next_sequence).any() or np.isinf(next_sequence).any():
-            logger.warning(f"NaN/Inf detected in prediction for {player_name} year {last_season + year} - replacing with last valid values")
-            # Use the last row of current_sequence as fallback
-            last_valid = current_sequence[-1].copy()
-            nan_mask = np.isnan(next_sequence) | np.isinf(next_sequence)
-            next_sequence[nan_mask] = last_valid[nan_mask]
-            # Update age regardless
-            next_sequence[age_index] = last_age + year + 1
-        
-        # Update sequence
-        current_sequence = np.vstack([current_sequence[1:], next_sequence])
-        mask = np.ones(seq_length, dtype=np.int64)  # All valid for subsequent predictions
-    
-    return predictions_list
-
-
-def predict_all_pitchers(
-    raw_df: pd.DataFrame, 
-    player_names: pd.DataFrame, 
-    sp_model, 
-    rp_model,
-    sp_scaler, 
-    rp_scaler, 
-    sp_input_features: List[str],
-    rp_input_features: List[str], 
-    seq_length: int, 
-    future_years: int = 16, 
-    cutoff_year: int = 2024,
-    sp_config = None,
-    rp_config = None,
-    roster_ids: Optional[Set[int]] = None
-) -> Optional[pd.DataFrame]:
-    """
-    Generate future predictions for all qualified pitchers.
-    
-    Identifies starting and relief pitchers from the cutoff year (and previous year 
-    for returning/injured players), then generates multi-year projections for each.
-    
-    Args:
-        raw_df: Historical pitcher data with Season, IDfg, IP, G, GS columns
-        player_names: DataFrame mapping IDfg to Name
-        sp_model: Trained LSTM model for starting pitchers
-        rp_model: Trained LSTM model for relief pitchers
-        sp_scaler: Fitted scaler for SP features
-        rp_scaler: Fitted scaler for RP features
-        sp_input_features: List of input features for SP model
-        rp_input_features: List of input features for RP model
-        seq_length: Number of historical seasons used as input sequence
-        future_years: Number of years to project into the future
-        cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
-        roster_ids: Optional set of IDfg values for players on active rosters.
-                   Roster pitchers who don't meet normal IP/G thresholds will be
-                   recovered from historical data.
-        
-    Returns:
-        DataFrame with predictions for all pitchers, or None if no predictions generated
-    """
-    logger.info(f"Starting predictions for pitchers from cutoff year {cutoff_year}")
-    
-    # Pre-compute league average priors for reliability regression.
-    # Done once here rather than per-player for efficiency.
-    # Used as fallback for rookies with <2 career seasons.
-    from core.reliability import compute_league_priors_from_df, get_era_for_features
-    sp_era = get_era_for_features(sp_input_features)
-    rp_era = get_era_for_features(rp_input_features)
-    sp_league_priors = compute_league_priors_from_df(
-        raw_df, sp_input_features, model_type='pitcher',
-        season=cutoff_year, window=3
-    )
-    rp_league_priors = compute_league_priors_from_df(
-        raw_df, rp_input_features, model_type='pitcher',
-        season=cutoff_year, window=3
-    )
-    logger.info(f"Computed league priors for SP ({len(sp_league_priors)} features) and RP ({len(rp_league_priors)} features)")
-    
-    # Log park factor adjustment status
-    sp_pf = _is_park_factor_enabled('SP')
-    rp_pf = _is_park_factor_enabled('RP')
-    logger.info(f"Park factor adjustment: SP={'ENABLED' if sp_pf else 'DISABLED'}, RP={'ENABLED' if rp_pf else 'DISABLED'}")
-    
-    # Get current year and previous year pitchers
-    pitchers_current = raw_df[raw_df['Season'] == cutoff_year].copy()
-    pitchers_prev = raw_df[raw_df['Season'] == cutoff_year - 1].copy()
-    
-    # Calculate GS rates
-    pitchers_current['GS_rate'] = pitchers_current['GS'] / pitchers_current['G']
-    pitchers_prev['GS_rate'] = pitchers_prev['GS'] / pitchers_prev['G']
-    
-    # Get minimum IP thresholds from config or use defaults
-    sp_min_ip = sp_config.MIN_IP_CURRENT if sp_config and hasattr(sp_config, 'MIN_IP_CURRENT') else 25
-    rp_min_ip = rp_config.MIN_IP_CURRENT if rp_config and hasattr(rp_config, 'MIN_IP_CURRENT') else 15
-    
-    # First determine current year roles by GS rate only
-    qualified_current_sp = pitchers_current[
-        (pitchers_current['IP'] >= sp_min_ip) & 
-        (pitchers_current['G'] >= 6)
-    ]
-    qualified_current_rp = pitchers_current[
-        (pitchers_current['IP'] >= rp_min_ip) & 
-        (pitchers_current['G'] >= 15)
-    ]
-    
-    # Use current year role if they appear at all
-    sp_ids_current = set(qualified_current_sp[qualified_current_sp['GS_rate'] >= 0.8]['IDfg'])
-    rp_ids_current = set(qualified_current_rp[qualified_current_rp['GS_rate'] < 0.8]['IDfg'])
-    
-    # Only look at previous year for players missing from current year
-    missing_current = set(pitchers_prev['IDfg']) - set(pitchers_current['IDfg'])
-    sp_ids_prev = set(pitchers_prev[
-        (pitchers_prev['IDfg'].isin(missing_current)) &
-        (pitchers_prev['IP'] >= sp_min_ip) & 
-        (pitchers_prev['G'] >= 6) & 
-        (pitchers_prev['GS_rate'] >= 0.8)
-    ]['IDfg'])
-    
-    rp_ids_prev = set(pitchers_prev[
-        (pitchers_prev['IDfg'].isin(missing_current)) &
-        (pitchers_prev['IP'] >= rp_min_ip) & 
-        (pitchers_prev['G'] >= 15) & 
-        (pitchers_prev['GS_rate'] < 0.8)
-    ]['IDfg'])
-    
-    # Combine IDs
-    sp_ids = sp_ids_current.union(sp_ids_prev)
-    rp_ids = rp_ids_current.union(rp_ids_prev)
-    
-    logger.info(f"Found {len(sp_ids_current)} qualified {cutoff_year} SPs and {len(sp_ids_prev)} returning/recovering SPs")
-    logger.info(f"Found {len(rp_ids_current)} qualified {cutoff_year} RPs and {len(rp_ids_prev)} returning/recovering RPs")
-    
-    # =========================================================================
-    # ROSTER RECOVERY: recover roster pitchers who didn't meet normal thresholds
-    # =========================================================================
-    # Catches pitchers who:
-    #   - Have cutoff_year data but below IP/G thresholds (e.g. Bieber: 40.1 IP, 4 G)
-    #   - Are absent from both cutoff_year AND cutoff_year-1 (e.g. long-term injury)
-    # We recover them if they have at least one usable season (IP >= 10) in history.
-    if roster_ids is not None:
-        all_pitcher_ids = sp_ids | rp_ids
-        missing_roster = roster_ids - all_pitcher_ids
-        if missing_roster:
-            recovered_sp = set()
-            recovered_rp = set()
-            for pid in missing_roster:
-                pitcher_hist = raw_df[
-                    (raw_df['IDfg'] == pid) &
-                    (raw_df['Season'] <= cutoff_year) &
-                    (raw_df['IP'] >= 10)
-                ]
-                if len(pitcher_hist) == 0:
-                    continue
-                # Determine role from most recent substantial season
-                recent = pitcher_hist.sort_values('Season').iloc[-1]
-                gs_rate = recent['GS'] / recent['G'] if recent['G'] > 0 else 0
-                if gs_rate >= 0.8:
-                    sp_ids.add(pid)
-                    recovered_sp.add(pid)
-                else:
-                    rp_ids.add(pid)
-                    recovered_rp.add(pid)
-            total_recovered = len(recovered_sp) + len(recovered_rp)
-            logger.info(
-                f"Roster recovery: {total_recovered} pitchers recovered "
-                f"({len(recovered_sp)} SP, {len(recovered_rp)} RP) from historical data "
-                f"({len(missing_roster)} roster pitchers were missing)"
-            )
-    
-    # Target year is cutoff_year + 1 (e.g., if cutoff_year=2025, projections start at 2026)
-    target_year = cutoff_year + 1
-    
-    all_predictions = []
-    
-    # Predict SPs
-    logger.info("Generating SP predictions...")
-    for player_id in tqdm(sp_ids, desc="Starting Pitchers"):
-        # Filter to historical data up to cutoff_year
-        player_historical_data = raw_df[
-            (raw_df['IDfg'] == player_id) & 
-            (raw_df['Season'] <= cutoff_year)
-        ].copy()
-        
-        predictions = predict_future_stats_pitcher(
-            player_id=player_id,
-            input_features=sp_input_features,
-            model=sp_model,
-            scaler=sp_scaler,
-            raw_df=player_historical_data,
-            player_names=player_names,
-            role='SP',
-            seq_length=seq_length,
-            future_years=future_years,
-            target_year=target_year,
-            league_priors=sp_league_priors
-        )
-        if predictions:
-            all_predictions.extend(predictions)
-            
-    # Predict RPs
-    logger.info("Generating RP predictions...")
-    for player_id in tqdm(rp_ids, desc="Relief Pitchers"):
-        # Filter to historical data up to cutoff_year
-        player_historical_data = raw_df[
-            (raw_df['IDfg'] == player_id) & 
-            (raw_df['Season'] <= cutoff_year)
-        ].copy()
-        
-        predictions = predict_future_stats_pitcher(
-            player_id=player_id,
-            input_features=rp_input_features,
-            model=rp_model,
-            scaler=rp_scaler,
-            raw_df=player_historical_data,
-            player_names=player_names,
-            role='RP',
-            seq_length=seq_length,
-            future_years=future_years,
-            target_year=target_year,
-            league_priors=rp_league_priors
-        )
-        if predictions:
-            all_predictions.extend(predictions)
-    
-    if all_predictions:
-        predictions_df = pd.DataFrame(all_predictions)
-        
-        # Sort by Year, Role, and player name
-        predictions_df = predictions_df.sort_values(['Year', 'Role', 'Name'], ascending=[True, True, True])
-        
-        return predictions_df
-    else:
-        logger.warning("No predictions were generated")
-        return None
-
-
 # =============================================================================
 # STATCAST IMPUTATION HELPER
 # =============================================================================
@@ -1764,7 +1280,7 @@ def _impute_statcast_from_xwoba(
             total_imputed += n
             logger.info(
                 f"Statcast imputation: filled {n} missing '{feat}' values from xwOBA "
-                f"(y = {coeff['slope']:.4f}·xwOBA + {coeff['intercept']:.4f})"
+                f"(y = {coeff['slope']:.4f}Â·xwOBA + {coeff['intercept']:.4f})"
             )
 
     if total_imputed > 0:
@@ -1785,7 +1301,8 @@ def predict_all_batters(
     future_years: int = 16, 
     cutoff_year: int = 2024,
     min_pa_current: int = 100,
-    roster_ids: Optional[Set[int]] = None
+    roster_ids: Optional[Set[int]] = None,
+    pitcher_ids: Optional[Set[int]] = None
 ) -> Optional[pd.DataFrame]:
     """
     Generate future predictions for all qualified batters.
@@ -1810,6 +1327,9 @@ def predict_all_batters(
         roster_ids: Optional set of IDfg values for players on active rosters.
                    Players in this set who don't meet normal thresholds will be
                    recovered from historical data if they have any season with PA >= 50.
+        pitcher_ids: Optional set of IDfg values for known pitchers. Pitchers with
+                    < 30 PA in their most recent season are excluded from batter
+                    predictions (not true two-way players).
         
     Returns:
         DataFrame with predictions for all batters, or None if no predictions generated
@@ -1852,7 +1372,33 @@ def predict_all_batters(
                 f"({len(missing_roster)} roster players were missing, "
                 f"{len(missing_roster) - len(recovered)} have no usable batting history)"
             )
-    
+
+    # =========================================================================
+    # PITCHER BATTING FILTER: exclude pitchers with < 30 PA in most recent season
+    # =========================================================================
+    if pitcher_ids:
+        pitcher_batters = all_players & pitcher_ids
+        if pitcher_batters:
+            low_pa_pitchers = set()
+            for pid in pitcher_batters:
+                # Find most recent season for this pitcher in the batting data
+                player_seasons = raw_df[
+                    (raw_df['IDfg'] == pid) & (raw_df['Season'] <= cutoff_year)
+                ].sort_values('Season', ascending=False)
+                if player_seasons.empty:
+                    low_pa_pitchers.add(pid)
+                else:
+                    most_recent_pa = player_seasons.iloc[0]['PA']
+                    if most_recent_pa < 30:
+                        low_pa_pitchers.add(pid)
+            if low_pa_pitchers:
+                all_players -= low_pa_pitchers
+                logger.info(
+                    f"Pitcher batting filter: removed {len(low_pa_pitchers)} pitchers with "
+                    f"< 30 PA in most recent season (kept {len(pitcher_batters - low_pa_pitchers)} "
+                    f"true two-way players)"
+                )
+
     # Check if xStat substitutions are enabled
     try:
         from configs.batter_config import BatterConfig
@@ -1867,7 +1413,7 @@ def predict_all_batters(
             logger.info(f"xSLG substitution ENABLED - {xslg_available_count} player-seasons have xSLG data available")
         # Log park factor adjustment status
         if getattr(BatterConfig, 'ENABLE_PARK_FACTOR_ADJUSTMENT', False):
-            logger.info("Park factor adjustment ENABLED for batter predictions (neutralize → model → reapply)")
+            logger.info("Park factor adjustment ENABLED for batter predictions (neutralize â†’ model â†’ reapply)")
         else:
             logger.info("Park factor adjustment DISABLED for batter predictions")
     except (ImportError, AttributeError):

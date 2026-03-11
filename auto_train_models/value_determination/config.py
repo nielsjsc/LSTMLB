@@ -96,7 +96,7 @@ class Columns:
 
     PITCHER_COLUMNS = [
         'Name', 'Age', 'GS', 'G', 'IP', 'BB_pit', 'K_pit', 'ER_pit', 'IDfg', 'ERA', 'FIP', 'K%', 'BB%', 'WAR',
-        'HR%', 'HR/FB', 'K/9', 'BB/9', 'HR/9', 'FB%', 'GB%', 'SIERA',
+        'HR/FB', 'K/9', 'BB/9', 'HR/9', 'FB%', 'GB%', 'SIERA',
     ]
     # ID column mappings (for transitioning from FG ID to MLB ID)
     # TODO: Complete migration to mlbam_id as primary identifier
