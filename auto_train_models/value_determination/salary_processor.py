@@ -374,7 +374,10 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
                 fgid = row.get('fg_id')
                 if pd.isna(fgid):
                     continue
-                fgid = int(fgid)
+                try:
+                    fgid = int(float(fgid))
+                except (ValueError, TypeError):
+                    continue
                 # Add mapped_name variant
                 mapped = row.get('mapped_name')
                 if pd.notna(mapped):

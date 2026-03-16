@@ -44,7 +44,7 @@ class DefenseCatcherConfig:
     #
     #   TRAINING   — applied to the historical DataFrame before the LSTM sees it.
     #   PREDICTION — applied to each player's historical sequence at inference time.
-    ENABLE_RELIABILITY_REGRESSION_TRAINING   = True
+    ENABLE_RELIABILITY_REGRESSION_TRAINING   = False
     ENABLE_RELIABILITY_REGRESSION_PREDICTION = True
     
     # Model hyperparameters (actual values used internally by notebook's ImprovedLSTM)

@@ -46,13 +46,13 @@ class BaserunningConfig:
     #   TRAINING   — applied to the historical DataFrame before the LSTM sees it.
     #   PREDICTION — applied to each player's historical sequence at inference time.
     ENABLE_RELIABILITY_REGRESSION_TRAINING   = False
-    ENABLE_RELIABILITY_REGRESSION_PREDICTION = False
+    ENABLE_RELIABILITY_REGRESSION_PREDICTION = True
     
     # Model hyperparameters (actual values used by model)
-    HIDDEN_SIZE = 256
-    NUM_LAYERS = 3
+    HIDDEN_SIZE = 128
+    NUM_LAYERS = 2
     NUM_HEADS = 2
-    DROPOUT = 0.5
+    DROPOUT = 0.2
     BIDIRECTIONAL = False
     
     # Training parameters

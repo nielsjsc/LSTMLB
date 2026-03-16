@@ -77,7 +77,7 @@ def load_roster_ids() -> Optional[set]:
     
     roster = pd.read_csv(ROSTER_FILE)
     roster_with_fg = roster.dropna(subset=['fg_id'])
-    roster_ids = set(roster_with_fg['fg_id'].astype(int))
+    roster_ids = set(pd.to_numeric(roster_with_fg['fg_id'], errors='coerce').dropna().astype(int))
     logger.info(f"Loaded {len(roster_ids)} roster player IDs from {ROSTER_FILE.name}")
     return roster_ids
 

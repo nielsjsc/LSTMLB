@@ -139,18 +139,18 @@ BASERUNNING_STABILIZATION_POINTS: Dict[str, int] = {
 # stable because it's measured on every pitch.
 DEFENSE_STABILIZATION_POINTS: Dict[str, int] = {
     # Infield + Outfield shared
-    'OAA/150':            700,
-    'DRS/150':            800,
-    'sc_total_runs/150':  1000,
-    'sc_range_runs/150':  800,
-    'sc_arm_runs/150':    800,
+    'OAA/150':            1500,
+    'DRS/150':            1600,
+    'sc_total_runs/150':  2000,
+    'sc_range_runs/150':  1600,
+    'sc_arm_runs/150':    1600,
     # Infield-specific
-    'sc_dp_runs/150':     1000,
+    'sc_dp_runs/150':     2000,
     # Outfield-specific (arm runs shared above)
     # Catcher-specific
-    'sc_framing_runs/150':  1200,  # Framing more stable (every pitch)
-    'sc_throwing_runs/150': 1500,  # Throwing (SB attempts, sparse)
-    'sc_blocking_runs/150': 1500,  # Blocking (wild pitches, sparse)
+    'sc_framing_runs/150':  2000,  # Framing more stable (every pitch)
+    'sc_throwing_runs/150': 2500,  # Throwing (SB attempts, sparse)
+    'sc_blocking_runs/150': 2500,  # Blocking (wild pitches, sparse)
 }
 
 
@@ -173,8 +173,8 @@ ADAPTIVE_STAB_FLOOR = 0.10
 # Rookie boost — players with very little career data get n0 ABOVE base,
 # meaning stronger regression.  The boost fades linearly to zero at
 # ADAPTIVE_BOOST_CAREER_FRACTION × career_stab.
-ADAPTIVE_BOOST_MAX = 1.0           # At 0 career volume, n0 is (1 + this) × base
-ADAPTIVE_BOOST_CAREER_FRACTION = 0.4  # Fraction of career_stab where boost ends
+ADAPTIVE_BOOST_MAX = 2.0           # At 0 career volume, n0 is (1 + this) × base
+ADAPTIVE_BOOST_CAREER_FRACTION = 0.6  # Fraction of career_stab where boost ends
 
 
 # =============================================================================

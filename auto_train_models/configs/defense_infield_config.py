@@ -19,7 +19,7 @@ class DefenseInfieldConfig:
     # Model-specific features
     INPUT_FEATURES = [
         'Age',# 'OAA/150', 'DRS/150', 'Inn',
-        'sc_total_runs/150',# 'sc_range_runs/150', 'sc_arm_runs/150', 'sc_dp_runs/150'
+        'sc_total_runs/150', 'sc_range_runs/150', 'sc_arm_runs/150', 'sc_dp_runs/150'
     ]
     
     # Data preprocessing config
@@ -45,14 +45,14 @@ class DefenseInfieldConfig:
     #
     #   TRAINING   — applied to the historical DataFrame before the LSTM sees it.
     #   PREDICTION — applied to each player's historical sequence at inference time.
-    ENABLE_RELIABILITY_REGRESSION_TRAINING   = True
+    ENABLE_RELIABILITY_REGRESSION_TRAINING   = False
     ENABLE_RELIABILITY_REGRESSION_PREDICTION = True
     
-    HIDDEN_SIZE = 256 
+    HIDDEN_SIZE = 128 
     NUM_LAYERS = 2  # Notebook hardcodes this in ImprovedLSTM.__init__
     NUM_HEADS = 4  
     DROPOUT = 0.15  
-    BIDIRECTIONAL = True
+    BIDIRECTIONAL = False
     GRADIENT_CLIP = 1.0
     
     # Training parameters (match notebook)

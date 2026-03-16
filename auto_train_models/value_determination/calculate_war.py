@@ -157,7 +157,7 @@ def load_player_orgs(data_dir: Path = None) -> pd.DataFrame:
     org_data = org_data.rename(columns={'fg_id': 'IDfg'})
     
     # Convert IDfg to int to match prediction data format
-    org_data['IDfg'] = org_data['IDfg'].astype(int)
+    org_data['IDfg'] = pd.to_numeric(org_data['IDfg'], errors='coerce').dropna().astype(int)
     
     logger.info(f"Loaded {len(org_data)} player organizations from current rosters")
     
