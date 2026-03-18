@@ -82,7 +82,9 @@ def _build_idfg_team_map() -> Dict[int, str]:
 
     roster = pd.read_csv(roster_file, usecols=["fg_id", "team_id"], low_memory=False)
     roster = roster.dropna(subset=["fg_id"])
-    roster["fg_id"] = roster["fg_id"].astype(float).astype(int)
+    roster["fg_id"] = pd.to_numeric(roster["fg_id"], errors="coerce")
+    roster = roster.dropna(subset=["fg_id"])
+    roster["fg_id"] = roster["fg_id"].astype(int)
     roster["team_abbr"] = roster["team_id"].map(tid_to_abbr)
     roster = roster.dropna(subset=["team_abbr"])
 
@@ -186,11 +188,13 @@ def _calculate_batter_war(
     """
     from value_determination.config import Config as VDConfig
 
-    WOBA_SCALE = VDConfig.WAR.WOBA_SCALE
-    LG_WOBA    = VDConfig.WAR.LG_WOBA
-    RPW        = VDConfig.WAR.RPW
-    LG_PA      = VDConfig.WAR.LG_PA
-    POS_ADJ    = VDConfig.WAR.POSITIONAL_ADJUSTMENTS
+    WOBA_SCALE    = VDConfig.WAR.WOBA_SCALE
+    LG_WOBA       = VDConfig.WAR.LG_WOBA
+    RPW           = VDConfig.WAR.RPW
+    LG_PA         = VDConfig.WAR.LG_PA
+    RPA           = VDConfig.WAR.RPA
+    POS_ADJ       = VDConfig.WAR.POSITIONAL_ADJUSTMENTS
+    BALLPARK_FACTORS = VDConfig.WAR.BALLPARK_FACTORS
 
     out = batter_df.copy()
 
@@ -198,28 +202,47 @@ def _calculate_batter_war(
     if "PA" not in out.columns:
         out["PA"] = 650.0
 
-    # --- wRAA ---------------------------------------------------------------
-    out["wRAA"] = ((out["wOBA"] - LG_WOBA) / WOBA_SCALE) * out["PA"]
+    # --- Park factor --------------------------------------------------------
+    if "Team" in out.columns:
+        out["_pf"] = out["Team"].map(
+            lambda t: BALLPARK_FACTORS.get(str(t).upper().strip(), 100) / 100
+        )
+    else:
+        out["_pf"] = 1.0
+
+    # --- wRAA + park adjustment (matches value_determination) ---------------
+    wraa = ((out["wOBA"] - LG_WOBA) / WOBA_SCALE) * out["PA"]
+    out["wRAA"] = wraa + (RPA - RPA * out["_pf"]) * out["PA"]
 
     # --- Baserunning --------------------------------------------------------
-    if not baserunning_df.empty and "BsR_rate" in baserunning_df.columns:
-        bsr_lookup = (
-            baserunning_df[["IDfg", "Year", "BsR_rate"]]
-            .drop_duplicates(subset=["IDfg", "Year"])
-            .rename(columns={"BsR_rate": "BsR"})
-        )
-        out = out.merge(bsr_lookup, on=["IDfg", "Year"], how="left")
+    if not baserunning_df.empty:
+        if "sc_baserunning_runner_runs_tot_rate" in baserunning_df.columns:
+            bsr_lookup = baserunning_df[["IDfg", "Year", "sc_baserunning_runner_runs_tot_rate"]].copy()
+            bsr_lookup.rename(columns={"sc_baserunning_runner_runs_tot_rate": "BsR"}, inplace=True)
+            bsr_lookup = bsr_lookup.drop_duplicates(subset=["IDfg", "Year"])
+            out = out.merge(bsr_lookup, on=["IDfg", "Year"], how="left")
+        elif "BsR_rate" in baserunning_df.columns:
+            bsr_lookup = baserunning_df[["IDfg", "Year", "BsR_rate"]].copy()
+            bsr_lookup.rename(columns={"BsR_rate": "BsR"}, inplace=True)
+            bsr_lookup = bsr_lookup.drop_duplicates(subset=["IDfg", "Year"])
+            out = out.merge(bsr_lookup, on=["IDfg", "Year"], how="left")
     if "BsR" not in out.columns:
         out["BsR"] = 0.0
     out["BsR"] = out["BsR"].fillna(0.0)
 
     # --- Fielding -----------------------------------------------------------
-    if not fielding_df.empty and "UZR/150" in fielding_df.columns:
-        fld_col = "UZR/150"
-    elif not fielding_df.empty and "DRS/150" in fielding_df.columns:
-        fld_col = "DRS/150"
-    else:
+    if not fielding_df.empty:
         fld_col = None
+        if "sc_total_runs/150" in fielding_df.columns:
+            # Combine statcast fielding metrics for a complete run value
+            fielding_df["sc_combined_runs"] = fielding_df["sc_total_runs/150"].fillna(0.0)
+            if "sc_framing_runs/150" in fielding_df.columns:
+                fielding_df["sc_combined_runs"] += fielding_df["sc_framing_runs/150"].fillna(0.0)
+            fld_col = "sc_combined_runs"
+        elif "UZR/150" in fielding_df.columns:
+            fld_col = "UZR/150"
+        elif "DRS/150" in fielding_df.columns:
+            fld_col = "DRS/150"
 
     if fld_col and not fielding_df.empty:
         fld_best = (
@@ -256,27 +279,58 @@ def _calculate_batter_war(
     # --- WAR ----------------------------------------------------------------
     out["WAR"] = (out["wRAA"] + out["BsR"] + out["Def"] + rep) / RPW
 
-    out.drop(columns=["wRAA", "BsR", "Fld", "_Pos", "Pos_Adj", "Def"], errors="ignore", inplace=True)
+    out.drop(columns=["wRAA", "BsR", "Fld", "_Pos", "_pf", "Pos_Adj", "Def"], errors="ignore", inplace=True)
     return out
 
 
+def _dynamic_pitcher_rpw(era: float, role: str, vd: "type") -> float:
+    """Pitcher-specific RPW (FanGraphs methodology) — mirrors value_determination."""
+    ip_per_game = vd.DEFAULT_IP_PER_APPEARANCE_RP if role == "RP" else vd.DEFAULT_IP_PER_START
+    lg_ra9 = vd.LG_RA9
+    ra9 = era if era > 0 else lg_ra9
+    game_ra9 = ((18 - ip_per_game) * lg_ra9 + ip_per_game * ra9) / 18
+    return (game_ra9 + 2) * 1.5
+
+
 def _calculate_pitcher_war(pitcher_df: pd.DataFrame) -> pd.DataFrame:
-    """FIP-based pitcher WAR."""
+    """FIP-based pitcher WAR — identical to value_determination pipeline."""
+    from value_determination.config import Config as VDConfig
+
+    W = VDConfig.WAR
+    lg_fip = W.LG_FIP
+    rep200 = W.REPLACEMENT_LEVEL_RUNS_200IP
+    ballpark_factors = W.BALLPARK_FACTORS
+
     out = pitcher_df.copy()
-    lg_fip  = Config.LG_FIP
-    rpw     = Config.RPW
-    rep200  = Config.REPLACEMENT_LEVEL_RUNS_200IP
 
     if "IP" not in out.columns:
         out["IP"] = np.where(
             out["Role"].str.upper() == "SP",
-            Config.DEFAULT_SP_IP,
-            Config.DEFAULT_RP_IP,
+            W.DEFAULT_SP_IP,
+            W.DEFAULT_RP_IP,
         )
 
-    fip_runs = (lg_fip - out["FIP"]) / 9.0 * out["IP"]
+    # Park-adjust FIP (same as value_determination/calculate_war.py)
+    if "Team" in out.columns:
+        pf = out["Team"].map(
+            lambda t: ballpark_factors.get(str(t).upper().strip(), 100) / 100
+        )
+    else:
+        pf = 1.0
+    park_adj_fip = out["FIP"] / pf
+
+    fip_runs = (lg_fip - park_adj_fip) / 9.0 * out["IP"]
     rep_runs = rep200 * (out["IP"] / 200.0)
-    out["WAR"] = (fip_runs + rep_runs) / rpw
+
+    # Dynamic RPW per pitcher (FanGraphs methodology)
+    era_col = out["ERA"] if "ERA" in out.columns else pd.Series(W.LG_RA9, index=out.index)
+    role_col = out["Role"].str.upper() if "Role" in out.columns else pd.Series("SP", index=out.index)
+    pitcher_rpw = pd.Series(
+        [_dynamic_pitcher_rpw(e, r, W) for e, r in zip(era_col, role_col)],
+        index=out.index,
+    )
+
+    out["WAR"] = (fip_runs + rep_runs) / pitcher_rpw
     return out
 
 
