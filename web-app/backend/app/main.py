@@ -30,6 +30,9 @@ import app.models.historical  # noqa: F401
 import app.models.past_trade  # noqa: F401
 import app.models.milb_stats  # noqa: F401
 import app.models.player_id_crosswalk  # noqa: F401
+import app.models.trade_value_history  # noqa: F401
+import app.models.statcast_expected  # noqa: F401
+import app.models.spotrac_transaction  # noqa: F401
 # Add security headers middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
