@@ -56,6 +56,9 @@ from app.models.historical import HistoricalPlayer
 from app.models.past_trade import PastTrade
 from app.models.milb_stats import MiLBHittingStats, MiLBPitchingStats
 from app.models.player_id_crosswalk import PlayerIdCrosswalk
+from app.models.trade_value_history import TradeValueHistory
+from app.models.statcast_expected import StatcastExpected
+from app.models.spotrac_transaction import SpotracTransaction
 from app.config import PROSPECT_YEARS, PROSPECT_DEFAULT_YEAR
 from app.database import SessionLocal, engine, Base
 
@@ -84,6 +87,11 @@ DATA_PATHS: Dict[str, Path] = {
     # ── Raw / scraped ─────────────────────────────────────────────────
     "milb_hitters":  PROJECT_ROOT / "data" / "MiLB" / "MiLB_Hitters.csv",
     "milb_pitchers": PROJECT_ROOT / "data" / "MiLB" / "MiLB_Pitchers.csv",
+    # ── Supplementary (migrated from lazy-loaded CSVs) ────────────────
+    "trade_value_history": PROJECT_ROOT / "data" / "generated" / "value_by_year" / "trade_value_history.csv",
+    "statcast_batter":     PROJECT_ROOT / "data" / "statcast" / "statcast_batter_expected_stats_2015_2025.csv",
+    "statcast_pitcher":    PROJECT_ROOT / "data" / "statcast" / "statcast_pitcher_expected_stats_2015_2025.csv",
+    "spotrac_transactions": PROJECT_ROOT / "data" / "salary" / "spotrac_transactions.csv",
 }
 
 
@@ -846,6 +854,111 @@ class DataLoader:
             n = _bulk_insert(self.db, PastTrade, records)
             logger.info(f"    {n:,} trades loaded")
 
+    # ── Trade-value history ───────────────────────────────────────────────
+
+    def load_trade_value_history(self, csv_path: Path) -> None:
+        """Ingest ``trade_value_history.csv`` into the DB."""
+        with _Timer("Trade value history"):
+            if not csv_path.exists():
+                logger.warning(f"  File not found: {csv_path}")
+                return
+            df = pd.read_csv(csv_path, low_memory=False)
+            df = df.rename(columns={"IDfg": "idfg"})
+            for col in ("mlb_id", "idfg", "year"):
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            df = df.dropna(subset=["mlb_id"])
+            df["mlb_id"] = df["mlb_id"].astype(int)
+
+            model_cols = {c.key for c in TradeValueHistory.__table__.columns if c.key != "id"}
+            df = df[[c for c in df.columns if c in model_cols]]
+            records = _clean_records(df)
+            _coerce_int_cols(records, {"mlb_id", "idfg", "year"})
+            n = _bulk_insert(self.db, TradeValueHistory, records)
+            logger.info(f"    {n:,} trade-value-history rows loaded")
+
+    # ── Statcast expected stats ───────────────────────────────────────────
+
+    def load_statcast_expected(
+        self, batter_csv: Path, pitcher_csv: Path
+    ) -> None:
+        """Merge batter + pitcher Statcast expected-stats CSVs into one table."""
+        with _Timer("Statcast expected stats"):
+            merged: dict[tuple[int, int], dict] = {}
+
+            # Batters: xba, xslg, xwoba
+            if batter_csv.exists():
+                df = pd.read_csv(batter_csv, low_memory=False)
+                for _, r in df.iterrows():
+                    try:
+                        key = (int(r["player_id"]), int(r["year"]))
+                    except (ValueError, TypeError):
+                        continue
+                    merged[key] = {
+                        "player_id": key[0], "year": key[1],
+                        "xba": r.get("est_ba"), "xslg": r.get("est_slg"),
+                        "xwoba": r.get("est_woba"),
+                    }
+                logger.info(f"    Batter CSV: {len(df):,} rows")
+            else:
+                logger.warning(f"  Batter CSV not found: {batter_csv}")
+
+            # Pitchers: xera (merge into existing row if present)
+            if pitcher_csv.exists():
+                df = pd.read_csv(pitcher_csv, low_memory=False)
+                for _, r in df.iterrows():
+                    try:
+                        key = (int(r["player_id"]), int(r["year"]))
+                    except (ValueError, TypeError):
+                        continue
+                    entry = merged.get(key, {"player_id": key[0], "year": key[1]})
+                    entry["xera"] = r.get("xera")
+                    merged[key] = entry
+                logger.info(f"    Pitcher CSV: {len(df):,} rows")
+            else:
+                logger.warning(f"  Pitcher CSV not found: {pitcher_csv}")
+
+            records = list(merged.values())
+            # Clean NaN values
+            for rec in records:
+                for k, v in rec.items():
+                    if isinstance(v, float) and pd.isna(v):
+                        rec[k] = None
+            n = _bulk_insert(self.db, StatcastExpected, records)
+            logger.info(f"    {n:,} statcast expected-stat rows loaded")
+
+    # ── Spotrac transactions ──────────────────────────────────────────────
+
+    def load_spotrac_transactions(self, csv_path: Path) -> None:
+        """Ingest ``spotrac_transactions.csv`` — contract events only."""
+        with _Timer("Spotrac transactions"):
+            if not csv_path.exists():
+                logger.warning(f"  File not found: {csv_path}")
+                return
+            df = pd.read_csv(csv_path, low_memory=False)
+
+            # Keep only contract-relevant types (same filter as the old route code)
+            contract_types = {
+                "extension", "fa_signing", "signing",
+                "elected_fa", "option_exercised", "option_declined",
+            }
+            df = df[df["transaction_type"].isin(contract_types)].copy()
+
+            # Filter out arbitration settlements misclassified as fa_signing
+            arb_mask = (
+                (df["transaction_type"] == "fa_signing")
+                & df["description"].str.contains("arbitration", case=False, na=False)
+            )
+            df = df[~arb_mask]
+
+            # Add lowered name for indexed lookups
+            df["player_name_lower"] = df["player_name"].str.strip().str.lower()
+
+            model_cols = {c.key for c in SpotracTransaction.__table__.columns if c.key != "id"}
+            df = df[[c for c in df.columns if c in model_cols]]
+            records = _clean_records(df)
+            n = _bulk_insert(self.db, SpotracTransaction, records)
+            logger.info(f"    {n:,} spotrac transactions loaded")
+
     # ── Legacy shim ───────────────────────────────────────────────────────
 
     def reset_and_load_data(self, players_csv: str, prospects_csv: str = None):
@@ -880,7 +993,7 @@ def init_db():
     t_total = time.perf_counter()
 
     # ── 1. Schema reset ───────────────────────────────────────────────────
-    logger.info("[1/9] Resetting schema ...")
+    logger.info("[1/12] Resetting schema ...")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     logger.info("  Tables recreated")
@@ -889,7 +1002,7 @@ def init_db():
     logger.info("\nData-file manifest:")
     for key, path in DATA_PATHS.items():
         status = "OK" if path.exists() else "MISSING"
-        logger.info(f"  {key:16s}  {status:7s}  {path}")
+        logger.info(f"  {key:22s}  {status:7s}  {path}")
 
     critical = ("players", "prospects")
     if any(not DATA_PATHS[k].exists() for k in critical):
@@ -901,45 +1014,59 @@ def init_db():
         loader = DataLoader(db)
 
         # ── 2. Players ────────────────────────────────────────────────────
-        logger.info("\n[2/9] Loading players ...")
+        logger.info("\n[2/12] Loading players ...")
         loader.load_players(DATA_PATHS["players"])
 
         # ── 3. Prospects ──────────────────────────────────────────────────
-        logger.info("\n[3/9] Loading prospects ...")
+        logger.info("\n[3/12] Loading prospects ...")
         loader.load_prospects(DATA_PATHS["prospects"])
 
         # ── 4. Historical players ─────────────────────────────────────────
-        logger.info("\n[4/9] Loading historical players ...")
+        logger.info("\n[4/12] Loading historical players ...")
         if DATA_PATHS["historical"].exists():
             loader.load_historical(DATA_PATHS["historical"])
         else:
             logger.warning("  Skipped (file not found)")
 
         # ── 5. Past trades ────────────────────────────────────────────────
-        logger.info("\n[5/9] Loading past trades ...")
+        logger.info("\n[5/12] Loading past trades ...")
         if DATA_PATHS["trades"].exists():
             loader.load_past_trades(DATA_PATHS["trades"])
         else:
             logger.warning("  Skipped (file not found)")
 
         # ── 6. MiLB stats ────────────────────────────────────────────────
-        logger.info("\n[6/9] Loading MiLB statistics ...")
+        logger.info("\n[6/12] Loading MiLB statistics ...")
         loader.load_milb_stats(DATA_PATHS["milb_hitters"], DATA_PATHS["milb_pitchers"])
 
         # ── 7. Crosswalk ──────────────────────────────────────────────────
-        logger.info("\n[7/9] Loading player-ID crosswalk ...")
+        logger.info("\n[7/12] Loading player-ID crosswalk ...")
         if DATA_PATHS["crosswalk"].exists():
             loader.load_crosswalk(DATA_PATHS["crosswalk"])
         else:
             logger.warning("  Skipped — run scrapers/build_id_crosswalk.py first")
 
         # ── 8. Prospect IDfg resolution ───────────────────────────────────
-        logger.info("\n[8/9] Resolving prospect FanGraphs IDs (crosswalk) ...")
+        logger.info("\n[8/12] Resolving prospect FanGraphs IDs (crosswalk) ...")
         loader.resolve_prospect_idfg()
 
         # ── 9. Resolve has_mlb (integer mlbam_id match — <1 s) ────────────
-        logger.info("\n[9/9] Resolving prospect has_mlb ...")
+        logger.info("\n[9/12] Resolving prospect has_mlb ...")
         loader.resolve_prospect_has_mlb()
+
+        # ── 10. Trade-value history ───────────────────────────────────────
+        logger.info("\n[10/12] Loading trade-value history ...")
+        loader.load_trade_value_history(DATA_PATHS["trade_value_history"])
+
+        # ── 11. Statcast expected stats ───────────────────────────────────
+        logger.info("\n[11/12] Loading Statcast expected stats ...")
+        loader.load_statcast_expected(
+            DATA_PATHS["statcast_batter"], DATA_PATHS["statcast_pitcher"]
+        )
+
+        # ── 12. Spotrac transactions ──────────────────────────────────────
+        logger.info("\n[12/12] Loading Spotrac transactions ...")
+        loader.load_spotrac_transactions(DATA_PATHS["spotrac_transactions"])
 
         elapsed = time.perf_counter() - t_total
         logger.info(
