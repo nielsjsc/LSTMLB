@@ -208,7 +208,7 @@ class PitcherRPConfig:
     ]
     
     # Combined features for fine-tuning (classical + pitchfx + statcast)
-    FINETUNE_FEATURES = CLASSICAL_FEATURES + STATCAST_FEATURES
+    FINETUNE_FEATURES = CLASSICAL_FEATURES + PITCHFX_FEATURES + STATCAST_FEATURES
     
     # Legacy compatibility - use classical features by default
     INPUT_FEATURES = CLASSICAL_FEATURES + PITCHFX_FEATURES
