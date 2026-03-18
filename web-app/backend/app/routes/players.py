@@ -8,7 +8,6 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List, Tuple
 import logging
-import pandas as pd
 
 try:
     import httpx
@@ -28,6 +27,9 @@ if str(backend_dir) not in sys.path:
 from app.database import get_db
 from app.models.player import Player
 from app.models.prospect import Prospect
+from app.models.trade_value_history import TradeValueHistory
+from app.models.statcast_expected import StatcastExpected
+from app.models.spotrac_transaction import SpotracTransaction
 from app.config import CURRENT_YEAR
 
 logger = logging.getLogger(__name__)
@@ -113,73 +115,7 @@ def _build_prospect_data(db: Session, *, mlbam_id: int = None, name: str = None)
     }
 
 
-# ── Trade Value History (CSV-backed, loaded once at startup) ──────────────
-_TRADE_HISTORY_CSV = (
-    Path(__file__).resolve().parents[4]  # project root (LSTMLB)
-    / "data" / "generated" / "value_by_year" / "trade_value_history.csv"
-)
-_trade_history_df: Optional[pd.DataFrame] = None
-
-
-def _get_trade_history() -> pd.DataFrame:
-    """Lazy-load and cache the trade value history CSV."""
-    global _trade_history_df
-    if _trade_history_df is None:
-        if not _TRADE_HISTORY_CSV.exists():
-            logger.warning(f"Trade value history not found: {_TRADE_HISTORY_CSV}")
-            _trade_history_df = pd.DataFrame()
-        else:
-            _trade_history_df = pd.read_csv(_TRADE_HISTORY_CSV)
-            logger.info(
-                f"Loaded trade value history: {len(_trade_history_df)} entries, "
-                f"{_trade_history_df['mlb_id'].nunique()} players"
-            )
-    return _trade_history_df
-
-# ── Statcast expected stats (CSV-backed, loaded once) ─────────────────────
-_PROJECT_ROOT = Path(__file__).resolve().parents[4]
-_STATCAST_BATTER_CSV = _PROJECT_ROOT / "data" / "statcast" / "statcast_batter_expected_stats_2015_2025.csv"
-_STATCAST_PITCHER_CSV = _PROJECT_ROOT / "data" / "statcast" / "statcast_pitcher_expected_stats_2015_2025.csv"
-_statcast_batter: Optional[Dict[Tuple[int, int], Dict[str, float]]] = None
-_statcast_pitcher: Optional[Dict[Tuple[int, int], Dict[str, float]]] = None
-
-
-def _get_statcast_batter() -> Dict[Tuple[int, int], Dict[str, float]]:
-    """Lazy-load batter expected stats keyed by (mlbam_id, year)."""
-    global _statcast_batter
-    if _statcast_batter is None:
-        _statcast_batter = {}
-        if _STATCAST_BATTER_CSV.exists():
-            df = pd.read_csv(_STATCAST_BATTER_CSV)
-            for _, r in df.iterrows():
-                key = (int(r["player_id"]), int(r["year"]))
-                _statcast_batter[key] = {
-                    "xba": r.get("est_ba"),
-                    "xslg": r.get("est_slg"),
-                    "xwoba": r.get("est_woba"),
-                }
-            logger.info(f"Loaded statcast batter expected stats: {len(_statcast_batter)} entries")
-        else:
-            logger.warning(f"Statcast batter CSV not found: {_STATCAST_BATTER_CSV}")
-    return _statcast_batter
-
-
-def _get_statcast_pitcher() -> Dict[Tuple[int, int], Dict[str, float]]:
-    """Lazy-load pitcher expected stats keyed by (mlbam_id, year)."""
-    global _statcast_pitcher
-    if _statcast_pitcher is None:
-        _statcast_pitcher = {}
-        if _STATCAST_PITCHER_CSV.exists():
-            df = pd.read_csv(_STATCAST_PITCHER_CSV)
-            for _, r in df.iterrows():
-                key = (int(r["player_id"]), int(r["year"]))
-                _statcast_pitcher[key] = {
-                    "xera": r.get("xera"),
-                }
-            logger.info(f"Loaded statcast pitcher expected stats: {len(_statcast_pitcher)} entries")
-        else:
-            logger.warning(f"Statcast pitcher CSV not found: {_STATCAST_PITCHER_CSV}")
-    return _statcast_pitcher
+# ── Statcast expected stats (DB-backed) ───────────────────────────────────
 
 
 def normalize_team_abbreviation(team: str) -> str:
@@ -332,7 +268,7 @@ async def get_players(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _build_historical_response(hist: dict) -> dict:
+def _build_historical_response(hist: dict, db: Session) -> dict:
     """Transform historical player JSON into a response compatible with PlayerStats.
     Adds isHistorical=True and historical batting/pitching seasons."""
     # Build per-year projections-like objects from historical batting/pitching data
@@ -396,20 +332,25 @@ def _build_historical_response(hist: dict) -> dict:
     # Augment with statcast expected stats
     mlbam = hist.get("mlbam")
     if mlbam:
-        sc_bat = _get_statcast_batter()
-        sc_pit = _get_statcast_pitcher()
+        sc_rows = (
+            db.query(StatcastExpected)
+            .filter(StatcastExpected.player_id == int(mlbam))
+            .all()
+        )
+        sc_lookup = {r.year: r for r in sc_rows}
         for yr, entry in by_year.items():
-            key = (int(mlbam), int(yr))
-            if "hitting" in entry:
-                sc = sc_bat.get(key)
-                if sc:
-                    entry["hitting"]["xba"] = sc.get("xba")
-                    entry["hitting"]["xslg"] = sc.get("xslg")
-                    entry["hitting"]["xwoba"] = sc.get("xwoba")
-            if "pitching" in entry:
-                sc = sc_pit.get(key)
-                if sc:
-                    entry["pitching"]["xera"] = sc.get("xera")
+            sc = sc_lookup.get(int(yr))
+            if sc:
+                if "hitting" in entry:
+                    if sc.xba is not None:
+                        entry["hitting"]["xba"] = sc.xba
+                    if sc.xslg is not None:
+                        entry["hitting"]["xslg"] = sc.xslg
+                    if sc.xwoba is not None:
+                        entry["hitting"]["xwoba"] = sc.xwoba
+                if "pitching" in entry:
+                    if sc.xera is not None:
+                        entry["pitching"]["xera"] = sc.xera
 
     projections = []
     for yr in sorted(by_year.keys()):
@@ -499,7 +440,7 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
             hist = get_historical_player(player_id)
             if hist is not None:
                 logger.info(f"Found historical player: {hist['name']} (IDfg={hist['idfg']})")
-                return _build_historical_response(hist)
+                return _build_historical_response(hist, db)
 
             # Fall back to prospect-only data (player has mlbam_id but no
             # Player rows — e.g. a prospect who hasn't accumulated MLB stats)
@@ -605,20 +546,25 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
         # Augment historical seasons with statcast expected stats
         mlbam = current_year_data.mlb_id
         if mlbam:
-            sc_bat = _get_statcast_batter()
-            sc_pit = _get_statcast_pitcher()
+            sc_rows = (
+                db.query(StatcastExpected)
+                .filter(StatcastExpected.player_id == int(mlbam))
+                .all()
+            )
+            sc_lookup = {r.year: r for r in sc_rows}
             for proj in response["projections"]:
-                key = (int(mlbam), int(proj["year"]))
-                if "hitting" in proj:
-                    sc = sc_bat.get(key)
-                    if sc:
-                        proj["hitting"]["xba"] = sc.get("xba")
-                        proj["hitting"]["xslg"] = sc.get("xslg")
-                        proj["hitting"]["xwoba"] = sc.get("xwoba")
-                if "pitching" in proj:
-                    sc = sc_pit.get(key)
-                    if sc:
-                        proj["pitching"]["xera"] = sc.get("xera")
+                sc = sc_lookup.get(int(proj["year"]))
+                if sc:
+                    if "hitting" in proj:
+                        if sc.xba is not None:
+                            proj["hitting"]["xba"] = sc.xba
+                        if sc.xslg is not None:
+                            proj["hitting"]["xslg"] = sc.xslg
+                        if sc.xwoba is not None:
+                            proj["hitting"]["xwoba"] = sc.xwoba
+                    if "pitching" in proj:
+                        if sc.xera is not None:
+                            proj["pitching"]["xera"] = sc.xera
 
         # Attach prospect data if available (looked up by mlbam_id or name)
         prospect_data = _build_prospect_data(
@@ -640,10 +586,6 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
 @router.get("/{player_id}/trade-value-history")
 async def get_trade_value_history(player_id: str, db: Session = Depends(get_db)):
     """Return year-by-year trade value timeline for a player."""
-    df = _get_trade_history()
-    if df.empty:
-        return JSONResponse([])
-
     # Resolve the player so we can match on mlb_id
     try:
         pid = int(player_id)
@@ -657,26 +599,33 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
         return JSONResponse([])
 
     mlb_id = player.mlb_id
-    rows = df[df["mlb_id"] == mlb_id]
+    rows = (
+        db.query(TradeValueHistory)
+        .filter(TradeValueHistory.mlb_id == mlb_id)
+        .order_by(TradeValueHistory.year)
+        .all()
+    )
 
-    if rows.empty:
+    if not rows and player.real_id is not None:
         # Try matching by IDfg (real_id) as fallback
-        idfg = player.real_id
-        if idfg is not None:
-            rows = df[df["IDfg"] == idfg]
+        rows = (
+            db.query(TradeValueHistory)
+            .filter(TradeValueHistory.idfg == player.real_id)
+            .order_by(TradeValueHistory.year)
+            .all()
+        )
 
-    if rows.empty:
+    if not rows:
         return JSONResponse([])
 
-    rows = rows.sort_values("year")
     result = [
         {
-            "year": int(r["year"]),
-            "value": round(float(r["value"]), 2),
-            "valueType": r["value_type"],
-            "label": r["label"],
+            "year": r.year,
+            "value": round(float(r.value), 2) if r.value is not None else 0,
+            "valueType": r.value_type,
+            "label": r.label,
         }
-        for _, r in rows.iterrows()
+        for r in rows
     ]
     return JSONResponse(result)
 
@@ -847,7 +796,7 @@ async def get_player_info(player_id: str, db: Session = Depends(get_db)):
     return JSONResponse(info)
 
 
-# ── Transaction History (MLB Stats API, cached) ──────────────────────────
+# ── Transaction History (MLB Stats API + Spotrac, cached) ─────────────────
 
 # Simple in-memory cache: mlb_id -> (timestamp, data)
 _transaction_cache: Dict[int, Tuple[float, List[Dict[str, Any]]]] = {}
@@ -866,7 +815,36 @@ _IMPORTANT_TYPE_CODES = {
     "RET",  # Retirement
     "REL",  # Released
     "SE",   # Selected (to 40-man roster, Rule 5, etc.)
+    "EXT",  # Contract Extension (from Spotrac)
 }
+
+# ── Spotrac contract transaction helpers ──────────────────────────────────
+
+
+def _spotrac_type_to_code(txn_type: str) -> str:
+    """Map Spotrac transaction_type to our display type codes."""
+    mapping = {
+        "extension": "EXT",
+        "fa_signing": "SFA",
+        "signing": "SGN",
+        "elected_fa": "FA",
+        "option_exercised": "SGN",
+        "option_declined": "FA",
+    }
+    return mapping.get(txn_type, "SGN")
+
+
+def _spotrac_type_desc(txn_type: str) -> str:
+    """Human-readable description for Spotrac transaction types."""
+    mapping = {
+        "extension": "Contract Extension",
+        "fa_signing": "Free Agent Signing",
+        "signing": "Signed",
+        "elected_fa": "Elected Free Agency",
+        "option_exercised": "Option Exercised",
+        "option_declined": "Option Declined",
+    }
+    return mapping.get(txn_type, "Transaction")
 
 # IL / disabled-list keywords to filter OUT of Status Change transactions
 _IL_KEYWORDS = (
@@ -1078,7 +1056,15 @@ async def get_player_milb_stats(player_id: str, db: Session = Depends(get_db)):
 
 @router.get("/{player_id}/transactions")
 async def get_player_transactions(player_id: str, db: Session = Depends(get_db)):
-    """Return transaction history for a player, with linked players for trades."""
+    """Return transaction history for a player, with linked players for trades.
+
+    Merges two sources:
+      1. MLB Stats API (trades, DFA, waivers, etc.)
+      2. Spotrac scraped data (contract extensions, FA signings with $ details)
+
+    Spotrac events are de-duplicated against MLB API events by date proximity
+    and type to avoid showing the same signing twice.
+    """
     try:
         pid = int(player_id)
         player = db.query(Player).filter(
@@ -1088,8 +1074,10 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
         player = None
 
     mlb_id = None
+    player_name = None
     if player is not None and player.mlb_id is not None:
         mlb_id = player.mlb_id
+        player_name = player.name
     else:
         # Fall back to historical data for MLBAM resolution
         from app.routes.historical import get_historical_player
@@ -1097,6 +1085,7 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
             hist = get_historical_player(int(player_id))
             if hist and hist.get("mlbam"):
                 mlb_id = hist["mlbam"]
+                player_name = hist.get("name")
         except (ValueError, TypeError):
             pass
 
@@ -1105,14 +1094,13 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
 
     raw_transactions = await _fetch_transactions(mlb_id)
 
-    if not raw_transactions:
-        return JSONResponse([])
-
     # Build name index for matching trade participants
     name_index = _build_name_index(db)
 
     results = []
-    for txn in raw_transactions:
+    mlb_api_dates: set = set()  # track dates from MLB API for de-duplication
+
+    for txn in (raw_transactions or []):
         type_code = txn.get("typeCode", "")
         if type_code not in _IMPORTANT_TYPE_CODES:
             continue
@@ -1155,6 +1143,43 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
             "toTeamName": to_team_name,
             "linkedPlayers": linked_players,
         })
+
+        if date and display_type_code in ("SGN", "SFA", "FA"):
+            mlb_api_dates.add(date[:10])  # YYYY-MM-DD
+
+    # ── Merge Spotrac contract events ─────────────────────────────────────
+    if player_name:
+        spotrac_key = player_name.strip().lower()
+        spotrac_rows = (
+            db.query(SpotracTransaction)
+            .filter(SpotracTransaction.player_name_lower == spotrac_key)
+            .all()
+        )
+
+        for evt in spotrac_rows:
+            evt_date = str(evt.date or "")[:10]
+
+            # De-duplicate: skip if MLB API already has a signing on the same date
+            if evt_date in mlb_api_dates and evt.transaction_type not in ("extension",):
+                continue
+
+            type_code = _spotrac_type_to_code(evt.transaction_type)
+            type_desc = _spotrac_type_desc(evt.transaction_type)
+
+            desc = evt.description or ""
+
+            results.append({
+                "id": f"spotrac-{evt_date}-{spotrac_key[:10]}",
+                "date": evt_date,
+                "typeCode": type_code,
+                "typeDesc": type_desc,
+                "description": desc,
+                "fromTeam": "",
+                "fromTeamName": "",
+                "toTeam": evt.team or "",
+                "toTeamName": "",
+                "linkedPlayers": [],
+            })
 
     # Sort by date descending (most recent first)
     results.sort(key=lambda x: x["date"], reverse=True)
