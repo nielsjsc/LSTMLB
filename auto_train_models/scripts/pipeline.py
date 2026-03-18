@@ -142,7 +142,8 @@ def print_menu():
     print("3. Run Projection Engine (Playing Time + WAR)")
     print("4. Calculate Trade Values (Surplus Value)")
     print("5. Run Full Pipeline (Train → Predict → Project → Values)")
-    print("6. Exit")
+    print("6. Regenerate Trade Value History (Historical Predictions + Surplus)")
+    print("7. Exit")
     print()
 
 
@@ -722,6 +723,117 @@ def run_full_pipeline() -> bool:
     return True
 
 
+def regenerate_trade_value_history() -> bool:
+    """
+    Regenerate the trade value history by re-running historical predictions
+    and surplus calculations using the current trained models.
+
+    This is essential after retraining models, as the historical trade values
+    depend on projected WAR which changes when models are updated.
+
+    Steps:
+      1. Re-generate predictions for each historical cutoff year (2013-2025)
+         using the current model checkpoints, respecting Statcast era boundaries
+      2. Re-compute surplus files for each snapshot year
+      3. Regenerate the final trade_value_history.csv
+
+    Uses: auto_train_models/historical_pipeline/run_historical.py
+    """
+    print("\n" + "=" * 70)
+    print("REGENERATE TRADE VALUE HISTORY")
+    print("=" * 70)
+    print()
+    print("This will re-generate historical predictions for every cutoff year")
+    print("using your current trained models, then recompute surplus values")
+    print("and rebuild the trade value history chart data.")
+    print()
+    print("This process runs predictions for ~12 historical cutoff years,")
+    print("so it will take a while.")
+    print()
+
+    # Let user pick year range
+    print("Start year (default: 2014):")
+    start_input = input("> ").strip()
+    start_year = int(start_input) if start_input.isdigit() else 2014
+
+    print("End year (default: 2026):")
+    end_input = input("> ").strip()
+    end_year = int(end_input) if end_input.isdigit() else 2026
+
+    # Option to skip the slow prediction phase
+    print("\nSkip prediction regeneration and only rebuild surplus + history? (y/n)")
+    print("(Use this if you already re-ran predictions and just want to update values)")
+    skip_predict = input("> ").strip().lower() == 'y'
+
+    print(f"\nYear range: {start_year}–{end_year}")
+    print(f"Skip predictions: {skip_predict}")
+    print("\nContinue? (y/n)")
+    if input("> ").strip().lower() != 'y':
+        print("Cancelled.")
+        return False
+
+    start_time = datetime.now()
+
+    # Build the command for the historical pipeline
+    cmd_parts = [
+        f'python -m auto_train_models.historical_pipeline.run_historical',
+        f'--start {start_year}',
+        f'--end {end_year}',
+    ]
+    if skip_predict:
+        cmd_parts.append('--skip-predict')
+
+    command = ' '.join(cmd_parts)
+
+    # The historical pipeline must run from the project root (LSTMLB/)
+    # because it uses module imports
+    logger.info(f"Running historical pipeline: {command}")
+
+    try:
+        # Replace 'python' with actual interpreter
+        actual_cmd = command.replace('python ', f'"{PYTHON_EXE}" ', 1)
+
+        process = subprocess.Popen(
+            actual_cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True,
+            cwd=str(AUTO_TRAIN_DIR.parent)  # Run from LSTMLB/ root
+        )
+
+        for line in process.stdout:
+            print(line, end='')
+
+        process.wait()
+
+        duration = datetime.now() - start_time
+
+        if process.returncode == 0:
+            print(f"\n{'='*70}")
+            print("TRADE VALUE HISTORY REGENERATED SUCCESSFULLY!")
+            print(f"Duration: {duration}")
+            history_file = DATA_DIR / 'generated' / 'value_by_year' / 'trade_value_history.csv'
+            if history_file.exists():
+                size = history_file.stat().st_size
+                print(f"Output: {history_file} ({size:,} bytes)")
+            print(f"{'='*70}\n")
+            return True
+        else:
+            logger.error(f"Historical pipeline failed with code {process.returncode}")
+            return False
+
+    except subprocess.TimeoutExpired:
+        logger.error("Historical pipeline timed out")
+        process.kill()
+        return False
+    except Exception as e:
+        logger.error(f"Historical pipeline failed: {e}")
+        return False
+
+
 def display_output_files():
     """Display information about generated files"""
     print("\nGenerated Files:")
@@ -765,7 +877,7 @@ def main():
     
     while True:
         print_menu()
-        choice = get_user_choice("Select option (1-6): ", ['1', '2', '3', '4', '5', '6'])
+        choice = get_user_choice("Select option (1-7): ", ['1', '2', '3', '4', '5', '6', '7'])
         
         if choice == '1':
             # Train Models
@@ -801,6 +913,10 @@ def main():
             run_full_pipeline()
             
         elif choice == '6':
+            # Regenerate Trade Value History
+            regenerate_trade_value_history()
+            
+        elif choice == '7':
             # Exit
             print("\nExiting pipeline. Goodbye!")
             display_output_files()
