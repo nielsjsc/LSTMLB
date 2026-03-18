@@ -35,6 +35,7 @@ const _TXN_LABELS: Record<string, string> = {
 };
 
 const _TXN_COLOR = '#f59e0b'; // amber-500
+const _EXT_COLOR = '#38bdf8'; // sky-400  — contract extensions
 
 // ─── Chart Dimensions ───────────────────────────────────────
 const MARGIN = { top: 20, right: 20, bottom: 36, left: 60 };
@@ -46,6 +47,7 @@ interface ChartTxn {
   year: number;       // fractional year (e.g. 2021.5 for July)
   label: string;
   shortDesc: string;
+  typeCode: string;   // original type code (EXT, SGN, SFA, etc.)
 }
 
 // ─── Component ──────────────────────────────────────────────
@@ -97,7 +99,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
         if (moneyMatch) shortDesc += ` (${moneyMatch[0]})`;
         // Add team info
         if (t.toTeam) shortDesc += ` → ${t.toTeam}`;
-        return { year: yr, label: _TXN_LABELS[code] || code, shortDesc };
+        return { year: yr, label: _TXN_LABELS[code] || code, shortDesc, typeCode: code };
       })
       .filter((t) => {
         // Deduplicate very close events
@@ -263,6 +265,8 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
           .map((t, i) => {
             const tx = x(t.year);
             const isHov = hoverTxn === i;
+            const isContract = t.typeCode === 'EXT' || t.typeCode === 'SFA';
+            const markerColor = isContract ? _EXT_COLOR : _TXN_COLOR;
             return (
               <g key={`txn-${i}`}>
                 {/* Dashed vertical line */}
@@ -271,7 +275,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
                   x2={tx}
                   y1={MARGIN.top}
                   y2={MARGIN.top + plotH}
-                  stroke={_TXN_COLOR}
+                  stroke={markerColor}
                   strokeWidth={isHov ? 1.5 : 1}
                   strokeDasharray="3,4"
                   opacity={isHov ? 0.7 : 0.35}
@@ -279,7 +283,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
                 {/* Diamond marker at bottom */}
                 <polygon
                   points={`${tx},${MARGIN.top + plotH - 6} ${tx + 4},${MARGIN.top + plotH} ${tx},${MARGIN.top + plotH + 6} ${tx - 4},${MARGIN.top + plotH}`}
-                  fill={isHov ? _TXN_COLOR : _TXN_COLOR + '80'}
+                  fill={isHov ? markerColor : markerColor + '80'}
                   stroke="rgba(0,0,0,0.4)"
                   strokeWidth={1}
                 />
@@ -365,6 +369,9 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
       {hoverTxn != null && chartTxns[hoverTxn] && (() => {
         const t = chartTxns[hoverTxn];
         const tx = x(t.year);
+        const isContract = t.typeCode === 'EXT' || t.typeCode === 'SFA';
+        const tooltipBorder = isContract ? 'border-sky-400/20' : 'border-amber-500/20';
+        const tooltipText = isContract ? 'text-sky-400' : 'text-amber-400';
         return (
           <div
             className="pointer-events-none absolute z-20"
@@ -374,8 +381,8 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
               transform: `translate(${tx > dims.width * 0.65 ? 'calc(-100% - 12px)' : '12px'}, 0)`,
             }}
           >
-            <div className="bg-surface-800 border border-amber-500/20 rounded-lg shadow-xl px-3 py-2 text-xs whitespace-nowrap">
-              <div className="font-semibold text-amber-400 mb-0.5">{t.label}</div>
+            <div className={`bg-surface-800 border ${tooltipBorder} rounded-lg shadow-xl px-3 py-2 text-xs whitespace-nowrap`}>
+              <div className={`font-semibold ${tooltipText} mb-0.5`}>{t.label}</div>
               <div className="text-surface-400 max-w-[220px] truncate">{t.shortDesc}</div>
             </div>
           </div>
@@ -398,13 +405,26 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
           );
         })}
         {chartTxns.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <span
-              className="inline-block"
-              style={{ width: 10, height: 10, backgroundColor: _TXN_COLOR, clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }}
-            />
-            <span className="text-[10px] text-surface-500 font-medium">Transaction</span>
-          </div>
+          <>
+            {chartTxns.some((t) => t.typeCode !== 'EXT' && t.typeCode !== 'SFA') && (
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-block"
+                  style={{ width: 10, height: 10, backgroundColor: _TXN_COLOR, clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }}
+                />
+                <span className="text-[10px] text-surface-500 font-medium">Transaction</span>
+              </div>
+            )}
+            {chartTxns.some((t) => t.typeCode === 'EXT' || t.typeCode === 'SFA') && (
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-block"
+                  style={{ width: 10, height: 10, backgroundColor: _EXT_COLOR, clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }}
+                />
+                <span className="text-[10px] text-surface-500 font-medium">Contract</span>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
