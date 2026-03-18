@@ -812,7 +812,7 @@ export interface LinkedPlayer {
 }
 
 export interface Transaction {
-  id: number;
+  id: number | string;
   date: string;
   typeCode: string;
   typeDesc: string;
