@@ -9,6 +9,10 @@ from configs.defense_catcher_config import DefenseCatcherConfig
 from configs.pitcher_sp_config import PitcherSPConfig
 from configs.pitcher_rp_config import PitcherRPConfig
 from configs.batter_config import BatterConfig
+from configs.defense_infield_historical import DefenseInfieldHistoricalConfig
+from configs.defense_outfield_historical import DefenseOutfieldHistoricalConfig
+from configs.defense_catcher_historical import DefenseCatcherHistoricalConfig
+from configs.baserunning_historical import BaserunningHistoricalConfig
 
 class ModelFactory:
     """Factory for creating models based on type"""
@@ -21,6 +25,10 @@ class ModelFactory:
         'pitcher_sp': PitcherSPConfig,
         'pitcher_rp': PitcherRPConfig,
         'batter': BatterConfig,
+        'defense_infield_historical': DefenseInfieldHistoricalConfig,
+        'defense_outfield_historical': DefenseOutfieldHistoricalConfig,
+        'defense_catcher_historical': DefenseCatcherHistoricalConfig,
+        'baserunning_historical': BaserunningHistoricalConfig,
     }
     
     # Data file mapping for each model type
@@ -32,11 +40,16 @@ class ModelFactory:
         'pitcher_sp': '../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv',
         'pitcher_rp': '../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv',
         'batter': '../data/historic_mlb/mlb_batting_data_1950_2025_with_statcast.csv',
+        'defense_infield_historical': '../data/historic_mlb/mlb_fielding_data_2000_2025_with_statcast.csv',
+        'defense_outfield_historical': '../data/historic_mlb/mlb_fielding_data_2000_2025_with_statcast.csv',
+        'defense_catcher_historical': '../data/historic_mlb/mlb_fielding_data_2000_2025_with_statcast.csv',
+        'baserunning_historical': '../data/historic_mlb/mlb_batting_data_1950_2025_with_statcast.csv',
     }
     
     # Convenience mapping for multi-model types
     MULTI_MODEL_GROUPS = {
         'defense': ['defense_infield', 'defense_outfield', 'defense_catcher'],
+        'defense_historical': ['defense_infield_historical', 'defense_outfield_historical', 'defense_catcher_historical'],
         'pitcher': ['pitcher_sp', 'pitcher_rp'],
     }
     

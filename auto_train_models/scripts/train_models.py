@@ -33,7 +33,9 @@ def main():
     parser = argparse.ArgumentParser(description='Train LSTM baseball prediction models with transfer learning support')
     parser.add_argument('--model', type=str, required=True, 
                        choices=['baserunning', 'defense_infield', 'defense_outfield', 'defense_catcher', 
-                               'pitcher_sp', 'pitcher_rp', 'batter'],
+                               'pitcher_sp', 'pitcher_rp', 'batter',
+                               'baserunning_historical', 'defense_infield_historical',
+                               'defense_outfield_historical', 'defense_catcher_historical'],
                        help='Model type to train')
     parser.add_argument('--epochs', type=int, default=None,
                        help='Number of epochs (overrides config)')
@@ -325,6 +327,10 @@ def train_single_model(args):
         'defense_infield': 'fielding_infield',
         'defense_outfield': 'fielding_outfield',
         'defense_catcher': 'fielding_catcher',
+        'baserunning_historical': 'baserunning',
+        'defense_infield_historical': 'fielding_infield',
+        'defense_outfield_historical': 'fielding_outfield',
+        'defense_catcher_historical': 'fielding_catcher',
     }
     
     if args.empirical_loss:

@@ -212,8 +212,8 @@ def calculate_rate_stats(df: pd.DataFrame) -> pd.DataFrame:
         
         # Baserunning stats (per 150 games)
         'baserunning_per_150': {
-            'condition': lambda df: any(col in df.columns for col in ['wSB', 'SB', 'CS', 'sc_baserunning_runner_runs_tot', 'sc_baserunning_runner_runs_XB', 'sc_baserunning_runner_runs_SBX']),
-            'stats': ['wSB', 'SB', 'CS', 'sc_baserunning_runner_runs_tot', 'sc_baserunning_runner_runs_XB', 'sc_baserunning_runner_runs_SBX'],
+            'condition': lambda df: any(col in df.columns for col in ['wSB', 'SB', 'CS', 'BsR', 'sc_baserunning_runner_runs_tot', 'sc_baserunning_runner_runs_XB', 'sc_baserunning_runner_runs_SBX']),
+            'stats': ['wSB', 'SB', 'CS', 'BsR', 'sc_baserunning_runner_runs_tot', 'sc_baserunning_runner_runs_XB', 'sc_baserunning_runner_runs_SBX'],
             'denominator': 'G',
             'multiplier': 150,
             'suffix': '_rate'
