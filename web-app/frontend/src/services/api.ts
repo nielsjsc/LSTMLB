@@ -741,8 +741,10 @@ export const getTradeValueRankings = async (
 // ── Trade Value History (per-player timeline) ─────────────────────────────
 export interface TradeValuePoint {
   year: number;
+  date: string | null;              // YYYY-MM-DD
   value: number;
-  valueType: 'prospect' | 'mlb_surplus';
+  valueType: 'prospect' | 'mlb_surplus' | 'free_agent';
+  transactionType: string | null;   // Spotrac txn type (traded, fa_signing, …)
   label: string;
 }
 

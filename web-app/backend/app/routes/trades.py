@@ -239,7 +239,7 @@ _past_trades_cache: Optional[List[Dict[str, Any]]] = None
 # ── Surplus projection data ──────────────────────────────────────────────────
 
 _SURPLUS_FILE = (
-    Path(__file__).resolve().parents[4] / "data" / "generated" / "trade_analysis" / "surplus" / f"surplus_{CURRENT_YEAR - 1}.csv"
+    Path(__file__).resolve().parents[4] / "data" / "generated" / "historical_values" / "surplus" / f"surplus_{CURRENT_YEAR - 1}.csv"
 )
 
 _PROJECTION_CUTOFF = f"{CURRENT_YEAR - 2}-10-01"  # trades after this may not have actual WAR yet

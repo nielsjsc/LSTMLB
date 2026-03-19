@@ -602,7 +602,7 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
     rows = (
         db.query(TradeValueHistory)
         .filter(TradeValueHistory.mlb_id == mlb_id)
-        .order_by(TradeValueHistory.year)
+        .order_by(TradeValueHistory.date)
         .all()
     )
 
@@ -611,7 +611,7 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
         rows = (
             db.query(TradeValueHistory)
             .filter(TradeValueHistory.idfg == player.real_id)
-            .order_by(TradeValueHistory.year)
+            .order_by(TradeValueHistory.date)
             .all()
         )
 
@@ -621,8 +621,10 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
     result = [
         {
             "year": r.year,
+            "date": r.date,
             "value": round(float(r.value), 2) if r.value is not None else 0,
             "valueType": r.value_type,
+            "transactionType": r.transaction_type,
             "label": r.label,
         }
         for r in rows

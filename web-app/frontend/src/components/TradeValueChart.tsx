@@ -21,6 +21,18 @@ const fmtDollarFull = (v: number): string => {
 const TYPE_META: Record<string, { label: string; color: string }> = {
   prospect: { label: 'Prospect', color: '#a78bfa' },       // violet-400
   mlb_surplus: { label: 'Trade Value', color: '#34d399' },  // emerald-400
+  free_agent: { label: 'Free Agent', color: '#fb7185' },    // rose-400
+};
+
+// Convert date string (YYYY-MM-DD) to fractional year for X-axis positioning
+const dateToFx = (date: string | null | undefined, year: number): number => {
+  if (!date) return year + 0.16; // ~March 1 default
+  const d = new Date(date + 'T12:00:00');
+  if (isNaN(d.getTime())) return year + 0.16;
+  const yr = d.getFullYear();
+  const start = new Date(yr, 0, 1).getTime();
+  const end = new Date(yr + 1, 0, 1).getTime();
+  return yr + (d.getTime() - start) / (end - start);
 };
 
 // Transaction type codes that affect trade value (contract events)
@@ -79,8 +91,14 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
     return () => ro.disconnect();
   }, []);
 
-  // Sort by year
-  const sorted = useMemo(() => [...data].sort((a, b) => a.year - b.year), [data]);
+  // Sort by date (fractional year) for proper within-year positioning
+  const sorted = useMemo(
+    () =>
+      [...data]
+        .map((d) => ({ ...d, _fx: dateToFx(d.date, d.year) }))
+        .sort((a, b) => a._fx - b._fx),
+    [data],
+  );
 
   // Process transactions for chart markers
   const chartTxns = useMemo<ChartTxn[]>(() => {
@@ -117,10 +135,22 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   const plotH = dims.height - MARGIN.top - MARGIN.bottom;
 
   // ── Scales ──────────────────────────────────────────
-  const years = sorted.map((d) => d.year);
-  const minYear = years[0];
-  const maxYear = years[years.length - 1];
-  const yearSpan = Math.max(maxYear - minYear, 1);
+  const fxValues = sorted.map((d) => d._fx);
+  const minFx = fxValues[0];
+  const maxFx = fxValues[fxValues.length - 1];
+  const fxSpan = Math.max(maxFx - minFx, 1);
+
+  // Unique integer years for x-axis labels
+  const uniqueYears = useMemo(() => {
+    const seen = new Set<number>();
+    return sorted
+      .map((d) => d.year)
+      .filter((yr) => {
+        if (seen.has(yr)) return false;
+        seen.add(yr);
+        return true;
+      });
+  }, [sorted]);
 
   const values = sorted.map((d) => d.value);
   const rawMax = Math.max(...values);
@@ -131,13 +161,17 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   const yMin = rawMin - (rawMin < 0 ? yPad : 0);
   const yRange = yMax - yMin || 1;
 
-  const x = (year: number) => MARGIN.left + ((year - minYear) / yearSpan) * plotW;
+  const x = (fx: number) => MARGIN.left + ((fx - minFx) / fxSpan) * plotW;
   const y = (val: number) => MARGIN.top + (1 - (val - yMin) / yRange) * plotH;
 
-  // ── Path (line + area) ──────────────────────────────
-  const linePoints = sorted.map((d) => `${x(d.year)},${y(d.value)}`);
-  const linePath = `M${linePoints.join('L')}`;
-  const areaPath = `${linePath}L${x(maxYear)},${y(0)}L${x(minYear)},${y(0)}Z`;
+  // ── Path (line + area) — connect only non-transaction snapshots ─────
+  const lineData = sorted.filter((d) => !d.transactionType);
+  const linePoints = lineData.map((d) => `${x(d._fx)},${y(d.value)}`);
+  const linePath = linePoints.length > 1 ? `M${linePoints.join('L')}` : '';
+  const areaPath =
+    lineData.length > 1
+      ? `${linePath}L${x(lineData[lineData.length - 1]._fx)},${y(0)}L${x(lineData[0]._fx)},${y(0)}Z`
+      : '';
 
   // ── Gridlines ───────────────────────────────────────
   const yTicks = useMemo(() => {
@@ -232,36 +266,43 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
 
         {/* ── Data dots ───────────────────────── */}
         {sorted.map((d, i) => {
+          const isTxn = !!d.transactionType;
           const meta = TYPE_META[d.valueType] ?? TYPE_META.mlb_surplus;
           const isHovered = hoverIdx === i;
+          const dotCx = x(d._fx);
+          const dotCy = y(d.value);
+          const r = isHovered ? HOVER_RADIUS : DOT_RADIUS;
           return (
-            <g key={`${d.year}-${d.valueType}`}>
-              {/* Outer glow on hover */}
+            <g key={`dot-${i}`}>
               {isHovered && (
+                <circle cx={dotCx} cy={dotCy} r={HOVER_RADIUS + 4} fill={isTxn ? _TXN_COLOR : meta.color} opacity={0.18} />
+              )}
+              {isTxn ? (
+                <polygon
+                  points={`${dotCx},${dotCy - r} ${dotCx + r},${dotCy} ${dotCx},${dotCy + r} ${dotCx - r},${dotCy}`}
+                  fill={_TXN_COLOR}
+                  stroke="rgba(0,0,0,0.5)"
+                  strokeWidth={1.5}
+                  className="transition-all duration-150"
+                />
+              ) : (
                 <circle
-                  cx={x(d.year)}
-                  cy={y(d.value)}
-                  r={HOVER_RADIUS + 4}
+                  cx={dotCx}
+                  cy={dotCy}
+                  r={r}
                   fill={meta.color}
-                  opacity={0.18}
+                  stroke="rgba(0,0,0,0.5)"
+                  strokeWidth={1.5}
+                  className="transition-all duration-150"
                 />
               )}
-              <circle
-                cx={x(d.year)}
-                cy={y(d.value)}
-                r={isHovered ? HOVER_RADIUS : DOT_RADIUS}
-                fill={meta.color}
-                stroke="rgba(0,0,0,0.5)"
-                strokeWidth={1.5}
-                className="transition-all duration-150"
-              />
             </g>
           );
         })}
 
         {/* ── Transaction markers (vertical lines + diamond) ─── */}
         {chartTxns
-          .filter((t) => t.year >= minYear && t.year <= maxYear + 0.5)
+          .filter((t) => t.year >= minFx && t.year <= maxFx + 0.5)
           .map((t, i) => {
             const tx = x(t.year);
             const isHov = hoverTxn === i;
@@ -304,8 +345,8 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
         {/* ── Invisible hit targets for hover ─── */}
         {sorted.map((d, i) => (
           <rect
-            key={`hit-${d.year}-${i}`}
-            x={x(d.year) - (plotW / sorted.length) / 2}
+            key={`hit-${i}`}
+            x={x(d._fx) - (plotW / sorted.length) / 2}
             y={MARGIN.top}
             width={plotW / sorted.length}
             height={plotH}
@@ -316,7 +357,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
         ))}
 
         {/* ── X-axis labels ───────────────────── */}
-        {years.map((yr) => (
+        {uniqueYears.map((yr) => (
           <text
             key={yr}
             x={x(yr)}
@@ -330,12 +371,12 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
           </text>
         ))}
 
-        {/* ── Hover crosshair + tooltip ────────── */}
+        {/* ── Hover crosshair ────────────────────── */}
         {hovered && hoverIdx != null && (
           <>
             <line
-              x1={x(hovered.year)}
-              x2={x(hovered.year)}
+              x1={x(hovered._fx)}
+              x2={x(hovered._fx)}
               y1={MARGIN.top}
               y2={MARGIN.top + plotH}
               stroke="rgba(255,255,255,0.15)"
@@ -351,16 +392,19 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
         <div
           className="pointer-events-none absolute z-20"
           style={{
-            left: `${x(hovered.year)}px`,
+            left: `${x(hovered._fx)}px`,
             top: `${y(hovered.value) - 8}px`,
             transform: `translate(${
               hoverIdx > sorted.length * 0.7 ? 'calc(-100% - 12px)' : '12px'
             }, -100%)`,
           }}
         >
-          <div className="bg-surface-800 border border-white/10 rounded-lg shadow-xl px-3 py-2 text-xs whitespace-nowrap">
+          <div className="bg-surface-800 border border-white/10 rounded-lg shadow-xl px-3 py-2 text-xs max-w-xs">
             <div className="font-semibold text-white mb-0.5">{fmtDollarFull(hovered.value)}</div>
-            <div className="text-surface-400">{hovered.year} · {hovered.label}</div>
+            {hovered.transactionType && (
+              <div className="text-amber-400 text-[10px] mb-0.5">{hovered.transactionType.replace(/_/g, ' ')}</div>
+            )}
+            <div className="text-surface-400 truncate">{hovered.date ?? hovered.year} · {hovered.label}</div>
           </div>
         </div>
       )}
