@@ -1,0 +1,655 @@
+"""
+Historical Values — Timeline Generator
+========================================
+
+Combines three data sources into a unified trade-value history CSV:
+
+  1. **Prospect rankings**  — FV grade + top-100 rank → dollar value
+  2. **MLB surplus files**  — projected WAR at each snapshot year
+  3. **Spotrac transactions** — every transaction (trades, signings,
+     extensions, arbitration, releases, DFA, claims, drafts, …)
+
+Each row carries a concrete ``date`` (YYYY-MM-DD).  Multiple entries per
+player per year are expected (e.g. a pre-season projection *and* a
+mid-season trade).  Spotrac ``fa_signing`` entries whose description
+contains "avoiding arbitration" are reclassified as ``arbitration``.
+
+Output:  data/generated/value_by_year/trade_value_history.csv
+
+Usage:
+    cd auto_train_models
+    python -m historical_values.timeline
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+_AUTO_TRAIN = Path(__file__).resolve().parents[1]
+if str(_AUTO_TRAIN) not in sys.path:
+    sys.path.insert(0, str(_AUTO_TRAIN))
+
+from historical_values.config import (
+    Config, logger,
+    SURPLUS_DIR, OUTPUT_FILE,
+    PROSPECT_FILE, CROSSWALK_FILE,
+    PLAYER_VALUES_FILE, SPOTRAC_TRANSACTIONS_FILE,
+)
+from historical_values.war import war_to_dollars
+
+# Import canonical prospect valuation from value_determination
+from value_determination.trade_value import (
+    _prospect_dollar_value as _vd_prospect_dollar_value,
+)
+
+# Canonical name normalization
+from core.name_utils import name_key as _normalise_name
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ID cross-walk helpers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_xw_cache: pd.DataFrame | None = None
+
+
+def _load_crosswalk() -> pd.DataFrame:
+    """Load the mlb_id ↔ IDfg crosswalk CSV (one row per player)."""
+    global _xw_cache
+    if _xw_cache is not None:
+        return _xw_cache
+
+    if not CROSSWALK_FILE.exists():
+        logger.warning(f"Crosswalk file missing: {CROSSWALK_FILE}")
+        _xw_cache = pd.DataFrame(columns=["mlb_id", "IDfg", "name"])
+        return _xw_cache
+
+    xw = pd.read_csv(CROSSWALK_FILE, low_memory=False)
+
+    # Normalise column names — accept common variants
+    col_map = {}
+    for c in xw.columns:
+        cl = c.lower().strip()
+        if cl in ("mlb_id", "mlbam_id", "key_mlbam"):
+            col_map[c] = "mlb_id"
+        elif cl in ("idfg", "key_fangraphs", "fg_id"):
+            col_map[c] = "IDfg"
+        elif cl in ("name", "player_name", "name_common"):
+            col_map[c] = "name"
+    xw = xw.rename(columns=col_map)
+
+    for needed in ("mlb_id", "IDfg"):
+        if needed not in xw.columns:
+            logger.warning(f"Crosswalk missing column '{needed}'")
+            _xw_cache = pd.DataFrame(columns=["mlb_id", "IDfg", "name"])
+            return _xw_cache
+
+    xw = xw.dropna(subset=["mlb_id", "IDfg"])
+    # Filter out non-numeric IDs (e.g. 'sa657920' prospect IDs)
+    xw["mlb_id"] = pd.to_numeric(xw["mlb_id"], errors="coerce")
+    xw["IDfg"]   = pd.to_numeric(xw["IDfg"], errors="coerce")
+    xw = xw.dropna(subset=["mlb_id", "IDfg"])
+    xw["mlb_id"] = xw["mlb_id"].astype(int)
+    xw["IDfg"]   = xw["IDfg"].astype(int)
+    xw = xw.drop_duplicates(subset=["mlb_id"])
+
+    _xw_cache = xw
+    return xw
+
+
+def _build_idfg_to_mlb(player_values: pd.DataFrame) -> dict[int, int]:
+    """IDfg → mlb_id mapping from player_values + crosswalk."""
+    mapping: dict[int, int] = {}
+
+    xw = _load_crosswalk()
+    if not xw.empty:
+        for _, row in xw.iterrows():
+            mapping[int(row["IDfg"])] = int(row["mlb_id"])
+
+    if player_values is not None and not player_values.empty:
+        subset = player_values.dropna(subset=["mlb_id", "IDfg"]).drop_duplicates("IDfg")
+        for _, row in subset.iterrows():
+            mapping[int(row["IDfg"])] = int(row["mlb_id"])
+
+    return mapping
+
+
+def _build_mlb_to_name(player_values: pd.DataFrame) -> dict[int, str]:
+    """mlb_id → canonical player name (from player_values + crosswalk)."""
+    lookup: dict[int, str] = {}
+
+    # Seed from crosswalk
+    xw = _load_crosswalk()
+    if not xw.empty and "name" in xw.columns:
+        for _, row in xw.iterrows():
+            lookup[int(row["mlb_id"])] = str(row["name"])
+
+    # Overwrite with player_values (canonical names)
+    if player_values is not None and not player_values.empty:
+        name_col = "Player_Name" if "Player_Name" in player_values.columns else "name"
+        subset = player_values.dropna(subset=["mlb_id"]).drop_duplicates("mlb_id")
+        for _, row in subset.iterrows():
+            lookup[int(row["mlb_id"])] = row[name_col]
+    return lookup
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. Prospect timeline
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _prospect_dollar_value(fv, rank) -> float:
+    """Convert FV grade + top-100 rank into a dollar value.
+
+    Delegates to ``value_determination.trade_value._prospect_dollar_value()``.
+    """
+    result = _vd_prospect_dollar_value(fv, rank)
+    return result if result is not None else 0.0
+
+
+def build_prospect_timeline(
+    player_values: pd.DataFrame | None,
+) -> pd.DataFrame:
+    """
+    Build prospect-value entries from the raw prospect data.
+
+    Returns DataFrame with columns:
+        mlb_id, IDfg, name, year, value, value_type, label
+    """
+    if not PROSPECT_FILE.exists():
+        logger.warning(f"Prospect file not found: {PROSPECT_FILE}")
+        return pd.DataFrame()
+
+    prospects = pd.read_csv(PROSPECT_FILE)
+    logger.info(f"Loaded {len(prospects)} prospect entries")
+
+    # Extract mlb_id from prospect URL  (...-123456)
+    prospects["mlb_id"] = (
+        prospects["prospect_url"]
+        .str.extract(r"(\d{5,7})$")
+        .astype("float")
+    )
+
+    idfg_to_mlb = _build_idfg_to_mlb(player_values)
+    mlb_to_name = _build_mlb_to_name(player_values)
+    # Reverse lookup: mlb_id → IDfg
+    mlb_to_idfg: dict[int, int] = {v: k for k, v in idfg_to_mlb.items()}
+
+    rows: list[dict] = []
+    for _, p in prospects[prospects["mlb_id"].notna()].iterrows():
+        mid = int(p["mlb_id"])
+        idfg = mlb_to_idfg.get(mid)
+        name = mlb_to_name.get(mid, p.get("name", ""))
+
+        year = int(p["year"])
+        fv   = p.get("grade_overall")
+        rank = p.get("top_100")
+
+        value = _prospect_dollar_value(fv, rank)
+        if value <= 0:
+            continue
+
+        fv_str = str(fv).replace(".0", "") if pd.notna(fv) else "?"
+        label_parts = [f"FV {fv_str}"]
+        if pd.notna(rank):
+            label_parts.append(f"#{int(rank)}")
+        label = ", ".join(label_parts)
+
+        rows.append({
+            "mlb_id": mid,
+            "IDfg": idfg if idfg is not None else pd.NA,
+            "name": name,
+            "date": f"{year}-01-15",
+            "year": year,
+            "value": round(value),
+            "value_type": "prospect",
+            "transaction_type": pd.NA,
+            "label": label,
+        })
+
+    result = pd.DataFrame(rows)
+    if not result.empty:
+        result = result.sort_values("value", ascending=False).drop_duplicates(["mlb_id", "year"])
+    logger.info(
+        f"Built {len(result)} prospect entries for "
+        f"{result['mlb_id'].nunique() if not result.empty else 0} players"
+    )
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. MLB surplus timeline
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _load_surplus_files() -> dict[int, pd.DataFrame]:
+    """Load all ``surplus_YYYY.csv`` from the surplus directory."""
+    surplus_by_year: dict[int, pd.DataFrame] = {}
+    if not SURPLUS_DIR.exists():
+        return surplus_by_year
+
+    for path in sorted(SURPLUS_DIR.glob("surplus_*.csv")):
+        try:
+            yr = int(path.stem.split("_")[1])
+            surplus_by_year[yr] = pd.read_csv(path, low_memory=False)
+            logger.info(f"  Loaded {path.name}: {len(surplus_by_year[yr])} players")
+        except Exception as e:
+            logger.warning(f"  Failed to load {path.name}: {e}")
+    return surplus_by_year
+
+
+def build_mlb_timeline(
+    player_values: pd.DataFrame | None,
+) -> pd.DataFrame:
+    """
+    Build MLB trade-value entries using **projected** WAR from each snapshot
+    year's surplus file — never actual future stats.
+
+    For each surplus snapshot year S and each player:
+      1. Collect WAR_S, WAR_S+1, … (projections made at time S)
+      2. Apply the convex model to each year's projected WAR
+      3. Sum dollar values and subtract projected salaries
+      → trade value *as estimated at time S*
+
+    For the current year, appends entries from the value_determination
+    pipeline (``player_values_complete.csv``) so the chart includes the
+    most recent LSTM-based projections.
+
+    Returns DataFrame: mlb_id, IDfg, name, year, value, value_type, label
+    """
+    surplus_by_year = _load_surplus_files()
+
+    idfg_to_mlb = _build_idfg_to_mlb(player_values)
+    mlb_to_name = _build_mlb_to_name(player_values)
+
+    rows: list[dict] = []
+
+    # ── Historical years ─────────────────────────────────────────────────
+    for snap_year, sdf in surplus_by_year.items():
+        war_cols = sorted([c for c in sdf.columns if c.startswith("WAR_")])
+        sal_cols = sorted([c for c in sdf.columns if c.startswith("salary_") and c != "salary_source"])
+
+        for _, pr in sdf.iterrows():
+            idfg = int(pr["IDfg"])
+            mlbam = int(pr["mlbam_id"]) if pd.notna(pr.get("mlbam_id")) else None
+
+            mlb_id = mlbam
+            if mlb_id is None:
+                mlb_id = idfg_to_mlb.get(idfg)
+            if mlb_id is None:
+                continue
+
+            name = mlb_to_name.get(mlb_id, pr.get("Name", ""))
+            yrs_ctrl = pr.get("years_of_control", 0) or 0
+
+            total_value  = 0.0
+            total_salary = 0.0
+            proj_war_snap = 0.0
+
+            for wc in war_cols:
+                proj_year = int(wc.split("_")[1])
+                war = pr.get(wc)
+                if pd.isna(war) or war <= 0:
+                    continue
+                total_value += war_to_dollars(war, proj_year)
+                if proj_year == snap_year:
+                    proj_war_snap = war
+
+            for sc in sal_cols:
+                sal = pr.get(sc)
+                if pd.notna(sal):
+                    total_salary += sal
+
+            trade_val = total_value - total_salary
+
+            if proj_war_snap <= 0 and total_value == 0:
+                continue
+
+            label = (
+                f"{proj_war_snap:.1f} WAR"
+                if proj_war_snap > 0
+                else f"{int(yrs_ctrl)}yr ctrl"
+            )
+
+            rows.append({
+                "mlb_id": mlb_id,
+                "IDfg": idfg,
+                "name": name,
+                "date": f"{snap_year}-03-01",
+                "year": snap_year,
+                "value": round(trade_val),
+                "value_type": "mlb_surplus",
+                "transaction_type": pd.NA,
+                "label": label,
+            })
+
+    # ── Current year from value_determination ─────────────────────────────
+    if player_values is not None and not player_values.empty:
+        pv = player_values[
+            (player_values["Year"] == Config.CURRENT_YEAR)
+            & player_values["mlb_id"].notna()
+            & player_values["trade_value"].notna()
+        ].copy()
+
+        name_col = "Player_Name" if "Player_Name" in pv.columns else "name"
+        for _, row in pv.iterrows():
+            mlb_id = int(row["mlb_id"])
+            idfg   = int(row["IDfg"])
+            name   = row[name_col]
+            tv     = row["trade_value"]
+            war    = row.get("WAR", 0)
+            war_lbl = f"{war:.1f} WAR" if pd.notna(war) and war > 0 else "Trade Value"
+
+            rows.append({
+                "mlb_id": mlb_id,
+                "IDfg": idfg,
+                "name": name,
+                "date": f"{Config.CURRENT_YEAR}-03-01",
+                "year": Config.CURRENT_YEAR,
+                "value": round(tv),
+                "value_type": "mlb_surplus",
+                "transaction_type": pd.NA,
+                "label": war_lbl,
+            })
+
+    result = pd.DataFrame(rows)
+    if not result.empty:
+        result = (
+            result.sort_values("value", ascending=False)
+            .drop_duplicates(["mlb_id", "year"], keep="first")
+        )
+    logger.info(
+        f"Built {len(result)} MLB timeline entries for "
+        f"{result['mlb_id'].nunique() if not result.empty else 0} players"
+    )
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. Spotrac transaction entries
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# _normalise_name is imported from core.name_utils as name_key (see top of file)
+
+# Transaction types where the player has no team control → value = 0
+_ZERO_VALUE_TYPES = {"elected_fa", "released", "designated"}
+
+
+def _build_name_to_mlbid(player_values: pd.DataFrame) -> dict[str, int]:
+    """player_name → mlb_id lookup from player_values + crosswalk."""
+    lookup: dict[str, int] = {}
+
+    # Seed from crosswalk (broader coverage)
+    xw = _load_crosswalk()
+    if not xw.empty and "name" in xw.columns:
+        for _, row in xw.iterrows():
+            key = _normalise_name(str(row["name"]))
+            if key:
+                lookup[key] = int(row["mlb_id"])
+
+    # Overwrite with player_values (canonical names + IDs)
+    if player_values is not None and not player_values.empty:
+        name_col = "Player_Name" if "Player_Name" in player_values.columns else "name"
+        subset = player_values.dropna(subset=["mlb_id"]).drop_duplicates("mlb_id")
+        for _, row in subset.iterrows():
+            key = _normalise_name(row[name_col])
+            lookup[key] = int(row["mlb_id"])
+    return lookup
+
+
+def _reclassify_arbitration(txn: pd.DataFrame) -> pd.DataFrame:
+    """Reclassify ``fa_signing`` rows that are actually arbitration deals.
+
+    Spotrac labels arb-avoiding deals as ``fa_signing`` but the description
+    contains 'avoiding arbitration'.  We reclassify them so the trade-value
+    history can distinguish true FA signings from arb settlements.
+    """
+    arb_mask = (
+        (txn["transaction_type"] == "fa_signing")
+        & txn["description"].str.contains(
+            "avoiding arbitration", case=False, na=False,
+        )
+    )
+    txn.loc[arb_mask, "transaction_type"] = "arbitration"
+    n = int(arb_mask.sum())
+    if n:
+        logger.info(f"  Reclassified {n} fa_signing → arbitration")
+    return txn
+
+
+def _build_value_lookup(
+    value_timeline: pd.DataFrame,
+) -> dict[tuple[int, int], float]:
+    """(mlb_id, year) → trade-value from surplus + prospect snapshots.
+
+    When both surplus and prospect exist for the same key, surplus wins.
+    """
+    lookup: dict[tuple[int, int], float] = {}
+    if value_timeline is None or value_timeline.empty:
+        return lookup
+    for _, r in value_timeline.iterrows():
+        key = (int(r["mlb_id"]), int(r["year"]))
+        # mlb_surplus overwrites prospect
+        if key not in lookup or r["value_type"] == "mlb_surplus":
+            lookup[key] = r["value"]
+    return lookup
+
+
+def _lookup_value(
+    mlb_id: int,
+    ev_year: int,
+    value_map: dict[tuple[int, int], float],
+) -> float | None:
+    """Find the best value for *mlb_id* near *ev_year*."""
+    if (mlb_id, ev_year) in value_map:
+        return value_map[(mlb_id, ev_year)]
+    # Off-season signing may precede the next snapshot
+    if (mlb_id, ev_year + 1) in value_map:
+        return value_map[(mlb_id, ev_year + 1)]
+    if (mlb_id, ev_year - 1) in value_map:
+        return value_map[(mlb_id, ev_year - 1)]
+    return None
+
+
+def build_transaction_entries(
+    player_values: pd.DataFrame | None,
+    value_timeline: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Create a timeline entry for **every** Spotrac transaction.
+
+    Each transaction carries:
+      - the actual date (``date`` column, YYYY-MM-DD)
+      - the player's trade-value from the nearest annual snapshot
+      - the Spotrac ``transaction_type`` (with arb reclassification)
+      - the Spotrac description as the ``label``
+
+    For zero-value events (released, DFA, elected FA) the value is forced
+    to 0.  For all other types (trades, signings, extensions, arbitration,
+    drafts, claims, etc.) the value comes from the surplus / prospect
+    snapshot for that year.
+
+    Players with no surplus or prospect data at all are skipped.
+    """
+    if not SPOTRAC_TRANSACTIONS_FILE.exists():
+        logger.warning(f"Spotrac file not found: {SPOTRAC_TRANSACTIONS_FILE}")
+        return pd.DataFrame()
+
+    txn = pd.read_csv(SPOTRAC_TRANSACTIONS_FILE, parse_dates=["date"])
+    logger.info(f"Loaded {len(txn)} Spotrac transactions")
+
+    # ── Reclassify arb signings ───────────────────────────────────────────
+    txn = _reclassify_arbitration(txn)
+
+    # ── Player-ID lookups ─────────────────────────────────────────────────
+    name_to_mlbid = _build_name_to_mlbid(player_values)
+    idfg_to_mlb   = _build_idfg_to_mlb(player_values)
+    mlb_to_name   = _build_mlb_to_name(player_values)
+    mlb_to_idfg: dict[int, int] = {v: k for k, v in idfg_to_mlb.items()}
+
+    # ── Value lookup from existing surplus + prospect timeline ────────────
+    value_map = _build_value_lookup(value_timeline)
+
+    rows: list[dict] = []
+
+    for _, player_txns in txn.groupby("spotrac_id"):
+        player_name = player_txns.iloc[0]["player_name"]
+        mlb_id = name_to_mlbid.get(_normalise_name(player_name))
+        if mlb_id is None:
+            continue
+
+        idfg = mlb_to_idfg.get(mlb_id)
+        name = mlb_to_name.get(mlb_id, player_name)
+
+        for _, ev in player_txns.sort_values("date").iterrows():
+            ev_type = ev["transaction_type"]
+            ev_date = ev["date"]
+            if pd.isna(ev_date):
+                continue
+            if isinstance(ev_date, str):
+                try:
+                    ev_date = pd.Timestamp(ev_date)
+                except Exception:
+                    continue
+
+            ev_year = ev_date.year
+            date_str = ev_date.strftime("%Y-%m-%d")
+
+            # Skip events before our data range
+            if ev_year < Config.CUTOFF_START:
+                continue
+
+            # ── Determine value ───────────────────────────────────────────
+            if ev_type in _ZERO_VALUE_TYPES:
+                value = 0
+                vtype = "free_agent"
+            else:
+                value = _lookup_value(mlb_id, ev_year, value_map)
+                if value is None:
+                    # No snapshot data at all — skip this transaction
+                    continue
+                vtype = "mlb_surplus"
+
+            # ── Label from Spotrac description ────────────────────────────
+            label = ev.get("description", "")
+            if pd.isna(label) or not str(label).strip():
+                label = ev_type.replace("_", " ").title()
+
+            rows.append({
+                "mlb_id": mlb_id,
+                "IDfg": idfg if idfg is not None else pd.NA,
+                "name": name,
+                "date": date_str,
+                "year": ev_year,
+                "value": round(value),
+                "value_type": vtype,
+                "transaction_type": ev_type,
+                "label": str(label),
+            })
+
+    result = pd.DataFrame(rows)
+    if not result.empty:
+        result = result.drop_duplicates(["mlb_id", "date", "transaction_type"])
+    n_by_type = (
+        result["transaction_type"].value_counts().to_dict()
+        if not result.empty else {}
+    )
+    logger.info(
+        f"Built {len(result)} transaction entries for "
+        f"{result['mlb_id'].nunique() if not result.empty else 0} players"
+    )
+    for tt, cnt in sorted(n_by_type.items(), key=lambda x: -x[1]):
+        logger.info(f"    {tt}: {cnt}")
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Public API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def generate_timeline() -> pd.DataFrame:
+    """
+    Generate (or regenerate) the complete trade-value history CSV.
+
+    Combines prospect, MLB surplus, and Spotrac transaction data.  Each row
+    carries a ``date`` (YYYY-MM-DD) and an optional ``transaction_type``
+    from Spotrac.  Multiple entries per player per year are allowed (e.g.
+    a pre-season projection and a mid-season trade).
+
+    Dedup within each source:
+        - Prospect entries:  (mlb_id, year)  → keep highest value
+        - MLB surplus:       (mlb_id, year)  → keep highest value
+        - Transactions:      (mlb_id, date, transaction_type)
+
+    Across sources no dedup is applied — prospect (Jan), surplus (Mar),
+    and transaction entries coexist for the same player/year.
+    """
+    logger.info("=" * 60)
+    logger.info("Historical Values — Timeline Generator")
+    logger.info("=" * 60)
+
+    # Load player_values for crosswalks / current-year overlay
+    pv: pd.DataFrame | None = None
+    if PLAYER_VALUES_FILE.exists():
+        pv = pd.read_csv(PLAYER_VALUES_FILE, low_memory=False)
+        logger.info(f"Loaded player_values_complete.csv: {len(pv)} rows")
+    else:
+        logger.warning(
+            f"player_values_complete.csv not found at {PLAYER_VALUES_FILE}  — "
+            "current-year overlay disabled"
+        )
+
+    # ── Build the three sub-timelines ─────────────────────────────────────
+    prospect_tl = build_prospect_timeline(pv)
+    mlb_tl      = build_mlb_timeline(pv)
+
+    # Combine prospect + MLB (both are annual snapshots with different dates)
+    pre_combined = pd.concat([prospect_tl, mlb_tl], ignore_index=True)
+
+    # Within the snapshots: if a player has both prospect and surplus for the
+    # same year, keep both (they have different dates: Jan vs Mar).
+    # Dedup only exact duplicates on (mlb_id, date).
+    _TYPE_PRI = {"mlb_surplus": 0, "prospect": 1}
+    pre_combined["_p"] = pre_combined["value_type"].map(_TYPE_PRI).fillna(2)
+    pre_combined = (
+        pre_combined.sort_values("_p")
+        .drop_duplicates(["mlb_id", "date"], keep="first")
+        .drop(columns=["_p"])
+    )
+
+    # Build transaction entries from Spotrac (uses snapshot values for lookup)
+    txn_entries = build_transaction_entries(pv, pre_combined)
+
+    # Final combine — no cross-source dedup (dates are different)
+    combined = pd.concat([pre_combined, txn_entries], ignore_index=True)
+    combined = combined.sort_values(["mlb_id", "date"]).reset_index(drop=True)
+
+    # ── Write output ─────────────────────────────────────────────────────
+    # Ensure column order
+    col_order = [
+        "mlb_id", "IDfg", "name", "date", "year",
+        "value", "value_type", "transaction_type", "label",
+    ]
+    for c in col_order:
+        if c not in combined.columns:
+            combined[c] = pd.NA
+    combined = combined[col_order]
+
+    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    combined.to_csv(OUTPUT_FILE, index=False)
+
+    n_prospect = int((combined["value_type"] == "prospect").sum())
+    n_mlb      = int((combined["value_type"] == "mlb_surplus").sum())
+    n_fa       = int((combined["value_type"] == "free_agent").sum())
+    n_txn      = int(combined["transaction_type"].notna().sum())
+    n_players  = combined["mlb_id"].nunique() if not combined.empty else 0
+
+    logger.info(f"Wrote {len(combined)} entries for {n_players} players → {OUTPUT_FILE}")
+    logger.info(
+        f"  Prospect: {n_prospect}  |  MLB surplus: {n_mlb}  |  "
+        f"FA/zero: {n_fa}  |  Transactions: {n_txn}"
+    )
+    return combined
