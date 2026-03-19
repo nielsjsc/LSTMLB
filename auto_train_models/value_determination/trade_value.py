@@ -20,6 +20,7 @@ import numpy as np
 import re
 
 from .config import Config, logger, CURRENT_YEAR
+from core.name_utils import name_key_alpha_only as _name_key_norm
 
 
 # ---------------------------------------------------------------------------
@@ -340,9 +341,8 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
         merge_cols = {"left_on": "mlbam_id", "right_on": "prospect_mlb_id"}
     else:
         logger.warning("mlbam_id not available — falling back to name matching")
-        _norm = lambda s: re.sub(r"[^A-Z]", "", s.upper()) if pd.notna(s) else None
-        result_df["_name_key"] = result_df["Name"].apply(_norm)
-        latest["_name_key"] = latest["name"].apply(_norm)
+        result_df["_name_key"] = result_df["Name"].apply(_name_key_norm)
+        latest["_name_key"] = latest["name"].apply(_name_key_norm)
         merge_cols = {"left_on": "_name_key", "right_on": "_name_key"}
 
     candidates = result_df[

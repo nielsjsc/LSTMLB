@@ -29,6 +29,7 @@ from .constants import (
     HITTER_COLUMNS, PITCHER_COLUMNS, get_war_value
 )
 from .config import Config, CURRENT_YEAR
+from core.name_utils import name_key as _name_key_fn
 
 # ── Universal salary lookup ───────────────────────────────────────────────
 _UNIVERSAL_SALARY_FILE = Path(__file__).resolve().parents[2] / "data" / "salary" / "universal_salary.csv"
@@ -59,7 +60,7 @@ def _load_historical_salary() -> dict:
         _historical_salary_cache = lookup
         return lookup
     for _, row in df.iterrows():
-        name = str(row.get("player", "")).strip().lower()
+        name = _name_key_fn(str(row.get("player", "")))
         yr = row.get("year")
         sal = row.get("salary")
         if not name or pd.isna(yr) or pd.isna(sal):
@@ -458,7 +459,7 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     salary_lookup = _load_historical_salary()
     contract_vals = []
     for _, row in historical.iterrows():
-        name_key = str(row.get("Name", "")).strip().lower()
+        name_key = _name_key_fn(str(row.get("Name", "")))
         year_key = int(row["Year"]) if pd.notna(row["Year"]) else 0
         sal = salary_lookup.get((name_key, year_key))
         contract_vals.append(sal)

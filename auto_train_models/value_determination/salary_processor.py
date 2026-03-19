@@ -20,60 +20,15 @@ TODO: mlbam_id Migration
 import re
 import pandas as pd
 import numpy as np
-import unidecode
 from typing import Tuple
 
 from .config import Config, logger
 
-
-# Common suffixes stripped during fuzzy matching (not in primary normalization)
-_SUFFIXES = re.compile(r'\s+(JR\.?|SR\.?|III|IV|II|V)\s*$')
-
-# Known name aliases: Spotrac name → FanGraphs/prediction name (both UPPERCASE, post-normalize)
-# Add entries here when salary data uses a different name variant than predictions.
-_NAME_ALIASES = {
-    'JAKE JUNIS': 'JAKOB JUNIS',
-    'CAM SCHLITTLER': 'CAMERON SCHLITTLER',
-}
-
-
-def normalize_name(name: str) -> str:
-    """
-    Normalize player names by removing accents and standardizing format.
-    
-    Handles:
-    - Accented characters (via unidecode)
-    - Periods in initials: "T.J." → "TJ"
-    - Hyphens: "Woods-Richardson" → "WOODS RICHARDSON"
-    - FA suffix removal
-    
-    Args:
-        name: Raw player name
-        
-    Returns:
-        Normalized uppercase name without accents
-    """
-    if pd.isna(name):
-        return name
-    normalized = unidecode.unidecode(str(name)).upper().strip()
-    
-    # Remove periods (T.J. → TJ, A.J. → AJ)
-    normalized = normalized.replace('.', '')
-    
-    # Normalize hyphens to spaces (Woods-Richardson → WOODS RICHARDSON)
-    normalized = normalized.replace('-', ' ')
-    
-    # Collapse multiple spaces
-    normalized = ' '.join(normalized.split())
-    
-    # Remove FA suffix that sometimes appears in salary data
-    if normalized.endswith(' FA'):
-        normalized = normalized[:-3].strip()
-    
-    # Apply known name aliases (nickname → canonical name)
-    normalized = _NAME_ALIASES.get(normalized, normalized)
-    
-    return normalized
+# Canonical name normalization — single source of truth
+from core.name_utils import (
+    normalize_name,
+    _SUFFIX_RE as _SUFFIXES,
+)
 
 
 def normalize_name_no_suffix(name: str) -> str:
