@@ -626,6 +626,10 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
             "valueType": r.value_type,
             "transactionType": r.transaction_type,
             "label": r.label,
+            "yearsControl": round(float(r.years_control), 1) if r.years_control is not None else None,
+            "projectedWar": round(float(r.projected_war), 1) if r.projected_war is not None else None,
+            "projectedSalary": round(float(r.projected_salary), 2) if r.projected_salary is not None else None,
+            "warPerYear": round(float(r.war_per_year), 1) if r.war_per_year is not None else None,
         }
         for r in rows
     ]

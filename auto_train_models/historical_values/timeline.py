@@ -209,6 +209,10 @@ def build_prospect_timeline(
             "value_type": "prospect",
             "transaction_type": pd.NA,
             "label": label,
+            "years_control": pd.NA,
+            "projected_war": pd.NA,
+            "projected_salary": pd.NA,
+            "war_per_year": pd.NA,
         })
 
     result = pd.DataFrame(rows)
@@ -287,7 +291,7 @@ def build_mlb_timeline(
 
             total_value  = 0.0
             total_salary = 0.0
-            proj_war_snap = 0.0
+            total_war    = 0.0
 
             for wc in war_cols:
                 proj_year = int(wc.split("_")[1])
@@ -295,8 +299,7 @@ def build_mlb_timeline(
                 if pd.isna(war) or war <= 0:
                     continue
                 total_value += war_to_dollars(war, proj_year)
-                if proj_year == snap_year:
-                    proj_war_snap = war
+                total_war += war
 
             for sc in sal_cols:
                 sal = pr.get(sc)
@@ -305,13 +308,15 @@ def build_mlb_timeline(
 
             trade_val = total_value - total_salary
 
-            if proj_war_snap <= 0 and total_value == 0:
+            if total_war <= 0 and total_value == 0:
                 continue
 
+            war_per_yr = total_war / yrs_ctrl if yrs_ctrl > 0 else 0.0
+
             label = (
-                f"{proj_war_snap:.1f} WAR"
-                if proj_war_snap > 0
-                else f"{int(yrs_ctrl)}yr ctrl"
+                f"{int(yrs_ctrl)}yr control, {total_war:.1f} WAR"
+                if yrs_ctrl > 0
+                else f"{total_war:.1f} WAR projected"
             )
 
             rows.append({
@@ -324,6 +329,10 @@ def build_mlb_timeline(
                 "value_type": "mlb_surplus",
                 "transaction_type": pd.NA,
                 "label": label,
+                "years_control": round(yrs_ctrl, 1),
+                "projected_war": round(total_war, 1),
+                "projected_salary": round(total_salary),
+                "war_per_year": round(war_per_yr, 2),
             })
 
     # ── Current year from value_determination ─────────────────────────────
@@ -340,8 +349,25 @@ def build_mlb_timeline(
             idfg   = int(row["IDfg"])
             name   = row[name_col]
             tv     = row["trade_value"]
-            war    = row.get("WAR", 0)
-            war_lbl = f"{war:.1f} WAR" if pd.notna(war) and war > 0 else "Trade Value"
+            yrs    = row.get("years_control", 0)
+            if pd.isna(yrs):
+                yrs = 0
+            fut_war = row.get("total_future_war", 0)
+            if pd.isna(fut_war):
+                fut_war = 0
+            cwar   = row.get("contract_war", 0)
+            if pd.isna(cwar):
+                cwar = 0
+            # total_salary from surplus columns if available
+            sal_cols_pv = [c for c in pv.columns if c.startswith("salary_") and c != "salary_source"]
+            total_sal = sum(row.get(sc, 0) or 0 for sc in sal_cols_pv if pd.notna(row.get(sc)))
+            war_per_yr = fut_war / yrs if yrs > 0 else 0.0
+
+            label = (
+                f"{int(yrs)}yr control, {fut_war:.1f} WAR"
+                if yrs > 0
+                else f"{fut_war:.1f} WAR projected"
+            )
 
             rows.append({
                 "mlb_id": mlb_id,
@@ -352,7 +378,11 @@ def build_mlb_timeline(
                 "value": round(tv),
                 "value_type": "mlb_surplus",
                 "transaction_type": pd.NA,
-                "label": war_lbl,
+                "label": label,
+                "years_control": round(yrs, 1),
+                "projected_war": round(fut_war, 1),
+                "projected_salary": round(total_sal),
+                "war_per_year": round(war_per_yr, 2),
             })
 
     result = pd.DataFrame(rows)
@@ -404,13 +434,15 @@ def _reclassify_arbitration(txn: pd.DataFrame) -> pd.DataFrame:
     """Reclassify ``fa_signing`` rows that are actually arbitration deals.
 
     Spotrac labels arb-avoiding deals as ``fa_signing`` but the description
-    contains 'avoiding arbitration'.  We reclassify them so the trade-value
+    contains 'avoiding arbitration'.  Similarly, 'settling in arbitration'
+    indicates an arb settlement.  We reclassify them so the trade-value
     history can distinguish true FA signings from arb settlements.
     """
     arb_mask = (
         (txn["transaction_type"] == "fa_signing")
         & txn["description"].str.contains(
-            "avoiding arbitration", case=False, na=False,
+            "avoiding arbitration|settling in arbitration",
+            case=False, na=False, regex=True,
         )
     )
     txn.loc[arb_mask, "transaction_type"] = "arbitration"
@@ -420,30 +452,124 @@ def _reclassify_arbitration(txn: pd.DataFrame) -> pd.DataFrame:
     return txn
 
 
+# Pre-arb contract detection: 1-year contracts at or near league minimum
+_PRE_ARB_SALARY_RE = re.compile(
+    r"Signed a 1 year \$[\d,]+ contract with",
+    re.IGNORECASE,
+)
+
+
+def _reclassify_pre_arb(txn: pd.DataFrame) -> pd.DataFrame:
+    """Reclassify ``fa_signing`` rows that are actually pre-arb contracts.
+
+    Pre-arb contracts are 1-year deals at or near the league minimum salary.
+    We detect them by: (a) the contract is 1 year, (b) the salary is near
+    the historical minimum for that year, and (c) the event is not already
+    classified as arbitration, extension, etc.
+    """
+    min_sal = Config.HISTORICAL_MIN_SALARY
+    mask = txn["transaction_type"] == "fa_signing"
+    count = 0
+
+    for idx in txn.index[mask]:
+        desc = str(txn.at[idx, "description"])
+        ev_date = txn.at[idx, "date"]
+
+        # Must match "Signed a 1 year $XXX,XXX contract"
+        if not _PRE_ARB_SALARY_RE.search(desc):
+            continue
+
+        # Extract salary from description
+        sal_match = re.search(r"\$([\d,]+(?:\.\d+)?)\s", desc)
+        if not sal_match:
+            continue
+        sal_str = sal_match.group(1).replace(",", "")
+        try:
+            salary = float(sal_str)
+        except ValueError:
+            continue
+
+        # Determine year
+        try:
+            yr = pd.Timestamp(ev_date).year
+        except Exception:
+            continue
+
+        # Pre-arb threshold: within 50% above the league minimum
+        threshold = min_sal.get(yr, 800_000) * 1.5
+        if salary <= threshold:
+            txn.at[idx, "transaction_type"] = "pre_arb"
+            count += 1
+
+    if count:
+        logger.info(f"  Reclassified {count} fa_signing → pre_arb")
+    return txn
+
+
+def _consolidate_qualifying_offers(txn: pd.DataFrame) -> pd.DataFrame:
+    """Consolidate QO extended + QO declined into a single free-agency event.
+
+    When a player receives a Qualifying Offer:
+      1. Team extends QO (transaction_type='other', desc contains 'extended...Qualifying Offer')
+      2. Player declines QO (transaction_type='other', desc contains 'Declined...Qualifying Offer')
+
+    We keep only the QO-extension event and reclassify it as ``elected_fa``
+    (free agency entry point, value=0).  The declined event is dropped.
+    """
+    qo_extended_mask = txn["description"].str.contains(
+        r"extended.*Qualifying Offer", case=False, na=False, regex=True,
+    )
+    qo_declined_mask = txn["description"].str.contains(
+        r"Declined.*Qualifying Offer", case=False, na=False, regex=True,
+    )
+
+    # Reclassify extensions as elected_fa
+    txn.loc[qo_extended_mask, "transaction_type"] = "elected_fa"
+    n_ext = int(qo_extended_mask.sum())
+
+    # Drop declined rows (redundant info)
+    n_dec = int(qo_declined_mask.sum())
+    txn = txn[~qo_declined_mask].copy()
+
+    if n_ext or n_dec:
+        logger.info(
+            f"  QO consolidation: {n_ext} extended → elected_fa, "
+            f"{n_dec} declined dropped"
+        )
+    return txn
+
+
 def _build_value_lookup(
     value_timeline: pd.DataFrame,
-) -> dict[tuple[int, int], float]:
-    """(mlb_id, year) → trade-value from surplus + prospect snapshots.
+) -> dict[tuple[int, int], dict]:
+    """(mlb_id, year) → {value, years_control, projected_war, projected_salary, war_per_year}.
 
     When both surplus and prospect exist for the same key, surplus wins.
     """
-    lookup: dict[tuple[int, int], float] = {}
+    lookup: dict[tuple[int, int], dict] = {}
     if value_timeline is None or value_timeline.empty:
         return lookup
     for _, r in value_timeline.iterrows():
         key = (int(r["mlb_id"]), int(r["year"]))
+        entry = {
+            "value": r["value"],
+            "years_control": r.get("years_control"),
+            "projected_war": r.get("projected_war"),
+            "projected_salary": r.get("projected_salary"),
+            "war_per_year": r.get("war_per_year"),
+        }
         # mlb_surplus overwrites prospect
         if key not in lookup or r["value_type"] == "mlb_surplus":
-            lookup[key] = r["value"]
+            lookup[key] = entry
     return lookup
 
 
 def _lookup_value(
     mlb_id: int,
     ev_year: int,
-    value_map: dict[tuple[int, int], float],
-) -> float | None:
-    """Find the best value for *mlb_id* near *ev_year*."""
+    value_map: dict[tuple[int, int], dict],
+) -> dict | None:
+    """Find the best value entry for *mlb_id* near *ev_year*."""
     if (mlb_id, ev_year) in value_map:
         return value_map[(mlb_id, ev_year)]
     # Off-season signing may precede the next snapshot
@@ -459,20 +585,23 @@ def build_transaction_entries(
     value_timeline: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Create a timeline entry for **every** Spotrac transaction.
+    Create a timeline entry for significant Spotrac transactions.
 
-    Each transaction carries:
+    Pre-arb and arbitration contracts are excluded (they don't change a
+    player's value — still under team control for the same duration).
+    Qualifying Offer pairs are consolidated into a single ``elected_fa``
+    event with value=0.
+
+    Each kept transaction carries:
       - the actual date (``date`` column, YYYY-MM-DD)
       - the player's trade-value from the nearest annual snapshot
-      - the Spotrac ``transaction_type`` (with arb reclassification)
+      - the Spotrac ``transaction_type``
       - the Spotrac description as the ``label``
+      - hover-card metadata: years_control, projected_war,
+        projected_salary, war_per_year
 
-    For zero-value events (released, DFA, elected FA) the value is forced
-    to 0.  For all other types (trades, signings, extensions, arbitration,
-    drafts, claims, etc.) the value comes from the surplus / prospect
-    snapshot for that year.
-
-    Players with no surplus or prospect data at all are skipped.
+    For zero-value events (released, DFA, elected FA / QO) the value is 0,
+    and metadata fields are null (free agents have no control/projections).
     """
     if not SPOTRAC_TRANSACTIONS_FILE.exists():
         logger.warning(f"Spotrac file not found: {SPOTRAC_TRANSACTIONS_FILE}")
@@ -481,8 +610,22 @@ def build_transaction_entries(
     txn = pd.read_csv(SPOTRAC_TRANSACTIONS_FILE, parse_dates=["date"])
     logger.info(f"Loaded {len(txn)} Spotrac transactions")
 
-    # ── Reclassify arb signings ───────────────────────────────────────────
+    # ── Reclassify arb and pre-arb signings ───────────────────────────────
     txn = _reclassify_arbitration(txn)
+    txn = _reclassify_pre_arb(txn)
+
+    # ── Consolidate Qualifying Offer pairs ────────────────────────────────
+    txn = _consolidate_qualifying_offers(txn)
+
+    # ── Filter out pre-arb and arb (they don't affect trade value) ────────
+    # These are team-controlled contracts that don't change the player's
+    # years of control or value — just salary negotiations.
+    _SKIP_TYPES = {"pre_arb", "arbitration"}
+    pre_filter = len(txn)
+    txn = txn[~txn["transaction_type"].isin(_SKIP_TYPES)].copy()
+    n_skipped = pre_filter - len(txn)
+    if n_skipped:
+        logger.info(f"  Filtered out {n_skipped} pre-arb/arbitration entries")
 
     # ── Player-ID lookups ─────────────────────────────────────────────────
     name_to_mlbid = _build_name_to_mlbid(player_values)
@@ -522,16 +665,25 @@ def build_transaction_entries(
             if ev_year < Config.CUTOFF_START:
                 continue
 
-            # ── Determine value ───────────────────────────────────────────
+            # ── Determine value + metadata ────────────────────────────────
             if ev_type in _ZERO_VALUE_TYPES:
                 value = 0
                 vtype = "free_agent"
+                yrs_ctrl = pd.NA
+                proj_war = pd.NA
+                proj_sal = pd.NA
+                war_yr   = pd.NA
             else:
-                value = _lookup_value(mlb_id, ev_year, value_map)
-                if value is None:
+                entry = _lookup_value(mlb_id, ev_year, value_map)
+                if entry is None:
                     # No snapshot data at all — skip this transaction
                     continue
-                vtype = "mlb_surplus"
+                value    = entry["value"]
+                vtype    = "mlb_surplus"
+                yrs_ctrl = entry.get("years_control")
+                proj_war = entry.get("projected_war")
+                proj_sal = entry.get("projected_salary")
+                war_yr   = entry.get("war_per_year")
 
             # ── Label from Spotrac description ────────────────────────────
             label = ev.get("description", "")
@@ -548,6 +700,10 @@ def build_transaction_entries(
                 "value_type": vtype,
                 "transaction_type": ev_type,
                 "label": str(label),
+                "years_control": yrs_ctrl,
+                "projected_war": proj_war,
+                "projected_salary": proj_sal,
+                "war_per_year": war_yr,
             })
 
     result = pd.DataFrame(rows)
@@ -632,6 +788,7 @@ def generate_timeline() -> pd.DataFrame:
     col_order = [
         "mlb_id", "IDfg", "name", "date", "year",
         "value", "value_type", "transaction_type", "label",
+        "years_control", "projected_war", "projected_salary", "war_per_year",
     ]
     for c in col_order:
         if c not in combined.columns:

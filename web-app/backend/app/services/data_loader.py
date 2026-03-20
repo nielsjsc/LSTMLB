@@ -80,7 +80,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 DATA_PATHS: Dict[str, Path] = {
     # ── Generated / processed ─────────────────────────────────────────
     "players":       PROJECT_ROOT / "data" / "generated" / "value_by_year" / "player_values_complete.csv",
-    "prospects":     PROJECT_ROOT / "data" / "prospect_data" / "prospects_2014_2025_complete.csv",
+    "prospects":     PROJECT_ROOT / "data" / "prospect_data" / "prospects_2014_2026_with_top100.csv",
     "historical":    PROJECT_ROOT / "data" / "generated" / "historical_players" / "historical_players.json",
     "trades":        PROJECT_ROOT / "data" / "generated" / "past_trades" / "trades.json",
     "crosswalk":     PROJECT_ROOT / "data" / "generated" / "player_id_crosswalk.csv",
@@ -406,7 +406,7 @@ class DataLoader:
 
     def load_prospects(self, csv_path: Path) -> None:
         """Load prospect data from the raw source CSV
-        (``prospects_2014_2025_complete.csv``).
+        (``prospects_2014_2026_with_top100.csv``).
 
         One DB row per player-year.  Extracts mlbam_id from prospect_url,
         maps team slugs → 3-letter abbreviations, maps tool grades,

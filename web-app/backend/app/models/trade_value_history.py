@@ -17,6 +17,10 @@ class TradeValueHistory(Base):
     value_type = Column(String, nullable=True)
     transaction_type = Column(String, nullable=True)  # Spotrac txn type
     label = Column(String, nullable=True)
+    years_control = Column(Float, nullable=True)
+    projected_war = Column(Float, nullable=True)
+    projected_salary = Column(Float, nullable=True)
+    war_per_year = Column(Float, nullable=True)
 
     __table_args__ = (
         Index("ix_tvh_mlb_date", "mlb_id", "date"),

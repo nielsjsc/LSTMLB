@@ -746,6 +746,10 @@ export interface TradeValuePoint {
   valueType: 'prospect' | 'mlb_surplus' | 'free_agent';
   transactionType: string | null;   // Spotrac txn type (traded, fa_signing, …)
   label: string;
+  yearsControl: number | null;
+  projectedWar: number | null;
+  projectedSalary: number | null;
+  warPerYear: number | null;
 }
 
 export const getTradeValueHistory = async (playerId: number): Promise<TradeValuePoint[]> => {
