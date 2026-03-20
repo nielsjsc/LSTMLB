@@ -185,15 +185,15 @@ const TradeAnalyzer = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface-900 via-surface-800 to-surface-900">
-      <div className="max-w-7xl mx-auto py-12 px-4">
+    <div className="min-h-screen bg-surface-900">
+      <div className="max-w-7xl mx-auto py-8 px-4">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.06] mb-4">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
             <span className="text-xs text-surface-400 font-medium tracking-wider uppercase">Live Analysis</span>
           </div>
-          <h1 className="text-4xl font-bold mb-3 bg-clip-text text-transparent bg-gradient-brand pb-1">
+          <h1 className="text-3xl font-bold mb-3 bg-clip-text text-transparent bg-gradient-brand pb-1 font-display tracking-tight">
             Trade Simulator
           </h1>
           <p className="text-surface-400 max-w-xl mx-auto text-sm leading-relaxed">

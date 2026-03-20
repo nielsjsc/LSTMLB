@@ -4,10 +4,10 @@ import TechnicalOverview from './components/TechnicalOverview'
 
 const About = () => {
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-surface-900 via-surface-800 to-surface-900">
+    <div className="min-h-screen w-full bg-surface-900">
       {/* Main Content */}
       <main className="w-full">
-        <div className="max-w-6xl mx-auto px-8 py-20 space-y-24">
+        <div className="max-w-6xl mx-auto px-8 py-12 space-y-16">
           <Header />
           <TechnicalOverview />
         </div>

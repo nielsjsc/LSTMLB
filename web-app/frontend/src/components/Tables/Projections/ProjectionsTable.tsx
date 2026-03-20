@@ -245,7 +245,7 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
           <button
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium text-surface-300 
+            className="px-3 py-1.5 rounded text-sm font-medium text-surface-300 
                     bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06]
                     disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
@@ -259,7 +259,7 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
           <button
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium text-surface-300 
+            className="px-3 py-1.5 rounded text-sm font-medium text-surface-300 
                     bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06]
                     disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >

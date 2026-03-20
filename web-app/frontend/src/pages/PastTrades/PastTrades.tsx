@@ -143,7 +143,7 @@ export default function PastTrades() {
       {/* Header + filters */}
       <div className="flex flex-wrap items-end justify-between gap-4 mb-5">
         <div>
-          <h1 className="text-xl font-bold text-surface-100 tracking-tight">Trade History</h1>
+          <h1 className="text-xl font-bold text-surface-100 tracking-tight font-display">Trade History</h1>
           <p className="text-[13px] text-surface-500 mt-0.5">
             {total.toLocaleString()} trades &middot; 2014&ndash;Present
           </p>
@@ -195,7 +195,7 @@ export default function PastTrades() {
           No trades found.
         </div>
       ) : (
-        <div className="rounded-lg border border-white/[0.06] bg-surface-850/50 overflow-hidden">
+        <div className="border-t border-white/[0.06] overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/[0.06] bg-surface-800/40">

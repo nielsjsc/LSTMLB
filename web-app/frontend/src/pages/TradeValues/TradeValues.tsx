@@ -28,16 +28,16 @@ const TradeValues = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface-900 via-surface-800 to-surface-900">
-      <div className="max-w-7xl mx-auto py-16 px-4">
-        <h1 className="text-4xl font-bold mb-8 text-white tracking-tight">Trade Value Rankings</h1>
+    <div className="min-h-screen bg-surface-900">
+      <div className="max-w-7xl mx-auto py-6 px-4">
+        <h1 className="text-2xl font-bold mb-5 text-white tracking-tight font-display">Trade Value Rankings</h1>
         
-        <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50 mb-8">
+        <div className="border-b border-white/[0.06] pb-4 mb-6">
           <div className="flex flex-wrap gap-4">
             <select
               value={team || ''}
               onChange={(e) => setTeam(e.target.value || undefined)}
-              className="bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
+              className="bg-surface-700/50 border border-white/[0.08] rounded px-3 py-2 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
             >
               <option value="" className="bg-surface-800">All Teams</option>
               {teams.map(t => (
@@ -65,10 +65,10 @@ const TradeValues = () => {
 
         {data && (
           <div>
-            <div className="text-sm text-surface-400 mb-4">
+            <div className="text-sm text-surface-400 mb-3">
               Found {data.total_count} players
             </div>
-            <div className="rounded-xl border border-white/[0.06] bg-surface-800/50">
+            <div className="border-t border-white/[0.06]">
               <TradeValuesTable 
                 data={data}
                 currentPage={page}

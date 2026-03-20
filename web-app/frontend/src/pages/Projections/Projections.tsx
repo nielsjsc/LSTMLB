@@ -46,17 +46,17 @@ const ProjectionsPage = () => {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface-900 via-surface-800 to-surface-900">
-      <div className="max-w-7xl mx-auto py-16 px-4">
-        <h1 className="text-4xl font-bold mb-8 text-white tracking-tight">Player Projections</h1>
+    <div className="min-h-screen bg-surface-900">
+      <div className="max-w-7xl mx-auto py-6 px-4">
+        <h1 className="text-2xl font-bold mb-5 text-white tracking-tight font-display">Player Projections</h1>
         
         {/* Controls Section */}
-        <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/50 mb-8">
+        <div className="border-b border-white/[0.06] pb-4 mb-6">
           <div className="flex flex-wrap gap-4 items-center">
             <select 
               value={year} 
               onChange={(e) => setYear(Number(e.target.value))}
-              className="bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
+              className="bg-surface-700/50 border border-white/[0.08] rounded px-3 py-2 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
             >
               {years.map(year => (
                 <option key={year} value={year} className="bg-surface-800">{year}</option>
@@ -71,7 +71,7 @@ const ProjectionsPage = () => {
                 setSortBy('war_bat');  // Set default sort for hitters
                 setSortDirection('desc');
               }}
-              className={`px-4 py-2.5 rounded-lg text-sm font-medium ${
+              className={`px-3 py-2 rounded text-sm font-medium ${
                 playerType === 'hitter'
                   ? 'bg-brand-500 text-surface-900'
                   : 'bg-white/[0.04] text-surface-300 hover:bg-white/[0.08] border border-white/[0.06]'
@@ -86,7 +86,7 @@ const ProjectionsPage = () => {
                 setSortBy('war_pit');  // Set default sort for pitchers
                 setSortDirection('desc');
               }}
-              className={`px-4 py-2.5 rounded-lg text-sm font-medium ${
+              className={`px-3 py-2 rounded text-sm font-medium ${
                 playerType === 'pitcher'
                   ? 'bg-brand-500 text-surface-900'
                   : 'bg-white/[0.04] text-surface-300 hover:bg-white/[0.08] border border-white/[0.06]'
@@ -99,7 +99,7 @@ const ProjectionsPage = () => {
             <select
               value={team || ''}
               onChange={(e) => setTeam(e.target.value || undefined)}
-              className="bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
+              className="bg-surface-700/50 border border-white/[0.08] rounded px-3 py-2 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
             >
               <option value="" className="bg-surface-800">All Teams</option>
               {teams.map(team => (
@@ -110,7 +110,7 @@ const ProjectionsPage = () => {
             <select
               value={position || ''}
               onChange={(e) => setPosition(e.target.value || undefined)}
-              className="bg-surface-700/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
+              className="bg-surface-700/50 border border-white/[0.08] rounded px-3 py-2 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
             >
               <option value="" className="bg-surface-800">All Positions</option>
               {(playerType === 'hitter' ? hitterPositions : pitcherPositions).map(pos => (
@@ -138,10 +138,10 @@ const ProjectionsPage = () => {
   
         {data && (
           <div>
-            <div className="text-sm text-surface-400 mb-4">
+            <div className="text-sm text-surface-400 mb-3">
               Found {data.total_count} players
             </div>
-            <div className="rounded-xl border border-white/[0.06] bg-surface-800/50">
+            <div className="border-t border-white/[0.06]">
               <ProjectionsTable 
                 data={data}
                 playerType={playerType}

@@ -17,9 +17,9 @@ const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-surface-900/80 backdrop-blur-xl border-b border-white/[0.06]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-16">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-surface-900 border-b border-white/[0.06]">
+      <div className="max-w-[90rem] mx-auto px-4 sm:px-6">
+        <div className="flex items-center justify-between h-14">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-1.5 shrink-0 group">
             <span className="font-display text-xl font-extrabold tracking-tight text-white group-hover:opacity-80 transition-opacity">
@@ -28,7 +28,7 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-1 ml-8">
+          <div className="hidden md:flex items-center gap-0.5 ml-6">
             {navLinks.map(({ to, label }) => {
               const isActive = location.pathname === to;
               return (
@@ -51,7 +51,7 @@ const Navbar = () => {
           </div>
 
           {/* Desktop Search */}
-          <div className="hidden md:flex flex-1 justify-end ml-6">
+          <div className="hidden md:flex flex-1 justify-end ml-4">
             <div className="w-full max-w-xs">
               <PlayerSearch />
             </div>
@@ -70,7 +70,7 @@ const Navbar = () => {
 
       {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-white/[0.06] bg-surface-900/95 backdrop-blur-xl">
+        <div className="md:hidden border-t border-white/[0.06] bg-surface-900">
           <div className="px-4 py-3 space-y-1">
             {navLinks.map(({ to, label }) => {
               const isActive = location.pathname === to;
