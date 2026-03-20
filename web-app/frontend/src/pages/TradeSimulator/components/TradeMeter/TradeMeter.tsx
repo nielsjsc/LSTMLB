@@ -100,8 +100,8 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
               <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
             </filter>
             <radialGradient id="centerGrad" cx="50%" cy="100%" r="60%">
-              <stop offset="0%" stopColor="#2a2a2a" />
-              <stop offset="100%" stopColor="#111111" />
+              <stop offset="0%" stopColor="#d4d4d4" />
+              <stop offset="100%" stopColor="#a3a3a3" />
             </radialGradient>
           </defs>
 
@@ -120,7 +120,7 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
           <path
             d={`M ${arcStart.x} ${arcStart.y} A ${r} ${r} 0 0 1 ${arcEnd.x} ${arcEnd.y}`}
             fill="none"
-            stroke="#2a2a2a"
+            stroke="#d4d4d4"
             strokeWidth="10"
             strokeLinecap="round"
           />
@@ -141,7 +141,7 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
             const p2 = polarToCart(angle, r + 8);
             return (
               <line key={angle} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-                stroke="#404040" strokeWidth="1.5" />
+                stroke="#c0c0c0" strokeWidth="1.5" />
             );
           })}
 
@@ -154,10 +154,10 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
             return (
               <g key={angle}>
                 <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
-                  stroke={isMajor ? '#737373' : '#404040'} strokeWidth={isMajor ? 1.5 : 1} />
+                  stroke={isMajor ? '#9ca3af' : '#c0c0c0'} strokeWidth={isMajor ? 1.5 : 1} />
                 {label && (
                   <text x={labelPos.x} y={labelPos.y} textAnchor="middle" dominantBaseline="middle"
-                    fill="#a3a3a3" style={{ fontSize: '9px', fontFamily: 'Inter, sans-serif' }}>
+                    fill="#525252" style={{ fontSize: '9px', fontFamily: 'Inter, sans-serif' }}>
                     {label}
                   </text>
                 )}
@@ -183,16 +183,16 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
           />
 
           {/* Center hub */}
-          <circle cx={cx} cy={cy} r="10" fill="url(#centerGrad)" stroke="#404040" strokeWidth="1" />
+          <circle cx={cx} cy={cy} r="10" fill="url(#centerGrad)" stroke="#c0c0c0" strokeWidth="1" />
           <circle cx={cx} cy={cy} r="4" fill={needleGlowColor} opacity="0.9" />
           <circle cx={cx} cy={cy} r="6" fill="none" stroke={needleGlowColor} strokeWidth="0.5" opacity="0.4" />
 
           {/* Team labels */}
-          <text x="28" y={cy + 20} fill="#a3a3a3" textAnchor="start"
+          <text x="28" y={cy + 20} fill="#525252" textAnchor="start"
             style={{ fontSize: '11px', fontWeight: 600, fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em' }}>
             {team2Name}
           </text>
-          <text x="272" y={cy + 20} fill="#a3a3a3" textAnchor="end"
+          <text x="272" y={cy + 20} fill="#525252" textAnchor="end"
             style={{ fontSize: '11px', fontWeight: 600, fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em' }}>
             {team1Name}
           </text>
@@ -202,15 +202,15 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
       {/* Digital Readout */}
       <div className="flex flex-col items-center mt-2 gap-1.5">
         {favoredTeam && absDiff >= 5_000_000 ? (
-          <p className="text-surface-400 text-sm font-medium">
-            <span className="text-white font-semibold">{favoredTeam}</span>
+          <p className="text-gray-500 text-sm font-medium">
+            <span className="text-gray-900 font-semibold">{favoredTeam}</span>
             {' '}overpays by{' '}
-            <span className="text-red-400 font-semibold">
+            <span className="text-red-600 font-semibold">
               {formatDollar(absDiff)}
             </span>
           </p>
         ) : (
-          <p className="text-emerald-400 text-sm font-semibold">Fair Trade</p>
+          <p className="text-emerald-600 text-sm font-semibold">Fair Trade</p>
         )}
       </div>
     </div>

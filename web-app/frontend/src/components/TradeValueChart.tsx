@@ -59,10 +59,10 @@ const HOVER_RADIUS = 7;
 // ─── Dot color by value type ────────────────────────────────
 const DOT_COLOR: Record<string, string> = {
   prospect: '#a78bfa',      // violet-400
-  mlb_surplus: '#f59e0b',   // amber-500 (brand)
-  free_agent: '#fb7185',    // rose-400
+  mlb_surplus: '#d97706',   // amber-600 (brand)
+  free_agent: '#e11d48',    // rose-600
 };
-const DEFAULT_DOT_COLOR = '#a3a3a3'; // neutral-400
+const DEFAULT_DOT_COLOR = '#6b7280'; // gray-500
 
 // ─── Component ──────────────────────────────────────────────
 interface Props {
@@ -186,7 +186,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
               x2={dims.width - MARGIN.right}
               y1={y(t)}
               y2={y(t)}
-              stroke="rgba(255,255,255,0.06)"
+              stroke="rgba(0,0,0,0.06)"
               strokeWidth={1}
             />
             <text
@@ -194,7 +194,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
               y={y(t)}
               textAnchor="end"
               dominantBaseline="middle"
-              className="fill-surface-500"
+              className="fill-gray-500"
               fontSize={11}
               fontFamily="inherit"
             >
@@ -210,7 +210,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
             x2={dims.width - MARGIN.right}
             y1={y(0)}
             y2={y(0)}
-            stroke="rgba(255,255,255,0.12)"
+            stroke="rgba(0,0,0,0.12)"
             strokeWidth={1}
             strokeDasharray="4,3"
           />
@@ -275,7 +275,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
             x={x(yr)}
             y={dims.height - 8}
             textAnchor="middle"
-            className="fill-surface-500"
+            className="fill-gray-500"
             fontSize={11}
             fontFamily="inherit"
           >
@@ -290,7 +290,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
             x2={x(hovered._fx)}
             y1={MARGIN.top}
             y2={MARGIN.top + plotH}
-            stroke="rgba(255,255,255,0.15)"
+            stroke="rgba(0,0,0,0.10)"
             strokeWidth={1}
             strokeDasharray="4,3"
           />
@@ -309,43 +309,43 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
             }, -100%)`,
           }}
         >
-          <div className="bg-surface-800 border border-white/10 rounded-lg shadow-xl px-3 py-2 text-xs max-w-xs space-y-0.5">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-xl px-3 py-2 text-xs max-w-xs space-y-0.5">
             {/* Trade value */}
-            <div className="font-semibold text-white">{fmtDollarFull(hovered.value)}</div>
+            <div className="font-semibold text-gray-900">{fmtDollarFull(hovered.value)}</div>
 
             {/* Transaction type (only if present) */}
             {hovered.transactionType && (
-              <div className="text-amber-400 text-[10px]">{txnLabel(hovered.transactionType)}</div>
+              <div className="text-amber-600 text-[10px]">{txnLabel(hovered.transactionType)}</div>
             )}
 
             {/* Date & label */}
-            <div className="text-surface-400 truncate">{hovered.date ?? hovered.year} · {hovered.label}</div>
+            <div className="text-gray-500 truncate">{hovered.date ?? hovered.year} · {hovered.label}</div>
 
             {/* ── Metadata from projections ── */}
             {(hovered.yearsControl != null || hovered.projectedWar != null || hovered.projectedSalary != null || hovered.warPerYear != null) && (
               <div className="border-t border-white/5 pt-1 mt-1 space-y-px text-[10px]">
                 {hovered.yearsControl != null && (
                   <div className="flex justify-between gap-4">
-                    <span className="text-surface-500">Years of Control</span>
-                    <span className="text-surface-300 font-medium">{hovered.yearsControl}</span>
+                    <span className="text-gray-500">Years of Control</span>
+                    <span className="text-gray-600 font-medium">{hovered.yearsControl}</span>
                   </div>
                 )}
                 {hovered.projectedWar != null && (
                   <div className="flex justify-between gap-4">
-                    <span className="text-surface-500">Projected WAR</span>
-                    <span className="text-surface-300 font-medium">{fmtWar(hovered.projectedWar)}</span>
+                    <span className="text-gray-500">Projected WAR</span>
+                    <span className="text-gray-600 font-medium">{fmtWar(hovered.projectedWar)}</span>
                   </div>
                 )}
                 {hovered.warPerYear != null && (
                   <div className="flex justify-between gap-4">
-                    <span className="text-surface-500">WAR / Year</span>
-                    <span className="text-surface-300 font-medium">{fmtWar(hovered.warPerYear)}</span>
+                    <span className="text-gray-500">WAR / Year</span>
+                    <span className="text-gray-600 font-medium">{fmtWar(hovered.warPerYear)}</span>
                   </div>
                 )}
                 {hovered.projectedSalary != null && (
                   <div className="flex justify-between gap-4">
-                    <span className="text-surface-500">Projected Salary</span>
-                    <span className="text-surface-300 font-medium">{fmtDollarFull(hovered.projectedSalary)}</span>
+                    <span className="text-gray-500">Projected Salary</span>
+                    <span className="text-gray-600 font-medium">{fmtDollarFull(hovered.projectedSalary)}</span>
                   </div>
                 )}
               </div>
@@ -358,15 +358,15 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
       <div className="flex flex-wrap gap-4 mt-3 px-1">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: DOT_COLOR.prospect }} />
-          <span className="text-[10px] text-surface-500 font-medium">Prospect</span>
+          <span className="text-[10px] text-gray-500 font-medium">Prospect</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: DOT_COLOR.mlb_surplus }} />
-          <span className="text-[10px] text-surface-500 font-medium">Trade Value</span>
+          <span className="text-[10px] text-gray-500 font-medium">Trade Value</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: DOT_COLOR.free_agent }} />
-          <span className="text-[10px] text-surface-500 font-medium">Free Agent</span>
+          <span className="text-[10px] text-gray-500 font-medium">Free Agent</span>
         </div>
       </div>
     </div>

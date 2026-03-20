@@ -46,8 +46,8 @@ function groupAwards(awards: PlayerInfo['awards']): { name: string; seasons: str
 // ── Info pill ────────────────────────────────────────────────
 const InfoPill: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="flex flex-col">
-    <span className="text-[10px] uppercase tracking-widest text-surface-500">{label}</span>
-    <span className="text-sm text-surface-200 font-medium">{value}</span>
+    <span className="text-[10px] uppercase tracking-widest text-gray-500">{label}</span>
+    <span className="text-sm text-gray-800 font-medium">{value}</span>
   </div>
 );
 
@@ -93,7 +93,7 @@ const PlayerBioSection: React.FC<PlayerBioSectionProps> = ({ info, teamColor }) 
       {/* Awards */}
       {grouped.length > 0 && (
         <div>
-          <h4 className="text-[10px] uppercase tracking-widest text-surface-500 mb-2">Awards</h4>
+          <h4 className="text-[10px] uppercase tracking-widest text-gray-400 mb-2">Awards</h4>
           <div className="flex flex-wrap gap-1.5">
             {grouped.map(({ name, seasons }) => (
               <span

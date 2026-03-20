@@ -7,7 +7,7 @@ const NotFound: React.FC = () => (
     <p className="text-xl text-gray-300 mb-8">Page not found</p>
     <Link
       to="/"
-      className="px-6 py-3 bg-accent-blue text-white rounded-lg hover:bg-blue-600 transition-colors"
+      className="px-6 py-3 bg-accent-blue text-gray-900 rounded-lg hover:bg-blue-600 transition-colors"
     >
       Back to Home
     </Link>

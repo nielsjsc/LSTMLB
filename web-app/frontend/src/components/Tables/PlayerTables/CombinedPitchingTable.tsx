@@ -205,17 +205,17 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
     <div className="overflow-x-auto">
       <table className="min-w-full">
         <thead className="sticky top-0 z-10">
-          <tr className="bg-surface-850 border-b border-white/[0.06]">
+          <tr className="bg-gray-50 border-b border-gray-200">
             {headers.map((header) => (
               <th
                 key={header.key}
                 onClick={() => handleSort(header.key)}
-                className="px-1.5 py-2 text-left text-[10px] font-semibold text-surface-400 uppercase tracking-wide cursor-pointer hover:text-white hover:bg-white/[0.04] select-none transition-colors"
+                className="px-1.5 py-2 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-900 hover:bg-gray-50 select-none transition-colors"
               >
                 <div className="flex items-center gap-0.5">
                   <span>{header.label}</span>
                   {sortKey === header.key && (
-                    <span className="text-brand-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    <span className="text-brand-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                   )}
                 </div>
               </th>
@@ -227,21 +227,21 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
             <tr
               key={i}
               className={`
-                text-[11px] border-b border-white/[0.03] hover:bg-white/[0.04] transition-colors
-                ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}
+                text-[11px] border-b border-gray-100 hover:bg-gray-50 transition-colors
+                ${i % 2 === 0 ? 'bg-transparent' : 'bg-gray-50/50'}
               `}
             >
               {headers.map((header) => (
-                <td key={header.key} className="px-1.5 py-2 whitespace-nowrap text-surface-300 font-mono">
+                <td key={header.key} className="px-1.5 py-2 whitespace-nowrap text-gray-600">
                   {formatCell(header.key, row[header.key])}
                 </td>
               ))}
             </tr>
           ))}
           {showCareerTotals && careerTotals && (
-            <tr className="bg-surface-850 border-t-2 border-white/[0.12] text-[11px] font-bold sticky bottom-0">
+            <tr className="bg-gray-50 border-t-2 border-gray-300 text-[11px] font-bold sticky bottom-0">
               {headers.map((header) => (
-                <td key={header.key} className="px-1.5 py-2 whitespace-nowrap text-white font-mono">
+                <td key={header.key} className="px-1.5 py-2 whitespace-nowrap text-gray-900">
                   {formatCell(header.key, careerTotals[header.key])}
                 </td>
               ))}

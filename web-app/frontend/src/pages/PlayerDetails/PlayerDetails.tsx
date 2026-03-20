@@ -57,7 +57,7 @@ const PlayerHeadshot: React.FC<{ mlbId: number | null; name: string; teamColor: 
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
-          <svg className="w-20 h-20 text-surface-600" fill="currentColor" viewBox="0 0 24 24">
+          <svg className="w-20 h-20 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
           </svg>
         </div>
@@ -79,7 +79,7 @@ const SurplusBar: React.FC<{ value: number; teamColor: string }> = ({ value, tea
   return (
     <div className="w-full">
       <div className="flex justify-between items-baseline mb-1.5">
-        <span className="text-xs text-surface-400 font-medium">Surplus Value</span>
+        <span className="text-xs text-gray-500 font-medium">Surplus Value</span>
         <span
           className="text-lg font-bold"
           style={{ color: isPositive ? teamColor : '#f87171' }}
@@ -87,9 +87,9 @@ const SurplusBar: React.FC<{ value: number; teamColor: string }> = ({ value, tea
           {fmt.dollar(value)}
         </span>
       </div>
-      <div className="relative h-2.5 bg-surface-700/60 rounded-full overflow-hidden">
+      <div className="relative h-2.5 bg-gray-100/60 rounded-full overflow-hidden">
         {/* Center line marker */}
-        <div className="absolute top-0 bottom-0 left-1/2 w-px bg-surface-500/60 z-10" />
+        <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gray-300 z-10" />
         {/* Fill bar */}
         <div
           className="absolute top-0 bottom-0 rounded-full transition-all duration-700 ease-out"
@@ -103,9 +103,9 @@ const SurplusBar: React.FC<{ value: number; teamColor: string }> = ({ value, tea
         />
       </div>
       <div className="flex justify-between mt-1">
-        <span className="text-[10px] text-surface-600">-$200M</span>
-        <span className="text-[10px] text-surface-600">$0</span>
-        <span className="text-[10px] text-surface-600">+$200M</span>
+        <span className="text-[10px] text-gray-500">-$200M</span>
+        <span className="text-[10px] text-gray-500">$0</span>
+        <span className="text-[10px] text-gray-500">+$200M</span>
       </div>
     </div>
   );
@@ -141,8 +141,8 @@ const ContractTimeline: React.FC<{
   return (
     <div className="w-full">
       <div className="flex justify-between items-baseline mb-2">
-        <span className="text-xs text-surface-400 font-medium">Contract Control</span>
-        <span className="text-xs text-surface-500">
+        <span className="text-xs text-gray-500 font-medium">Contract Control</span>
+        <span className="text-xs text-gray-500">
           {yrsCtrl > 0 ? `${yrsCtrl} yr${yrsCtrl > 1 ? 's' : ''} remaining` : 'Free Agent'}
         </span>
       </div>
@@ -170,9 +170,9 @@ const ContractTimeline: React.FC<{
                   <div className="w-1.5 h-1.5 rounded-full bg-white" />
                 )}
               </div>
-              <span className="text-[9px] text-surface-500 tabular-nums">{yr.toString().slice(-2)}</span>
+              <span className="text-[9px] text-gray-400 tabular-nums">{yr.toString().slice(-2)}</span>
               {status && (
-                <span className="text-[8px] text-surface-600 text-center leading-tight px-0.5" style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span className="text-[8px] text-gray-400 text-center leading-tight px-0.5" style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {status}
                 </span>
               )}
@@ -183,23 +183,23 @@ const ContractTimeline: React.FC<{
       <div className="flex flex-wrap gap-3 mt-2">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: teamColor }} />
-          <span className="text-[10px] text-surface-500">Under Control</span>
+          <span className="text-[10px] text-gray-500">Under Control</span>
         </div>
         {faEarliest && faEarliest !== faProbable && isOptionYear && (
           <div className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-sm bg-transparent" style={{ border: '1.5px dashed #f59e0b' }} />
-            <span className="text-[10px] text-surface-500">{optionType}</span>
+            <span className="text-[10px] text-gray-500">{optionType}</span>
           </div>
         )}
         {faProbable && (
           <div className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-sm bg-amber-500/30 border border-amber-500/60" />
-            <span className="text-[10px] text-surface-500">Probable FA</span>
+            <span className="text-[10px] text-gray-500">Probable FA</span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm bg-white/[0.04] border border-white/[0.08]" />
-          <span className="text-[10px] text-surface-500">Free Agent</span>
+          <div className="w-2.5 h-2.5 rounded-sm bg-gray-50 border border-gray-200" />
+          <span className="text-[10px] text-gray-500">Free Agent</span>
         </div>
       </div>
     </div>
@@ -219,23 +219,23 @@ const CollapsibleSection: React.FC<{
 }> = ({ title, teamColor, defaultOpen = false, children }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/40">
+    <section className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
       <button
         onClick={() => setOpen(!open)}
         className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
       >
         <div className="flex items-center gap-3">
           <div className="w-1 h-5 rounded-full" style={{ backgroundColor: teamColor }} />
-          <h2 className="text-lg font-semibold text-white">{title}</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
         </div>
         <svg
-          className={`w-5 h-5 text-surface-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      {open && <div className="border-t border-white/[0.06]">{children}</div>}
+      {open && <div className="border-t border-gray-200">{children}</div>}
     </section>
   );
 };
@@ -249,7 +249,7 @@ const fvColor = (fv: string) => {
   if (n >= 55) return 'text-sky-400';
   if (n >= 50) return 'text-amber-400';
   if (n >= 45) return 'text-orange-400';
-  return 'text-surface-400';
+  return 'text-gray-500';
 };
 
 const fvBg = (fv: string) => {
@@ -259,17 +259,17 @@ const fvBg = (fv: string) => {
   if (n >= 55) return 'bg-sky-500/10 border-sky-500/20';
   if (n >= 50) return 'bg-amber-500/10 border-amber-500/20';
   if (n >= 45) return 'bg-orange-500/10 border-orange-500/20';
-  return 'bg-surface-800 border-white/[0.06]';
+  return 'bg-white border-gray-200';
 };
 
 const gradeColor = (grade: string | null | undefined) => {
-  if (!grade) return 'text-surface-600';
+  if (!grade) return 'text-gray-500';
   const n = parseInt(grade);
-  if (isNaN(n)) return 'text-surface-400';
+  if (isNaN(n)) return 'text-gray-500';
   if (n >= 70) return 'text-emerald-400';
   if (n >= 60) return 'text-blue-400';
   if (n >= 55) return 'text-sky-400';
-  if (n >= 50) return 'text-surface-200';
+  if (n >= 50) return 'text-gray-800';
   if (n >= 45) return 'text-amber-400';
   if (n >= 40) return 'text-orange-400';
   return 'text-red-400';
@@ -280,8 +280,8 @@ const GradeBar: React.FC<{ label: string; grade: string | null | undefined }> = 
   const pct = Math.min(100, Math.max(0, ((value - 20) / 60) * 100));
   return (
     <div className="flex items-center gap-3">
-      <span className="w-20 text-[11px] text-surface-400 text-right">{label}</span>
-      <div className="flex-1 h-2 bg-surface-800 rounded-full overflow-hidden">
+      <span className="w-20 text-[11px] text-gray-500 text-right">{label}</span>
+      <div className="flex-1 h-2 bg-white rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all"
           style={{
@@ -319,36 +319,36 @@ const ProspectProfile: React.FC<{
       {/* FV + ranking badges */}
       <div className="flex items-center gap-4 flex-wrap">
         <div className={`flex flex-col items-center px-4 py-2 rounded-lg border ${fvBg(fv)}`}>
-          <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">FV</span>
+          <span className="text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">FV</span>
           <span className={`text-2xl font-bold ${fvColor(fv)}`}>{fv}</span>
         </div>
         {latest?.top_100 && (
           <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-amber-500/10 border-amber-500/20">
-            <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">Top 100</span>
+            <span className="text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Top 100</span>
             <span className="text-2xl font-bold text-amber-400">#{latest.top_100}</span>
           </div>
         )}
         {peakTop100Value != null && (
           <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-emerald-500/10 border-emerald-500/20">
-            <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">Top 100 Value</span>
+            <span className="text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Top 100 Value</span>
             <span className="text-2xl font-bold text-emerald-400">${(peakTop100Value / 1_000_000).toFixed(1)}M</span>
           </div>
         )}
         {latest?.org_rank && (
-          <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-surface-800 border-white/[0.06]">
-            <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">Org Rank</span>
-            <span className="text-2xl font-bold text-surface-200">#{latest.org_rank}</span>
+          <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-white border-gray-200">
+            <span className="text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Org Rank</span>
+            <span className="text-2xl font-bold text-gray-800">#{latest.org_rank}</span>
           </div>
         )}
-        <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-surface-800 border-white/[0.06]">
-          <span className="text-[10px] uppercase tracking-wider text-surface-500 mb-0.5">Prospect Years</span>
-          <span className="text-lg font-bold text-surface-300">{yearLabel}</span>
+        <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-white border-gray-200">
+          <span className="text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Prospect Years</span>
+          <span className="text-lg font-bold text-gray-600">{yearLabel}</span>
         </div>
       </div>
 
       {/* Tool grades */}
       <div>
-        <h3 className="text-[11px] uppercase tracking-wider text-surface-500 mb-3">
+        <h3 className="text-[11px] uppercase tracking-wider text-gray-400 mb-3">
           {is_pitcher ? 'Pitch Grades' : 'Tool Grades'}
         </h3>
         <div className="space-y-2.5 max-w-md">
@@ -374,31 +374,31 @@ const ProspectProfile: React.FC<{
       {/* Year-by-year ranking history */}
       {history.length > 1 && (
         <div>
-          <h3 className="text-[11px] uppercase tracking-wider text-surface-500 mb-3">Ranking History</h3>
+          <h3 className="text-[11px] uppercase tracking-wider text-gray-400 mb-3">Ranking History</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <th className="px-2 py-2 text-left text-[10px] text-surface-500 uppercase tracking-wider">Year</th>
-                  <th className="px-2 py-2 text-left text-[10px] text-surface-500 uppercase tracking-wider">Org</th>
-                  <th className="px-2 py-2 text-left text-[10px] text-surface-500 uppercase tracking-wider">FV</th>
-                  <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">T100</th>
-                  <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Org#</th>
-                  <th className="px-2 py-2 text-right text-[10px] text-surface-500 uppercase tracking-wider">Value</th>
+                <tr className="border-b border-gray-200">
+                  <th className="px-2 py-2 text-left text-[10px] text-gray-400 uppercase tracking-wider">Year</th>
+                  <th className="px-2 py-2 text-left text-[10px] text-gray-400 uppercase tracking-wider">Org</th>
+                  <th className="px-2 py-2 text-left text-[10px] text-gray-400 uppercase tracking-wider">FV</th>
+                  <th className="px-2 py-2 text-center text-[10px] text-gray-400 uppercase tracking-wider">T100</th>
+                  <th className="px-2 py-2 text-center text-[10px] text-gray-400 uppercase tracking-wider">Org#</th>
+                  <th className="px-2 py-2 text-right text-[10px] text-gray-400 uppercase tracking-wider">Value</th>
                   {is_pitcher ? (
                     <>
-                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">FB</th>
-                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">SL</th>
-                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">CB</th>
-                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">CH</th>
-                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">CMD</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-gray-400 uppercase tracking-wider">FB</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-gray-400 uppercase tracking-wider">SL</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-gray-400 uppercase tracking-wider">CB</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-gray-400 uppercase tracking-wider">CH</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-gray-400 uppercase tracking-wider">CMD</th>
                     </>
                   ) : (
                     <>
-                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Hit</th>
-                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Game</th>
-                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Raw</th>
-                      <th className="px-2 py-2 text-center text-[10px] text-surface-500 uppercase tracking-wider">Spd</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-gray-400 uppercase tracking-wider">Hit</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-gray-400 uppercase tracking-wider">Game</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-gray-400 uppercase tracking-wider">Raw</th>
+                      <th className="px-2 py-2 text-center text-[10px] text-gray-400 uppercase tracking-wider">Spd</th>
                     </>
                   )}
                 </tr>
@@ -407,13 +407,13 @@ const ProspectProfile: React.FC<{
                 {history.map((h: ProspectDetailHistory, i: number) => (
                   <tr
                     key={h.year}
-                    className={`text-[11px] border-b border-white/[0.03] ${i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}`}
+                    className={`text-[11px] border-b border-gray-100 ${i % 2 === 0 ? 'bg-transparent' : 'bg-gray-50/50'}`}
                   >
-                    <td className="px-2 py-1.5 text-surface-200 font-medium">{h.year}</td>
-                    <td className="px-2 py-1.5 text-surface-400">{h.org}</td>
+                    <td className="px-2 py-1.5 text-gray-800 font-medium">{h.year}</td>
+                    <td className="px-2 py-1.5 text-gray-500">{h.org}</td>
                     <td className={`px-2 py-1.5 font-semibold ${fvColor(h.fv)}`}>{h.fv}</td>
                     <td className="px-2 py-1.5 text-center font-mono text-amber-400">{h.top_100 ? '#' + h.top_100 : '-'}</td>
-                    <td className="px-2 py-1.5 text-center font-mono text-surface-400">{h.org_rank ? '#' + h.org_rank : '-'}</td>
+                    <td className="px-2 py-1.5 text-center font-mono text-gray-500">{h.org_rank ? '#' + h.org_rank : '-'}</td>
                     <td className="px-2 py-1.5 text-right font-mono text-emerald-400">{h.value != null ? `$${(h.value / 1_000_000).toFixed(1)}M` : '-'}</td>
                     {is_pitcher ? (
                       <>
@@ -587,7 +587,7 @@ const PlayerDetails: React.FC = () => {
   const projWar = isHistorical ? (histMeta?.career_war ?? 0) : (v?.contract_war ?? 0);
 
   return (
-    <div className="min-h-screen bg-surface-900">
+    <div className="min-h-screen bg-\[#F7F7F5\]">
 
       {/* ════════════════════════════════════════════════════
        *  HERO — Big cinematic header with headshot + WAR ring
@@ -596,7 +596,7 @@ const PlayerDetails: React.FC = () => {
         {/* Layered team-color background */}
         <div className="absolute inset-0" style={{ background: colors.gradient, opacity: 0.18 }} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(255,255,255,0.06),transparent)]" />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-surface-900/50 to-surface-900" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-50/80 to-\[#F7F7F5\]" />
 
         <div className="relative max-w-6xl mx-auto px-4 pt-10 pb-6 md:pt-14 md:pb-8">
           {/* Top: team name breadcrumb */}
@@ -617,7 +617,7 @@ const PlayerDetails: React.FC = () => {
 
             {/* Center: Identity + badges */}
             <div className="flex-1 min-w-0 pt-1">
-              <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-3">
+              <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight mb-3">
                 {player.name}
               </h1>
 
@@ -633,27 +633,27 @@ const PlayerDetails: React.FC = () => {
                   {player.position}
                 </span>
                 {isHistorical && histMeta && (
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-300 border border-white/[0.08]">
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200">
                     {histMeta.first_year}&ndash;{histMeta.last_year}
                   </span>
                 )}
                 {isHistorical && histMeta?.death_year && (
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-400 border border-white/[0.08]">
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-500 border border-gray-200">
                     {histMeta.birth_year}&ndash;{histMeta.death_year}
                   </span>
                 )}
                 {!isHistorical && cur?.age && (
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-300 border border-white/[0.08]">
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200">
                     Age {cur.age}
                   </span>
                 )}
                 {!isHistorical && !cur?.age && player.prospectData?.age && (
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-300 border border-white/[0.08]">
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200">
                     Age {Math.floor(player.prospectData.age)}
                   </span>
                 )}
                 {!isHistorical && cur?.status && (
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/[0.06] text-surface-300 border border-white/[0.08]">
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200">
                     {cur.status}
                   </span>
                 )}
@@ -676,34 +676,34 @@ const PlayerDetails: React.FC = () => {
               {isHistorical && histMeta && (
                 <div className="flex gap-6 mt-2">
                   <div>
-                    <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Career WAR</span>
+                    <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Career WAR</span>
                     <span className="text-3xl font-bold" style={{ color: colors.accent }}>{histMeta.career_war.toFixed(1)}</span>
                   </div>
                   {histMeta.career_bat_war > 0 && (
                     <div>
-                      <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Batting WAR</span>
-                      <span className="text-xl font-bold text-white">{histMeta.career_bat_war.toFixed(1)}</span>
+                      <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Batting WAR</span>
+                      <span className="text-xl font-bold text-gray-900">{histMeta.career_bat_war.toFixed(1)}</span>
                     </div>
                   )}
                   {histMeta.career_pit_war > 0 && (
                     <div>
-                      <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Pitching WAR</span>
-                      <span className="text-xl font-bold text-white">{histMeta.career_pit_war.toFixed(1)}</span>
+                      <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Pitching WAR</span>
+                      <span className="text-xl font-bold text-gray-900">{histMeta.career_pit_war.toFixed(1)}</span>
                     </div>
                   )}
                   {histMeta.career_salary != null && (
                     <div>
-                      <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Career Earnings</span>
+                      <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Career Earnings</span>
                       <span className="text-xl font-bold text-red-400">{fmt.dollar(histMeta.career_salary)}</span>
                     </div>
                   )}
                   {histMeta.career_surplus != null && (
                     <div>
-                      <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Career Surplus</span>
+                      <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Career Surplus</span>
                       <span className={`text-xl font-bold ${histMeta.career_surplus >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {fmt.dollar(histMeta.career_surplus)}
                       </span>
-                      <span className="text-[9px] text-surface-600 block">inflation-adjusted</span>
+                      <span className="text-[9px] text-gray-400 block">inflation-adjusted</span>
                     </div>
                   )}
                 </div>
@@ -718,7 +718,7 @@ const PlayerDetails: React.FC = () => {
        *  ════════════════════════════════════════════════════ */}
       {playerInfo && (
         <div className="max-w-6xl mx-auto px-4 mb-8">
-          <div className="rounded-xl border border-white/[0.06] bg-surface-800/40 p-6">
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-6">
             <PlayerBioSection info={playerInfo} teamColor={colors.accent} />
           </div>
         </div>
@@ -731,7 +731,7 @@ const PlayerDetails: React.FC = () => {
       <div className="max-w-6xl mx-auto px-4 mb-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Left: Contract timeline + financial summary */}
-          <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/40 space-y-6">
+          <div className="rounded-xl p-6 border border-gray-200 bg-gray-50 space-y-6">
             <ContractTimeline
               currentYear={CURRENT_YEAR}
               faEarliest={faEarliest}
@@ -744,43 +744,43 @@ const PlayerDetails: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
-                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Total Contract</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Total Contract</span>
                 <span className="text-xl font-bold text-red-400">{fmt.dollar(v?.total_contract)}</span>
               </div>
               <div>
-                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Avg $/Year</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Avg $/Year</span>
                 <span className="text-xl font-bold text-red-400">{fmt.dollar(v?.avg_contract)}</span>
               </div>
             </div>
           </div>
 
           {/* Right: Production + Career summary */}
-          <div className="rounded-xl p-6 border border-white/[0.06] bg-surface-800/40">
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-surface-400 mb-5">
+          <div className="rounded-xl p-6 border border-gray-200 bg-gray-50">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-5">
               Production Overview
             </h3>
             <div className="grid grid-cols-2 gap-x-8 gap-y-5">
               <div>
-                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Projected WAR</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Projected WAR</span>
                 <span className="text-2xl font-bold" style={{ color: colors.accent }}>{fmt.war(projWar)}</span>
-                <span className="text-[10px] text-surface-500 block mt-0.5">
+                <span className="text-[10px] text-gray-400 block mt-0.5">
                   over {v?.years_control ?? '?'} yr · {fmt.war(v?.avg_war)} WAR/yr
                 </span>
               </div>
               <div>
-                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Projected Value</span>
-                <span className="text-2xl font-bold text-white">{fmt.dollar(v?.contract_base_value)}</span>
-                <span className="text-[10px] text-surface-500 block mt-0.5">on-field production value</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Projected Value</span>
+                <span className="text-2xl font-bold text-gray-900">{fmt.dollar(v?.contract_base_value)}</span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">on-field production value</span>
               </div>
               <div>
-                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Historical WAR</span>
-                <span className="text-2xl font-bold text-white">{fmt.war(v?.historical_war)}</span>
-                <span className="text-[10px] text-surface-500 block mt-0.5">career to date</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Historical WAR</span>
+                <span className="text-2xl font-bold text-gray-900">{fmt.war(v?.historical_war)}</span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">career to date</span>
               </div>
               <div>
-                <span className="text-[10px] uppercase tracking-widest text-surface-500 block mb-0.5">Total WAR</span>
-                <span className="text-2xl font-bold text-white">{fmt.war(v?.total_war)}</span>
-                <span className="text-[10px] text-surface-500 block mt-0.5">hist + projected</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Total WAR</span>
+                <span className="text-2xl font-bold text-gray-900">{fmt.war(v?.total_war)}</span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">hist + projected</span>
               </div>
             </div>
           </div>
@@ -793,10 +793,10 @@ const PlayerDetails: React.FC = () => {
        *  ════════════════════════════════════════════════════ */}
       {tradeHistory.length > 0 && (
         <div className="max-w-6xl mx-auto px-4 mb-8">
-          <div className="rounded-xl border border-white/[0.06] bg-surface-800/40 p-6 relative">
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 relative">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-1 h-5 rounded-full" style={{ backgroundColor: colors.primary }} />
-              <h2 className="text-lg font-semibold text-white">Trade Value History</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Trade Value History</h2>
             </div>
             <TradeValueChart
               data={tradeHistory}

@@ -28,25 +28,25 @@ const TradeValues = () => {
   };
 
   return (
-    <div className="min-h-screen bg-surface-900">
+    <div className="min-h-screen bg-\[#F7F7F5\]">
       <div className="max-w-7xl mx-auto py-6 px-4">
-        <h1 className="text-2xl font-bold mb-5 text-white tracking-tight font-display">Trade Value Rankings</h1>
+        <h1 className="text-2xl font-bold mb-5 text-gray-900 tracking-tight font-display">Trade Value Rankings</h1>
         
-        <div className="border-b border-white/[0.06] pb-4 mb-6">
+        <div className="border-b border-gray-200 pb-4 mb-6">
           <div className="flex flex-wrap gap-4">
             <select
               value={team || ''}
               onChange={(e) => setTeam(e.target.value || undefined)}
-              className="bg-surface-700/50 border border-white/[0.08] rounded px-3 py-2 text-surface-300 focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40"
+              className="bg-white border border-gray-200 rounded px-3 py-2 text-gray-600 focus:ring-2 focus:ring-brand-500/25 focus:border-brand-300"
             >
-              <option value="" className="bg-surface-800">All Teams</option>
+              <option value="" className="bg-white">All Teams</option>
               {teams.map(t => (
-                <option key={t} value={t} className="bg-surface-800">{t}</option>
+                <option key={t} value={t} className="bg-white">{t}</option>
               ))}
             </select>
 
             {loading && (
-              <div className="text-brand-400 flex items-center">
+              <div className="text-brand-500 flex items-center">
                 <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -65,10 +65,10 @@ const TradeValues = () => {
 
         {data && (
           <div>
-            <div className="text-sm text-surface-400 mb-3">
+            <div className="text-sm text-gray-500 mb-3">
               Found {data.total_count} players
             </div>
-            <div className="border-t border-white/[0.06]">
+            <div className="border-t border-gray-200">
               <TradeValuesTable 
                 data={data}
                 currentPage={page}

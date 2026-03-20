@@ -14,7 +14,7 @@ const TYPE_CONFIG: Record<string, { label: string; bg: string; text: string }> =
   WV:  { label: 'Waiver',         bg: 'bg-orange-500/15',  text: 'text-orange-400'   },
   SC:  { label: 'Status Change',  bg: 'bg-slate-500/15',   text: 'text-slate-400'    },
   SE:  { label: 'Selected',       bg: 'bg-cyan-500/15',    text: 'text-cyan-400'     },
-  RET: { label: 'Retired',        bg: 'bg-gray-500/15',    text: 'text-gray-400'     },
+  RET: { label: 'Retired',        bg: 'bg-gray-500/15',    text: 'text-gray-500'     },
   REL: { label: 'Released',       bg: 'bg-red-500/15',     text: 'text-red-400'      },
 };
 
@@ -141,8 +141,8 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions })
         <div key={group.year}>
           {/* Year divider */}
           <div className="flex items-center gap-3 py-3 px-2">
-            <span className="text-xs font-bold text-surface-500 tracking-wider">{group.year}</span>
-            <div className="flex-1 h-px bg-white/[0.04]" />
+            <span className="text-xs font-bold text-gray-400 tracking-wider">{group.year}</span>
+            <div className="flex-1 h-px bg-gray-50" />
           </div>
 
           {/* Transaction cards */}
@@ -158,7 +158,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions })
                     relative rounded-lg border transition-colors
                     ${isTrade
                       ? 'border-amber-500/20 bg-amber-500/[0.03] hover:bg-amber-500/[0.06]'
-                      : 'border-white/[0.04] bg-white/[0.015] hover:bg-white/[0.03]'}
+                      : 'border-gray-100 bg-gray-50/50 hover:bg-white/[0.03]'}
                   `}
                 >
                   <div className="px-4 py-3">
@@ -170,11 +170,11 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions })
                       </span>
 
                       {/* Date */}
-                      <span className="text-xs text-surface-500">{formatDate(txn.date)}</span>
+                      <span className="text-xs text-gray-500">{formatDate(txn.date)}</span>
 
                       {/* Team flow arrow (for trades / moves) */}
                       {(txn.fromTeam || txn.toTeam) && (
-                        <span className="inline-flex items-center gap-1.5 ml-auto text-xs text-surface-400">
+                        <span className="inline-flex items-center gap-1.5 ml-auto text-xs text-gray-500">
                           {txn.fromTeam && (
                             <span className="inline-flex items-center gap-1">
                               <TeamDot team={txn.fromTeam} />
@@ -182,7 +182,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions })
                             </span>
                           )}
                           {txn.fromTeam && txn.toTeam && (
-                            <svg className="w-3.5 h-3.5 text-surface-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                             </svg>
                           )}
@@ -197,7 +197,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions })
                     </div>
 
                     {/* Description */}
-                    <p className="text-sm text-surface-300 leading-relaxed">
+                    <p className="text-sm text-gray-600 leading-relaxed">
                       <DescriptionWithLinks
                         description={txn.description}
                         linkedPlayers={txn.linkedPlayers}

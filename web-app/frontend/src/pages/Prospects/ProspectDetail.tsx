@@ -49,8 +49,8 @@ export default function ProspectDetailPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-12 text-center">
-      <h2 className="text-lg font-bold text-surface-200 mb-2">Prospect</h2>
-      <p className="text-surface-500 text-sm mb-4">{error}</p>
+      <h2 className="text-lg font-bold text-gray-800 mb-2">Prospect</h2>
+      <p className="text-gray-400 text-sm mb-4">{error}</p>
       <Link to="/prospects" className="text-blue-400 hover:text-blue-300 text-sm">
         Back to Prospects
       </Link>

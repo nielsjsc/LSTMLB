@@ -46,7 +46,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
   const projectedYears = player.projected_yearly_war || [];
 
   return (
-    <div className="py-3 border-b border-white/[0.04] last:border-b-0">
+    <div className="py-3 border-b border-gray-100 last:border-b-0">
       {/* Name row */}
       <div className="flex items-center gap-2 mb-1.5 min-w-0">
         {linkTo ? (
@@ -57,7 +57,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
             {player.name}
           </Link>
         ) : (
-          <span className="text-[13px] font-medium text-surface-200 truncate">
+          <span className="text-[13px] font-medium text-gray-800 truncate">
             {player.name}
           </span>
         )}
@@ -72,7 +72,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
           </span>
         )}
         {player.prospect_level && isPureProspect && (
-          <span className="text-[10px] px-1 py-px rounded bg-surface-700 text-surface-400 flex-shrink-0">
+          <span className="text-[10px] px-1 py-px rounded bg-gray-100 text-gray-500 flex-shrink-0">
             {player.prospect_level}
           </span>
         )}
@@ -82,7 +82,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
           </span>
         )}
         {noData && (
-          <span className="text-[10px] px-1.5 py-px rounded bg-surface-700/50 text-surface-500 italic flex-shrink-0">
+          <span className="text-[10px] px-1.5 py-px rounded bg-white text-gray-400 italic flex-shrink-0">
             No Data
           </span>
         )}
@@ -90,35 +90,35 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
 
       {/* Content */}
       {noData ? (
-        <div className="text-[11px] text-surface-600 italic">
+        <div className="text-[11px] text-gray-400 italic">
           No projections, historical stats, or prospect data in our system.
         </div>
       ) : isPureProspect ? (
-        <div className="flex items-center gap-4 text-[11px] text-surface-400">
+        <div className="flex items-center gap-4 text-[11px] text-gray-500">
           {player.prospect_rank && (
             <span>
-              <span className="text-surface-500">Org Rank</span>{' '}
-              <span className="text-surface-200 font-medium">#{player.prospect_rank}</span>
+              <span className="text-gray-500">Org Rank</span>{' '}
+              <span className="text-gray-800 font-medium">#{player.prospect_rank}</span>
             </span>
           )}
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-4 text-[11px] text-surface-400">
+          <div className="flex items-center gap-4 text-[11px] text-gray-500">
             <span>
-              <span className="text-surface-500">WAR</span>{' '}
-              <span className="text-surface-200 font-medium">{player.war_with_team}</span>
+              <span className="text-gray-500">WAR</span>{' '}
+              <span className="text-gray-800 font-medium">{player.war_with_team}</span>
             </span>
             <span>
-              <span className="text-surface-500">Seasons</span>{' '}
-              <span className="text-surface-200 font-medium">{player.seasons_with_team}</span>
+              <span className="text-gray-500">Seasons</span>{' '}
+              <span className="text-gray-800 font-medium">{player.seasons_with_team}</span>
             </span>
           </div>
 
           {/* Salary owed at time of trade */}
           {player.contract_remaining != null && player.contract_remaining > 0 && (
             <div className="flex items-center gap-1.5 mt-1 text-[11px]">
-              <span className="text-surface-500">Salary Owed</span>
+              <span className="text-gray-500">Salary Owed</span>
               <span className="text-red-400/80 font-medium">{fmtSalary(player.contract_remaining)}</span>
             </div>
           )}
@@ -130,7 +130,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
               {actualYears.map((yw) => (
                 <span
                   key={yw.year}
-                  className="text-[10px] px-1.5 py-0.5 rounded font-mono tabular-nums bg-surface-700/60 text-surface-300"
+                  className="text-[10px] px-1.5 py-0.5 rounded font-mono tabular-nums bg-gray-100/60 text-gray-600"
                 >
                   {yw.year}: {yw.war > 0 ? '+' : ''}{yw.war}
                 </span>
@@ -138,12 +138,12 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
 
               {/* Projected future years (visually distinct) */}
               {projectedYears.length > 0 && actualYears.length > 0 && (
-                <span className="text-[9px] text-surface-600 mx-0.5">|</span>
+                <span className="text-[9px] text-gray-400 mx-0.5">|</span>
               )}
               {projectedYears.map((yw) => (
                 <span
                   key={`proj-${yw.year}`}
-                  className="text-[10px] px-1.5 py-0.5 rounded font-mono tabular-nums border border-dashed border-surface-600/50 text-surface-500 bg-surface-800/30"
+                  className="text-[10px] px-1.5 py-0.5 rounded font-mono tabular-nums border border-dashed border-gray-300/50 text-gray-400 bg-gray-50"
                   title="Projected"
                 >
                   {yw.year}: {yw.war > 0 ? '+' : ''}{yw.war}
@@ -154,7 +154,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
 
           {/* Departure info */}
           {!player.still_on_team && player.departure_year && (
-            <div className="mt-1 text-[10px] text-surface-600">
+            <div className="mt-1 text-[10px] text-gray-500">
               Left after {player.departure_year - 1}
             </div>
           )}
@@ -179,7 +179,7 @@ function SidePanel({
     <div className="flex-1 min-w-0">
       {/* Team header */}
       <div className="flex items-center gap-2 mb-3">
-        <h3 className="text-base font-bold text-surface-100 truncate">
+        <h3 className="text-base font-bold text-gray-900 truncate">
           {side.team_name}
         </h3>
       </div>
@@ -187,14 +187,14 @@ function SidePanel({
       {/* Aggregate: Total WAR */}
       <div className="flex items-center gap-5 mb-3 text-[11px]">
         <div>
-          <span className="text-surface-500">Total WAR</span>
-          <div className="text-lg font-bold text-surface-100 leading-tight">{side.total_war}</div>
+          <span className="text-gray-500">Total WAR</span>
+          <div className="text-lg font-bold text-gray-900 leading-tight">{side.total_war}</div>
         </div>
       </div>
 
       {/* Player list */}
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-surface-500 mb-1">
+        <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
           Received {side.players_received.length} player{side.players_received.length !== 1 ? 's' : ''}
           {receivedCash ? ' + cash' : ''}
         </div>
@@ -212,7 +212,7 @@ function SidePanel({
             <PlayerCard key={p.mlb_id} player={p} />
           ))}
         {receivedCash && (
-          <div className="py-2.5 border-b border-white/[0.04] last:border-b-0 flex items-center gap-2">
+          <div className="py-2.5 border-b border-gray-100 last:border-b-0 flex items-center gap-2">
             <span className="text-[13px] text-amber-400/80 font-medium">Cash considerations</span>
             <span className="text-[10px] px-1 py-px rounded bg-amber-500/10 text-amber-400/70">$</span>
           </div>
@@ -250,8 +250,8 @@ export default function TradeDetail() {
   if (error || !trade) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 text-center">
-        <h2 className="text-lg font-bold text-surface-200 mb-2">Trade Not Found</h2>
-        <p className="text-surface-500 text-sm mb-4">{error || 'This trade could not be loaded.'}</p>
+        <h2 className="text-lg font-bold text-gray-800 mb-2">Trade Not Found</h2>
+        <p className="text-gray-400 text-sm mb-4">{error || 'This trade could not be loaded.'}</p>
         <Link to="/trades" className="text-blue-400 hover:text-blue-300 text-sm">
           Back to Trade History
         </Link>
@@ -276,7 +276,7 @@ export default function TradeDetail() {
       {/* Back link */}
       <Link
         to="/trades"
-        className="inline-flex items-center gap-1 text-[12px] text-surface-500 hover:text-surface-300 mb-6 transition-colors"
+        className="inline-flex items-center gap-1 text-[12px] text-gray-400 hover:text-gray-600 mb-6 transition-colors"
       >
         <span>←</span> Trade History
       </Link>
@@ -284,31 +284,31 @@ export default function TradeDetail() {
       {/* Trade header */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-[13px] text-surface-400">{fmtDate(trade.date)}</span>
+          <span className="text-[13px] text-gray-500">{fmtDate(trade.date)}</span>
           {trade.has_ptbnl && (
-            <span className="text-[9px] px-1 py-px rounded bg-surface-700 text-surface-400">PTBNL</span>
+            <span className="text-[9px] px-1 py-px rounded bg-gray-100 text-gray-500">PTBNL</span>
           )}
           {trade.n_teams > 2 && (
             <span className="text-[9px] px-1 py-px rounded bg-purple-500/10 text-purple-400">{trade.n_teams}-Team</span>
           )}
         </div>
 
-        <p className="text-[13px] text-surface-300 leading-relaxed mb-6 max-w-3xl">
+        <p className="text-[13px] text-gray-600 leading-relaxed mb-6 max-w-3xl">
           {trade.description}
         </p>
 
         {/* Winner strip */}
         <div
-          className="flex items-center justify-between rounded-xl px-5 py-4 bg-surface-800/40 border border-white/[0.06]"
+          className="flex items-center justify-between rounded-xl px-5 py-4 bg-gray-50 border border-gray-200"
         >
           <div>
-            <div className="text-[10px] text-surface-500 uppercase tracking-wider">
+            <div className="text-[10px] text-gray-400 uppercase tracking-wider">
               {trade.evaluation_confidence === 'early' ? 'Early Leader' : trade.evaluation_confidence === 'maturing' ? 'Leading' : 'Winner'}
             </div>
-            <div className="text-base font-bold text-surface-100">{trade.winner_name}</div>
+            <div className="text-base font-bold text-gray-900">{trade.winner_name}</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] text-surface-500 uppercase tracking-wider">WAR Advantage</div>
+            <div className="text-[10px] text-gray-400 uppercase tracking-wider">WAR Advantage</div>
             <div className="text-base font-bold text-emerald-400 tabular-nums">
               +{(
                 (sortedSides[0]?.total_war ?? 0) - (sortedSides[1]?.total_war ?? 0)
@@ -316,8 +316,8 @@ export default function TradeDetail() {
             </div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] text-surface-500 uppercase tracking-wider">Total WAR</div>
-            <div className="text-base font-bold text-surface-100 tabular-nums">{trade.total_trade_war}</div>
+            <div className="text-[10px] text-gray-400 uppercase tracking-wider">Total WAR</div>
+            <div className="text-base font-bold text-gray-900 tabular-nums">{trade.total_trade_war}</div>
           </div>
         </div>
       </div>
@@ -327,7 +327,7 @@ export default function TradeDetail() {
         {sortedSides.map((side, idx) => (
           <div key={side.team} className="contents">
             {idx > 0 && (
-              <div className="w-px bg-white/[0.06]" />
+              <div className="w-px bg-gray-50" />
             )}
             <SidePanel
               side={side}

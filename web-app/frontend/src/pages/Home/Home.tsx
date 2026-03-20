@@ -1,92 +1,174 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { FaGithub, FaChartLine, FaExchangeAlt, FaStar, FaInfoCircle } from 'react-icons/fa'
+import { FaGithub } from 'react-icons/fa'
+import { getTradeValueRankings, getPastTrades, type TradeValueRankings, type PastTradeSummary } from '../../services/api'
+
+const fmtDollar = (v: number) => {
+  if (Math.abs(v) >= 1e9) return `$${(v / 1e9).toFixed(1)}B`
+  if (Math.abs(v) >= 1e6) return `$${(v / 1e6).toFixed(0)}M`
+  if (Math.abs(v) >= 1e3) return `$${(v / 1e3).toFixed(0)}K`
+  return `$${v.toFixed(0)}`
+}
+
+const fmtWar = (w: number) => w >= 0 ? `+${w.toFixed(1)}` : w.toFixed(1)
+
+const fmtDate = (d: string) => {
+  const date = new Date(d + 'T00:00:00')
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
 
 const Home = () => {
+  const [topPlayers, setTopPlayers] = useState<TradeValueRankings[]>([])
+  const [recentTrades, setRecentTrades] = useState<PastTradeSummary[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchData = async () => {
+      try {
+        const [tvRes, tradeRes] = await Promise.all([
+          getTradeValueRankings({ pageSize: 10, sortBy: 'trade_value', sortDirection: 'desc' }),
+          getPastTrades({ page_size: 5, sort_by: 'date', sort_dir: 'desc' }),
+        ])
+        if (!cancelled) {
+          setTopPlayers(tvRes.players)
+          setRecentTrades(tradeRes.trades)
+        }
+      } catch {
+        // Non-critical — page degrades gracefully to empty tables
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchData()
+    return () => { cancelled = true }
+  }, [])
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface-900 via-surface-800 to-surface-900">
-      <div className="max-w-7xl mx-auto px-4 py-16">
-        {/* Hero Section */}
-        <div className="text-center mb-20">
-          <h1 className="font-display text-6xl font-extrabold mb-6 bg-clip-text text-transparent bg-gradient-brand py-4 px-2 inline-block tracking-tight">
+    <div className="min-h-screen bg-[#F7F7F5]">
+      <div className="max-w-6xl mx-auto px-4 py-10">
+        {/* Hero */}
+        <div className="text-center mb-10">
+          <h1 className="font-display text-5xl font-extrabold mb-2 bg-clip-text text-transparent bg-gradient-brand tracking-tight">
             LONGBALL
           </h1>
-          <p className="text-2xl text-surface-300 font-light max-w-3xl mx-auto mb-8">
-            Open Source Baseball Analytics Platform
-          </p>
-          <a 
-            href="https://github.com/nielsjsc/LSTMLB" 
-            target="_blank" 
+          <p className="text-lg text-gray-500 mb-4">Open Source Baseball Analytics</p>
+          <a
+            href="https://github.com/nielsjsc/LSTMLB"
+            target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-6 py-2 rounded-md bg-white/10 hover:bg-white/20 transition-all text-white text-sm"
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-gray-900 hover:bg-gray-800 transition-colors text-white text-sm"
           >
-            <FaGithub className="h-5 w-5" />
-            <span>View on GitHub</span>
+            <FaGithub className="h-4 w-4" />
+            <span>GitHub</span>
           </a>
         </div>
 
-        {/* Main Navigation Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-          <Link 
-            to="/projections" 
-            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-600/10 border border-blue-500/20 hover:border-blue-400/30 transition-all p-8 hover:shadow-glow"
-          >
-            <FaChartLine className="h-8 w-8 text-accent-blue mb-4" />
-            <h2 className="text-2xl font-bold text-white mb-3">Player Projections</h2>
-            <p className="text-surface-400 mb-8">
-              Long-term career trajectory predictions using advanced ML models
-            </p>
-            <span className="text-accent-blue group-hover:text-blue-300 transition-colors flex items-center gap-2">
-              View Projections →
-            </span>
-          </Link>
+        {/* Data Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Top Trade Values — wider column */}
+          <div className="lg:col-span-3 bg-white rounded-lg border border-gray-200 shadow-card overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <h2 className="text-sm font-bold text-gray-900 font-display uppercase tracking-wide">Top Trade Values</h2>
+              <Link to="/tradevalues" className="text-xs text-accent-blue hover:underline font-medium">View All &rarr;</Link>
+            </div>
+            {loading ? (
+              <div className="px-4 py-8 text-center text-gray-400 text-sm">Loading...</div>
+            ) : topPlayers.length === 0 ? (
+              <div className="px-4 py-8 text-center text-gray-400 text-sm">No data available</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                    <th className="text-left pl-4 pr-2 py-2 font-medium">#</th>
+                    <th className="text-left px-2 py-2 font-medium">Player</th>
+                    <th className="text-left px-2 py-2 font-medium hidden sm:table-cell">Pos</th>
+                    <th className="text-right px-2 py-2 font-medium">Value</th>
+                    <th className="text-right px-2 py-2 font-medium hidden md:table-cell">WAR</th>
+                    <th className="text-right pl-2 pr-4 py-2 font-medium hidden md:table-cell">Ctrl</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topPlayers.map((p, i) => (
+                    <tr key={p.real_id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 1 ? 'bg-[#F9F9F7]' : ''}`}>
+                      <td className="pl-4 pr-2 py-2 text-gray-400 font-medium">{i + 1}</td>
+                      <td className="px-2 py-2">
+                        <Link to={`/players/${p.mlb_id || p.real_id}`} className="text-accent-blue hover:underline font-medium">
+                          {p.name}
+                        </Link>
+                        <span className="text-gray-400 text-xs ml-1.5">{p.team}</span>
+                      </td>
+                      <td className="px-2 py-2 text-gray-500 hidden sm:table-cell">{p.position}</td>
+                      <td className="px-2 py-2 text-right font-semibold text-gray-900">{fmtDollar(p.trade_value)}</td>
+                      <td className="px-2 py-2 text-right text-gray-600 hidden md:table-cell">{p.contract_war.toFixed(1)}</td>
+                      <td className="pl-2 pr-4 py-2 text-right text-gray-500 hidden md:table-cell">{p.years_control}y</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
 
-          <Link 
-            to="/tradesimulator" 
-            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500/10 to-brand-600/10 border border-brand-500/20 hover:border-brand-400/30 transition-all p-8 hover:shadow-glow"
-          >
-            <FaExchangeAlt className="h-8 w-8 text-brand-400 mb-4" />
-            <h2 className="text-2xl font-bold text-white mb-3">Trade Simulator</h2>
-            <p className="text-surface-400 mb-8">
-              Evaluate trades using projection-based surplus values
-            </p>
-            <span className="text-brand-400 group-hover:text-brand-300 transition-colors flex items-center gap-2">
-              Try Simulator →
-            </span>
-          </Link>
-
-          <Link 
-            to="/prospects" 
-            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-600/10 border border-purple-500/20 hover:border-purple-400/30 transition-all p-8 hover:shadow-glow"
-          >
-            <FaStar className="h-8 w-8 text-accent-indigo mb-4" />
-            <h2 className="text-2xl font-bold text-white mb-3">Prospect Rankings</h2>
-            <p className="text-surface-400 mb-8">
-              Consensus rankings and FV-based valuations
-            </p>
-            <span className="text-accent-indigo group-hover:text-purple-300 transition-colors flex items-center gap-2">
-              View Prospects →
-            </span>
-          </Link>
+          {/* Quick Links sidebar */}
+          <div className="lg:col-span-2 flex flex-col gap-6">
+            {/* Navigation cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <Link to="/projections" className="bg-white rounded-lg border border-gray-200 shadow-card p-4 hover:shadow-card-hover hover:border-gray-300 transition-all group">
+                <div className="text-sm font-bold text-gray-900 font-display mb-1">Projections</div>
+                <div className="text-xs text-gray-500">ML-powered career forecasts</div>
+              </Link>
+              <Link to="/tradesimulator" className="bg-white rounded-lg border border-gray-200 shadow-card p-4 hover:shadow-card-hover hover:border-gray-300 transition-all group">
+                <div className="text-sm font-bold text-gray-900 font-display mb-1">Trade Sim</div>
+                <div className="text-xs text-gray-500">Evaluate trade scenarios</div>
+              </Link>
+              <Link to="/prospects" className="bg-white rounded-lg border border-gray-200 shadow-card p-4 hover:shadow-card-hover hover:border-gray-300 transition-all group">
+                <div className="text-sm font-bold text-gray-900 font-display mb-1">Prospects</div>
+                <div className="text-xs text-gray-500">Rankings &amp; valuations</div>
+              </Link>
+              <Link to="/about" className="bg-white rounded-lg border border-gray-200 shadow-card p-4 hover:shadow-card-hover hover:border-gray-300 transition-all group">
+                <div className="text-sm font-bold text-gray-900 font-display mb-1">About</div>
+                <div className="text-xs text-gray-500">Methodology &amp; models</div>
+              </Link>
+            </div>
+          </div>
         </div>
 
-        {/* About Section */}
-        <div className="flex justify-center">
-          <Link 
-            to="/about"
-            className="group flex items-center gap-3 px-8 py-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/[0.06] hover:border-white/[0.12]"
-          >
-            <FaInfoCircle className="h-5 w-5 text-gray-400" />
-            <span className="text-gray-300">Learn about our methodology</span>
-            <svg 
-              className="w-5 h-5 text-gray-400 transform group-hover:translate-x-1 transition-transform" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
-          </Link>
+        {/* Recent Trades */}
+        <div className="mt-6 bg-white rounded-lg border border-gray-200 shadow-card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <h2 className="text-sm font-bold text-gray-900 font-display uppercase tracking-wide">Recent Trades</h2>
+            <Link to="/trades" className="text-xs text-accent-blue hover:underline font-medium">View All &rarr;</Link>
+          </div>
+          {loading ? (
+            <div className="px-4 py-8 text-center text-gray-400 text-sm">Loading...</div>
+          ) : recentTrades.length === 0 ? (
+            <div className="px-4 py-8 text-center text-gray-400 text-sm">No trades available</div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {recentTrades.map((t) => (
+                <Link
+                  key={t.trade_id}
+                  to={`/trades/${t.trade_id}`}
+                  className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="text-xs text-gray-400 w-20 shrink-0">{fmtDate(t.date)}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-gray-900 truncate">{t.description}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {t.n_players} players &middot; {fmtWar(t.total_trade_war)} combined WAR
+                    </div>
+                  </div>
+                  {t.winner && (
+                    <div className="text-xs shrink-0">
+                      <span className="text-emerald-600 font-medium">{t.winner}</span>
+                      <span className="text-gray-300 mx-1">/</span>
+                      <span className="text-red-500">{t.loser}</span>
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

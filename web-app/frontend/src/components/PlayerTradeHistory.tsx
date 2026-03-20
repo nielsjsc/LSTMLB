@@ -53,12 +53,12 @@ function PlayerTradeCard({
   return (
     <Link
       to={`/trades/${trade.trade_id}`}
-      className="block rounded-lg border border-white/[0.06] bg-surface-900/40 hover:bg-surface-800/60 transition-colors p-4"
+      className="block rounded-lg border border-gray-200 bg-\[#F7F7F5\]/40 hover:bg-white transition-colors p-4"
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-surface-400">{fmtDate(trade.date)}</span>
+          <span className="text-xs text-gray-500">{fmtDate(trade.date)}</span>
           {isProjected && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/15">
               Projected
@@ -82,7 +82,7 @@ function PlayerTradeCard({
               {isWinner ? 'W' : 'L'}
             </span>
           )}
-          <span className="text-xs text-surface-500">
+          <span className="text-xs text-gray-500">
             {fmtMoney(displaySurplusDiff)} diff
           </span>
         </div>
@@ -98,18 +98,18 @@ function PlayerTradeCard({
                 className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: getTeamColors(playerSide.team).primary }}
               />
-              <span className="text-xs font-medium text-surface-300">{playerSide.team} received</span>
+              <span className="text-xs font-medium text-gray-600">{playerSide.team} received</span>
             </div>
             <div className="space-y-0.5">
               {playerSide.players_received.map(p => {
                 const pWar = isProjected && p.has_projection ? (p.projected_war ?? 0) : p.war_with_team;
                 return (
                   <div key={p.mlb_id} className="flex items-center gap-1 text-xs">
-                    <span className={p.mlb_id === playerMlbId ? 'text-surface-100 font-medium' : 'text-surface-400'}>
+                    <span className={p.mlb_id === playerMlbId ? 'text-gray-900 font-medium' : 'text-gray-500'}>
                       {p.name}
                     </span>
                     {pWar > 0 && (
-                      <span className="text-surface-500">{pWar} WAR{isProjected ? ' (proj.)' : ''}</span>
+                      <span className="text-gray-500">{pWar} WAR{isProjected ? ' (proj.)' : ''}</span>
                     )}
                   </div>
                 );
@@ -119,7 +119,7 @@ function PlayerTradeCard({
         )}
 
         {/* Divider */}
-        <div className="w-px bg-white/[0.06] self-stretch" />
+        <div className="w-px bg-gray-50 self-stretch" />
 
         {/* Other side */}
         {otherSide && (
@@ -129,16 +129,16 @@ function PlayerTradeCard({
                 className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: getTeamColors(otherSide.team).primary }}
               />
-              <span className="text-xs font-medium text-surface-300">{otherSide.team} received</span>
+              <span className="text-xs font-medium text-gray-600">{otherSide.team} received</span>
             </div>
             <div className="space-y-0.5">
               {otherSide.players_received.map(p => {
                 const pWar = isProjected && p.has_projection ? (p.projected_war ?? 0) : p.war_with_team;
                 return (
                   <div key={p.mlb_id} className="flex items-center gap-1 text-xs">
-                    <span className="text-surface-400">{p.name}</span>
+                    <span className="text-gray-500">{p.name}</span>
                     {pWar > 0 && (
-                      <span className="text-surface-500">{pWar} WAR{isProjected ? ' (proj.)' : ''}</span>
+                      <span className="text-gray-500">{pWar} WAR{isProjected ? ' (proj.)' : ''}</span>
                     )}
                   </div>
                 );
@@ -150,27 +150,27 @@ function PlayerTradeCard({
 
       {/* Player's stats */}
       {playerData && (isProjected ? playerData.has_projection : playerData.war_with_team > 0) && (
-        <div className="mt-3 pt-2 border-t border-white/[0.04]">
+        <div className="mt-3 pt-2 border-t border-gray-100">
           <div className="flex items-center gap-2 text-xs">
             {isProjected ? (
               <>
-                <span className="text-surface-500">Proj. WAR:</span>
-                <span className="text-surface-200 font-semibold">{playerData.projected_war ?? 0}</span>
-                <span className="text-surface-600">|</span>
-                <span className="text-surface-500">Proj. Surplus:</span>
+                <span className="text-gray-500">Proj. WAR:</span>
+                <span className="text-gray-800 font-semibold">{playerData.projected_war ?? 0}</span>
+                <span className="text-gray-500">|</span>
+                <span className="text-gray-500">Proj. Surplus:</span>
                 <span className={(playerData.projected_surplus ?? 0) >= 0 ? 'text-blue-400' : 'text-red-400'}>
                   {fmtMoney(playerData.projected_surplus ?? 0)}
                 </span>
               </>
             ) : (
               <>
-                <span className="text-surface-500">Your WAR:</span>
-                <span className="text-surface-200 font-semibold">{playerData.war_with_team}</span>
-                <span className="text-surface-600">|</span>
-                <span className="text-surface-500">Salary:</span>
-                <span className="text-surface-200">{fmtMoney(playerData.salary_with_team)}</span>
-                <span className="text-surface-600">|</span>
-                <span className="text-surface-500">Surplus:</span>
+                <span className="text-gray-500">Your WAR:</span>
+                <span className="text-gray-800 font-semibold">{playerData.war_with_team}</span>
+                <span className="text-gray-500">|</span>
+                <span className="text-gray-500">Salary:</span>
+                <span className="text-gray-800">{fmtMoney(playerData.salary_with_team)}</span>
+                <span className="text-gray-500">|</span>
+                <span className="text-gray-500">Surplus:</span>
                 <span className={playerData.surplus >= 0 ? 'text-emerald-400' : 'text-red-400'}>
                   {fmtMoney(playerData.surplus)}
                 </span>
@@ -197,7 +197,7 @@ export default function PlayerTradeHistory({
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-surface-300 uppercase tracking-wider mb-3">
+      <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-3">
         Trade History ({trades.length})
       </h3>
       <div className="space-y-2">

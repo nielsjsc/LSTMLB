@@ -134,24 +134,24 @@ const TradeAnalyzer = () => {
 
     if (team) {
       return (
-        <div className="relative rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/60 group">
+        <div className="relative rounded-xl overflow-hidden border border-gray-200 bg-white group">
           {/* Team color accent bar */}
           <div className="absolute top-0 left-0 right-0 h-1 opacity-80" 
             style={{ background: colors?.gradient }} />
           <div className="px-5 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm text-white"
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm text-gray-900"
                 style={{ background: `${colors?.primary}30`, border: `1px solid ${colors?.primary}40` }}>
                 {team.toUpperCase().slice(0, 3)}
               </div>
               <div>
-                <p className="text-white font-semibold text-sm">{teamDivisions[team]?.name || team.toUpperCase()}</p>
-                <p className="text-surface-500 text-xs">{teamDivisions[team]?.division}</p>
+                <p className="text-gray-900 font-semibold text-sm">{teamDivisions[team]?.name || team.toUpperCase()}</p>
+                <p className="text-gray-400 text-xs">{teamDivisions[team]?.division}</p>
               </div>
             </div>
             <button
               onClick={() => handleTeamRemove(team)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 opacity-0 group-hover:opacity-100"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 opacity-0 group-hover:opacity-100"
               title="Remove team"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -164,18 +164,18 @@ const TradeAnalyzer = () => {
     }
 
     return (
-      <div className="rounded-xl border border-dashed border-white/[0.1] bg-surface-800/30 p-1">
+      <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-1">
         <select
           onChange={(e) => handleTeamAdd(e.target.value)}
-          className="w-full bg-transparent rounded-lg px-4 py-4 text-surface-400 text-sm font-medium
-            focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400/30 transition-all duration-200 cursor-pointer
+          className="w-full bg-transparent rounded-lg px-4 py-4 text-gray-500 text-sm font-medium
+            focus:ring-2 focus:ring-brand-500/30 focus:border-brand-200 transition-all duration-200 cursor-pointer
             appearance-none"
           value=""
           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2394a3b8'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '20px' }}
         >
-          <option value="" className="bg-surface-800 text-surface-400">Select {label}...</option>
+          <option value="" className="bg-white text-gray-500">Select {label}...</option>
           {sortTeamsByDivision(Object.keys(teamDivisions).filter(t => t !== otherTeam)).map((t) => (
-            <option key={t} value={t} className="bg-surface-800 text-surface-200">
+            <option key={t} value={t} className="bg-white text-gray-800">
               {t.toUpperCase()} — {teamDivisions[t].name}
             </option>
           ))}
@@ -185,18 +185,18 @@ const TradeAnalyzer = () => {
   };
 
   return (
-    <div className="min-h-screen bg-surface-900">
+    <div className="min-h-screen bg-\[#F7F7F5\]">
       <div className="max-w-7xl mx-auto py-8 px-4">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.06] mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-50 border border-gray-200 mb-4">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
-            <span className="text-xs text-surface-400 font-medium tracking-wider uppercase">Live Analysis</span>
+            <span className="text-xs text-gray-500 font-medium tracking-wider uppercase">Live Analysis</span>
           </div>
           <h1 className="text-3xl font-bold mb-3 bg-clip-text text-transparent bg-gradient-brand pb-1 font-display tracking-tight">
             Trade Simulator
           </h1>
-          <p className="text-surface-400 max-w-xl mx-auto text-sm leading-relaxed">
+          <p className="text-gray-500 max-w-xl mx-auto text-sm leading-relaxed">
             Build trades between any two teams. Player values update in real-time using our projection-based surplus valuations and prospect rankings.
           </p>
         </div>
@@ -205,10 +205,10 @@ const TradeAnalyzer = () => {
         {initialLoading && (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="relative">
-              <div className="w-12 h-12 rounded-full border-2 border-surface-700 border-t-brand-400 animate-spin" />
+              <div className="w-12 h-12 rounded-full border-2 border-gray-200 border-t-brand-400 animate-spin" />
               <div className="absolute inset-0 w-12 h-12 rounded-full border-2 border-transparent border-b-accent-blue/40 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
             </div>
-            <p className="mt-4 text-surface-400 text-sm">Loading player data...</p>
+            <p className="mt-4 text-gray-500 text-sm">Loading player data...</p>
           </div>
         )}
 
@@ -229,13 +229,13 @@ const TradeAnalyzer = () => {
               
               {/* VS Divider */}
               <div className="hidden md:flex flex-col items-center gap-2">
-                <div className="w-12 h-12 rounded-full bg-surface-800 border border-white/[0.08] flex items-center justify-center shadow-lg">
-                  <span className="text-sm font-bold text-surface-400 tracking-wider">VS</span>
+                <div className="w-12 h-12 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-lg">
+                  <span className="text-sm font-bold text-gray-500 tracking-wider">VS</span>
                 </div>
                 {(trade.teamA || trade.teamB) && (
                   <button
                     onClick={handleResetTrade}
-                    className="text-[10px] text-surface-500 hover:text-red-400 transition-colors duration-200 font-medium uppercase tracking-wider"
+                    className="text-[10px] text-gray-400 hover:text-red-400 transition-colors duration-200 font-medium uppercase tracking-wider"
                   >
                     Reset
                   </button>
@@ -247,11 +247,11 @@ const TradeAnalyzer = () => {
 
             {/* Mobile VS + Reset */}
             <div className="md:hidden flex items-center justify-center gap-4 -mt-2 mb-6">
-              <div className="w-10 h-10 rounded-full bg-surface-800 border border-white/[0.08] flex items-center justify-center">
-                <span className="text-xs font-bold text-surface-400">VS</span>
+              <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center">
+                <span className="text-xs font-bold text-gray-500">VS</span>
               </div>
               {(trade.teamA || trade.teamB) && (
-                <button onClick={handleResetTrade} className="text-xs text-surface-500 hover:text-red-400 transition-colors">
+                <button onClick={handleResetTrade} className="text-xs text-gray-400 hover:text-red-400 transition-colors">
                   Reset Trade
                 </button>
               )}
@@ -263,7 +263,7 @@ const TradeAnalyzer = () => {
                 {/* Player selection panels */}
                 <div className="grid md:grid-cols-2 gap-4">
                   {/* Team A panel */}
-                  <div className="relative rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/40">
+                  <div className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
                     <div className="absolute top-0 left-0 right-0 h-0.5 opacity-60"
                       style={{ background: teamAColors?.gradient }} />
                     <div className="p-5">
@@ -280,7 +280,7 @@ const TradeAnalyzer = () => {
                   </div>
 
                   {/* Team B panel */}
-                  <div className="relative rounded-xl overflow-hidden border border-white/[0.06] bg-surface-800/40">
+                  <div className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
                     <div className="absolute top-0 left-0 right-0 h-0.5 opacity-60"
                       style={{ background: teamBColors?.gradient }} />
                     <div className="p-5">
@@ -301,20 +301,20 @@ const TradeAnalyzer = () => {
                 {loading && (
                   <div className="flex items-center justify-center gap-3 py-6">
                     <div className="relative">
-                      <div className="w-8 h-8 rounded-full border-2 border-surface-700 border-t-brand-400 animate-spin" />
+                      <div className="w-8 h-8 rounded-full border-2 border-gray-200 border-t-brand-400 animate-spin" />
                     </div>
-                    <p className="text-surface-400 text-sm font-medium">Analyzing trade value...</p>
+                    <p className="text-gray-500 text-sm font-medium">Analyzing trade value...</p>
                   </div>
                 )}
                 
                 {/* Analysis Results */}
                 {analysis && !loading && (
-                  <div className="rounded-xl border border-white/[0.06] bg-surface-800/30 p-6">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-6">
                     <div className="flex items-center gap-2 mb-5">
-                      <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className="w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                       </svg>
-                      <h2 className="text-white font-semibold">Trade Analysis</h2>
+                      <h2 className="text-gray-900 font-semibold">Trade Analysis</h2>
                     </div>
                     <ValueDisplay 
                       analysis={analysis} 
@@ -326,12 +326,12 @@ const TradeAnalyzer = () => {
 
                 {/* Empty state prompt */}
                 {!analysis && !loading && !hasPlayers && (
-                  <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-dashed border-white/[0.06]">
-                    <svg className="w-16 h-16 text-surface-700 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                  <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-dashed border-gray-200">
+                    <svg className="w-16 h-16 text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                     </svg>
-                    <p className="text-surface-500 text-sm font-medium mb-1">Add players to build your trade</p>
-                    <p className="text-surface-600 text-xs">Search for MLB players or prospects on each side</p>
+                    <p className="text-gray-400 text-sm font-medium mb-1">Add players to build your trade</p>
+                    <p className="text-gray-400 text-xs">Search for MLB players or prospects on each side</p>
                   </div>
                 )}
               </div>
@@ -340,13 +340,13 @@ const TradeAnalyzer = () => {
             {/* Empty state: no teams selected */}
             {!trade.teamA && !trade.teamB && (
               <div className="flex flex-col items-center justify-center py-20">
-                <div className="w-20 h-20 rounded-2xl bg-surface-800/80 border border-white/[0.06] flex items-center justify-center mb-6">
-                  <svg className="w-10 h-10 text-surface-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className="w-20 h-20 rounded-2xl bg-white/80 border border-gray-200 flex items-center justify-center mb-6">
+                  <svg className="w-10 h-10 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                   </svg>
                 </div>
-                <h3 className="text-white font-semibold mb-2">Select Two Teams</h3>
-                <p className="text-surface-500 text-sm text-center max-w-sm">
+                <h3 className="text-gray-900 font-semibold mb-2">Select Two Teams</h3>
+                <p className="text-gray-400 text-sm text-center max-w-sm">
                   Choose two teams above to start building a trade. Player values are based on projected performance and contract surplus.
                 </p>
               </div>

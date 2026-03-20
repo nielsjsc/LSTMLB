@@ -34,13 +34,13 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
     const uniqueKey = 'playerId' in asset ? asset.playerId : ('mlb_id' in asset ? asset.mlb_id : ('real_id' in asset ? asset.real_id : asset.name));
 
     const getPositionColor = (position: string | undefined) => {
-      if (!position) return 'bg-surface-600 text-surface-300';
+      if (!position) return 'bg-gray-200 text-gray-600';
       const pos = position.toUpperCase();
       if (['SP', 'RP', 'CL', 'P'].includes(pos)) return 'bg-blue-500/20 text-blue-400';
       if (['C', '1B', '2B', '3B', 'SS'].includes(pos)) return 'bg-emerald-500/20 text-emerald-400';
       if (['LF', 'CF', 'RF', 'OF'].includes(pos)) return 'bg-amber-500/20 text-amber-400';
       if (['DH'].includes(pos)) return 'bg-purple-500/20 text-purple-400';
-      return 'bg-surface-600/30 text-surface-300';
+      return 'bg-gray-200/60 text-gray-600';
     };
 
     return (
@@ -56,12 +56,12 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
             {'id' in asset && 'war' in asset ? (
               <Link 
                 to={`/players/${asset.id}`}
-                className="font-semibold text-sm text-white hover:text-brand-400 transition-colors truncate block"
+                className="font-semibold text-sm text-gray-900 hover:text-brand-500 transition-colors truncate block"
               >
                 {asset.name}
               </Link>
             ) : (
-              <h4 className="font-semibold text-sm text-white truncate">{asset.name}</h4>
+              <h4 className="font-semibold text-sm text-gray-900 truncate">{asset.name}</h4>
             )}
             {isProspect && (
               <span className="text-[10px] font-medium text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded mt-0.5 inline-block">
@@ -76,7 +76,7 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
 
         {/* Value bar */}
         <div className="px-4 pb-3">
-          <div className="h-1.5 rounded-full bg-surface-700/80 overflow-hidden">
+          <div className="h-1.5 rounded-full bg-gray-100/80 overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-700 ease-out"
               style={{
@@ -92,12 +92,12 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
         {/* Stat breakdown */}
         <div className="px-4 pb-3">
           {isProspect ? (
-            <div className="flex items-center gap-4 text-xs text-surface-400">
+            <div className="flex items-center gap-4 text-xs text-gray-500">
               {'fv' in asset && (
-                <span>FV: <span className="text-surface-300 font-medium">{asset.fv || '—'}</span></span>
+                <span>FV: <span className="text-gray-600 font-medium">{asset.fv || '—'}</span></span>
               )}
               {'position' in asset && (
-                <span>POS: <span className="text-surface-300 font-medium">{asset.position || '—'}</span></span>
+                <span>POS: <span className="text-gray-600 font-medium">{asset.position || '—'}</span></span>
               )}
               {'value' in asset && (
                 <span>Value: <span className={`font-medium ${(asset.value ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -108,19 +108,19 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
           ) : (
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="text-center p-1.5 rounded bg-white/[0.02]">
-                <p className="text-surface-500 text-[10px] uppercase tracking-wider mb-0.5">WAR</p>
-                <p className="text-surface-200 font-semibold tabular-nums">
+                <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-0.5">WAR</p>
+                <p className="text-gray-800 font-semibold tabular-nums">
                   {'war' in asset ? (asset.war?.toFixed(1) || '—') : '—'}
                 </p>
               </div>
               <div className="text-center p-1.5 rounded bg-white/[0.02]">
-                <p className="text-surface-500 text-[10px] uppercase tracking-wider mb-0.5">Production</p>
+                <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-0.5">Production</p>
                 <p className="text-emerald-400 font-semibold tabular-nums text-[11px]">
                   {formatValue(asset.total_production)}
                 </p>
               </div>
               <div className="text-center p-1.5 rounded bg-white/[0.02]">
-                <p className="text-surface-500 text-[10px] uppercase tracking-wider mb-0.5">Contract</p>
+                <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-0.5">Contract</p>
                 <p className="text-red-400 font-semibold tabular-nums text-[11px]">
                   {formatValue(asset.total_contract)}
                 </p>
@@ -150,8 +150,8 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
             <div className="flex items-center gap-3">
               <div className="w-1 h-10 rounded-full" style={{ background: colors.primary }} />
               <div>
-                <h3 className="font-bold text-white text-base tracking-wide">{teamName}</h3>
-                <p className="text-xs text-surface-400">{team.assets.length} asset{team.assets.length !== 1 ? 's' : ''}</p>
+                <h3 className="font-bold text-gray-900 text-base tracking-wide">{teamName}</h3>
+                <p className="text-xs text-gray-500">{team.assets.length} asset{team.assets.length !== 1 ? 's' : ''}</p>
               </div>
             </div>
             {!isTied && (
@@ -172,25 +172,25 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
         </div>
 
         {/* Team totals */}
-        <div className="rounded-b-xl border-t border-white/[0.06] bg-white/[0.01] px-5 py-4">
+        <div className="rounded-b-xl border-t border-gray-200 bg-white/[0.01] px-5 py-4">
           <div className="grid grid-cols-3 gap-3 text-center mb-3">
             <div>
-              <p className="text-[10px] text-surface-300 uppercase tracking-wider mb-1 font-semibold">Production</p>
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1 font-semibold">Production</p>
               <p className="text-sm font-bold text-emerald-400 tabular-nums">{formatValue(team.total_production)}</p>
             </div>
             <div>
-              <p className="text-[10px] text-surface-300 uppercase tracking-wider mb-1 font-semibold">Contract</p>
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1 font-semibold">Contract</p>
               <p className="text-sm font-bold text-red-400 tabular-nums">{formatValue(team.total_contract)}</p>
             </div>
             <div>
-              <p className="text-[10px] text-surface-300 uppercase tracking-wider mb-1 font-semibold">Net Value</p>
-              <p className="text-sm font-bold tabular-nums text-white">
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1 font-semibold">Net Value</p>
+              <p className="text-sm font-bold tabular-nums text-gray-900">
                 {formatValue(team.total_surplus)}
               </p>
             </div>
           </div>
           {/* Visual bar for total */}
-          <div className="h-2 rounded-full bg-surface-700/60 overflow-hidden">
+          <div className="h-2 rounded-full bg-gray-100/60 overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-1000 ease-out"
               style={{
@@ -218,35 +218,35 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
 
       {/* Side-by-side comparison */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="rounded-xl border border-white/[0.06] bg-surface-800/30 overflow-hidden">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
           {renderTeamColumn(team1, team1Name, team1Colors, team2.total_surplus)}
         </div>
-        <div className="rounded-xl border border-white/[0.06] bg-surface-800/30 overflow-hidden">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
           {renderTeamColumn(team2, team2Name, team2Colors, team1.total_surplus)}
         </div>
       </div>
 
       {/* Trade Summary Footer */}
-      <div className="relative rounded-xl overflow-hidden border border-white/[0.06]">
+      <div className="relative rounded-xl overflow-hidden border border-gray-200">
         <div className="absolute inset-0 bg-gradient-to-r opacity-[0.03]"
           style={{ backgroundImage: `linear-gradient(90deg, ${team1Colors.primary}, transparent 40%, transparent 60%, ${team2Colors.primary})` }} />
         <div className="relative px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-3 h-3 rounded-full" style={{ background: team1Colors.primary }} />
             <div className="text-center sm:text-left">
-              <p className="text-xs text-surface-300 uppercase tracking-wider font-semibold">Trade Differential</p>
-              <p className="text-2xl font-bold tabular-nums mt-1 text-white">
+              <p className="text-xs text-gray-600 uppercase tracking-wider font-semibold">Trade Differential</p>
+              <p className="text-2xl font-bold tabular-nums mt-1 text-gray-900">
                 {formatValue(Math.abs(tradeDifferential))}
               </p>
             </div>
           </div>
-          <div className="text-sm font-medium text-surface-300">
+          <div className="text-sm font-medium text-gray-600">
             {Math.abs(tradeDifferential) < 2_000_000 ? (
               <span className="text-emerald-400">This trade is balanced</span>
             ) : (
               <>
                 Favors{' '}
-                <span className="font-bold text-white">
+                <span className="font-bold text-gray-900">
                   {tradeDifferential > 0 ? team1Name : team2Name}
                 </span>
               </>

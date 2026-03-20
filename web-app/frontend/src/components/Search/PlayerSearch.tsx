@@ -119,7 +119,7 @@ const PlayerSearch = () => {
   return (
     <div className="relative" ref={containerRef}>
       <div className="relative">
-        <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-surface-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-navy-300 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input
@@ -128,13 +128,13 @@ const PlayerSearch = () => {
           onChange={(e) => handleSearch(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search players..."
-          className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs bg-white/[0.06] border border-white/[0.08] text-surface-200 placeholder-surface-500 
-                     focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400/40 focus:bg-white/[0.08]
+          className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs bg-white/[0.06] border border-white/[0.08] text-white placeholder-navy-300 
+                     focus:outline-none focus:ring-2 focus:ring-brand-500/25 focus:border-brand-500/25 focus:bg-white/[0.08]
                      transition-all"
         />
       </div>
       {results.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-surface-800 border border-white/[0.08] rounded-lg shadow-xl shadow-black/40 overflow-hidden max-h-80 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-1 bg-navy-800 border border-navy-600 rounded-lg shadow-xl shadow-black/40 overflow-hidden max-h-80 overflow-y-auto">
           {activeResults.map((player) => {
             flatIdx++;
             const idx = flatIdx;
@@ -147,7 +147,7 @@ const PlayerSearch = () => {
                 }`}
               >
                 <span className="text-xs font-medium text-white truncate">{player.name}</span>
-                <span className="text-[11px] text-surface-500 shrink-0">
+                <span className="text-[11px] text-navy-300 shrink-0">
                   {player.team?.toUpperCase()} · {formatPosition(player)}
                 </span>
               </button>
@@ -156,7 +156,7 @@ const PlayerSearch = () => {
           {historicalResults.length > 0 && (
             <>
               {activeResults.length > 0 && (
-                <div className="px-3 py-1 text-[10px] text-surface-500 uppercase tracking-wider bg-surface-850 border-y border-white/[0.04]">
+                <div className="px-3 py-1 text-[10px] text-navy-300 uppercase tracking-wider bg-navy-900 border-y border-navy-600">
                   Historical
                 </div>
               )}
@@ -171,8 +171,8 @@ const PlayerSearch = () => {
                       idx === focusedIdx ? 'bg-white/[0.08]' : 'hover:bg-white/[0.06]'
                     }`}
                   >
-                    <span className="text-xs font-medium text-surface-300 truncate">{player.name}</span>
-                    <span className="text-[11px] text-surface-500 shrink-0">
+                    <span className="text-xs font-medium text-navy-100 truncate">{player.name}</span>
+                    <span className="text-[11px] text-navy-300 shrink-0">
                       {formatPosition(player)} · {player.first_year}&ndash;{player.last_year}
                     </span>
                   </button>

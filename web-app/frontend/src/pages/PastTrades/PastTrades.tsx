@@ -34,7 +34,7 @@ function SortTh({ label, field, sortBy, sortDir, onSort, className = '' }: {
     <th
       onClick={() => onSort(field)}
       className={`cursor-pointer select-none text-left text-[11px] font-medium uppercase tracking-wider px-3 py-2.5 transition-colors ${
-        active ? 'text-surface-200' : 'text-surface-500 hover:text-surface-300'
+        active ? 'text-gray-800' : 'text-gray-400 hover:text-gray-600'
       } ${className}`}
     >
       {label}
@@ -61,40 +61,40 @@ function TradeRow({ trade, onClick }: { trade: PastTradeSummary; onClick: () => 
   return (
     <tr
       onClick={onClick}
-      className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors cursor-pointer"
+      className="border-b border-gray-100 hover:bg-white/[0.02] transition-colors cursor-pointer"
     >
         {/* Date */}
-        <td className="px-3 py-2.5 text-[12px] text-surface-500 tabular-nums whitespace-nowrap">
+        <td className="px-3 py-2.5 text-[12px] text-gray-400 tabular-nums whitespace-nowrap">
           {fmtDate(trade.date)}
         </td>
 
         {/* Teams */}
         <td className="px-3 py-2.5 text-[12px] whitespace-nowrap">
-          <span className="text-surface-200 font-medium">{side1?.team || '—'}</span>
-          <span className="text-surface-600 mx-1.5">↔</span>
-          <span className="text-surface-200 font-medium">{side2?.team || '—'}</span>
+          <span className="text-gray-800 font-medium">{side1?.team || '—'}</span>
+          <span className="text-gray-400 mx-1.5">↔</span>
+          <span className="text-gray-800 font-medium">{side2?.team || '—'}</span>
           {trade.n_teams > 2 && (
-            <span className="text-surface-500 text-[10px] ml-1">+{trade.n_teams - 2}</span>
+            <span className="text-gray-400 text-[10px] ml-1">+{trade.n_teams - 2}</span>
           )}
         </td>
 
         {/* Side 1 players */}
-        <td className="px-3 py-2.5 text-[12px] text-surface-400 truncate max-w-[200px]">
+        <td className="px-3 py-2.5 text-[12px] text-gray-500 truncate max-w-[200px]">
           {playerList(side1)}
         </td>
 
         {/* Side 2 players */}
-        <td className="px-3 py-2.5 text-[12px] text-surface-400 truncate max-w-[200px]">
+        <td className="px-3 py-2.5 text-[12px] text-gray-500 truncate max-w-[200px]">
           {playerList(side2)}
         </td>
 
         {/* WAR per side */}
         <td className="px-3 py-2.5 text-[12px] tabular-nums whitespace-nowrap text-right">
-          <span className={side1 && side1.total_war >= (side2?.total_war ?? 0) ? 'text-surface-200 font-medium' : 'text-surface-500'}>
+          <span className={side1 && side1.total_war >= (side2?.total_war ?? 0) ? 'text-gray-800 font-medium' : 'text-gray-500'}>
             {side1?.total_war ?? '—'}
           </span>
-          <span className="text-surface-600 mx-1">/</span>
-          <span className={side2 && side2.total_war >= (side1?.total_war ?? 0) ? 'text-surface-200 font-medium' : 'text-surface-500'}>
+          <span className="text-gray-400 mx-1">/</span>
+          <span className={side2 && side2.total_war >= (side1?.total_war ?? 0) ? 'text-gray-800 font-medium' : 'text-gray-500'}>
             {side2?.total_war ?? '—'}
           </span>
         </td>
@@ -143,8 +143,8 @@ export default function PastTrades() {
       {/* Header + filters */}
       <div className="flex flex-wrap items-end justify-between gap-4 mb-5">
         <div>
-          <h1 className="text-xl font-bold text-surface-100 tracking-tight font-display">Trade History</h1>
-          <p className="text-[13px] text-surface-500 mt-0.5">
+          <h1 className="text-xl font-bold text-gray-900 tracking-tight font-display">Trade History</h1>
+          <p className="text-[13px] text-gray-400 mt-0.5">
             {total.toLocaleString()} trades &middot; 2014&ndash;Present
           </p>
         </div>
@@ -158,9 +158,9 @@ export default function PastTrades() {
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               onBlur={handleSearch}
-              className="w-44 pl-3 pr-7 py-1.5 rounded bg-surface-800 border border-white/[0.06] text-[12px] text-surface-200 placeholder-surface-600 focus:outline-none focus:border-white/[0.12] transition-colors"
+              className="w-44 pl-3 pr-7 py-1.5 rounded bg-white border border-gray-200 text-[12px] text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"
             />
-            <svg className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-surface-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
@@ -168,7 +168,7 @@ export default function PastTrades() {
           <select
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded bg-surface-800 border border-white/[0.06] text-[12px] text-surface-300 focus:outline-none"
+            className="px-2.5 py-1.5 rounded bg-white border border-gray-200 text-[12px] text-gray-600 focus:outline-none"
           >
             <option value="">All Teams</option>
             {MLB_TEAMS.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -177,7 +177,7 @@ export default function PastTrades() {
           <select
             value={yearFilter}
             onChange={(e) => setYearFilter(e.target.value ? Number(e.target.value) : '')}
-            className="px-2.5 py-1.5 rounded bg-surface-800 border border-white/[0.06] text-[12px] text-surface-300 focus:outline-none"
+            className="px-2.5 py-1.5 rounded bg-white border border-gray-200 text-[12px] text-gray-600 focus:outline-none"
           >
             <option value="">All Years</option>
             {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
@@ -191,18 +191,18 @@ export default function PastTrades() {
           <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
         </div>
       ) : trades.length === 0 ? (
-        <div className="text-center py-16 text-surface-500 text-sm">
+        <div className="text-center py-16 text-gray-400 text-sm">
           No trades found.
         </div>
       ) : (
-        <div className="border-t border-white/[0.06] overflow-hidden">
+        <div className="border-t border-gray-200 overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/[0.06] bg-surface-800/40">
+              <tr className="border-b border-gray-200 bg-gray-50">
                 <SortTh label="Date" field="date" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="w-24" />
-                <th className="text-left text-[11px] font-medium uppercase tracking-wider text-surface-500 px-3 py-2.5 w-36">Teams</th>
-                <th className="text-left text-[11px] font-medium uppercase tracking-wider text-surface-500 px-3 py-2.5">Side 1</th>
-                <th className="text-left text-[11px] font-medium uppercase tracking-wider text-surface-500 px-3 py-2.5">Side 2</th>
+                <th className="text-left text-[11px] font-medium uppercase tracking-wider text-gray-400 px-3 py-2.5 w-36">Teams</th>
+                <th className="text-left text-[11px] font-medium uppercase tracking-wider text-gray-400 px-3 py-2.5">Side 1</th>
+                <th className="text-left text-[11px] font-medium uppercase tracking-wider text-gray-400 px-3 py-2.5">Side 2</th>
                 <SortTh label="WAR" field="total_trade_war" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-right w-28" />
               </tr>
             </thead>
@@ -221,17 +221,17 @@ export default function PastTrades() {
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className="px-3 py-1.5 rounded text-[12px] text-surface-400 hover:text-surface-200 disabled:opacity-30 transition-colors"
+            className="px-3 py-1.5 rounded text-[12px] text-gray-500 hover:text-gray-800 disabled:opacity-30 transition-colors"
           >
             ← Previous
           </button>
-          <span className="text-[12px] text-surface-500 tabular-nums">
+          <span className="text-[12px] text-gray-400 tabular-nums">
             Page {page} of {totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            className="px-3 py-1.5 rounded text-[12px] text-surface-400 hover:text-surface-200 disabled:opacity-30 transition-colors"
+            className="px-3 py-1.5 rounded text-[12px] text-gray-500 hover:text-gray-800 disabled:opacity-30 transition-colors"
           >
             Next →
           </button>

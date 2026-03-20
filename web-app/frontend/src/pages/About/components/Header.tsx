@@ -21,42 +21,42 @@ const Header = () => {
           </div>
   
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-            <div className="bg-white/5 rounded-lg p-5 border border-white/10 hover:border-white/20 transition-all">
-              <div className="text-brand-400 mb-4">
+            <div className="bg-gray-50 rounded-lg p-5 border border-gray-200 hover:border-gray-300 transition-all">
+              <div className="text-brand-500 mb-4">
                 <FaChartLine className="h-6 w-6" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">MLB Projections</h3>
-              <p className="text-gray-400">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">MLB Projections</h3>
+              <p className="text-gray-500">
                 Long-term career projections using specialized models for hitting, pitching, and fielding
               </p>
             </div>
   
-            <div className="bg-white/5 rounded-lg p-5 border border-white/10 hover:border-white/20 transition-all">
-              <div className="text-brand-400 mb-4">
+            <div className="bg-gray-50 rounded-lg p-5 border border-gray-200 hover:border-gray-300 transition-all">
+              <div className="text-brand-500 mb-4">
                 <FaExchangeAlt className="h-6 w-6" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">Trade Analysis</h3>
-              <p className="text-gray-400">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Trade Analysis</h3>
+              <p className="text-gray-500">
                 Comprehensive trade simulator with WAR projections and surplus value calculations
               </p>
             </div>
 
-            <div className="bg-white/5 rounded-lg p-5 border border-white/10 hover:border-white/20 transition-all">
-              <div className="text-brand-400 mb-4">
+            <div className="bg-gray-50 rounded-lg p-5 border border-gray-200 hover:border-gray-300 transition-all">
+              <div className="text-brand-500 mb-4">
                 <FaStar className="h-6 w-6" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">Prospect Values</h3>
-              <p className="text-gray-400">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Prospect Values</h3>
+              <p className="text-gray-500">
                 FV and ranking-based prospect valuations with dynamic graduate adjustments
               </p>
             </div>
   
-            <div className="bg-white/5 rounded-lg p-5 border border-white/10 hover:border-white/20 transition-all">
-              <div className="text-brand-400 mb-4">
+            <div className="bg-gray-50 rounded-lg p-5 border border-gray-200 hover:border-gray-300 transition-all">
+              <div className="text-brand-500 mb-4">
                 <FaCode className="h-6 w-6" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">Open Source</h3>
-              <p className="text-gray-400">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Open Source</h3>
+              <p className="text-gray-500">
                 All models and code freely available for community use and contribution
               </p>
             </div>
@@ -67,7 +67,7 @@ const Header = () => {
               href="https://github.com/nielsjsc/LSTMLB" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="group px-8 py-3 rounded-lg bg-brand-500 hover:bg-brand-400 text-surface-900 font-semibold transition-colors flex items-center gap-2"
+              className="group px-8 py-3 rounded-lg bg-brand-500 hover:bg-brand-400 text-white font-semibold transition-colors flex items-center gap-2"
             >
               <FaGithub className="text-xl" />
               <span>View on GitHub</span>
@@ -79,7 +79,7 @@ const Header = () => {
         <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
           <div className="space-y-8">
             {/* Introduction */}
-            <div className="border-l-2 border-brand-400 bg-surface-800/50 rounded-lg p-6 border border-white/10">
+            <div className="border-l-2 border-brand-400 bg-white rounded-lg p-6 border border-gray-200">
               <h2 className="text-4xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-brand">
                 The Story Behind LongBall Analytics
               </h2>
@@ -91,7 +91,7 @@ const Header = () => {
             </div>
 
             {/* Model Creation */}
-            <div className="bg-white/5 rounded-lg p-6 border border-white/10">
+            <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
               <div className="flex items-start gap-4">
                 <FaBrain className="h-8 w-8 text-blue-400 mt-1 flex-shrink-0" />
                 <div className="prose prose-lg prose-invert max-w-none">
@@ -145,7 +145,7 @@ const Header = () => {
                 <div>
                   <h3 className="text-2xl font-bold text-blue-400 mb-4">Value Calculations</h3>
                   <div className="prose prose-lg prose-invert max-w-none space-y-8">
-                    <p className="text-gray-300">
+                    <p className="text-gray-600">
                       Regarding the calculation of values, I took quite a few liberties with my projections that I feel everyone should be aware of.
                     </p>
                     
@@ -168,11 +168,11 @@ const Header = () => {
             </div>
 
             {/* Have Fun Section */}
-            <div className="bg-brand-500/10 rounded-lg p-6 border border-brand-500/20">
+            <div className="bg-brand-50 rounded-lg p-6 border border-brand-200">
               <div className="flex items-start gap-4">
-                <FaLightbulb className="h-8 w-8 text-brand-400 mt-1 flex-shrink-0" />
+                <FaLightbulb className="h-8 w-8 text-brand-500 mt-1 flex-shrink-0" />
                 <div>
-                  <h3 className="text-2xl font-bold text-brand-400 mb-4">Have Fun!</h3>
+                  <h3 className="text-2xl font-bold text-brand-500 mb-4">Have Fun!</h3>
                   <div className="prose prose-lg prose-invert max-w-none space-y-4">
                     <p className="text-gray-300 leading-relaxed">
                       I hope you all are able to use this as a fun tool to get a glimpse into how my models project your favorite players will perform in the near/far future!
