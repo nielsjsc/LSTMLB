@@ -45,7 +45,7 @@ const TechnicalOverview = () => {
                   </h4>
                   <p className="text-surface-300 leading-relaxed">
                     Using <a href="https://github.com/jldbc/pybaseball" 
-                      className="text-brand-400 hover:text-emerald-400 font-medium 
+                      className="text-brand-400 hover:text-brand-300 font-medium 
                               transition-colors">
                       pybaseball
                     </a>, we collect comprehensive MLB statistics from 2000-present, including
@@ -144,13 +144,13 @@ const TechnicalOverview = () => {
                   <a href="https://youtube.com/playlist?list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-brand-400 hover:text-emerald-400">
+                    className="text-sm text-brand-400 hover:text-brand-300">
                     Neural Networks Explained
                   </a>
                   <a href="https://colah.github.io/posts/2015-08-Understanding-LSTMs/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-brand-400 hover:text-emerald-400">
+                    className="text-sm text-brand-400 hover:text-brand-300">
                     Understanding LSTMs
                   </a>
                   <a href="https://github.com/nielsjsc/LSTMLB/blob/main/models/batter.ipynb"
@@ -227,7 +227,7 @@ const TechnicalOverview = () => {
                     </p>
 
                     <div className="space-y-4">
-                      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border-l-4 border-emerald-500">
+                      <div className="bg-surface-800 p-4 rounded-lg border-l-4 border-emerald-500">
                         <h5 className="text-sm font-medium text-white mb-2">
                           2025 Prediction Uses
                         </h5>
@@ -244,7 +244,7 @@ const TechnicalOverview = () => {
                         </div>
                       </div>
 
-                      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border-l-4 border-blue-500">
+                      <div className="bg-surface-800 p-4 rounded-lg border-l-4 border-blue-500">
                         <h5 className="text-sm font-medium text-white mb-2">
                           2026 Prediction Uses
                         </h5>
@@ -261,7 +261,7 @@ const TechnicalOverview = () => {
                         </div>
                       </div>
 
-                      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border-l-4 border-purple-500">
+                      <div className="bg-surface-800 p-4 rounded-lg border-l-4 border-purple-500">
                         <h5 className="text-sm font-medium text-white mb-2">
                           2027 Prediction Uses
                         </h5>
@@ -304,13 +304,13 @@ const TechnicalOverview = () => {
                   <a href="https://youtube.com/playlist?list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-brand-400 hover:text-emerald-400">
+                    className="text-sm text-brand-400 hover:text-brand-300">
                     Neural Networks Explained
                   </a>
                   <a href="https://colah.github.io/posts/2015-08-Understanding-LSTMs/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-brand-400 hover:text-emerald-400">
+                    className="text-sm text-brand-400 hover:text-brand-300">
                     Understanding LSTMs
                   </a>
                   <a href="https://github.com/nielsjsc/LSTMLB/blob/main/models/pitcher.ipynb"
@@ -371,7 +371,7 @@ const TechnicalOverview = () => {
                         </ul>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-500 mt-4">All metrics normalized per inning pitched (except Age)</p>
+                    <p className="text-xs text-surface-500 mt-4">All metrics normalized per inning pitched (except Age)</p>
                   </div>
                 </div>
 
@@ -387,7 +387,7 @@ const TechnicalOverview = () => {
                     </p>
 
                     <div className="space-y-4">
-                      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border-l-4 border-emerald-500">
+                      <div className="bg-surface-800 p-4 rounded-lg border-l-4 border-emerald-500">
                         <h5 className="text-sm font-medium text-white mb-2">
                           2025 Prediction Uses (SP Example)
                         </h5>
@@ -403,7 +403,7 @@ const TechnicalOverview = () => {
                         </div>
                       </div>
 
-                      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border-l-4 border-blue-500">
+                      <div className="bg-surface-800 p-4 rounded-lg border-l-4 border-blue-500">
                         <h5 className="text-sm font-medium text-white mb-2">
                           2026 Prediction Uses
                         </h5>
@@ -419,7 +419,7 @@ const TechnicalOverview = () => {
                         </div>
                       </div>
 
-                      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border-l-4 border-purple-500">
+                      <div className="bg-surface-800 p-4 rounded-lg border-l-4 border-purple-500">
                         <h5 className="text-sm font-medium text-white mb-2">
                           2027 Prediction Uses
                         </h5>
@@ -566,13 +566,13 @@ const TechnicalOverview = () => {
           <a href="https://youtube.com/playlist?list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-brand-400 hover:text-emerald-400">
+            className="text-sm text-brand-400 hover:text-brand-300">
             Neural Networks Explained
           </a>
           <a href="https://colah.github.io/posts/2015-08-Understanding-LSTMs/"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-brand-400 hover:text-emerald-400">
+            className="text-sm text-brand-400 hover:text-brand-300">
             Understanding LSTMs
           </a>
           <a href="https://github.com/nielsjsc/LSTMLB/blob/main/models/baserunning.ipynb"
@@ -626,7 +626,7 @@ const TechnicalOverview = () => {
                   </ul>
                 </div>
               </div>
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+              <div className="pt-4 border-t border-surface-700">
                 <div className="text-sm text-surface-300">
                   <span className="font-medium">Key Aspects:</span>
                   <ul className="mt-2 space-y-1">
@@ -658,13 +658,13 @@ const TechnicalOverview = () => {
                   <a href="https://library.fangraphs.com/calculating-position-player-war-a-complete-example/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-brand-400 hover:text-emerald-400">
+                    className="text-sm text-brand-400 hover:text-brand-300">
                     Position Player WAR Details
                   </a>
                   <a href="https://library.fangraphs.com/calculating-pitcher-war-a-complete-example/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-brand-400 hover:text-emerald-400">
+                    className="text-sm text-brand-400 hover:text-brand-300">
                     Pitcher WAR Details
                   </a>
                 </div>
@@ -677,7 +677,7 @@ const TechnicalOverview = () => {
                     Position Player WAR Components
                   </h4>
                   <div className="grid md:grid-cols-2 gap-6">
-                    <div className="col-span-2 bg-slate-100 dark:bg-slate-600/50 p-4 rounded-lg">
+                    <div className="col-span-2 bg-surface-700/50 p-4 rounded-lg">
                       <div className="font-mono text-sm">
                         WAR = (Batting + Baserunning + Defense + Replacement) / RunsPerWin
                       </div>
@@ -706,7 +706,7 @@ const TechnicalOverview = () => {
                     Pitcher WAR Components
                   </h4>
                   <div className="grid md:grid-cols-2 gap-6">
-                    <div className="col-span-2 bg-slate-100 dark:bg-slate-600/50 p-4 rounded-lg">
+                    <div className="col-span-2 bg-surface-700/50 p-4 rounded-lg">
                       <div className="font-mono text-sm">
                         WAR = (ReplacementFIP - ProjectedFIP) * InningsPitched / (9 * RunsPerWin)
                       </div>
@@ -765,9 +765,9 @@ const TechnicalOverview = () => {
                       <h5 className="text-sm font-medium text-white">
                         Tier 1: 0-2 WAR
                       </h5>
-                      <div className="bg-white dark:bg-slate-800 p-3 rounded text-sm">
+                      <div className="bg-surface-800 p-3 rounded text-sm">
                         <p className="text-surface-300">$8M per WAR</p>
-                        <p className="text-xs text-slate-500 mt-1">Bench to Average Starter</p>
+                        <p className="text-xs text-surface-500 mt-1">Bench to Average Starter</p>
                       </div>
                     </div>
                     
@@ -775,9 +775,9 @@ const TechnicalOverview = () => {
                       <h5 className="text-sm font-medium text-white">
                         Tier 2: 2-4 WAR
                       </h5>
-                      <div className="bg-white dark:bg-slate-800 p-3 rounded text-sm">
+                      <div className="bg-surface-800 p-3 rounded text-sm">
                         <p className="text-surface-300">$9M per WAR</p>
-                        <p className="text-xs text-slate-500 mt-1">Above Average to All-Star</p>
+                        <p className="text-xs text-surface-500 mt-1">Above Average to All-Star</p>
                       </div>
                     </div>
 
@@ -785,9 +785,9 @@ const TechnicalOverview = () => {
                       <h5 className="text-sm font-medium text-white">
                         Tier 3: 4+ WAR
                       </h5>
-                      <div className="bg-white dark:bg-slate-800 p-3 rounded text-sm">
+                      <div className="bg-surface-800 p-3 rounded text-sm">
                         <p className="text-surface-300">$10M per WAR</p>
-                        <p className="text-xs text-slate-500 mt-1">All-Star to MVP Level</p>
+                        <p className="text-xs text-surface-500 mt-1">All-Star to MVP Level</p>
                       </div>
                     </div>
                   </div>
@@ -820,7 +820,7 @@ const TechnicalOverview = () => {
                   <div className="space-y-2 text-sm text-surface-300">
                     <p>Base Year: 2025</p>
                     <p>Annual Inflation: 4%</p>
-                    <div className="bg-white dark:bg-slate-800 p-3 rounded mt-3">
+                    <div className="bg-surface-800 p-3 rounded mt-3">
                       <p className="font-mono">FutureValue = BaseValue × (1.04)^YearsFromBase</p>
                     </div>
                   </div>
@@ -861,18 +861,18 @@ const TechnicalOverview = () => {
                         <h5 className="text-sm font-medium text-white">
                           Pre-Arbitration (0-3 years)
                         </h5>
-                        <div className="bg-white dark:bg-slate-800 p-3 rounded mt-2 text-sm">
+                        <div className="bg-surface-800 p-3 rounded mt-2 text-sm">
                           <p className="text-surface-300">Minimum: $720K</p>
-                          <p className="text-xs text-slate-500 mt-1">Cannot decrease from previous year</p>
+                          <p className="text-xs text-surface-500 mt-1">Cannot decrease from previous year</p>
                         </div>
                       </div>
                       <div>
                         <h5 className="text-sm font-medium text-white">
                           Arbitration 1 (3-4 years)
                         </h5>
-                        <div className="bg-white dark:bg-slate-800 p-3 rounded mt-2 text-sm">
+                        <div className="bg-surface-800 p-3 rounded mt-2 text-sm">
                           <p className="text-surface-300">25% of market value</p>
-                          <p className="text-xs text-slate-500 mt-1">Minimum: $1M (Regular), $1.2M (Super Two)</p>
+                          <p className="text-xs text-surface-500 mt-1">Minimum: $1M (Regular), $1.2M (Super Two)</p>
                         </div>
                       </div>
                     </div>
@@ -881,18 +881,18 @@ const TechnicalOverview = () => {
                         <h5 className="text-sm font-medium text-white">
                           Arbitration 2 (4-5 years)
                         </h5>
-                        <div className="bg-white dark:bg-slate-800 p-3 rounded mt-2 text-sm">
+                        <div className="bg-surface-800 p-3 rounded mt-2 text-sm">
                           <p className="text-surface-300">33% of market value</p>
-                          <p className="text-xs text-slate-500 mt-1">Minimum: $2.5M</p>
+                          <p className="text-xs text-surface-500 mt-1">Minimum: $2.5M</p>
                         </div>
                       </div>
                       <div>
                         <h5 className="text-sm font-medium text-white">
                           Arbitration 3 (5-6 years)
                         </h5>
-                        <div className="bg-white dark:bg-slate-800 p-3 rounded mt-2 text-sm">
+                        <div className="bg-surface-800 p-3 rounded mt-2 text-sm">
                           <p className="text-surface-300">50% of market value</p>
-                          <p className="text-xs text-slate-500 mt-1">Minimum: $4M</p>
+                          <p className="text-xs text-surface-500 mt-1">Minimum: $4M</p>
                         </div>
                       </div>
                     </div>
@@ -908,7 +908,7 @@ const TechnicalOverview = () => {
                     <p className="text-sm text-surface-300">
                       Player in Arbitration 2 with $10M market value:
                     </p>
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded font-mono text-sm">
+                    <div className="bg-surface-800 p-4 rounded font-mono text-sm">
                       <div className="grid grid-cols-2 gap-2 text-surface-300">
                         <div>Market Value</div>
                         <div>$10,000,000</div>
@@ -958,9 +958,9 @@ const TechnicalOverview = () => {
                     Core Calculation
                   </h4>
                   <div className="font-mono text-sm space-y-2">
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded">
+                    <div className="bg-surface-800 p-4 rounded">
                       <p className="text-emerald-600">Trade Value = Σ (Production Value - Contract Value)</p>
-                      <p className="text-xs text-slate-500 mt-2">Summed across all team-control years</p>
+                      <p className="text-xs text-surface-500 mt-2">Summed across all team-control years</p>
                     </div>
                   </div>
                 </div>
@@ -1079,7 +1079,7 @@ const TechnicalOverview = () => {
                       major scouting outlets and publications, thanks to the work of{' '} 
                       <a 
                         href="https://www.reddit.com/r/fantasybaseball/comments/1ibccdo/composite_prospect_list_2025/"
-                        className="text-brand-400 hover:text-emerald-400"
+                        className="text-brand-400 hover:text-brand-300"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -1096,25 +1096,25 @@ const TechnicalOverview = () => {
                     Future Value Base Values
                   </h4>
                   <div className="grid md:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-slate-800 p-3 rounded">
+                    <div className="bg-surface-800 p-3 rounded">
                       <div className="text-lg font-medium text-emerald-600">70 FV</div>
                       <div className="text-sm text-surface-300">$180M</div>
-                      <div className="text-xs text-slate-500 mt-1">Elite Prospects</div>
+                      <div className="text-xs text-surface-500 mt-1">Elite Prospects</div>
                     </div>
-                    <div className="bg-white dark:bg-slate-800 p-3 rounded">
+                    <div className="bg-surface-800 p-3 rounded">
                       <div className="text-lg font-medium text-emerald-600">60-65 FV</div>
                       <div className="text-sm text-surface-300">$90M-$120M</div>
-                      <div className="text-xs text-slate-500 mt-1">Top Prospects</div>
+                      <div className="text-xs text-surface-500 mt-1">Top Prospects</div>
                     </div>
-                    <div className="bg-white dark:bg-slate-800 p-3 rounded">
+                    <div className="bg-surface-800 p-3 rounded">
                       <div className="text-lg font-medium text-emerald-600">50-55 FV</div>
                       <div className="text-sm text-surface-300">$28M-$55M</div>
-                      <div className="text-xs text-slate-500 mt-1">Average to Above</div>
+                      <div className="text-xs text-surface-500 mt-1">Average to Above</div>
                     </div>
-                    <div className="bg-white dark:bg-slate-800 p-3 rounded">
+                    <div className="bg-surface-800 p-3 rounded">
                       <div className="text-lg font-medium text-emerald-600">40-45 FV</div>
                       <div className="text-sm text-surface-300">$4M-$12M</div>
-                      <div className="text-xs text-slate-500 mt-1">Depth Prospects</div>
+                      <div className="text-xs text-surface-500 mt-1">Depth Prospects</div>
                     </div>
                   </div>
                 </div>
@@ -1129,21 +1129,21 @@ const TechnicalOverview = () => {
                       <h5 className="text-sm font-medium text-white">Top 100</h5>
                       <div className="text-sm text-surface-300">
                         0.9 → 0.5 multiplier
-                        <p className="text-xs text-slate-500 mt-1">Linear decrease from #1 to #100</p>
+                        <p className="text-xs text-surface-500 mt-1">Linear decrease from #1 to #100</p>
                       </div>
                     </div>
                     <div className="space-y-2">
                       <h5 className="text-sm font-medium text-white">Extended (101-500)</h5>
                       <div className="text-sm text-surface-300">
                         0.5 → 0.3 multiplier
-                        <p className="text-xs text-slate-500 mt-1">Linear decrease from #101 to #500</p>
+                        <p className="text-xs text-surface-500 mt-1">Linear decrease from #101 to #500</p>
                       </div>
                     </div>
                     <div className="space-y-2">
                       <h5 className="text-sm font-medium text-white">Unranked</h5>
                       <div className="text-sm text-surface-300">
                         0.3 multiplier
-                        <p className="text-xs text-slate-500 mt-1">Minimum value floor</p>
+                        <p className="text-xs text-surface-500 mt-1">Minimum value floor</p>
                       </div>
                     </div>
                   </div>

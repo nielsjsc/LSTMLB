@@ -5,7 +5,7 @@
 @layer base {
   :root {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    line-height: 1.6;
+    line-height: 1.55;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -15,19 +15,25 @@
     margin: 0;
     min-width: 320px;
     min-height: 100vh;
-    background-color: #0f172a;
-    color: #e2e8f0;
+    background-color: #111111;
+    color: #e5e5e5;
   }
 
   #root {
     width: 100%;
   }
 
-  /* Tabular numbers for data tables */
+  /* Display headings use Barlow */
+  h1, h2, h3 {
+    font-family: 'Barlow', 'Inter', -apple-system, sans-serif;
+  }
+
+  /* Tabular numbers for data tables — actual monospace */
   .font-mono, table td, table th {
-    font-feature-settings: 'tnum', 'cv02', 'cv03', 'cv04';
+    font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+    font-feature-settings: 'tnum';
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
   }
 
   /* Custom scrollbar for dark theme */
@@ -36,14 +42,14 @@
     height: 8px;
   }
   ::-webkit-scrollbar-track {
-    background: #1e293b;
+    background: #1a1a1a;
   }
   ::-webkit-scrollbar-thumb {
-    background: #475569;
+    background: #525252;
     border-radius: 4px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #64748b;
+    background: #737373;
   }
 
   /* Smooth transitions globally */

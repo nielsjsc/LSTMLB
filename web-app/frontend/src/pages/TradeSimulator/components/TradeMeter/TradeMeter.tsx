@@ -100,8 +100,8 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
               <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
             </filter>
             <radialGradient id="centerGrad" cx="50%" cy="100%" r="60%">
-              <stop offset="0%" stopColor="#1e293b" />
-              <stop offset="100%" stopColor="#0f172a" />
+              <stop offset="0%" stopColor="#2a2a2a" />
+              <stop offset="100%" stopColor="#111111" />
             </radialGradient>
           </defs>
 
@@ -120,7 +120,7 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
           <path
             d={`M ${arcStart.x} ${arcStart.y} A ${r} ${r} 0 0 1 ${arcEnd.x} ${arcEnd.y}`}
             fill="none"
-            stroke="#1e293b"
+            stroke="#2a2a2a"
             strokeWidth="10"
             strokeLinecap="round"
           />
@@ -141,7 +141,7 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
             const p2 = polarToCart(angle, r + 8);
             return (
               <line key={angle} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-                stroke="#334155" strokeWidth="1.5" />
+                stroke="#404040" strokeWidth="1.5" />
             );
           })}
 
@@ -154,10 +154,10 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
             return (
               <g key={angle}>
                 <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
-                  stroke={isMajor ? '#64748b' : '#334155'} strokeWidth={isMajor ? 1.5 : 1} />
+                  stroke={isMajor ? '#737373' : '#404040'} strokeWidth={isMajor ? 1.5 : 1} />
                 {label && (
                   <text x={labelPos.x} y={labelPos.y} textAnchor="middle" dominantBaseline="middle"
-                    fill="#94a3b8" style={{ fontSize: '9px', fontFamily: 'Inter, sans-serif' }}>
+                    fill="#a3a3a3" style={{ fontSize: '9px', fontFamily: 'Inter, sans-serif' }}>
                     {label}
                   </text>
                 )}
@@ -167,7 +167,7 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
 
           {/* Fair trade indicator at top center */}
           <line x1={cx} y1={cy - r - 6} x2={cx} y2={cy - r + 6}
-            stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" />
+            stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
 
           {/* Needle glow (behind needle) */}
           <polygon
@@ -183,16 +183,16 @@ const TradeMeter: React.FC<TradeMeterProps> = ({ team1Name, team2Name, different
           />
 
           {/* Center hub */}
-          <circle cx={cx} cy={cy} r="10" fill="url(#centerGrad)" stroke="#334155" strokeWidth="1" />
+          <circle cx={cx} cy={cy} r="10" fill="url(#centerGrad)" stroke="#404040" strokeWidth="1" />
           <circle cx={cx} cy={cy} r="4" fill={needleGlowColor} opacity="0.9" />
           <circle cx={cx} cy={cy} r="6" fill="none" stroke={needleGlowColor} strokeWidth="0.5" opacity="0.4" />
 
           {/* Team labels */}
-          <text x="28" y={cy + 20} fill="#94a3b8" textAnchor="start"
+          <text x="28" y={cy + 20} fill="#a3a3a3" textAnchor="start"
             style={{ fontSize: '11px', fontWeight: 600, fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em' }}>
             {team2Name}
           </text>
-          <text x="272" y={cy + 20} fill="#94a3b8" textAnchor="end"
+          <text x="272" y={cy + 20} fill="#a3a3a3" textAnchor="end"
             style={{ fontSize: '11px', fontWeight: 600, fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em' }}>
             {team1Name}
           </text>

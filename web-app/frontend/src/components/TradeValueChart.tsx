@@ -59,10 +59,10 @@ const HOVER_RADIUS = 7;
 // ─── Dot color by value type ────────────────────────────────
 const DOT_COLOR: Record<string, string> = {
   prospect: '#a78bfa',      // violet-400
-  mlb_surplus: '#34d399',   // emerald-400
+  mlb_surplus: '#f59e0b',   // amber-500 (brand)
   free_agent: '#fb7185',    // rose-400
 };
-const DEFAULT_DOT_COLOR = '#94a3b8'; // slate-400
+const DEFAULT_DOT_COLOR = '#a3a3a3'; // neutral-400
 
 // ─── Component ──────────────────────────────────────────────
 interface Props {

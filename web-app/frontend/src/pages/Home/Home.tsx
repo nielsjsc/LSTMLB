@@ -8,8 +8,8 @@ const Home = () => {
       <div className="max-w-7xl mx-auto px-4 py-16">
         {/* Hero Section */}
         <div className="text-center mb-20">
-          <h1 className="text-6xl font-extrabold mb-6 bg-clip-text text-transparent bg-gradient-brand py-4 px-2 inline-block">
-            LongBall
+          <h1 className="font-display text-6xl font-extrabold mb-6 bg-clip-text text-transparent bg-gradient-brand py-4 px-2 inline-block tracking-tight">
+            LONGBALL
           </h1>
           <p className="text-2xl text-surface-300 font-light max-w-3xl mx-auto mb-8">
             Open Source Baseball Analytics Platform

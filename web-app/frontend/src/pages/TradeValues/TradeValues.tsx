@@ -41,7 +41,7 @@ const TradeValues = () => {
             >
               <option value="" className="bg-surface-800">All Teams</option>
               {teams.map(t => (
-                <option key={t} value={t} className="bg-slate-800">{t}</option>
+                <option key={t} value={t} className="bg-surface-800">{t}</option>
               ))}
             </select>
 

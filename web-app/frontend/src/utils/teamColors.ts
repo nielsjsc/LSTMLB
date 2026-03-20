@@ -279,11 +279,11 @@ const teamColorMap: Record<string, TeamColors> = {
 
 // Default colors for unknown teams or FA
 const defaultColors: TeamColors = {
-  primary: '#34d399',
-  secondary: '#0f172a',
-  accent: '#34d399',
-  gradient: 'linear-gradient(135deg, #34d399 0%, #60a5fa 100%)',
-  bg: 'rgba(52, 211, 153, 0.06)',
+  primary: '#f59e0b',
+  secondary: '#111111',
+  accent: '#f59e0b',
+  gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+  bg: 'rgba(245, 158, 11, 0.06)',
 };
 
 /**

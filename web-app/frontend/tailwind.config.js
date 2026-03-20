@@ -8,34 +8,35 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-        mono: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        display: ['Barlow', 'Inter', '-apple-system', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Menlo', 'Consolas', 'monospace'],
       },
       colors: {
         brand: {
-          50: '#edfcf5',
-          100: '#d4f7e6',
-          200: '#aceed2',
-          300: '#76dfb7',
-          400: '#34d399',  // Primary accent
-          500: '#15b881',
-          600: '#099568',
-          700: '#077755',
-          800: '#095e45',
-          900: '#084d3a',
+          50: '#fffbeb',
+          100: '#fef3c7',
+          200: '#fde68a',
+          300: '#fcd34d',
+          400: '#f59e0b',  // Primary accent — warm amber
+          500: '#d97706',
+          600: '#b45309',
+          700: '#92400e',
+          800: '#78350f',
+          900: '#451a03',
         },
         surface: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          850: '#172033',
-          900: '#0f172a',  // Main background
-          950: '#0a0f1e',
+          50: '#fafafa',
+          100: '#f5f5f5',
+          200: '#e5e5e5',
+          300: '#d4d4d4',
+          400: '#a3a3a3',
+          500: '#737373',
+          600: '#525252',
+          700: '#2a2a2a',
+          800: '#1a1a1a',
+          850: '#151515',
+          900: '#111111',  // Main background — true dark
+          950: '#0a0a0a',
         },
         accent: {
           blue: '#60a5fa',
@@ -49,13 +50,13 @@ export default {
         }
       },
       boxShadow: {
-        'glow': '0 0 20px rgba(52, 211, 153, 0.15)',
-        'glow-lg': '0 0 40px rgba(52, 211, 153, 0.2)',
-        'inner-glow': 'inset 0 1px 0 rgba(255,255,255,0.05)',
+        'glow': '0 0 20px rgba(245, 158, 11, 0.12)',
+        'glow-lg': '0 0 40px rgba(245, 158, 11, 0.18)',
+        'inner-glow': 'inset 0 1px 0 rgba(255,255,255,0.04)',
       },
       backgroundImage: {
-        'gradient-brand': 'linear-gradient(135deg, #34d399, #60a5fa)',
-        'gradient-surface': 'linear-gradient(180deg, #1e293b, #0f172a)',
+        'gradient-brand': 'linear-gradient(135deg, #f59e0b, #d97706)',
+        'gradient-surface': 'linear-gradient(180deg, #1a1a1a, #111111)',
       }
     },
   },

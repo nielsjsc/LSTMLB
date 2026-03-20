@@ -21,21 +21,9 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-            <svg className="h-8 w-8" viewBox="0 0 64 64" fill="none">
-              <defs>
-                <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#34d399"/>
-                  <stop offset="100%" stopColor="#60a5fa"/>
-                </linearGradient>
-              </defs>
-              <circle cx="32" cy="32" r="30" fill="#0f172a" stroke="url(#logoGrad)" strokeWidth="1.5"/>
-              <path d="M18 44V18h5v21h12v5H18z" fill="url(#logoGrad)"/>
-              <circle cx="44" cy="22" r="5" fill="none" stroke="url(#logoGrad)" strokeWidth="2.5"/>
-              <path d="M41.5 24.5l5 5" stroke="url(#logoGrad)" strokeWidth="2.5" strokeLinecap="round"/>
-            </svg>
-            <span className="text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-brand group-hover:opacity-80 transition-opacity">
-              LongBall
+          <Link to="/" className="flex items-center gap-1.5 shrink-0 group">
+            <span className="font-display text-xl font-extrabold tracking-tight text-white group-hover:opacity-80 transition-opacity">
+              LONG<span className="text-brand-400">BALL</span>
             </span>
           </Link>
 
