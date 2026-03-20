@@ -53,7 +53,7 @@ function PlayerTradeCard({
   return (
     <Link
       to={`/trades/${trade.trade_id}`}
-      className="block rounded-lg border border-gray-200 bg-\[#F7F7F5\]/40 hover:bg-white transition-colors p-4"
+      className="block rounded-lg border border-gray-200 bg-\[#F5F3EE\]/40 hover:bg-white transition-colors p-4"
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">

@@ -28,7 +28,7 @@ const TradeValues = () => {
   };
 
   return (
-    <div className="min-h-screen bg-\[#F7F7F5\]">
+    <div className="min-h-screen bg-\[#F5F3EE\]">
       <div className="max-w-7xl mx-auto py-6 px-4">
         <h1 className="text-2xl font-bold mb-5 text-gray-900 tracking-tight font-display">Trade Value Rankings</h1>
         

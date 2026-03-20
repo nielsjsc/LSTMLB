@@ -587,7 +587,7 @@ const PlayerDetails: React.FC = () => {
   const projWar = isHistorical ? (histMeta?.career_war ?? 0) : (v?.contract_war ?? 0);
 
   return (
-    <div className="min-h-screen bg-\[#F7F7F5\]">
+    <div className="min-h-screen bg-\[#F5F3EE\]">
 
       {/* ════════════════════════════════════════════════════
        *  HERO — Big cinematic header with headshot + WAR ring
@@ -596,7 +596,7 @@ const PlayerDetails: React.FC = () => {
         {/* Layered team-color background */}
         <div className="absolute inset-0" style={{ background: colors.gradient, opacity: 0.18 }} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(255,255,255,0.06),transparent)]" />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-50/80 to-\[#F7F7F5\]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-50/80 to-\[#F5F3EE\]" />
 
         <div className="relative max-w-6xl mx-auto px-4 pt-10 pb-6 md:pt-14 md:pb-8">
           {/* Top: team name breadcrumb */}

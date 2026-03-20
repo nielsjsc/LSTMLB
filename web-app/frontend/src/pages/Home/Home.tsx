@@ -45,7 +45,7 @@ const Home = () => {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[#F7F7F5]">
+    <div className="min-h-screen bg-[#F5F3EE]">
       <div className="max-w-6xl mx-auto px-4 py-10">
         {/* Hero */}
         <div className="text-center mb-10">
@@ -90,7 +90,7 @@ const Home = () => {
                 </thead>
                 <tbody>
                   {topPlayers.map((p, i) => (
-                    <tr key={p.real_id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 1 ? 'bg-[#F9F9F7]' : ''}`}>
+                    <tr key={p.real_id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 1 ? 'bg-[#F7F4EF]' : ''}`}>
                       <td className="pl-4 pr-2 py-2 text-gray-400 font-medium">{i + 1}</td>
                       <td className="px-2 py-2">
                         <Link to={`/players/${p.mlb_id || p.real_id}`} className="text-accent-blue hover:underline font-medium">

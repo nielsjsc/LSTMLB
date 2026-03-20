@@ -185,7 +185,7 @@ const TradeAnalyzer = () => {
   };
 
   return (
-    <div className="min-h-screen bg-\[#F7F7F5\]">
+    <div className="min-h-screen bg-\[#F5F3EE\]">
       <div className="max-w-7xl mx-auto py-8 px-4">
         {/* Header */}
         <div className="text-center mb-8">

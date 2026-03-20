@@ -25,7 +25,7 @@ const TechnicalOverview = () => {
   return (
     <section className="relative py-16">
       {/* Gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-\[#F7F7F5\] to-white -z-10" />
+      <div className="absolute inset-0 bg-gradient-to-b from-\[#F5F3EE\] to-white -z-10" />
       
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Data Collection Section */}
