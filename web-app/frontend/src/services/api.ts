@@ -763,6 +763,42 @@ export const getTradeValueHistory = async (playerId: number): Promise<TradeValue
   }
 };
 
+// ── Fielding Stats ────────────────────────────────────────────────────────
+export interface FieldingStat {
+  season: number;
+  team: string | null;
+  pos: string;
+  age: number | null;
+  g: number | null;
+  gs: number | null;
+  inn: number | null;
+  sc_total_runs: number | null;
+  sc_range_runs: number | null;
+  sc_arm_runs: number | null;
+  sc_dp_runs: number | null;
+  sc_framing_runs: number | null;
+  sc_throwing_runs: number | null;
+  sc_blocking_runs: number | null;
+  drs: number | null;
+  uzr: number | null;
+  uzr_150: number | null;
+  oaa: number | null;
+  errors: number | null;
+  fp: number | null;
+  is_projection: boolean;
+}
+
+export const getPlayerFieldingStats = async (playerId: number): Promise<FieldingStat[]> => {
+  const url = `${API_BASE}/players/${playerId}/fielding-stats`;
+  try {
+    const response = await fetch(url, { headers: createApiHeaders() });
+    if (!response.ok) return [];
+    return await response.json();
+  } catch {
+    return [];
+  }
+};
+
 // ── Player Bio / Awards / Draft ───────────────────────────────────────────
 export interface PlayerAward {
   name: string;

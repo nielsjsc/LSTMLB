@@ -59,6 +59,7 @@ from app.models.player_id_crosswalk import PlayerIdCrosswalk
 from app.models.trade_value_history import TradeValueHistory
 from app.models.statcast_expected import StatcastExpected
 from app.models.spotrac_transaction import SpotracTransaction
+from app.models.fielding_stats import FieldingStats
 from app.config import PROSPECT_YEARS, PROSPECT_DEFAULT_YEAR
 from app.database import SessionLocal, engine, Base
 
@@ -92,6 +93,10 @@ DATA_PATHS: Dict[str, Path] = {
     "statcast_batter":     PROJECT_ROOT / "data" / "statcast" / "statcast_batter_expected_stats_2015_2025.csv",
     "statcast_pitcher":    PROJECT_ROOT / "data" / "statcast" / "statcast_pitcher_expected_stats_2015_2025.csv",
     "spotrac_transactions": PROJECT_ROOT / "data" / "salary" / "spotrac_transactions.csv",
+    # ── Fielding ───────────────────────────────────────────────────
+    "fielding_historical": PROJECT_ROOT / "data" / "historic_mlb" / "mlb_fielding_data_2000_2025_with_statcast.csv",
+    "fielding_projections": PROJECT_ROOT / "data" / "generated" / "pipeline" / "fielding_projections_complete.csv",
+    "crosswalk_for_fielding": PROJECT_ROOT / "data" / "generated" / "player_id_crosswalk.csv",
 }
 
 
@@ -959,6 +964,142 @@ class DataLoader:
             n = _bulk_insert(self.db, SpotracTransaction, records)
             logger.info(f"    {n:,} spotrac transactions loaded")
 
+    # ── Fielding stats (historical + projected) ─────────────────────────────
+
+    def load_fielding_stats(
+        self,
+        historical_path: Path,
+        projections_path: Path,
+        crosswalk_path: Path,
+    ) -> None:
+        """Load historical fielding data and fielding projections into
+        the ``fielding_stats`` table.
+
+        Historical data comes from the FanGraphs + Statcast merged CSV.
+        Projections come from the value-determination pipeline output.
+        Both use IDfg as primary key; mlb_id is resolved via the crosswalk.
+        """
+        with _Timer("Fielding stats"):
+            # ── Build IDfg → mlbam_id map from crosswalk ──────────────
+            id_map: dict[int, int] = {}
+            if crosswalk_path.exists():
+                cw = pd.read_csv(crosswalk_path, encoding="utf-8-sig")
+                cw.columns = cw.columns.str.strip()
+                cw["fg_id_num"] = pd.to_numeric(cw["fg_id"], errors="coerce")
+                cw = cw.dropna(subset=["fg_id_num", "mlbam_id"])
+                id_map = dict(zip(cw["fg_id_num"].astype(int), cw["mlbam_id"].astype(int)))
+                logger.info(f"    Crosswalk loaded: {len(id_map):,} IDfg→mlbam mappings")
+
+            all_records: list[dict] = []
+
+            # ── 1. Historical fielding ────────────────────────────────
+            if historical_path.exists():
+                df = pd.read_csv(historical_path, low_memory=False)
+                # Exclude pitchers — only positional fielding
+                df = df[df["Pos"] != "P"].copy()
+
+                df["mlb_id"] = df["IDfg"].map(id_map)
+                # Also fill from sc_mlbam_id where available
+                if "sc_mlbam_id" in df.columns:
+                    sc_ids = pd.to_numeric(df["sc_mlbam_id"], errors="coerce")
+                    df["mlb_id"] = df["mlb_id"].fillna(sc_ids)
+
+                df["mlb_id"] = df["mlb_id"].apply(
+                    lambda x: int(x) if pd.notna(x) else None
+                )
+
+                records = []
+                for _, row in df.iterrows():
+                    rec = {
+                        "idfg": int(row["IDfg"]) if pd.notna(row.get("IDfg")) else None,
+                        "mlb_id": row["mlb_id"],
+                        "name": row.get("Name"),
+                        "season": int(row["Season"]),
+                        "team": row.get("Team"),
+                        "pos": row.get("Pos"),
+                        "age": row.get("Age"),
+                        "g": int(row["G"]) if pd.notna(row.get("G")) else None,
+                        "gs": int(row["GS"]) if pd.notna(row.get("GS")) else None,
+                        "inn": row.get("Inn"),
+                        "sc_total_runs": row.get("sc_total_runs"),
+                        "sc_range_runs": row.get("sc_range_runs"),
+                        "sc_arm_runs": row.get("sc_arm_runs"),
+                        "sc_dp_runs": row.get("sc_dp_runs"),
+                        "sc_framing_runs": row.get("sc_framing_runs"),
+                        "sc_throwing_runs": row.get("sc_throwing_runs"),
+                        "sc_blocking_runs": row.get("sc_blocking_runs"),
+                        "drs": row.get("DRS"),
+                        "uzr": row.get("UZR"),
+                        "uzr_150": row.get("UZR/150"),
+                        "oaa": int(row["OAA"]) if pd.notna(row.get("OAA")) else None,
+                        "errors": int(row["E"]) if pd.notna(row.get("E")) else None,
+                        "fp": row.get("FP"),
+                        "is_projection": 0,
+                    }
+                    records.append(rec)
+
+                # Vectorised NaN → None cleanup
+                for rec in records:
+                    for k, v in rec.items():
+                        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                            rec[k] = None
+
+                all_records.extend(records)
+                logger.info(f"    Historical fielding: {len(records):,} rows (non-pitcher)")
+            else:
+                logger.warning(f"    Historical fielding file not found: {historical_path}")
+
+            # ── 2. Fielding projections ───────────────────────────────
+            if projections_path.exists():
+                df = pd.read_csv(projections_path, low_memory=False)
+                df["mlb_id"] = df["IDfg"].map(id_map)
+                df["mlb_id"] = df["mlb_id"].apply(
+                    lambda x: int(x) if pd.notna(x) else None
+                )
+
+                records = []
+                for _, row in df.iterrows():
+                    rec = {
+                        "idfg": int(row["IDfg"]) if pd.notna(row.get("IDfg")) else None,
+                        "mlb_id": row["mlb_id"],
+                        "name": row.get("Name"),
+                        "season": int(row["Year"]),
+                        "team": row.get("Team"),
+                        "pos": row.get("Pos"),
+                        "age": row.get("Age"),
+                        "g": int(row["G"]) if pd.notna(row.get("G")) else None,
+                        "gs": int(row["GS"]) if pd.notna(row.get("GS")) else None,
+                        "inn": row.get("Inn"),
+                        "sc_total_runs": row.get("sc_total_runs/150") if "sc_total_runs/150" in row.index else row.get("sc_total_runs"),
+                        "sc_range_runs": row.get("sc_range_runs/150") if "sc_range_runs/150" in row.index else row.get("sc_range_runs"),
+                        "sc_arm_runs": row.get("sc_arm_runs/150") if "sc_arm_runs/150" in row.index else row.get("sc_arm_runs"),
+                        "sc_dp_runs": row.get("sc_dp_runs/150") if "sc_dp_runs/150" in row.index else row.get("sc_dp_runs"),
+                        "sc_framing_runs": row.get("sc_framing_runs/150") if "sc_framing_runs/150" in row.index else row.get("sc_framing_runs"),
+                        "sc_throwing_runs": row.get("sc_throwing_runs/150") if "sc_throwing_runs/150" in row.index else row.get("sc_throwing_runs"),
+                        "sc_blocking_runs": row.get("sc_blocking_runs/150") if "sc_blocking_runs/150" in row.index else row.get("sc_blocking_runs"),
+                        "drs": None,
+                        "uzr": None,
+                        "uzr_150": None,
+                        "oaa": None,
+                        "errors": None,
+                        "fp": None,
+                        "is_projection": 1,
+                    }
+                    records.append(rec)
+
+                for rec in records:
+                    for k, v in rec.items():
+                        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                            rec[k] = None
+
+                all_records.extend(records)
+                logger.info(f"    Fielding projections: {len(records):,} rows")
+            else:
+                logger.warning(f"    Fielding projections file not found: {projections_path}")
+
+            n = _bulk_insert(self.db, FieldingStats, all_records)
+            logger.info(f"    {n:,} total fielding rows loaded")
+
     # ── Legacy shim ───────────────────────────────────────────────────────
 
     def reset_and_load_data(self, players_csv: str, prospects_csv: str = None):
@@ -993,7 +1134,7 @@ def init_db():
     t_total = time.perf_counter()
 
     # ── 1. Schema reset ───────────────────────────────────────────────────
-    logger.info("[1/12] Resetting schema ...")
+    logger.info("[1/13] Resetting schema ...")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     logger.info("  Tables recreated")
@@ -1014,59 +1155,67 @@ def init_db():
         loader = DataLoader(db)
 
         # ── 2. Players ────────────────────────────────────────────────────
-        logger.info("\n[2/12] Loading players ...")
+        logger.info("\n[2/13] Loading players ...")
         loader.load_players(DATA_PATHS["players"])
 
         # ── 3. Prospects ──────────────────────────────────────────────────
-        logger.info("\n[3/12] Loading prospects ...")
+        logger.info("\n[3/13] Loading prospects ...")
         loader.load_prospects(DATA_PATHS["prospects"])
 
         # ── 4. Historical players ─────────────────────────────────────────
-        logger.info("\n[4/12] Loading historical players ...")
+        logger.info("\n[4/13] Loading historical players ...")
         if DATA_PATHS["historical"].exists():
             loader.load_historical(DATA_PATHS["historical"])
         else:
             logger.warning("  Skipped (file not found)")
 
         # ── 5. Past trades ────────────────────────────────────────────────
-        logger.info("\n[5/12] Loading past trades ...")
+        logger.info("\n[5/13] Loading past trades ...")
         if DATA_PATHS["trades"].exists():
             loader.load_past_trades(DATA_PATHS["trades"])
         else:
             logger.warning("  Skipped (file not found)")
 
         # ── 6. MiLB stats ────────────────────────────────────────────────
-        logger.info("\n[6/12] Loading MiLB statistics ...")
+        logger.info("\n[6/13] Loading MiLB statistics ...")
         loader.load_milb_stats(DATA_PATHS["milb_hitters"], DATA_PATHS["milb_pitchers"])
 
         # ── 7. Crosswalk ──────────────────────────────────────────────────
-        logger.info("\n[7/12] Loading player-ID crosswalk ...")
+        logger.info("\n[7/13] Loading player-ID crosswalk ...")
         if DATA_PATHS["crosswalk"].exists():
             loader.load_crosswalk(DATA_PATHS["crosswalk"])
         else:
             logger.warning("  Skipped — run scrapers/build_id_crosswalk.py first")
 
         # ── 8. Prospect IDfg resolution ───────────────────────────────────
-        logger.info("\n[8/12] Resolving prospect FanGraphs IDs (crosswalk) ...")
+        logger.info("\n[8/13] Resolving prospect FanGraphs IDs (crosswalk) ...")
         loader.resolve_prospect_idfg()
 
         # ── 9. Resolve has_mlb (integer mlbam_id match — <1 s) ────────────
-        logger.info("\n[9/12] Resolving prospect has_mlb ...")
+        logger.info("\n[9/13] Resolving prospect has_mlb ...")
         loader.resolve_prospect_has_mlb()
 
         # ── 10. Trade-value history ───────────────────────────────────────
-        logger.info("\n[10/12] Loading trade-value history ...")
+        logger.info("\n[10/13] Loading trade-value history ...")
         loader.load_trade_value_history(DATA_PATHS["trade_value_history"])
 
         # ── 11. Statcast expected stats ───────────────────────────────────
-        logger.info("\n[11/12] Loading Statcast expected stats ...")
+        logger.info("\n[11/13] Loading Statcast expected stats ...")
         loader.load_statcast_expected(
             DATA_PATHS["statcast_batter"], DATA_PATHS["statcast_pitcher"]
         )
 
         # ── 12. Spotrac transactions ──────────────────────────────────────
-        logger.info("\n[12/12] Loading Spotrac transactions ...")
+        logger.info("\n[12/13] Loading Spotrac transactions ...")
         loader.load_spotrac_transactions(DATA_PATHS["spotrac_transactions"])
+
+        # ── 13. Fielding stats (historical + projected) ───────────────────
+        logger.info("\n[13/13] Loading fielding statistics ...")
+        loader.load_fielding_stats(
+            DATA_PATHS["fielding_historical"],
+            DATA_PATHS["fielding_projections"],
+            DATA_PATHS["crosswalk_for_fielding"],
+        )
 
         elapsed = time.perf_counter() - t_total
         logger.info(

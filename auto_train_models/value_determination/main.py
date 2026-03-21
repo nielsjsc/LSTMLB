@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import from centralized config (SINGLE SOURCE OF TRUTH)
 from value_determination.config import (
-    Config, logger,
+    Config, logger, CURRENT_YEAR,
     # Backward compatibility
     OUTPUT_DIR, HITTER_COLUMNS, PITCHER_COLUMNS
 )
@@ -70,11 +70,90 @@ from value_determination.calculate_war import (
     calculate_war_components, calculate_pitcher_war,
     load_player_orgs, calculate_wrc_plus
 )
+from core.position_profiles import (
+    build_position_profiles, load_fielding_history, load_batting_for_games,
+    get_display_position, get_defensive_positions
+)
 
 
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
+def _export_fielding_projections(
+    fielding_data: pd.DataFrame,
+    position_profiles: dict,
+    org_data: pd.DataFrame,
+    batter_data: pd.DataFrame,
+    output_dir: Path,
+) -> None:
+    """Export per-position fielding projections with innings estimates.
+
+    Produces ``fielding_projections_complete.csv`` consumed by the web DB
+    loader.  Each row represents one player × year × position with:
+    - Statcast run-value components (per 150)
+    - Estimated games / innings at that position (from profile fractions)
+    - Team assignment
+    """
+    import numpy as np
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if fielding_data.empty:
+        logger.warning("No fielding predictions to export")
+        return
+
+    rows = []
+    # Build a team lookup from org_data
+    team_map = {}
+    if org_data is not None and not org_data.empty:
+        for _, r in org_data.drop_duplicates("IDfg").iterrows():
+            team_map[r["IDfg"]] = r.get("Team", "")
+
+    # Build a name lookup from batter_data
+    name_map = {}
+    if batter_data is not None and not batter_data.empty:
+        for idfg, grp in batter_data.groupby("IDfg"):
+            name_map[idfg] = grp.iloc[0].get("Name", "")
+
+    total_games = 150  # standard full season
+    innings_per_game = 8.5  # approximate defensive innings per 9-inning game
+
+    for _, pred in fielding_data.iterrows():
+        idfg = pred["IDfg"]
+        year = pred["Year"]
+        pos = pred.get("Pos", "")
+        profile = position_profiles.get(idfg, {})
+        pos_frac = profile.get(pos, 0.0) if profile else 0.0
+
+        est_games = round(total_games * pos_frac)
+        est_gs = est_games  # assume all are starts
+        est_inn = round(est_games * innings_per_game, 1)
+
+        rows.append({
+            "IDfg": idfg,
+            "Name": pred.get("Name") or name_map.get(idfg, ""),
+            "Year": year,
+            "Team": team_map.get(idfg, ""),
+            "Pos": pos,
+            "Age": pred.get("Age"),
+            "G": est_games,
+            "GS": est_gs,
+            "Inn": est_inn,
+            "sc_total_runs": pred.get("sc_total_runs/150", pred.get("sc_total_runs")),
+            "sc_range_runs": pred.get("sc_range_runs/150", pred.get("sc_range_runs")),
+            "sc_arm_runs": pred.get("sc_arm_runs/150", pred.get("sc_arm_runs")),
+            "sc_dp_runs": pred.get("sc_dp_runs/150", pred.get("sc_dp_runs")),
+            "sc_framing_runs": pred.get("sc_framing_runs/150", pred.get("sc_framing_runs")),
+            "sc_throwing_runs": pred.get("sc_throwing_runs/150", pred.get("sc_throwing_runs")),
+            "sc_blocking_runs": pred.get("sc_blocking_runs/150", pred.get("sc_blocking_runs")),
+        })
+
+    out_df = pd.DataFrame(rows)
+    # Replace NaN with empty
+    out_path = output_dir / "fielding_projections_complete.csv"
+    out_df.to_csv(out_path, index=False, na_rep="")
+    logger.info(f"Exported {len(out_df)} fielding projection rows to {out_path}")
 
 def calculate_pitcher_war_for_dataframe(pitcher_df: pd.DataFrame, 
                                         org_data: pd.DataFrame, 
@@ -293,17 +372,40 @@ def main():
         )
         
         # Calculate WAR components for each batter
+        # Build position profiles from historical fielding data
+        logger.info("Building position profiles from historical fielding data...")
+        hist_fielding = load_fielding_history()
+        hist_batting = load_batting_for_games()
+        batter_ids = batter_data['IDfg'].unique().tolist()
+        position_profiles = build_position_profiles(
+            hist_fielding, hist_batting, batter_ids,
+            cutoff_year=CURRENT_YEAR
+        )
+        logger.info(f"Built position profiles for {len(position_profiles)}/{len(batter_ids)} batters")
+        
+        # Log position distribution
+        from collections import Counter
+        pos_counts = Counter(
+            get_display_position(position_profiles.get(pid))
+            for pid in batter_ids
+        )
+        logger.info(f"Position distribution: {dict(pos_counts.most_common())}")
+        
         logger.info("Calculating WAR components (Off, BsR, Def, Position)...")
         war_components_list = []
         for idx, row in batter_data.iterrows():
             try:
-                war, components = calculate_war_components(row, baserunning_data, fielding_data)
+                war, components = calculate_war_components(
+                    row, baserunning_data, fielding_data,
+                    position_profiles=position_profiles
+                )
                 components['IDfg'] = row['IDfg']
                 components['Year'] = row['Year']
                 war_components_list.append(components)
             except Exception as e:
                 logger.error(f"Error calculating WAR for {row.get('Name', 'Unknown')} ({row['IDfg']}): {e}")
-                # Add placeholder components so player isn't dropped
+                # Use position profile for fallback instead of hardcoded 'OF'
+                fallback_pos = get_display_position(position_profiles.get(row['IDfg']))
                 war_components_list.append({
                     'IDfg': row['IDfg'],
                     'Year': row['Year'],
@@ -313,7 +415,7 @@ def main():
                     'Fld': 0.0,
                     'Pos': 0.0,
                     'Def': 0.0,
-                    'Position': 'OF',
+                    'Position': fallback_pos,
                     'PA': 630,
                     'G': 150
                 })
@@ -445,6 +547,13 @@ def main():
         # ============================================================
         logger.info("\n[Step 10/10] Exporting value data...")
         export_value_data(export_data, OUTPUT_DIR)
+
+        # ── Export fielding projections for the web database ──────────
+        logger.info("Exporting fielding projections (per-position, with innings)...")
+        _export_fielding_projections(
+            fielding_data, position_profiles, org_data,
+            batter_data, OUTPUT_DIR.parent / "pipeline",
+        )
         
         # Log final summary
         if 'Year' in export_data.columns and 'Status' in export_data.columns:

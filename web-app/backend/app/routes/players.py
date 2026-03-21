@@ -636,6 +636,88 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
     return JSONResponse(result)
 
 
+# ── Fielding stats endpoint ──────────────────────────────────────────────
+
+@router.get("/{player_id}/fielding-stats")
+async def get_player_fielding_stats(player_id: int, db: Session = Depends(get_db)):
+    """Return per-position fielding statistics (historical + projected).
+
+    Looks up by mlb_id first, falls back to IDfg (real_id).
+    Returns rows grouped by season, each with per-position run-value
+    components, innings, games, and traditional metrics.
+    """
+    from app.models.fielding_stats import FieldingStats
+
+    try:
+        # Resolve player → get both mlb_id and idfg
+        player = db.query(Player).filter(
+            or_(Player.mlb_id == player_id, Player.real_id == player_id)
+        ).first()
+
+        if player is None:
+            return JSONResponse([])
+
+        mlb_id = player.mlb_id
+        idfg = player.real_id
+
+        # Query by mlb_id or idfg
+        conditions = []
+        if mlb_id:
+            conditions.append(FieldingStats.mlb_id == int(mlb_id))
+        if idfg:
+            conditions.append(FieldingStats.idfg == int(idfg))
+
+        if not conditions:
+            return JSONResponse([])
+
+        rows = (
+            db.query(FieldingStats)
+            .filter(or_(*conditions))
+            .order_by(FieldingStats.season, FieldingStats.pos)
+            .all()
+        )
+
+        if not rows:
+            return JSONResponse([])
+
+        def _fmt(v, digits=1):
+            if v is None:
+                return None
+            return round(float(v), digits)
+
+        result = [
+            {
+                "season": r.season,
+                "team": r.team,
+                "pos": r.pos,
+                "age": _fmt(r.age, 0),
+                "g": r.g,
+                "gs": r.gs,
+                "inn": _fmt(r.inn, 1),
+                "sc_total_runs": _fmt(r.sc_total_runs),
+                "sc_range_runs": _fmt(r.sc_range_runs),
+                "sc_arm_runs": _fmt(r.sc_arm_runs),
+                "sc_dp_runs": _fmt(r.sc_dp_runs),
+                "sc_framing_runs": _fmt(r.sc_framing_runs),
+                "sc_throwing_runs": _fmt(r.sc_throwing_runs),
+                "sc_blocking_runs": _fmt(r.sc_blocking_runs),
+                "drs": _fmt(r.drs, 0),
+                "uzr": _fmt(r.uzr),
+                "uzr_150": _fmt(r.uzr_150),
+                "oaa": r.oaa,
+                "errors": r.errors,
+                "fp": _fmt(r.fp, 3),
+                "is_projection": bool(r.is_projection),
+            }
+            for r in rows
+        ]
+        return JSONResponse(result)
+
+    except Exception as e:
+        logger.error(f"Error in get_player_fielding_stats: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 # ── Player Bio / Awards / Draft (MLB Stats API, cached) ──────────────────
 
 _player_info_cache: Dict[int, Tuple[float, Dict[str, Any]]] = {}

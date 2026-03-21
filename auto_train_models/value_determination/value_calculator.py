@@ -642,7 +642,15 @@ def integrate_player_statistics(value_data: pd.DataFrame,
     
     # Combine and sort
     result = pd.concat([historical_data, prediction_data])
-    return result.sort_values(['IDfg', 'Year'])
+    result = result.sort_values(['IDfg', 'Year'])
+    
+    # Back-fill Position from prediction rows into historical rows
+    # Each player's prediction rows have Position set (from position profiles);
+    # historical rows have it as NaN. Fill backwards within each player group.
+    if 'Position' in result.columns:
+        result['Position'] = result.groupby('IDfg')['Position'].bfill()
+    
+    return result
 
 
 def post_process_export_data(df: pd.DataFrame) -> pd.DataFrame:

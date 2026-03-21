@@ -645,6 +645,16 @@ def generate_fielding_predictions(
     # Load models and scalers
     position_models, position_scalers, position_group_map, input_features_map, seq_length_map = load_fielding_models_and_scalers()
     
+    # Build position profiles from historical fielding data for multi-position predictions
+    from core.position_profiles import build_position_profiles, load_batting_for_games
+    batting_for_games = load_batting_for_games()
+    # Get all player IDs in the fielding data as candidates
+    all_player_ids = raw_df['IDfg'].unique().tolist()
+    if roster_ids:
+        all_player_ids = list(set(all_player_ids) | roster_ids)
+    profiles = build_position_profiles(raw_df, batting_for_games, all_player_ids, cutoff_year=cutoff_year)
+    logger.info(f"Built position profiles for {len(profiles)} players")
+    
     # Generate predictions
     predictions_df = predict_all_fielders(
         raw_df=raw_df,
@@ -657,7 +667,8 @@ def generate_fielding_predictions(
         future_years=15,
         cutoff_year=cutoff_year,
         use_aging_enforcer=use_aging_enforcer,
-        roster_ids=roster_ids
+        roster_ids=roster_ids,
+        position_profiles=profiles
     )
     
     if predictions_df is not None:

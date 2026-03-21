@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { getPlayerDetails, getTradeValueHistory, getPlayerTransactions, getPlayerInfo, getPlayerPastTrades, getPlayerMiLBStats, PlayerStats } from '../../services/api';
-import type { TradeValuePoint, Transaction, PlayerInfo, PastTradeDetail, MiLBStatsResponse, ProspectDetailHistory } from '../../services/api';
+import { getPlayerDetails, getTradeValueHistory, getPlayerTransactions, getPlayerInfo, getPlayerPastTrades, getPlayerMiLBStats, getPlayerFieldingStats, PlayerStats } from '../../services/api';
+import type { TradeValuePoint, Transaction, PlayerInfo, PastTradeDetail, MiLBStatsResponse, ProspectDetailHistory, FieldingStat } from '../../services/api';
 import { CURRENT_YEAR, MAX_PROJECTION_YEARS } from '../../config';
-import { CombinedHittingTable, CombinedPitchingTable } from '../../components/Tables';
+import { CombinedHittingTable, CombinedPitchingTable, CombinedFieldingTable } from '../../components/Tables';
 import { getTeamColors, getTeamName } from '../../utils/teamColors';
 import TradeValueChart from '../../components/TradeValueChart';
 import TransactionHistory from '../../components/TransactionHistory';
@@ -454,6 +454,7 @@ const PlayerDetails: React.FC = () => {
   const [playerInfo, setPlayerInfo] = useState<PlayerInfo | null>(null);
   const [pastTrades, setPastTrades] = useState<PastTradeDetail[]>([]);
   const [milbStats, setMilbStats] = useState<MiLBStatsResponse | null>(null);
+  const [fieldingStats, setFieldingStats] = useState<FieldingStat[]>([]);
 
   useEffect(() => {
     const fetchPlayer = async () => {
@@ -481,6 +482,7 @@ const PlayerDetails: React.FC = () => {
     getPlayerInfo(id).then(setPlayerInfo).catch(() => setPlayerInfo(null));
     getPlayerPastTrades(id).then(r => setPastTrades(r.trades)).catch(() => setPastTrades([]));
     getPlayerMiLBStats(id).then(setMilbStats).catch(() => setMilbStats(null));
+    getPlayerFieldingStats(id).then(setFieldingStats).catch(() => setFieldingStats([]));
   }, [player?.mlb_id, playerId]);
 
   // ── Derived state ──
@@ -553,6 +555,11 @@ const PlayerDetails: React.FC = () => {
   const projectedPitching = useMemo(() => pitchingTableData.filter(d => d.year >= CURRENT_YEAR), [pitchingTableData]);
   const historicalHitting = useMemo(() => hittingTableData.filter(d => d.year < CURRENT_YEAR), [hittingTableData]);
   const projectedHitting = useMemo(() => hittingTableData.filter(d => d.year >= CURRENT_YEAR), [hittingTableData]);
+
+  // Fielding splits
+  const historicalFielding = useMemo(() => fieldingStats.filter(d => !d.is_projection), [fieldingStats]);
+  const projectedFielding = useMemo(() => fieldingStats.filter(d => d.is_projection), [fieldingStats]);
+  const hasFielding = fieldingStats.length > 0;
 
   // ── Loading / Error ──
   if (loading) {
@@ -833,6 +840,18 @@ const PlayerDetails: React.FC = () => {
         {showHitting && hasCurrentHitting && projectedHitting.length > 0 && !isHistorical && (
           <CollapsibleSection title="Hitting Projections" teamColor={colors.primary} defaultOpen={hittingDefaultOpen}>
             <CombinedHittingTable data={projectedHitting.sort((a, b) => a.year - b.year)} hideXStats />
+          </CollapsibleSection>
+        )}
+
+        {hasFielding && historicalFielding.length > 0 && (
+          <CollapsibleSection title="Fielding Statistics" teamColor={colors.primary} defaultOpen={false}>
+            <CombinedFieldingTable data={historicalFielding.sort((a, b) => b.season - a.season || a.pos.localeCompare(b.pos))} showCareerTotals />
+          </CollapsibleSection>
+        )}
+
+        {hasFielding && projectedFielding.length > 0 && !isHistorical && (
+          <CollapsibleSection title="Fielding Projections" teamColor={colors.primary} defaultOpen={false}>
+            <CombinedFieldingTable data={projectedFielding.sort((a, b) => a.season - b.season || a.pos.localeCompare(b.pos))} hideTraditional />
           </CollapsibleSection>
         )}
 

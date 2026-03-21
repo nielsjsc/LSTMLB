@@ -1526,13 +1526,15 @@ def predict_all_fielders(
     future_years: int = 16, 
     cutoff_year: int = 2025,
     use_aging_enforcer: bool = False,
-    roster_ids: Optional[Set[int]] = None
+    roster_ids: Optional[Set[int]] = None,
+    position_profiles: Optional[Dict[int, Dict[str, float]]] = None
 ) -> Optional[pd.DataFrame]:
     """
     Generate future predictions for all qualified fielders.
     
-    Processes each position group (infield, outfield, catcher) separately using
-    position-specific models, then combines results.
+    Uses position profiles to determine which positions each player should be
+    predicted at. A player who plays multiple positions (e.g. 3B and 2B) will
+    get separate prediction rows for each position they have sufficient history at.
     
     Args:
         raw_df: Historical fielding data with Season, IDfg, Pos, Inn columns
@@ -1545,10 +1547,12 @@ def predict_all_fielders(
         future_years: Number of years to project into the future
         cutoff_year: Last year of actual data (predictions start from cutoff_year + 1)
         roster_ids: Optional set of IDfg values for players on active rosters.
-                   Roster fielders who don't meet the 50-inning threshold will be
-                   recovered from historical data.
+        position_profiles: Dict mapping IDfg -> {pos: fraction} from build_position_profiles.
+                          When provided, predictions are generated at every defensive position
+                          in the profile (within each group) that has historical data.
         
     Returns:
+        DataFrame with fielding predictions, or None if no predictions generated.
     """
     # Define minimum innings threshold (matches notebook MIN_POSITION_INNINGS)
     MIN_POSITION_INNINGS = 50
@@ -1592,32 +1596,44 @@ def predict_all_fielders(
         # Filter data for this position group (matches notebook logic)
         group_df = raw_df[raw_df['Pos'].isin(valid_positions)].copy()
         
-        # Get players who played enough innings at any valid position in cutoff year
-        # For each player, find their PRIMARY position (most innings played)
+        # Build list of (player_id, position) pairs to predict
+        # Using position profiles: each player gets predictions at every defensive
+        # position in this group that appears in their profile
+        player_position_pairs = []
+        seen_pairs = set()
+        
+        if position_profiles:
+            for player_id, profile in position_profiles.items():
+                for pos, fraction in profile.items():
+                    if pos in valid_positions and (player_id, pos) not in seen_pairs:
+                        player_position_pairs.append((player_id, pos))
+                        seen_pairs.add((player_id, pos))
+        
+        # Also include players who qualified via cutoff-year innings but may not
+        # have a profile (e.g. pitchers who field, or players not in batter predictions)
         players_current_all = group_df[
             (group_df['Season'] == cutoff_year) & 
             (group_df['Inn'] >= MIN_POSITION_INNINGS) &
             (group_df['Pos'].isin(valid_positions))
         ][['IDfg', 'Pos', 'Inn']].copy()
         
-        # Group by player and find position with most innings
-        primary_positions = players_current_all.groupby('IDfg').apply(
-            lambda x: x.loc[x['Inn'].idxmax(), 'Pos']
-        ).reset_index()
-        primary_positions.columns = ['IDfg', 'Primary_Pos']
-        
-        logger.info(f"\nProcessing {model_key} - {len(primary_positions)} players with primary positions")
+        if not players_current_all.empty:
+            # For players without profiles, use primary position (most innings)
+            for player_id in players_current_all['IDfg'].unique():
+                if player_id not in (position_profiles or {}):
+                    player_rows = players_current_all[players_current_all['IDfg'] == player_id]
+                    primary_pos = player_rows.loc[player_rows['Inn'].idxmax(), 'Pos']
+                    if (player_id, primary_pos) not in seen_pairs:
+                        player_position_pairs.append((player_id, primary_pos))
+                        seen_pairs.add((player_id, primary_pos))
         
         # =================================================================
         # ROSTER RECOVERY for this position group
         # =================================================================
-        # Recover roster players who have historical data at valid positions
-        # in this group but didn't qualify in cutoff_year (low innings or absent).
         if roster_ids is not None:
-            current_qualified_ids = set(primary_positions['IDfg']) if len(primary_positions) > 0 else set()
-            missing_roster = roster_ids - current_qualified_ids
+            current_player_ids = {pid for pid, _ in player_position_pairs}
+            missing_roster = roster_ids - current_player_ids
             if missing_roster:
-                # Find roster players with at least one usable season at this position group
                 recovery_candidates = group_df[
                     (group_df['IDfg'].isin(missing_roster)) &
                     (group_df['Season'] <= cutoff_year) &
@@ -1625,38 +1641,36 @@ def predict_all_fielders(
                     (group_df['Pos'].isin(valid_positions))
                 ]
                 if not recovery_candidates.empty:
-                    # For each recovered player, find their primary position (most innings in most recent qualifying season)
                     recovery_primary = recovery_candidates.sort_values(['Season', 'Inn']).groupby('IDfg').apply(
                         lambda x: x.iloc[-1]['Pos']
                     ).reset_index()
                     recovery_primary.columns = ['IDfg', 'Primary_Pos']
-                    # Remove any that are already in primary_positions
-                    recovery_primary = recovery_primary[~recovery_primary['IDfg'].isin(current_qualified_ids)]
-                    if len(recovery_primary) > 0:
-                        primary_positions = pd.concat([primary_positions, recovery_primary], ignore_index=True)
-                        logger.info(f"  Roster recovery: {len(recovery_primary)} {model_key} fielders recovered from historical data")
+                    recovered = 0
+                    for _, rr in recovery_primary.iterrows():
+                        pair = (rr['IDfg'], rr['Primary_Pos'])
+                        if pair not in seen_pairs:
+                            player_position_pairs.append(pair)
+                            seen_pairs.add(pair)
+                            recovered += 1
+                    if recovered > 0:
+                        logger.info(f"  Roster recovery: {recovered} {model_key} fielders recovered from historical data")
         
-        # Generate predictions for each player at their PRIMARY position only
-        for _, row in tqdm(primary_positions.iterrows(), desc=f"{model_key} predictions"):
+        logger.info(f"\nProcessing {model_key} - {len(player_position_pairs)} player-position pairs")
+        
+        # Generate predictions for each player at each of their positions
+        for player_id, position in tqdm(player_position_pairs, desc=f"{model_key} predictions"):
             try:
-                player_id = row['IDfg']
-                primary_position = row['Primary_Pos']  # The position they played most
-                
-                # Filter to historical data up to cutoff_year, PRIMARY POSITION ONLY
+                # Filter to historical data up to cutoff_year at THIS position
                 player_historical_data = group_df[
                     (group_df['IDfg'] == player_id) & 
                     (group_df['Season'] <= cutoff_year) &
-                    (group_df['Pos'] == primary_position)  # Only this position's data
+                    (group_df['Pos'] == position)
                 ].copy()
                 
-                # Skip if not enough historical data at this position
                 if len(player_historical_data) == 0:
                     continue
 
-                # Drop seasons with NaN in the input features (e.g. Inn < 100 seasons
-                # that were excluded by calculate_rate_stats min_denominator filter).
-                # This mirrors what filter_data does during training so the model
-                # only sees reliable, full-sample defensive observations.
+                # Drop seasons with NaN in the input features
                 player_historical_data = player_historical_data.dropna(
                     subset=[f for f in input_features if f in player_historical_data.columns]
                 )
@@ -1673,20 +1687,19 @@ def predict_all_fielders(
                     position_group=model_key,
                     seq_length=seq_length,
                     future_years=future_years,
-                    cutoff_year=cutoff_year,  # Ensure predictions start from cutoff_year + 1
+                    cutoff_year=cutoff_year,
                     league_priors=group_league_priors,
                 )
                 
                 if predictions:
-                    # Add the primary position to each prediction
                     for pred in predictions:
-                        pred['Pos'] = primary_position  # Use their primary position
+                        pred['Pos'] = position
                         pred['Position_Group'] = model_key
                     
                     all_predictions.extend(predictions)
                     
             except Exception as e:
-                logger.error(f"Error predicting for fielder {player_id} at {primary_position}: {str(e)}")
+                logger.error(f"Error predicting for fielder {player_id} at {position}: {str(e)}")
                 continue
     
     if all_predictions:

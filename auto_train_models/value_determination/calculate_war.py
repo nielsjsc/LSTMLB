@@ -29,7 +29,7 @@ Usage:
     
     # Batter WAR with calculated wOBA from predictions
     batter_data = calculate_woba_from_predictions(batter_predictions_df)
-    war, components = calculate_war_components(player_row, baserunning_df, fielding_df)
+    war, components = calculate_war_components(player_row, baserunning_df, fielding_df, position_profiles)
 """
 
 import argparse
@@ -43,6 +43,12 @@ from .config import (
     Config, logger,
     # Backward compatibility exports
     BALLPARK_FACTORS, WOBA_SCALE, RPA, LG_WOBA, RPW, LG_FIP
+)
+
+from core.position_profiles import (
+    get_primary_position, get_display_position,
+    get_weighted_positional_adjustment, get_defensive_positions,
+    POSITION_TO_GROUP
 )
 
 # Additional constants from config
@@ -555,124 +561,99 @@ def calculate_pitcher_war(fip: float,
     
     return war, components
 
-def infer_position_from_fielding(fielding_df: pd.DataFrame, player_id: int, year: int) -> str:
+def infer_position_from_profile(position_profile: Optional[Dict[str, float]]) -> str:
     """
-    Infer primary position from fielding data based on most innings played.
-    Returns 'DH' if no fielding data exists.
+    Get display position from a position profile.
+    Returns primary defensive position, or 'DH' if player is 80%+ DH.
     """
-    player_fielding = fielding_df[(fielding_df['IDfg'] == player_id) & 
-                                  (fielding_df['Year'] == year)]
-    
-    if player_fielding.empty:
-        return 'DH'  # No fielding data = DH
-    
-    # Check which position column exists - try 'Pos' first
-    pos_col = None
-    if 'Pos' in player_fielding.columns:
-        pos_col = 'Pos'
-    elif 'Position' in player_fielding.columns:
-        pos_col = 'Position'
-    elif 'Position_Group' in player_fielding.columns:
-        pos_col = 'Position_Group'
-    else:
-        # No position column found, default to DH
+    if not position_profile:
         return 'DH'
-    
-    # Map position values to standard positions (keep OF positions separate)
-    position_map = {
-        'C': 'C',
-        'Catcher': 'C',
-        '1B': '1B',
-        'First Base': '1B',
-        '2B': '2B', 
-        'Second Base': '2B',
-        '3B': '3B',
-        'Third Base': '3B',
-        'SS': 'SS',
-        'Shortstop': 'SS',
-        'LF': 'LF',
-        'CF': 'CF', 
-        'RF': 'RF',
-        'OF': 'OF',
-        'Outfield': 'OF'
-    }
-    
-    # After primary position fix, there should only be one row per player-year
-    # Just use the first row's position (Inn column is empty anyway)
-    if len(player_fielding) > 0:
-        primary_pos = player_fielding.iloc[0][pos_col]
-        return position_map.get(primary_pos, 'OF')
-    
-    return 'OF'
+    return get_display_position(position_profile)
 
-def calculate_defensive_value(fielding_data: pd.DataFrame, player_id: int, year: int) -> tuple[float, float]:
+def calculate_defensive_value(
+    fielding_data: pd.DataFrame,
+    player_id: int,
+    year: int,
+    position_profile: Optional[Dict[str, float]] = None,
+) -> tuple[float, float]:
     """
-    Calculate defensive value and positional adjustment from fielding predictions using Statcast FRV metrics.
-    Accounts for multi-position players by using their primary position (most recent prediction).
-    The /150 metrics are ALREADY per 150 games from the predictions, so we use them directly.
+    Calculate defensive value and positional adjustment using position profiles.
     
+    Fielding run value is weighted across all positions the player has predictions for,
+    proportional to their position profile fractions.
+    
+    Positional adjustment is weighted by the full profile (including DH fraction).
+    
+    Args:
+        fielding_data: Fielding predictions DataFrame
+        player_id: Player IDfg
+        year: Projection year
+        position_profile: {pos: fraction} from build_position_profiles
+        
     Returns:
         tuple: (defensive_value, positional_adjustment)
     """
-    # Get all fielding rows for this player-year
-    player_fielding = fielding_data[(fielding_data['IDfg'] == player_id) & 
-                                    (fielding_data['Year'] == year)]
+    if not position_profile:
+        return 0.0, POSITIONAL_ADJUSTMENTS.get('DH', -17.5) * (150 / 162.0)
     
-    if player_fielding.empty:
-        return 0.0, 0.0
+    games = 150
     
-    # Use the first row (should only be one row per player-year now after primary position fix)
-    row = player_fielding.iloc[0]
+    # Get all fielding predictions for this player-year
+    player_fielding = fielding_data[
+        (fielding_data['IDfg'] == player_id) & (fielding_data['Year'] == year)
+    ]
     
-    position = row.get('Pos') or row.get('Position') or row.get('Position_Group', 'OF')
+    # Calculate weighted fielding run value across predicted positions
+    # Only defensive positions have fielding predictions — DH has none
+    def_positions = get_defensive_positions(position_profile)
+    total_def_fraction = sum(def_positions.values())  # fraction of time playing defense
     
-    # All positions use 150 games as baseline
-    target_games = 150
-
-    # sc_total_runs/150 is per 1350 innings (= 150 games × 9 inn/game).
-    # Scale to target_games: value * target_games / 150 correctly recovers
-    # the raw run total for a player who played exactly 150 games.
-    scaling_factor = target_games / 150.0
+    weighted_fld = 0.0
+    if not player_fielding.empty and total_def_fraction > 0:
+        for _, row in player_fielding.iterrows():
+            pred_pos = row.get('Pos') or row.get('Position', '')
+            # Find this position's fraction in the profile
+            pos_frac = position_profile.get(pred_pos, 0.0)
+            if pos_frac > 0:
+                frv = row.get('sc_total_runs/150', 0)
+                # Weight by fraction of total playing time this position represents
+                weighted_fld += frv * pos_frac
     
-    # Map position for positional adjustment lookup
-    pos_for_adjustment = position
-    if position in ['LF', 'CF', 'RF']:
-        pos_for_adjustment = position
-    elif position.lower() == 'outfield':
-        pos_for_adjustment = 'OF'
-    elif position.lower() == 'infield':
-        pos_for_adjustment = '2B'
-    elif position.lower() == 'catcher':
-        pos_for_adjustment = 'C'
+    # Scale fielding value to games
+    def_value = weighted_fld * (games / 150.0)
     
-    # Calculate defensive value from sc_total_runs/150
-    # All positions (catchers, infielders, outfielders) use the same combined metric
-    # which is the only column the fielding models output
-    def_value = row.get('sc_total_runs/150', 0) * scaling_factor
-    
-    # Calculate positional adjustment for target games
-    # Adjustments are per 162 games, scale to target games
-    pos_adj_per_162 = POSITIONAL_ADJUSTMENTS.get(pos_for_adjustment, 0.0)
-    pos_adjustment = pos_adj_per_162 * (target_games / 162.0)
+    # Weighted positional adjustment across ALL positions (including DH)
+    pos_adjustment = get_weighted_positional_adjustment(
+        position_profile, POSITIONAL_ADJUSTMENTS, games
+    )
     
     return def_value, pos_adjustment
 
-def calculate_war_components(row: pd.Series, baserunning_data: pd.DataFrame, 
-                           fielding_data: pd.DataFrame) -> Tuple[float, Dict[str, Any]]:
+def calculate_war_components(
+    row: pd.Series,
+    baserunning_data: pd.DataFrame,
+    fielding_data: pd.DataFrame,
+    position_profiles: Optional[Dict[int, Dict[str, float]]] = None,
+) -> Tuple[float, Dict[str, Any]]:
     """
     Calculate comprehensive WAR components combining all three prediction types.
-    Exactly matches the methodology from the batter notebook.
+    
+    Uses position profiles (from historical fielding data) to:
+    - Determine player's position(s)
+    - Weight positional adjustments across all positions played
+    - Weight fielding run values across predicted positions
     """
-    # Infer position from fielding data
     player_id = row['IDfg']
     year = row['Year']
-    position = infer_position_from_fielding(fielding_data, player_id, year)
+    
+    # Get position profile for this player
+    profile = position_profiles.get(player_id) if position_profiles else None
+    position = infer_position_from_profile(profile)
     
     # Use predicted PA (per 150 games) scaled to 150 games
-    # PA is predicted per 150 games, so scale to actual proportion
-    pa_per_150 = row.get('PA', 650)  # Default 650 PA per 150 games if not present
+    pa_per_150 = row.get('PA', 650)
     games = 150
-    pa = pa_per_150 * (games / 150)  # This equals pa_per_150, but keeping for clarity
+    pa = pa_per_150 * (games / 150)
     
     # Get team for park factor
     team = row.get('Team', '')
@@ -693,23 +674,17 @@ def calculate_war_components(row: pd.Series, baserunning_data: pd.DataFrame,
     if not bsr_row.empty:
         bsr = calculate_baserunning_value(bsr_row.iloc[0], games)
     else:
-        # Use league average baserunning if no data (slightly negative for most players)
         bsr = -0.5
     
-    # Get defensive value and positional adjustment (now handles multi-position players)
-    fld_value, pos_adjustment = calculate_defensive_value(fielding_data, player_id, year)
-    
-    # Handle DHs - they have no fielding data but need DH positional adjustment
-    if position == 'DH':
-        # DHs get -17.5 positional adjustment for full season
-        games_for_dh = 150  # DHs play 150 games
-        pos_adjustment = POSITIONAL_ADJUSTMENTS.get('DH', 0.0) * (games_for_dh / 162.0)
+    # Get defensive value and positional adjustment (weighted by position profile)
+    fld_value, pos_adjustment = calculate_defensive_value(
+        fielding_data, player_id, year, position_profile=profile
+    )
     
     # Total defensive value = fielding + positional adjustment
     def_value = fld_value + pos_adjustment
     
     # Cap negative defensive value at DH level (worst case = just be a DH)
-    # DH penalty is -17.5 per 162 games, scaled to player's games
     dh_penalty = POSITIONAL_ADJUSTMENTS.get('DH', -17.5) * (games / 162.0)
     if def_value < dh_penalty:
         def_value = dh_penalty
@@ -730,7 +705,6 @@ def calculate_war_components(row: pd.Series, baserunning_data: pd.DataFrame,
     counting_stats = {}
     for stat in ['HR', '2B', '3B', 'RBI', 'R']:
         if stat in row:
-            # Stats are per 150 games, scale to actual games
             counting_stats[stat] = round(row[stat] * (games / 150.0), 1)
         else:
             counting_stats[stat] = 0.0
@@ -746,9 +720,9 @@ def calculate_war_components(row: pd.Series, baserunning_data: pd.DataFrame,
     return war, {
         'Bat': batting_runs,
         'BsR': bsr,
-        'Fld': fld_value,  # Raw Statcast FRV fielding runs
-        'Pos': pos_adjustment,  # Positional adjustment
-        'Def': def_value,  # Total defensive value (Fld + Pos)
+        'Fld': fld_value,
+        'Pos': pos_adjustment,
+        'Def': def_value,
         'WAR': war,
         'PA': pa,
         'G': games,

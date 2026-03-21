@@ -27,7 +27,7 @@ from value_determination.calculate_war import (
     calculate_pitcher_war as _vd_pitcher_war,
     calculate_baserunning_value as _vd_bsr,
     calculate_defensive_value as _vd_def_value,
-    infer_position_from_fielding as _vd_infer_pos,
+    infer_position_from_profile as _vd_infer_pos,
 )
 from value_determination.value_calculator import (
     calculate_war_value as _vd_war_to_dollars,
