@@ -12,6 +12,14 @@ class DefenseCatcherConfig:
     CHECKPOINT_FILE = 'C_fielding_model.pth'
     OUTPUT_FILE = '../data/generated/pipeline/defense_catcher_predictions.csv'
     
+    # ============================================================================
+    # PREDICTION METHOD
+    # ============================================================================
+    # 'lstm'  — Use the trained LSTM model (autoregressive loop)
+    # 'marcel' — Use Marcel-style weighted-average projections with
+    #            empirically-derived aging curves (more robust for noisy stats)
+    PREDICTION_METHOD = 'marcel'
+
     # Position-specific configuration
     POSITION_GROUP = 'CATCHER'
     VALID_POSITIONS = ['C']

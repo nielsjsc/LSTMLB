@@ -1172,9 +1172,16 @@ def _predict_with_regression(
 def predict_future_stats_batter(player_id: str, input_features: List[str], model: ImprovedLSTM,
                                scaler: Any, raw_df: pd.DataFrame, player_names: pd.DataFrame,
                                seq_length: int = 5, future_years: int = 16, cutoff_year: Optional[int] = None,
-                               league_priors: Optional[Dict[str, float]] = None) -> List[Dict]:
-    """Predict future stats for a batter. Wrapper around unified predict_future_stats."""
-    return predict_future_stats(
+                               league_priors: Optional[Dict[str, float]] = None,
+                               career_profile: Optional[Dict] = None) -> List[Dict]:
+    """Predict future stats for a batter with in-loop reconstruction.
+
+    Delegates to core.batter_prediction which provides a custom autoregressive
+    loop with counting stat derivation and rate stat reconstruction, analogous
+    to pitcher FIP/ERA reconstruction in core.pitcher_prediction.
+    """
+    from .batter_prediction import predict_future_stats_batter as _impl
+    return _impl(
         player_id=player_id,
         input_features=input_features,
         model=model,
@@ -1184,8 +1191,8 @@ def predict_future_stats_batter(player_id: str, input_features: List[str], model
         seq_length=seq_length,
         future_years=future_years,
         cutoff_year=cutoff_year,
-        model_type='batter',
         league_priors=league_priors,
+        career_profile=career_profile,
     )
 
 
@@ -1433,6 +1440,19 @@ def predict_all_batters(
     except ImportError:
         pass
 
+    # Build career counting profiles for in-loop reconstruction
+    from .batter_prediction import build_career_profiles
+    try:
+        from configs.batter_config import BatterConfig as _BCProf
+        _n_recent = getattr(_BCProf, 'COMPONENTS_FROM_WOBA_RECENT_SEASONS', 3)
+    except (ImportError, AttributeError):
+        _n_recent = 3
+    career_profiles = build_career_profiles(
+        raw_df[raw_df['Season'] <= cutoff_year],
+        n_recent=_n_recent,
+        min_pa=50,
+    )
+
     all_predictions = []
     failed_count = 0
     error_sample = []
@@ -1486,6 +1506,7 @@ def predict_all_batters(
                 future_years=future_years,
                 cutoff_year=cutoff_year,  # Ensure predictions start from cutoff_year + 1
                 league_priors=batter_league_priors,
+                career_profile=career_profiles.get(int(player_id)),
             )
             
             if predictions:

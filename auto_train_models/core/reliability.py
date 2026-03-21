@@ -79,7 +79,7 @@ PITCHER_STABILIZATION_POINTS: Dict[str, int] = {
     'GB%':      70,
     'FB%':      70,
     'LD%':      70,
-    'HR/FB':    1600,    # ~300 FB x ~4 TBF/FB ~ 1200 TBF
+    'HR/FB':    800,    # ~300 FB x ~4 TBF/FB ~ 1200 TBF
     'Contact%': 100,
     'xFIP':     1320,
     'SIERA':    1320,

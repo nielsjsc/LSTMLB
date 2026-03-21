@@ -949,11 +949,13 @@ def process_predictions(data_dir: Path, output_dir: Path, target_year: Optional[
     # wOBA/wRC+/WAR reflect the player's actual home environment.
     #
     # This step converts: park-neutral predictions → park-adjusted predictions
-    # BEFORE calculating wOBA from components and wRC+.
+    # BEFORE calculating wRC+.
     batter_df = _apply_park_factors_to_batter_predictions(batter_df)
     
-    # Calculate wOBA (either from components or use LSTM direct prediction based on config)
-    batter_df = calculate_woba_from_predictions(batter_df)
+    # Counting stat derivation + rate stat reconstruction now happen in-loop
+    # inside core/batter_prediction.py. PA is set during prediction.
+    if 'PA' not in batter_df.columns:
+        batter_df['PA'] = 650
     
     # Calculate wRC+ with proper park factors
     logger.info("Calculating wRC+ with park factors...")

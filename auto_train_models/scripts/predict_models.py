@@ -642,8 +642,26 @@ def generate_fielding_predictions(
     # Generate player names
     player_names = pd.DataFrame(raw_df[['Name', 'IDfg']].drop_duplicates()).sort_values('Name')
     
-    # Load models and scalers
+    # Load models and scalers (needed for model groups / position_group_map)
     position_models, position_scalers, position_group_map, input_features_map, seq_length_map = load_fielding_models_and_scalers()
+    
+    # =========================================================================
+    # Check if any position group uses Marcel projections
+    # =========================================================================
+    marcel_groups = set()
+    lstm_groups = set()
+    config_map = {
+        'infield': 'defense_infield',
+        'outfield': 'defense_outfield',
+        'catcher': 'defense_catcher',
+    }
+    for group_name, config_key in config_map.items():
+        cfg = ModelFactory.get_config(config_key)
+        method = getattr(cfg, 'PREDICTION_METHOD', 'lstm').lower()
+        if method == 'marcel':
+            marcel_groups.add(group_name)
+        else:
+            lstm_groups.add(group_name)
     
     # Build position profiles from historical fielding data for multi-position predictions
     from core.position_profiles import build_position_profiles, load_batting_for_games
@@ -654,24 +672,64 @@ def generate_fielding_predictions(
         all_player_ids = list(set(all_player_ids) | roster_ids)
     profiles = build_position_profiles(raw_df, batting_for_games, all_player_ids, cutoff_year=cutoff_year)
     logger.info(f"Built position profiles for {len(profiles)} players")
-    
-    # Generate predictions
-    predictions_df = predict_all_fielders(
-        raw_df=raw_df,
-        player_names=player_names,
-        position_models=position_models,
-        position_scalers=position_scalers,
-        position_group_map=position_group_map,
-        input_features_map=input_features_map,
-        seq_length_map=seq_length_map,
-        future_years=15,
-        cutoff_year=cutoff_year,
-        use_aging_enforcer=use_aging_enforcer,
-        roster_ids=roster_ids,
-        position_profiles=profiles
-    )
+
+    predictions_parts = []
+
+    # --- Marcel predictions for groups that use it ---
+    if marcel_groups:
+        from core.marcel_projections import marcel_fielding_projections
+        logger.info(f"Using Marcel projections for: {', '.join(sorted(marcel_groups))}")
+        marcel_df = marcel_fielding_projections(
+            raw_df=raw_df,
+            player_names=player_names,
+            position_group_map=position_group_map,
+            input_features_map=input_features_map,
+            future_years=15,
+            cutoff_year=cutoff_year,
+            roster_ids=roster_ids,
+            position_profiles=profiles,
+        )
+        if marcel_df is not None:
+            marcel_df = marcel_df[marcel_df['Position_Group'].isin(marcel_groups)]
+            predictions_parts.append(marcel_df)
+
+    # --- LSTM predictions for groups that use it ---
+    if lstm_groups:
+        logger.info(f"Using LSTM projections for: {', '.join(sorted(lstm_groups))}")
+        # Filter models/scalers/features to only LSTM groups
+        lstm_models = {k: v for k, v in position_models.items() if k in lstm_groups}
+        lstm_scalers = {k: v for k, v in position_scalers.items() if k in lstm_groups}
+        lstm_features = {k: v for k, v in input_features_map.items() if k in lstm_groups}
+        lstm_seq = {k: v for k, v in seq_length_map.items() if k in lstm_groups}
+
+        lstm_df = predict_all_fielders(
+            raw_df=raw_df,
+            player_names=player_names,
+            position_models=lstm_models,
+            position_scalers=lstm_scalers,
+            position_group_map=position_group_map,
+            input_features_map=lstm_features,
+            seq_length_map=lstm_seq,
+            future_years=15,
+            cutoff_year=cutoff_year,
+            use_aging_enforcer=use_aging_enforcer,
+            roster_ids=roster_ids,
+            position_profiles=profiles,
+        )
+        if lstm_df is not None:
+            predictions_parts.append(lstm_df)
+
+    # Combine
+    if predictions_parts:
+        predictions_df = pd.concat(predictions_parts, ignore_index=True)
+    else:
+        predictions_df = None
     
     if predictions_df is not None:
+        # Drop Position_Group if present (used internally for routing only)
+        if 'Position_Group' in predictions_df.columns:
+            predictions_df = predictions_df.drop(columns=['Position_Group'])
+        
         # Reorder columns: metadata first, then all predicted features
         metadata_cols = ['Name', 'Age', 'Year', 'IDfg', 'Pos']
         
@@ -739,33 +797,42 @@ def generate_baserunning_predictions(
     # Generate player names
     player_names = generate_batter_names(raw_df)
     
-    # Load model and scaler
     config = ModelFactory.get_config('baserunning')
-    data_config = config.get_data_config()
-    
-    # Use config paths for checkpoint and scaler
-    checkpoint_path = AUTO_TRAIN_DIR / config.CHECKPOINT_DIR / config.CHECKPOINT_FILE
-    scaler_path = AUTO_TRAIN_DIR / config.SCALER_FILE
-    
-    model = load_model_from_checkpoint(
-        str(checkpoint_path),
-        data_config,
-        device
-    )
-    scaler = joblib.load(scaler_path)
-    
-    # Generate predictions
-    predictions_df = predict_all_baserunners(
-        raw_df=raw_df,
-        player_names=player_names,
-        model=model,
-        scaler=scaler,
-        input_features=config.INPUT_FEATURES,
-        seq_length=data_config.seq_length,
-        future_years=15,
-        cutoff_year=cutoff_year,
-        roster_ids=roster_ids
-    )
+    prediction_method = getattr(config, 'PREDICTION_METHOD', 'lstm').lower()
+
+    if prediction_method == 'marcel':
+        from core.marcel_projections import marcel_baserunning_projections
+        logger.info("Using Marcel projections for baserunning")
+        predictions_df = marcel_baserunning_projections(
+            raw_df=raw_df,
+            player_names=player_names,
+            input_features=config.INPUT_FEATURES,
+            future_years=15,
+            cutoff_year=cutoff_year,
+            roster_ids=roster_ids,
+        )
+    else:
+        # Load model and scaler for LSTM
+        data_config = config.get_data_config()
+        checkpoint_path = AUTO_TRAIN_DIR / config.CHECKPOINT_DIR / config.CHECKPOINT_FILE
+        scaler_path = AUTO_TRAIN_DIR / config.SCALER_FILE
+        model = load_model_from_checkpoint(
+            str(checkpoint_path),
+            data_config,
+            device
+        )
+        scaler = joblib.load(scaler_path)
+        predictions_df = predict_all_baserunners(
+            raw_df=raw_df,
+            player_names=player_names,
+            model=model,
+            scaler=scaler,
+            input_features=config.INPUT_FEATURES,
+            seq_length=data_config.seq_length,
+            future_years=15,
+            cutoff_year=cutoff_year,
+            roster_ids=roster_ids
+        )
     
     if predictions_df is not None:
         # Save predictions

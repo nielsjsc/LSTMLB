@@ -12,6 +12,14 @@ class DefenseOutfieldConfig:
     CHECKPOINT_FILE = 'OF_fielding_model.pth'
     OUTPUT_FILE = '../data/generated/pipeline/defense_outfield_predictions.csv'
     
+    # ============================================================================
+    # PREDICTION METHOD
+    # ============================================================================
+    # 'lstm'  — Use the trained LSTM model (autoregressive loop)
+    # 'marcel' — Use Marcel-style weighted-average projections with
+    #            empirically-derived aging curves (more robust for noisy stats)
+    PREDICTION_METHOD = 'marcel'
+
     # Position-specific configuration
     POSITION_GROUP = 'OUTFIELD'
     VALID_POSITIONS = ['LF', 'CF', 'RF']

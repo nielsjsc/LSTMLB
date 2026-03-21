@@ -12,6 +12,14 @@ class DefenseInfieldConfig:
     CHECKPOINT_FILE = 'IF_fielding_model.pth'
     OUTPUT_FILE = '../data/generated/pipeline/defense_infield_predictions.csv'
     
+    # ============================================================================
+    # PREDICTION METHOD
+    # ============================================================================
+    # 'lstm'  — Use the trained LSTM model (autoregressive loop)
+    # 'marcel' — Use Marcel-style weighted-average projections with
+    #            empirically-derived aging curves (more robust for noisy stats)
+    PREDICTION_METHOD = 'marcel'
+
     # Position-specific configuration
     POSITION_GROUP = 'INFIELD'
     VALID_POSITIONS = ['1B', '2B', '3B', 'SS']

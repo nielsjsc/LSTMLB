@@ -357,12 +357,11 @@ def main():
         from value_determination.calculate_war import _apply_park_factors_to_batter_predictions
         batter_data = _apply_park_factors_to_batter_predictions(batter_data)
         
-        # Reconcile rate stats and counting stats.
-        # Mode A (CALCULATE_COMPONENTS_FROM_WOBA): keep wOBA/OBP/SLG/AVG from model,
-        #   derive counting stats (HR, 2B, 3B, ...) from career profiles × wOBA ratio.
-        # Mode B (legacy): optionally recalculate wOBA/OBP/SLG from counting stats.
-        from .calculate_war import calculate_woba_from_predictions
-        batter_data = calculate_woba_from_predictions(batter_data)
+        # Counting stat derivation + rate stat reconstruction now happen
+        # in-loop inside core/batter_prediction.py (analogous to pitcher
+        # FIP/ERA reconstruction).  PA is set during prediction.
+        if 'PA' not in batter_data.columns:
+            batter_data['PA'] = 650
         
         # Calculate wRC+ with park factors
         logger.info("Calculating wRC+ with park factors...")

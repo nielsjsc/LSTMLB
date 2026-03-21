@@ -5,6 +5,14 @@ from core.data_processing import DataConfig
 class BaserunningConfig:
     """Configuration for baserunning model"""
     
+    # ============================================================================
+    # PREDICTION METHOD
+    # ============================================================================
+    # 'lstm'  — Use the trained LSTM model (autoregressive loop)
+    # 'marcel' — Use Marcel-style weighted-average projections with
+    #            empirically-derived aging curves (more robust for noisy stats)
+    PREDICTION_METHOD = 'marcel'
+
     # Data configuration
     DATA_FILE = '../data/historic_mlb/mlb_batting_data_1950_2025_with_statcast.csv'
     SCALER_FILE = 'data/baserunning_scaler.pkl'
