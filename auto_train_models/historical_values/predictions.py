@@ -52,20 +52,14 @@ from core.data_processing import DataConfig, calculate_rate_stats
 from core.prediction import (
     load_model_from_checkpoint,
     predict_all_batters,
-    predict_all_fielders,
-    predict_all_baserunners,
     generate_batter_names,
 )
 from core.pitcher_prediction import predict_all_pitchers
+from core.marcel_projections import marcel_fielding_projections, marcel_baserunning_projections
+from core.position_profiles import build_position_profiles, load_batting_for_games
 
 # Model configs
 from models.model_registry import ModelFactory
-
-# Historical configs for fielding and baserunning
-from configs.defense_infield_historical import DefenseInfieldHistoricalConfig
-from configs.defense_outfield_historical import DefenseOutfieldHistoricalConfig
-from configs.defense_catcher_historical import DefenseCatcherHistoricalConfig
-from configs.baserunning_historical import BaserunningHistoricalConfig
 
 # ── Device ────────────────────────────────────────────────────────────────────
 _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -233,22 +227,17 @@ def _generate_pitcher_predictions(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# FIELDING PREDICTIONS  (historical UZR/DRS configs)
+# FIELDING PREDICTIONS  (Marcel projections — matches production pipeline)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _generate_fielding_predictions(
     cutoff_year: int,
     out_dir: Path,
 ) -> Optional[pd.DataFrame]:
-    """Generate fielding predictions with historical LSTM models."""
+    """Generate fielding predictions with Marcel projections."""
 
-    config_map = {
-        "infield":  DefenseInfieldHistoricalConfig,
-        "outfield": DefenseOutfieldHistoricalConfig,
-        "catcher":  DefenseCatcherHistoricalConfig,
-    }
-
-    data_path = _resolve_data_path(DefenseInfieldHistoricalConfig.DATA_FILE)
+    config = ModelFactory.get_config("defense_infield")
+    data_path = _resolve_data_path(config.DATA_FILE)
     raw_df = pd.read_csv(data_path)
     raw_df = calculate_rate_stats(raw_df)
 
@@ -256,55 +245,40 @@ def _generate_fielding_predictions(
         raw_df[["Name", "IDfg"]].drop_duplicates()
     ).sort_values("Name")
 
-    position_models  = {}
-    position_scalers = {}
-    input_features_map = {}
-    seq_length_map = {}
-
-    for pos_group, cfg in config_map.items():
-        data_config = cfg.get_data_config()
-        ckpt = Path(cfg.CHECKPOINT_DIR) / cfg.CHECKPOINT_FILE
-        scaler_path = Path(cfg.SCALER_FILE)
-
-        if not ckpt.exists():
-            logger.error(
-                f"Historical {pos_group} checkpoint not found: {ckpt}\n"
-                f"Train with: python scripts/train_models.py "
-                f"--model defense_{pos_group}_historical --pretrain"
-            )
-            return None
-        if not scaler_path.exists():
-            logger.error(f"Historical {pos_group} scaler not found: {scaler_path}")
-            return None
-
-        model = load_model_from_checkpoint(str(ckpt), data_config, _device)
-        scaler = joblib.load(scaler_path)
-
-        position_models[pos_group]    = model
-        position_scalers[pos_group]   = scaler
-        input_features_map[pos_group] = cfg.INPUT_FEATURES
-        seq_length_map[pos_group]     = data_config.seq_length
-
     position_group_map = {
         "C": "catcher",
         "1B": "infield", "2B": "infield", "3B": "infield", "SS": "infield",
         "LF": "outfield", "CF": "outfield", "RF": "outfield",
     }
 
-    predictions = predict_all_fielders(
+    config_map = {
+        "infield":  ModelFactory.get_config("defense_infield"),
+        "outfield": ModelFactory.get_config("defense_outfield"),
+        "catcher":  ModelFactory.get_config("defense_catcher"),
+    }
+    input_features_map = {
+        group: cfg.INPUT_FEATURES for group, cfg in config_map.items()
+    }
+
+    # Build position profiles
+    batting_for_games = load_batting_for_games()
+    all_player_ids = raw_df["IDfg"].unique().tolist()
+    profiles = build_position_profiles(
+        raw_df, batting_for_games, all_player_ids, cutoff_year=cutoff_year,
+    )
+
+    predictions = marcel_fielding_projections(
         raw_df=raw_df,
         player_names=player_names,
-        position_models=position_models,
-        position_scalers=position_scalers,
         position_group_map=position_group_map,
         input_features_map=input_features_map,
-        seq_length_map=seq_length_map,
         future_years=Config.PROJECTION_HORIZON,
         cutoff_year=cutoff_year,
+        position_profiles=profiles,
     )
 
     if predictions is None:
-        logger.error(f"  fielding cutoff={cutoff_year}: predict_all_fielders returned None")
+        logger.error(f"  fielding cutoff={cutoff_year}: marcel_fielding_projections returned None")
         return None
 
     # Ensure metadata columns are first
@@ -322,57 +296,32 @@ def _generate_fielding_predictions(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# BASERUNNING PREDICTIONS  (historical BsR config)
+# BASERUNNING PREDICTIONS  (Marcel projections — matches production pipeline)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _generate_baserunning_predictions(
     cutoff_year: int,
     out_dir: Path,
 ) -> Optional[pd.DataFrame]:
-    """Generate baserunning predictions with the historical LSTM model."""
+    """Generate baserunning predictions with Marcel projections."""
 
-    cfg = BaserunningHistoricalConfig
+    cfg = ModelFactory.get_config("baserunning")
     data_path = _resolve_data_path(cfg.DATA_FILE)
     raw_df = pd.read_csv(data_path)
     raw_df = calculate_rate_stats(raw_df)
 
-    # BsR_rate is now produced by calculate_rate_stats() (BsR / G * 150)
-    if "BsR_rate" not in raw_df.columns:
-        logger.error("BsR_rate missing after calculate_rate_stats() — check that BsR exists in the data")
-        return None
-
     player_names = generate_batter_names(raw_df)
 
-    data_config = cfg.get_data_config()
-    ckpt = Path(cfg.CHECKPOINT_DIR) / cfg.CHECKPOINT_FILE
-    scaler_path = Path(cfg.SCALER_FILE)
-
-    if not ckpt.exists():
-        logger.error(
-            f"Historical baserunning checkpoint not found: {ckpt}\n"
-            "Train with: python scripts/train_models.py --model baserunning_historical --pretrain"
-        )
-        return None
-    if not scaler_path.exists():
-        logger.error(f"Historical baserunning scaler not found: {scaler_path}")
-        return None
-
-    model = load_model_from_checkpoint(str(ckpt), data_config, _device)
-    scaler = joblib.load(scaler_path)
-
-    predictions = predict_all_baserunners(
+    predictions = marcel_baserunning_projections(
         raw_df=raw_df,
         player_names=player_names,
-        model=model,
-        scaler=scaler,
         input_features=cfg.INPUT_FEATURES,
-        seq_length=data_config.seq_length,
         future_years=Config.PROJECTION_HORIZON,
         cutoff_year=cutoff_year,
     )
 
     if predictions is None:
-        logger.error(f"  baserunning cutoff={cutoff_year}: predict_all_baserunners returned None")
+        logger.error(f"  baserunning cutoff={cutoff_year}: marcel_baserunning_projections returned None")
         return None
 
     out_path = out_dir / "baserunning_predictions.csv"

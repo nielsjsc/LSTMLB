@@ -65,7 +65,7 @@ def _prospect_dollar_value(fv, rank) -> float | None:
 # Contract option analysis (opt-outs, team/player options)
 # ---------------------------------------------------------------------------
 
-def analyze_contract_options(df: pd.DataFrame) -> pd.DataFrame:
+def analyze_contract_options(df: pd.DataFrame, current_year: int | None = None) -> pd.DataFrame:
     """
     Determine each player's FA year accounting for contract options.
 
@@ -74,6 +74,8 @@ def analyze_contract_options(df: pd.DataFrame) -> pd.DataFrame:
         probable_fa_year  – FA year after evaluating options
         earliest_fa_year  – earliest possible FA year (any option exercised)
     """
+    if current_year is None:
+        current_year = CURRENT_YEAR
     result = df.copy()
 
     # --- Base FA year (first year with 'Free Agent' status) ------------------
@@ -91,12 +93,20 @@ def analyze_contract_options(df: pd.DataFrame) -> pd.DataFrame:
         logger.info(f"Inferring FA year for {len(missing)} players without explicit FA status")
         for pid in missing:
             rows = result[result["IDfg"] == pid]
+            # Only consider explicitly-signed contract years (Payroll from Spotrac),
+            # not Pre-Arb/Arb minimum salaries imputed by calculate_contract_value.
             contract = rows.loc[
-                (rows["contract_value"].notna() & (rows["contract_value"] > 0))
-                | rows["Status"].isin(["Signed", "Unknown"])
+                rows["Status"].isin(["Signed", "Team Option", "Player Option",
+                                     "Mutual Option", "Vesting Option", "Opt-Out",
+                                     "Unknown"])
             ]["Year"]
             if len(contract):
                 result.loc[result["IDfg"] == pid, "FA_Year"] = contract.max() + 1
+            else:
+                # No signed contract rows at all — player is likely already FA.
+                # Set FA year to current year so trade value logic treats them
+                # as immediately available.
+                result.loc[result["IDfg"] == pid, "FA_Year"] = float(current_year)
 
     result["probable_fa_year"] = result["FA_Year"]
 
@@ -124,7 +134,13 @@ def analyze_contract_options(df: pd.DataFrame) -> pd.DataFrame:
 
             declined = False
             if status in ("Player Option", "Opt-Out"):
-                declined = pd.notna(surplus) and surplus > 0
+                # Player opts out only if they can earn MORE on the open market
+                # than the remaining guaranteed contract money.
+                # Compare: total projected WAR dollars vs total remaining contract
+                remaining = pdata[(pdata["Year"] >= yr) & (pdata["Year"] < probable_fa)]
+                remaining_contract = remaining["contract_value"].sum()
+                remaining_war_value = remaining["Base_Value"].sum()
+                declined = remaining_war_value > remaining_contract
             elif status == "Team Option":
                 declined = pd.notna(surplus) and surplus < 0
             else:  # Mutual / Vesting
@@ -143,18 +159,21 @@ def analyze_contract_options(df: pd.DataFrame) -> pd.DataFrame:
 # Core trade value calculation
 # ---------------------------------------------------------------------------
 
-def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
+def calculate_trade_values(df: pd.DataFrame, current_year: int | None = None) -> pd.DataFrame:
     """
     Calculate trade value for every player.
 
     Trade value = Σ(projected WAR dollars) – Σ(contract cost)
-    summed over each remaining team-control year (CURRENT_YEAR … FA_Year-1).
+    summed over each remaining team-control year (current_year … FA_Year-1).
 
     Additional rules:
         • Arb/Pre-Arb players are floored at 0 (team can non-tender).
         • Signed players with ≤2 years left are floored at 0.
         • Recent prospects get a confidence-blended value (see _apply_confidence_adjustments).
     """
+    if current_year is None:
+        current_year = CURRENT_YEAR
+
     result = df.copy()
     result["trade_value"] = np.nan
 
@@ -169,7 +188,7 @@ def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
             continue
 
         control = pdata[
-            (pdata["Year"] >= CURRENT_YEAR)
+            (pdata["Year"] >= current_year)
             & (pdata["Year"] < fa_year)
             & pdata["Base_Value"].notna()
             & pdata["contract_value"].notna()
@@ -187,7 +206,7 @@ def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
         if is_team_control:
             trade_value = max(0, trade_value)
 
-        future_mask = pmask & (result["Year"] >= CURRENT_YEAR)
+        future_mask = pmask & (result["Year"] >= current_year)
         result.loc[future_mask, "trade_value"] = trade_value
         result.loc[future_mask, "_proj_value_sum"] = war_dollars
         result.loc[future_mask, "_contract_sum"] = contract_cost
@@ -201,7 +220,7 @@ def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
     # Prospect adjustments → confidence-based blending
     prospect_file = Config.Paths.PROSPECT_FILE
     if prospect_file.exists():
-        result = _apply_confidence_adjustments(result, prospect_file)
+        result = _apply_confidence_adjustments(result, prospect_file, current_year=current_year)
     else:
         logger.warning(f"Prospect file not found: {prospect_file}")
         # Still populate confidence columns for all players
@@ -216,7 +235,8 @@ def calculate_trade_values(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def _apply_confidence_adjustments(result_df: pd.DataFrame,
-                                  prospect_file) -> pd.DataFrame:
+                                  prospect_file,
+                                  current_year: int | None = None) -> pd.DataFrame:
     """
     Blend prospect-grade value with performance-based trade value using
     a stabilisation-based confidence score.
@@ -236,6 +256,9 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
         ``Config.TradeConfidence`` — thresholds, floor, FV prior WAR, recency.
         ``Config.Prospects``       — FV_BASE_VALUES, rank adjustments.
     """
+    if current_year is None:
+        current_year = CURRENT_YEAR
+
     prospect_df = pd.read_csv(prospect_file)
     logger.info(
         f"Loaded prospect data: {len(prospect_df)} records, "
@@ -257,7 +280,7 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
 
     # Only consider recent prospects (within recency window)
     recency = Config.TradeConfidence.PROSPECT_RECENCY_YEARS
-    recent_cutoff = CURRENT_YEAR - recency
+    recent_cutoff = current_year - recency
     latest = latest[latest["year"] >= recent_cutoff]
     logger.info(f"Recent prospects (since {recent_cutoff}): {len(latest)}")
 
@@ -269,7 +292,7 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
     has_gs    = "GS"    in result_df.columns
     has_g     = "G"     in result_df.columns  # fallback: un-suffixed G
 
-    game_filter = result_df["Year"] < CURRENT_YEAR
+    game_filter = result_df["Year"] < current_year
     if has_g_bat:
         game_filter = game_filter & (result_df["G_bat"].notna())
     elif has_g_pit:
@@ -306,7 +329,7 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
     result_df["raw_trade_value"] = result_df["trade_value"]
 
     for pid in result_df.loc[result_df["trade_value"].notna(), "IDfg"].unique():
-        pmask = (result_df["IDfg"] == pid) & (result_df["Year"] >= CURRENT_YEAR)
+        pmask = (result_df["IDfg"] == pid) & (result_df["Year"] >= current_year)
         if not pmask.any():
             continue
 
@@ -346,7 +369,7 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
         merge_cols = {"left_on": "_name_key", "right_on": "_name_key"}
 
     candidates = result_df[
-        (result_df["Year"] >= CURRENT_YEAR)
+        (result_df["Year"] >= current_year)
         & result_df["trade_value"].notna()
     ].drop_duplicates("IDfg" if use_mlbam else "_name_key")
 
@@ -360,7 +383,7 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
     adjusted = 0
     for _, row in matched.iterrows():
         pid = row["IDfg"]
-        pmask = (result_df["IDfg"] == pid) & (result_df["Year"] >= CURRENT_YEAR)
+        pmask = (result_df["IDfg"] == pid) & (result_df["Year"] >= current_year)
         conf = result_df.loc[pmask, "projection_confidence"].iloc[0]
 
         if conf >= Config.TradeConfidence.CONFIDENCE_CEILING:
@@ -370,7 +393,7 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
         prospect_year = row.get("year", None)
         org_rank = row.get("rank", None)
         top_100 = row.get("top_100", None)
-        if prospect_year == CURRENT_YEAR and pd.notna(org_rank):
+        if prospect_year == current_year and pd.notna(org_rank):
             top_100 = org_rank
             org_rank = None
 
@@ -425,7 +448,7 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
 # Trade ranking metrics
 # ---------------------------------------------------------------------------
 
-def add_trade_ranking_metrics(df: pd.DataFrame) -> pd.DataFrame:
+def add_trade_ranking_metrics(df: pd.DataFrame, current_year: int | None = None) -> pd.DataFrame:
     """
     Add pre-computed ranking metrics for each player.
 
@@ -435,6 +458,9 @@ def add_trade_ranking_metrics(df: pd.DataFrame) -> pd.DataFrame:
         total_future_war, total_future_value,
         total_war, total_value, historical_war, historical_value
     """
+    if current_year is None:
+        current_year = CURRENT_YEAR
+
     result = df.copy()
     rows = []
 
@@ -445,9 +471,9 @@ def add_trade_ranking_metrics(df: pd.DataFrame) -> pd.DataFrame:
         if pd.isna(fa_year):
             fa_year = p["FA_Year"].iloc[0]
 
-        control = p[(p["Year"] >= CURRENT_YEAR) & (p["Year"] < fa_year)]
-        future = p[p["Year"] >= CURRENT_YEAR]
-        past = p[p["Year"] < CURRENT_YEAR]
+        control = p[(p["Year"] >= current_year) & (p["Year"] < fa_year)]
+        future = p[p["Year"] >= current_year]
+        past = p[p["Year"] < current_year]
         n = len(control)
 
         rows.append({
@@ -460,7 +486,7 @@ def add_trade_ranking_metrics(df: pd.DataFrame) -> pd.DataFrame:
             "total_surplus": round(control["surplus_value"].sum(), 1),
             "years_control": n,
             "control_through": fa_year - 1 if pd.notna(fa_year) else None,
-            "total_future_war": round(future.loc[future["WAR"] > 0, "WAR"].sum(), 1),
+            "total_future_war": round(control.loc[control["WAR"] > 0, "WAR"].sum(), 1),
             "total_future_value": round(future["Base_Value"].sum(), 1),
             "total_war": round(past["WAR"].sum() + future.loc[future["WAR"] > 0, "WAR"].sum(), 1),
             "total_value": round(p["Base_Value"].sum(), 1),

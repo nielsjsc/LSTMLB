@@ -249,14 +249,13 @@ def build_mlb_timeline(
     player_values: pd.DataFrame | None,
 ) -> pd.DataFrame:
     """
-    Build MLB trade-value entries using **projected** WAR from each snapshot
-    year's surplus file — never actual future stats.
+    Build MLB trade-value entries using the pre-computed trade_value from
+    each snapshot year's surplus file.
 
-    For each surplus snapshot year S and each player:
-      1. Collect WAR_S, WAR_S+1, … (projections made at time S)
-      2. Apply the convex model to each year's projected WAR
-      3. Sum dollar values and subtract projected salaries
-      → trade value *as estimated at time S*
+    Supports both the new surplus format (with pre-computed ``trade_value``,
+    ``years_of_control``, ``total_future_WAR``, ``total_future_salary``)
+    and the legacy format (``WAR_YYYY`` / ``salary_YYYY`` columns that
+    require re-computation).
 
     For the current year, appends entries from the value_determination
     pipeline (``player_values_complete.csv``) so the chart includes the
@@ -273,8 +272,7 @@ def build_mlb_timeline(
 
     # ── Historical years ─────────────────────────────────────────────────
     for snap_year, sdf in surplus_by_year.items():
-        war_cols = sorted([c for c in sdf.columns if c.startswith("WAR_")])
-        sal_cols = sorted([c for c in sdf.columns if c.startswith("salary_") and c != "salary_source"])
+        has_trade_value = "trade_value" in sdf.columns
 
         for _, pr in sdf.iterrows():
             idfg = int(pr["IDfg"])
@@ -287,28 +285,41 @@ def build_mlb_timeline(
                 continue
 
             name = mlb_to_name.get(mlb_id, pr.get("Name", ""))
-            yrs_ctrl = pr.get("years_of_control", 0) or 0
 
-            total_value  = 0.0
-            total_salary = 0.0
-            total_war    = 0.0
-
-            for wc in war_cols:
-                proj_year = int(wc.split("_")[1])
-                war = pr.get(wc)
-                if pd.isna(war) or war <= 0:
+            if has_trade_value:
+                # New format: read pre-computed values directly
+                trade_val = pr.get("trade_value", 0)
+                if pd.isna(trade_val):
                     continue
-                total_value += war_to_dollars(war, proj_year)
-                total_war += war
+                yrs_ctrl = pr.get("years_of_control", 0) or 0
+                total_war = pr.get("total_future_WAR", 0) or 0
+                total_salary = pr.get("total_future_salary", 0) or 0
+            else:
+                # Legacy format: recompute from WAR_YYYY / salary_YYYY columns
+                war_cols = sorted([c for c in sdf.columns if c.startswith("WAR_")])
+                sal_cols = sorted([c for c in sdf.columns if c.startswith("salary_") and c != "salary_source"])
+                yrs_ctrl = pr.get("years_of_control", 0) or 0
 
-            for sc in sal_cols:
-                sal = pr.get(sc)
-                if pd.notna(sal):
-                    total_salary += sal
+                total_value  = 0.0
+                total_salary = 0.0
+                total_war    = 0.0
 
-            trade_val = total_value - total_salary
+                for wc in war_cols:
+                    proj_year = int(wc.split("_")[1])
+                    war = pr.get(wc)
+                    if pd.isna(war) or war <= 0:
+                        continue
+                    total_value += war_to_dollars(war, proj_year)
+                    total_war += war
 
-            if total_war <= 0 and total_value == 0:
+                for sc in sal_cols:
+                    sal = pr.get(sc)
+                    if pd.notna(sal):
+                        total_salary += sal
+
+                trade_val = total_value - total_salary
+
+            if total_war <= 0 and trade_val == 0:
                 continue
 
             war_per_yr = total_war / yrs_ctrl if yrs_ctrl > 0 else 0.0
@@ -323,7 +334,7 @@ def build_mlb_timeline(
                 "mlb_id": mlb_id,
                 "IDfg": idfg,
                 "name": name,
-                "date": f"{snap_year}-03-01",
+                "date": f"{snap_year}-04-01",
                 "year": snap_year,
                 "value": round(trade_val),
                 "value_type": "mlb_surplus",
@@ -358,9 +369,12 @@ def build_mlb_timeline(
             cwar   = row.get("contract_war", 0)
             if pd.isna(cwar):
                 cwar = 0
-            # total_salary from surplus columns if available
-            sal_cols_pv = [c for c in pv.columns if c.startswith("salary_") and c != "salary_source"]
-            total_sal = sum(row.get(sc, 0) or 0 for sc in sal_cols_pv if pd.notna(row.get(sc)))
+            # total_salary: prefer total_contract (always available from pipeline)
+            total_sal = row.get("total_contract", 0)
+            if pd.isna(total_sal) or total_sal == 0:
+                # Fallback: sum individual salary_ columns if they exist
+                sal_cols_pv = [c for c in pv.columns if c.startswith("salary_") and c != "salary_source"]
+                total_sal = sum(row.get(sc, 0) or 0 for sc in sal_cols_pv if pd.notna(row.get(sc)))
             war_per_yr = fut_war / yrs if yrs > 0 else 0.0
 
             label = (

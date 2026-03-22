@@ -179,21 +179,55 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
             # After removing cross-team duplicates, remaining multiple rows for the
             # same (player_id, Year) are distinct contract components (base salary +
             # signing-bonus amortization).  Sum the salary and take first categorical.
+            #
+            # IMPORTANT: Spotrac encodes option years with TWO rows for the same
+            # year — e.g., Cal Raleigh 2031 has "conditional-mutual, $20M" AND
+            # "UFA, NaN".  We must preserve the FA marker so downstream
+            # normalization can detect it.  Strategy: if ANY row in the group
+            # has a status containing UFA/RFA/FA, emit a *second* row with
+            # that FA status and NaN payroll (mirroring how Spotrac encodes it).
+            _FA_KEYWORDS = {'UFA', 'RFA', 'FA', 'FREE AGENT'}
+
+            def _has_fa_status(status_str) -> bool:
+                if pd.isna(status_str):
+                    return False
+                return any(kw in str(status_str).upper() for kw in _FA_KEYWORDS)
+
             def _agg_salary_components(g):
-                return pd.Series({
+                # Pick the primary (non-FA) status row
+                non_fa = g[~g['Status'].apply(_has_fa_status)]
+                primary = non_fa if len(non_fa) > 0 else g
+
+                result = pd.Series({
                     'Player Name': g['Player Name'].dropna().iloc[0] if g['Player Name'].notna().any() else np.nan,
                     'Team': g['Team'].dropna().iloc[0] if g['Team'].notna().any() else np.nan,
-                    'Payroll': g['Payroll'].sum() if g['Payroll'].notna().any() else np.nan,
-                    'Status': g['Status'].dropna().iloc[0] if g['Status'].notna().any() else np.nan,
+                    'Payroll': primary['Payroll'].sum() if primary['Payroll'].notna().any() else np.nan,
+                    'Status': primary['Status'].dropna().iloc[0] if primary['Status'].notna().any() else np.nan,
                     'Years_of_Service': g['Years_of_Service'].dropna().iloc[0] if g['Years_of_Service'].notna().any() else np.nan,
+                    '_has_fa_marker': g['Status'].apply(_has_fa_status).any(),
                 })
+                return result
             pre_agg = len(cleaned_df)
             cleaned_df = (
                 cleaned_df.groupby(['IDfg', 'Year'])
-                .apply(_agg_salary_components)
+                .apply(_agg_salary_components, include_groups=False)
                 .reset_index()  # brings IDfg and Year back as columns
             )
             components_merged = pre_agg - len(cleaned_df)
+
+            # Re-emit FA marker rows that were absorbed during aggregation.
+            # For option years where Spotrac had a separate UFA row, we need
+            # to keep that signal so normalize_contract_status sees it.
+            fa_marker_rows = cleaned_df[cleaned_df['_has_fa_marker'] & ~cleaned_df['Status'].apply(_has_fa_status)]
+            if len(fa_marker_rows) > 0:
+                fa_rows = fa_marker_rows[['IDfg', 'Year', 'Player Name', 'Team']].copy()
+                fa_rows['Payroll'] = np.nan
+                fa_rows['Status'] = 'UFA'
+                fa_rows['Years_of_Service'] = np.nan
+                cleaned_df = pd.concat([cleaned_df, fa_rows], ignore_index=True)
+                logger.info(f"Preserved {len(fa_rows)} FA marker rows from dual-row option years")
+
+            cleaned_df = cleaned_df.drop(columns=['_has_fa_marker'], errors='ignore')
             
             logger.info(
                 f"Deduplication: {pre_dedup} → {len(cleaned_df)} rows "

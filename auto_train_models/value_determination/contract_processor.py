@@ -244,15 +244,64 @@ def generate_contract_timeline(df: pd.DataFrame) -> pd.DataFrame:
         # Check for Super 2
         is_super2 = any('Super 2' in str(status) for status in player_rows['Normalized_Status'])
         
+        # Log potential Super Two candidates based on service time
+        if not is_super2:
+            yos_vals = player_rows['Years_of_Service'].dropna()
+            if len(yos_vals) > 0:
+                latest_yos = float(yos_vals.iloc[-1])
+                end_yos = latest_yos + 1.0
+                if 2.0 <= end_yos <= 3.0:
+                    player_name = player_rows['Name'].iloc[0] if 'Name' in player_rows.columns else player_rows.get('Player Name', pd.Series(['?'])).iloc[0]
+                    logger.debug(f"Potential Super Two candidate: {player_name} (end-of-season YoS={end_yos:.3f})")
+        
         # Find the last row with a valid (non-None) status
         valid_status_mask = player_rows['Normalized_Status'].notna()
         if not valid_status_mask.any():
             # All statuses are None — no salary/contract data matched.
             # If the player is on an active roster (has Team), they are under
-            # team control and almost certainly Pre-Arb (young players not yet
-            # tracked in Spotrac). Otherwise assume Free Agent.
+            # team control.  Use Years_of_Service to determine remaining control.
             if 'Team' in player_rows.columns and player_rows['Team'].notna().any():
-                player_rows['Normalized_Status'] = 'Pre-Arb'
+                import math
+                yos_vals = player_rows['Years_of_Service'].dropna()
+                if len(yos_vals) > 0:
+                    latest_yos = float(yos_vals.iloc[-1])
+                else:
+                    latest_yos = 0.0
+                end_of_season_yos = latest_yos + 1.0
+
+                if end_of_season_yos >= 6.0:
+                    player_rows['Normalized_Status'] = 'Free Agent'
+                else:
+                    # Assign per-year statuses based on projected service time.
+                    # YoS represents start-of-season service time for the
+                    # CURRENT_YEAR.  For each prediction year we advance it
+                    # by one per season and map to the right control tier.
+                    first_year = int(player_rows['Year'].min())
+                    for _, r in player_rows.iterrows():
+                        yr = int(r['Year'])
+                        proj_yos = latest_yos + (yr - first_year)  # start-of-season YoS for yr
+                        if proj_yos >= 6.0:
+                            status = 'Free Agent'
+                        elif proj_yos >= 5.0:
+                            status = 'Arb-3'
+                        elif proj_yos >= 4.0:
+                            status = 'Arb-2'
+                        elif proj_yos >= 3.0:
+                            status = 'Arb-1'
+                        else:
+                            status = 'Pre-Arb'
+                        player_rows.loc[r.name, 'Normalized_Status'] = status
+
+                    # Add a Free Agent row at the transition year if not already present
+                    fa_start_year = first_year + math.ceil(max(0, 6.0 - latest_yos))
+                    if fa_start_year <= 2040 and not (player_rows['Year'] == fa_start_year).any():
+                        new_row = {col: player_rows.iloc[0][col] for col in player_rows.columns
+                                  if col not in ['Year', 'Normalized_Status', 'Status', 'Payroll']}
+                        new_row['Year'] = fa_start_year
+                        new_row['Normalized_Status'] = 'Free Agent'
+                        new_row['Status'] = np.nan
+                        new_row['Payroll'] = np.nan
+                        player_rows = pd.concat([player_rows, pd.DataFrame([new_row])], ignore_index=True)
             else:
                 player_rows['Normalized_Status'] = 'Free Agent'
             return player_rows
@@ -292,8 +341,27 @@ def generate_contract_timeline(df: pd.DataFrame) -> pd.DataFrame:
                 new_statuses = [('Arb-2', 1), ('Arb-3', 2), ('Free Agent', 3)]
         
         elif latest_status == 'Pre-Arb':
-            pre_arb_years = len(player_rows[player_rows['Normalized_Status'] == 'Pre-Arb'])
-            remaining_pre_arb = max(0, 3 - pre_arb_years)
+            # Use Years_of_Service (start-of-season service time) to determine
+            # remaining pre-arb years.  End-of-season YoS ≈ start_yos + 1.0.
+            # Arb eligible at 3.000 years; FA eligible at 6.000 years.
+            yos_col = player_rows['Years_of_Service']
+            latest_yos_vals = yos_col[yos_col.notna()]
+            if len(latest_yos_vals) > 0:
+                latest_yos = float(latest_yos_vals.iloc[-1])
+                # End-of-season service time after latest_year
+                end_of_season_yos = latest_yos + 1.0
+
+                import math
+                remaining_to_arb = max(0, 3.0 - end_of_season_yos)
+                remaining_pre_arb = math.ceil(remaining_to_arb)
+
+                remaining_to_fa = max(0, 6.0 - end_of_season_yos)
+                fa_offset_from_latest = math.ceil(remaining_to_fa)
+            else:
+                # Fallback: count Pre-Arb rows if no YoS data
+                pre_arb_years = len(player_rows[player_rows['Normalized_Status'] == 'Pre-Arb'])
+                remaining_pre_arb = max(0, 3 - pre_arb_years)
+                fa_offset_from_latest = remaining_pre_arb + (4 if is_super2 else 3) + 1
             
             year_offset = 0
             for i in range(remaining_pre_arb):
@@ -317,8 +385,9 @@ def generate_contract_timeline(df: pd.DataFrame) -> pd.DataFrame:
                     ('Free Agent', year_offset + 4)
                 ])  
         
-        elif latest_status in ['Signed', 'Team Option', 'Player Option', 'Unknown', 
-                              'Deferred', 'Buyout', 'Retained', 'RetainedBuyout', 'Active']:
+        elif latest_status in ['Signed', 'Team Option', 'Player Option', 'Mutual Option',
+                              'Vesting Option', 'Opt-Out', 'Unknown', 'Deferred', 'Buyout',
+                              'Retained', 'RetainedBuyout', 'Active']:
             # For all these statuses, treat as end of contract - FA comes next
             # Find the last year with a Payroll value or just use latest_year
             payroll_years = player_rows[player_rows['Payroll'].notna()]['Year']

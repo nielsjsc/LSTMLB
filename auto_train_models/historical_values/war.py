@@ -42,12 +42,18 @@ def calculate_batter_war(
     batter_df: pd.DataFrame,
     fielding_df: pd.DataFrame,
     baserunning_df: pd.DataFrame,
+    position_profiles: dict | None = None,
 ) -> pd.DataFrame:
     """
     Compute projected WAR for every batter-year row.
 
     Iterates rows and delegates each to
     ``value_determination.calculate_war.calculate_war_components()``.
+
+    Args:
+        position_profiles: Optional dict mapping IDfg → {pos: fraction}.
+            When provided, enables correct positional adjustments instead
+            of defaulting every player to DH.
     """
     out = batter_df.copy()
 
@@ -56,7 +62,8 @@ def calculate_batter_war(
 
     wars = []
     for _, row in out.iterrows():
-        war, _ = _vd_war_components(row, baserunning_df, fielding_df)
+        war, _ = _vd_war_components(row, baserunning_df, fielding_df,
+                                    position_profiles=position_profiles)
         wars.append(war)
     out["WAR"] = wars
     return out

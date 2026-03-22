@@ -409,14 +409,14 @@ class ContractConstants:
         'tier3': {'value': 10_000_000}
     }
     
-    # Minimum salaries by status
+    # Minimum salaries by status (2025 MLB minimums / floors)
     MIN_SALARY = {
-        'Pre-Arb': 720_000,
-        'Arb-1': 1_000_000,
-        'Arb-1 (Super 2)': 1_200_000,
-        'Arb-2': 2_500_000,
-        'Arb-3': 4_000_000,
-        'Arb-4': 5_000_000
+        'Pre-Arb': 740_000,
+        'Arb-1': 2_000_000,
+        'Arb-1 (Super 2)': 2_000_000,
+        'Arb-2': 3_500_000,
+        'Arb-3': 5_500_000,
+        'Arb-4': 7_000_000
     }
     
     # Arbitration percentage of market value

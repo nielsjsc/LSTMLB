@@ -483,6 +483,49 @@ def main():
             f"{salary_data_with_id['IDfg'].notna().sum() - roster_matched}"
         )
 
+        # ── Fill missing Years_of_Service from historical MLB data ────────
+        # Players on current rosters but without Spotrac salary data have
+        # no Years_of_Service.  Estimate it from how many MLB seasons
+        # appear in the FanGraphs historical leaderboards so that the
+        # contract-timeline generator can place them correctly on the
+        # Pre-Arb → Arb → FA progression.
+        # IMPORTANT: Only fill for players with NO Spotrac YoS at all.
+        # Players who have real Spotrac YoS on some rows must keep those
+        # values — the timeline generator picks the best value itself.
+        try:
+            batting_history, pitching_history = load_historical_data()
+        except Exception as e:
+            logger.warning(f"Could not load historical data for YoS estimation: {e}")
+            batting_history, pitching_history = None, None
+
+        # Find players where ALL rows have NaN YoS (no Spotrac data at all)
+        players_with_any_yos = set(
+            salary_data_with_id
+            .loc[salary_data_with_id['Years_of_Service'].notna(), 'IDfg']
+            .dropna().unique()
+        )
+        all_player_ids = set(
+            salary_data_with_id['IDfg'].dropna().unique()
+        )
+        players_missing_all_yos = all_player_ids - players_with_any_yos
+
+        yos_filled = 0
+        for pid in players_missing_all_yos:
+            bat_seasons = 0
+            pit_seasons = 0
+            if batting_history is not None:
+                bat_seasons = int(batting_history[batting_history['IDfg'] == pid]['Season'].nunique())
+            if pitching_history is not None:
+                pit_seasons = int(pitching_history[pitching_history['IDfg'] == pid]['Season'].nunique())
+            estimated_yos = max(bat_seasons, pit_seasons)
+            if estimated_yos > 0:
+                salary_data_with_id.loc[
+                    salary_data_with_id['IDfg'] == pid, 'Years_of_Service'
+                ] = float(estimated_yos)
+                yos_filled += 1
+        if yos_filled:
+            logger.info(f"Filled Years_of_Service from historical data for {yos_filled} players")
+
         # ============================================================
         # Step 6: Normalize Contract Status & Generate Timeline
         # ============================================================
@@ -513,7 +556,9 @@ def main():
         # ============================================================
         logger.info("\n[Step 8/10] Integrating historical data...")
         try:
-            batting_history, pitching_history = load_historical_data()
+            # batting_history / pitching_history already loaded before Step 6
+            if batting_history is None and pitching_history is None:
+                batting_history, pitching_history = load_historical_data()
             timeline_with_history = integrate_historical_stats(
                 timeline_with_values, batting_history, pitching_history
             )

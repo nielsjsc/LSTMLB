@@ -114,6 +114,80 @@ BASERUNNING_REGRESSION_GAMES = {
 }
 
 
+# ============================================================================
+# ERA-AWARE CONFIGURATIONS (pre-Statcast vs Statcast)
+# ============================================================================
+
+# Statcast fielding data begins 2016; Marcel needs ~3 seasons → cutoff >= 2018
+STATCAST_MIN_CUTOFF = 2018
+
+# --- Statcast-era fielding groups (current behavior) ---
+FIELDING_GROUPS_STATCAST = {
+    'outfield': {'positions': ['LF', 'CF', 'RF'],
+                 'stats': ['sc_total_runs/150', 'sc_range_runs/150', 'sc_arm_runs/150']},
+    'infield':  {'positions': ['1B', '2B', '3B', 'SS'],
+                 'stats': ['sc_total_runs/150', 'sc_range_runs/150', 'sc_arm_runs/150', 'sc_dp_runs/150']},
+    'catcher':  {'positions': ['C'],
+                 'stats': ['sc_total_runs/150', 'sc_framing_runs/150', 'sc_throwing_runs/150', 'sc_blocking_runs/150']},
+}
+
+# --- Traditional (pre-Statcast) fielding groups: UZR/DRS components ---
+FIELDING_GROUPS_TRADITIONAL = {
+    'outfield': {'positions': ['LF', 'CF', 'RF'],
+                 'stats': ['UZR/150', 'RngR/150', 'ARM/150']},
+    'infield':  {'positions': ['1B', '2B', '3B', 'SS'],
+                 'stats': ['UZR/150', 'RngR/150', 'ARM/150', 'DPR/150']},
+    'catcher':  {'positions': ['C'],
+                 'stats': ['DRS/150']},
+}
+
+FIELDING_REGRESSION_INNINGS_TRADITIONAL = {
+    'UZR/150': 600,
+    'RngR/150': 600,
+    'ARM/150': 800,
+    'DPR/150': 800,
+    'DRS/150': 600,
+}
+
+# Map traditional stats → standardized output columns (WAR reads sc_total_runs/150)
+_TRAD_FIELDING_TO_OUTPUT = {
+    'UZR/150':  'sc_total_runs/150',
+    'RngR/150': 'sc_range_runs/150',
+    'ARM/150':  'sc_arm_runs/150',
+    'DPR/150':  'sc_dp_runs/150',
+    'DRS/150':  'sc_total_runs/150',
+}
+
+# Map traditional stats → aging curve keys (reuse statcast curves)
+_TRAD_FIELDING_TO_CURVE = {
+    'UZR/150':  'sc_total_runs/150',
+    'RngR/150': 'sc_range_runs/150',
+    'ARM/150':  'sc_arm_runs/150',
+    'DPR/150':  'sc_dp_runs/150',
+    'DRS/150':  'sc_total_runs/150',
+}
+
+# --- Baserunning era configs ---
+BASERUNNING_STATS_STATCAST = ['sc_baserunning_runner_runs_tot_rate', 'SB_rate', 'CS_rate']
+BASERUNNING_STATS_TRADITIONAL = ['BsR_rate', 'SB_rate', 'CS_rate']
+
+BASERUNNING_REGRESSION_GAMES_TRADITIONAL = {
+    'BsR_rate': 100,
+    'SB_rate': 80,
+    'CS_rate': 80,
+}
+
+# Map traditional baserunning → standardized output column
+_TRAD_BR_TO_OUTPUT = {
+    'BsR_rate': 'sc_baserunning_runner_runs_tot_rate',
+}
+
+# Map traditional baserunning → aging curve key
+_TRAD_BR_TO_CURVE = {
+    'BsR_rate': 'sc_baserunning_runner_runs_tot_rate',
+}
+
+
 def _compute_marcel_weighted_average(
     seasons_data: List[Dict],
     stats: List[str],
@@ -206,14 +280,19 @@ def marcel_fielding_projections(
     curves = _load_aging_curves()
     fielding_curves = curves.get('fielding', {})
 
-    groups = {
-        'outfield': {'positions': ['LF', 'CF', 'RF'],
-                     'stats': ['sc_total_runs/150', 'sc_range_runs/150', 'sc_arm_runs/150']},
-        'infield':  {'positions': ['1B', '2B', '3B', 'SS'],
-                     'stats': ['sc_total_runs/150', 'sc_range_runs/150', 'sc_arm_runs/150', 'sc_dp_runs/150']},
-        'catcher':  {'positions': ['C'],
-                     'stats': ['sc_total_runs/150', 'sc_framing_runs/150', 'sc_throwing_runs/150', 'sc_blocking_runs/150']},
-    }
+    # Select era-appropriate stat configurations
+    use_statcast = cutoff_year >= STATCAST_MIN_CUTOFF
+    if use_statcast:
+        groups = FIELDING_GROUPS_STATCAST
+        regression = FIELDING_REGRESSION_INNINGS
+        output_col_map = None
+        curve_key_map = None
+    else:
+        groups = FIELDING_GROUPS_TRADITIONAL
+        regression = FIELDING_REGRESSION_INNINGS_TRADITIONAL
+        output_col_map = _TRAD_FIELDING_TO_OUTPUT
+        curve_key_map = _TRAD_FIELDING_TO_CURVE
+        logger.info(f"Marcel fielding: using traditional stats (cutoff {cutoff_year} < {STATCAST_MIN_CUTOFF})")
 
     # All stat columns that appear in output (NaN for non-applicable ones)
     all_stat_cols = [
@@ -311,7 +390,7 @@ def marcel_fielding_projections(
 
             # Compute Marcel base projection
             base = _compute_marcel_weighted_average(
-                seasons_data, stats, 'Inn', FIELDING_REGRESSION_INNINGS
+                seasons_data, stats, 'Inn', regression
             )
 
             # Project forward with aging
@@ -323,11 +402,21 @@ def marcel_fielding_projections(
                 prediction = {}
                 for stat in stats:
                     aging_total = 0.0
-                    stat_curves = group_curves.get(stat, {})
+                    # Map traditional stat to the corresponding statcast aging curve key
+                    curve_key = curve_key_map[stat] if curve_key_map and stat in curve_key_map else stat
+                    stat_curves = group_curves.get(curve_key, {})
                     for y in range(1, year_offset + 1):
                         age_at_y = last_age + (cutoff_year - last_season) + y
                         aging_total += _get_smoothed_aging_delta(stat_curves, int(age_at_y))
                     prediction[stat] = base[stat] + aging_total
+
+                # Remap traditional stats to standardised output columns
+                if output_col_map:
+                    remapped = {}
+                    for stat_key, val in prediction.items():
+                        out_col = output_col_map.get(stat_key, stat_key)
+                        remapped[out_col] = val
+                    prediction = remapped
 
                 # Build output row
                 row = {
@@ -381,8 +470,19 @@ def marcel_baserunning_projections(
     curves = _load_aging_curves()
     br_curves = curves.get('baserunning', {})
 
-    # Stats to project (exclude Age)
-    stats = [f for f in input_features if f != 'Age']
+    # Select era-appropriate stats and regression
+    use_statcast = cutoff_year >= STATCAST_MIN_CUTOFF
+    if use_statcast:
+        stats = [f for f in BASERUNNING_STATS_STATCAST if f != 'Age']
+        regression = BASERUNNING_REGRESSION_GAMES
+        output_col_map = None
+        curve_key_map = None
+    else:
+        stats = [f for f in BASERUNNING_STATS_TRADITIONAL if f != 'Age']
+        regression = BASERUNNING_REGRESSION_GAMES_TRADITIONAL
+        output_col_map = _TRAD_BR_TO_OUTPUT
+        curve_key_map = _TRAD_BR_TO_CURVE
+        logger.info(f"Marcel baserunning: using traditional stats (cutoff {cutoff_year} < {STATCAST_MIN_CUTOFF})")
 
     # Non-negative stats
     non_negative = {'SB_rate', 'CS_rate'}
@@ -435,7 +535,7 @@ def marcel_baserunning_projections(
 
         # Compute Marcel base
         base = _compute_marcel_weighted_average(
-            seasons_data, stats, 'G', BASERUNNING_REGRESSION_GAMES
+            seasons_data, stats, 'G', regression
         )
 
         # Project forward with aging
@@ -447,7 +547,8 @@ def marcel_baserunning_projections(
                           'Year': proj_year, 'Age': proj_age}
 
             for stat in stats:
-                stat_curves = br_curves.get(stat, {})
+                curve_key = curve_key_map[stat] if curve_key_map and stat in curve_key_map else stat
+                stat_curves = br_curves.get(curve_key, {})
                 aging_total = 0.0
                 for y in range(1, year_offset + 1):
                     age_at_y = last_age + (cutoff_year - last_season) + y
@@ -456,7 +557,10 @@ def marcel_baserunning_projections(
                 val = base[stat] + aging_total
                 if stat in non_negative:
                     val = max(0.0, val)
-                prediction[stat] = val
+
+                # Map to standardised output column name
+                out_col = output_col_map.get(stat, stat) if output_col_map else stat
+                prediction[out_col] = val
 
             all_predictions.append(prediction)
 

@@ -4,10 +4,18 @@ Historical Values — Surplus Calculator
 
 For each snapshot year S (cutoff = S − 1):
   1. Load the four prediction CSVs from ``projections/cutoff_{S-1}/``.
-  2. Load the Cot's salary file ``salary/by_year/{S}.csv``.
-  3. Match players between projections and Cot's by name (+ ID enrichment).
-  4. Compute projected WAR per year, sum over remaining control years.
-  5. Output:  ``surplus/surplus_{S}.csv``
+  2. Build position profiles from historical fielding data.
+  3. Compute WAR (batter + pitcher) using the shared WAR engine.
+  4. Load the Cot's salary file and adapt to the pipeline timeline format.
+  5. Run the shared value-determination pipeline:
+     extend_fa_timeline → join_predictions → calculate_contract_value →
+     calculate_surplus_value → analyze_contract_options →
+     calculate_trade_values → add_trade_ranking_metrics.
+  6. Extract per-player summary and save.
+
+This module uses the **exact same** value-pipeline functions as the
+current-year value-determination pipeline, ensuring identical logic.
+The only difference is the salary source (Cot's vs Spotrac).
 
 Usage:
     cd auto_train_models
@@ -34,11 +42,32 @@ from historical_values.config import (
     COTS_BY_YEAR_DIR, DATA_DIR,
     HISTORIC_BATTING_FILE, HISTORIC_PITCHING_FILE,
     HISTORIC_BATTING_FILE_CLASSIC, HISTORIC_PITCHING_FILE_CLASSIC,
+    HISTORIC_FIELDING_FILE,
     ROSTER_FILE,
 )
-from historical_values.war import calculate_batter_war, calculate_pitcher_war, war_to_dollars
+from historical_values.war import calculate_batter_war, calculate_pitcher_war
+from historical_values.cots_adapter import (
+    build_salary_timeline,
+    _classify_status,
+    _years_of_control_from_svc,
+)
+
+# ── Shared value-determination pipeline functions ────────────────────────────
+from value_determination.contract_processor import extend_fa_timeline
 from value_determination.value_calculator import (
-    calculate_contract_value as _vd_contract_value,
+    join_predictions_with_timeline,
+    calculate_contract_value,
+    calculate_surplus_value,
+)
+from value_determination.trade_value import (
+    analyze_contract_options,
+    calculate_trade_values,
+    add_trade_ranking_metrics,
+)
+from core.position_profiles import (
+    build_position_profiles,
+    load_fielding_history,
+    load_batting_for_games,
 )
 from core.name_utils import name_key as _name_key_fn, normalize_team as _normalise_team
 
@@ -96,7 +125,6 @@ def _build_idfg_team_map() -> Dict[int, str]:
 
     _idfg_team_cache = dict(zip(roster["fg_id"], roster["team_abbr"]))
     return _idfg_team_cache
-
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -160,83 +188,106 @@ def _estimate_service_time(idfg: int, as_of_season: int) -> float:
     return float(app.loc[(app["IDfg"] == idfg) & (app["Season"] <= as_of_season), "Season"].nunique())
 
 
-def _years_of_control_from_svc(service_time: float) -> int:
-    return max(0, math.ceil(Config.SERVICE_TIME_FA - service_time))
+# ═══════════════════════════════════════════════════════════════════════════════
+# Career game-count helper (for confidence adjustments)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_career_games_cache: Optional[pd.DataFrame] = None
 
 
-def _classify_status(service_time: float) -> str:
-    if pd.isna(service_time):
-        return "Unknown"
-    if service_time < 3:
-        return "Pre-Arb"
-    elif service_time < 4:
-        return "Arb-1"
-    elif service_time < 5:
-        return "Arb-2"
-    elif service_time < 6:
-        return "Arb-3"
-    else:
-        return "Signed"
-
-
-def _estimate_control_salaries(
-    idfg: int,
-    svc: float,
-    control_years: list[int],
-    player_proj: pd.DataFrame,
-) -> tuple[float, dict[str, float]]:
-    """Estimate annual salaries over control years.
-
-    Delegates arb-year salary estimation to
-    ``value_determination.value_calculator.calculate_contract_value()``
-    so the escalation model (prev_value tracking, 1.1× floor) is
-    identical to the live pipeline.
-
-    Pre-arb years use ``Config.HISTORICAL_MIN_SALARY`` for the
-    year-appropriate league minimum.
+def _build_career_games(snapshot_year: int) -> pd.DataFrame:
     """
-    ctrl_rows = []
-    for i, yr in enumerate(control_years):
-        future_svc = svc + i
-        future_status = _classify_status(future_svc)
-        if future_status in ("FA", "Signed", "Unknown"):
-            break
-        yr_war_row = player_proj.loc[player_proj["Year"] == yr, "WAR"]
-        yr_war = max(0.0, float(yr_war_row.iloc[0])) if len(yr_war_row) else 0.0
-        bv = war_to_dollars(yr_war, yr)
+    Compute career G_bat, G_pit, GS per player through snapshot_year - 1.
 
-        # Pre-arb: pass historical minimum as Payroll so VD uses it directly
-        payroll = (
-            Config.HISTORICAL_MIN_SALARY.get(yr, 720_000)
-            if future_status == "Pre-Arb"
-            else np.nan
+    Replicates what value_calculator.integrate_historical_stats does in the
+    current pipeline so that _apply_confidence_adjustments can correctly
+    calculate projection_confidence from career game counts.
+    """
+    frames = []
+
+    # Batting games
+    if HISTORIC_BATTING_FILE_CLASSIC.exists():
+        bat = pd.read_csv(
+            HISTORIC_BATTING_FILE_CLASSIC,
+            usecols=["IDfg", "Season", "G"],
+            low_memory=False,
         )
-        ctrl_rows.append({
-            "IDfg": idfg,
-            "Year": yr,
-            "Base_Value": bv,
-            "Normalized_Status": future_status,
-            "Payroll": payroll,
-        })
+        bat = bat[bat["Season"] < snapshot_year]
+        bat_g = bat.groupby("IDfg")["G"].sum().reset_index()
+        bat_g = bat_g.rename(columns={"G": "G_bat"})
+        frames.append(bat_g)
 
-    per_year: dict[str, float] = {}
-    total = 0.0
-    if ctrl_rows:
-        ctrl_df = _vd_contract_value(pd.DataFrame(ctrl_rows))
-        for _, cyr in ctrl_df.iterrows():
-            sal = cyr.get("contract_value", 0)
-            if pd.notna(sal):
-                per_year[f"salary_{int(cyr['Year'])}"] = round(sal)
-                total += sal
-    return total, per_year
+    # Pitching games + GS
+    if HISTORIC_PITCHING_FILE_CLASSIC.exists():
+        pit_cols = ["IDfg", "Season", "G"]
+        pit_raw = pd.read_csv(HISTORIC_PITCHING_FILE_CLASSIC, low_memory=False, nrows=0)
+        if "GS" in pit_raw.columns:
+            pit_cols.append("GS")
+        pit = pd.read_csv(
+            HISTORIC_PITCHING_FILE_CLASSIC,
+            usecols=pit_cols,
+            low_memory=False,
+        )
+        pit = pit[pit["Season"] < snapshot_year]
+        agg = {"G": "sum"}
+        if "GS" in pit.columns:
+            agg["GS"] = "sum"
+        pit_g = pit.groupby("IDfg").agg(agg).reset_index()
+        pit_g = pit_g.rename(columns={"G": "G_pit"})
+        frames.append(pit_g)
+
+    if not frames:
+        return pd.DataFrame(columns=["IDfg", "G_bat", "G_pit", "GS"])
+
+    result = frames[0]
+    for f in frames[1:]:
+        result = result.merge(f, on="IDfg", how="outer")
+    return result.fillna(0)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Projected stat columns to carry forward
-# ═══════════════════════════════════════════════════════════════════════════════
+def _add_career_game_counts(
+    pipeline_df: pd.DataFrame,
+    snapshot_year: int,
+) -> pd.DataFrame:
+    """
+    Insert synthetic historical rows carrying career game counts so that
+    _apply_confidence_adjustments (called inside calculate_trade_values)
+    can compute correct projection_confidence from each player's MLB
+    experience.
 
-BATTER_PROJ_COLS  = ["BB%", "K%", "AVG", "OBP", "SLG", "wOBA", "HR", "2B", "3B", "RBI", "R", "HBP"]
-PITCHER_PROJ_COLS = ["Role", "K%", "BB%", "FIP", "ERA"]
+    These rows use ``Year = snapshot_year - 1`` which falls under the
+    ``Year < current_year`` filter.  They are tagged with
+    ``_synthetic = True`` so they can be removed after trade-value
+    calculation.
+    """
+    career = _build_career_games(snapshot_year)
+    if career.empty:
+        return pipeline_df
+
+    player_ids = set(pipeline_df["IDfg"].unique())
+    career = career[career["IDfg"].isin(player_ids)].copy()
+    if career.empty:
+        return pipeline_df
+
+    career["Year"] = snapshot_year - 1
+    career["_synthetic"] = True
+
+    # Ensure all pipeline columns exist in career (as NaN) so concat works
+    for col in pipeline_df.columns:
+        if col not in career.columns:
+            career[col] = np.nan
+
+    # Keep all columns: pipeline cols + game-count cols + _synthetic
+    all_cols = list(pipeline_df.columns) + [c for c in ["G_bat", "G_pit", "GS", "_synthetic"]
+                                            if c not in pipeline_df.columns]
+    # Also add game-count columns to pipeline_df (as NaN) for concat alignment
+    for c in ["G_bat", "G_pit", "GS", "_synthetic"]:
+        if c not in pipeline_df.columns:
+            pipeline_df = pipeline_df.copy()
+            pipeline_df[c] = np.nan
+
+    result = pd.concat([pipeline_df, career[all_cols]], ignore_index=True)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -250,6 +301,9 @@ def compute_surplus_for_snapshot(
 ) -> pd.DataFrame:
     """
     Compute per-player surplus value for a single snapshot year.
+
+    Uses the shared value-determination pipeline for all value calculations,
+    ensuring identical logic to the current-year pipeline.
 
     snapshot_year S  →  cutoff_year = S − 1
     """
@@ -270,6 +324,8 @@ def compute_surplus_for_snapshot(
 
     cots = pd.read_csv(cots_file)
     cots = cots.dropna(subset=["player"]).copy()
+    # Filter out aggregate "Running Payroll Total" rows
+    cots = cots[~cots["player"].str.contains("Running|Payroll", na=False)]
     cots["_name_key"] = cots["player"].apply(_name_key_fn)
     cots = cots.sort_values("salary", ascending=False, na_position="last")
     logger.info(f"[{snapshot_year}]  loaded {len(cots)} Cot's rows")
@@ -301,20 +357,51 @@ def compute_surplus_for_snapshot(
         f"{batter_df['IDfg'].nunique()} batters, {pitcher_df['IDfg'].nunique()} pitchers"
     )
 
+    # ── Build position profiles ──────────────────────────────────────────
+    hist_fielding = load_fielding_history()
+    hist_batting = load_batting_for_games()
+    batter_ids = batter_df["IDfg"].unique().tolist()
+    position_profiles = build_position_profiles(
+        hist_fielding, hist_batting, batter_ids,
+        cutoff_year=cutoff_year,
+    )
+    logger.info(f"[{snapshot_year}]  built position profiles for {len(position_profiles)}/{len(batter_ids)} batters")
+
     # ── Compute WAR ──────────────────────────────────────────────────────
-    batter_df  = calculate_batter_war(batter_df, fielding_df, baserunning_df)
+    batter_df = calculate_batter_war(
+        batter_df, fielding_df, baserunning_df,
+        position_profiles=position_profiles,
+    )
     pitcher_df = calculate_pitcher_war(pitcher_df)
 
     # ── Unify into single WAR table ──────────────────────────────────────
-    batter_keep  = ["IDfg", "Name", "Year", "Age", "WAR"] + [c for c in BATTER_PROJ_COLS if c in batter_df.columns]
-    pitcher_keep = ["IDfg", "Name", "Year", "Age", "WAR"] + [c for c in PITCHER_PROJ_COLS if c in pitcher_df.columns]
+    batter_slim = batter_df[["IDfg", "Name", "Year", "Age", "WAR"]].copy()
+    batter_slim["player_type"] = "batter"
+    batter_slim["position_group"] = "batter"
 
-    batter_slim  = batter_df[batter_keep].copy();  batter_slim["player_type"]  = "batter"
-    pitcher_slim = pitcher_df[pitcher_keep].copy(); pitcher_slim["player_type"] = "pitcher"
+    pitcher_slim = pitcher_df[["IDfg", "Name", "Year", "Age", "WAR"]].copy()
+    pitcher_slim["player_type"] = "pitcher"
+    # Determine SP vs RP
+    if "Role" in pitcher_df.columns:
+        pitcher_slim["position_group"] = pitcher_df["Role"].apply(
+            lambda r: "SP" if str(r).upper() == "SP" else "RP"
+        )
+    else:
+        pitcher_slim["position_group"] = "SP"
 
     all_proj = pd.concat([batter_slim, pitcher_slim], ignore_index=True)
 
-    # Handle two-way players — sum WAR instead of taking max
+    # Handle two-way players
+    #
+    # Players in both batter and pitcher predictions fall into two camps:
+    #   1. Legitimate two-way players (Ohtani) — both batting and pitching
+    #      WAR are positive → sum them.
+    #   2. NL pitchers who hit (pre-DH) — pitcher WAR is positive but
+    #      batting WAR is hugely negative because the model projects
+    #      150 games at terrible batting stats → keep only pitcher WAR.
+    #
+    # Rule: sum WAR only when BOTH contributions are positive.
+    # Otherwise keep the higher (positive) side.
     dup_mask = all_proj.duplicated(subset=["IDfg", "Year"], keep=False)
     two_way_ids = set(all_proj.loc[dup_mask, "IDfg"].unique())
 
@@ -323,9 +410,22 @@ def compute_surplus_for_snapshot(
         non_two = all_proj[~all_proj["IDfg"].isin(two_way_ids)]
         summed = []
         for (idfg, yr), grp in two_way.groupby(["IDfg", "Year"]):
-            base = grp.sort_values("WAR", ascending=False).iloc[0].copy()
-            base["WAR"] = grp["WAR"].sum()
-            base["player_type"] = "two_way"
+            bat_row = grp[grp["player_type"] == "batter"]
+            pit_row = grp[grp["player_type"] == "pitcher"]
+            bat_war = bat_row["WAR"].iloc[0] if not bat_row.empty else 0
+            pit_war = pit_row["WAR"].iloc[0] if not pit_row.empty else 0
+
+            if bat_war > 0 and pit_war > 0:
+                # Legitimate two-way (e.g. Ohtani) — sum both
+                base = grp.sort_values("WAR", ascending=False).iloc[0].copy()
+                base["WAR"] = bat_war + pit_war
+                base["player_type"] = "two_way"
+            elif pit_war >= bat_war:
+                # Pitcher is better — keep pitcher only (NL pitcher who hit)
+                base = pit_row.iloc[0].copy() if not pit_row.empty else grp.iloc[0].copy()
+            else:
+                # Batter is better — keep batter only
+                base = bat_row.iloc[0].copy() if not bat_row.empty else grp.iloc[0].copy()
             summed.append(base)
         all_proj = pd.concat([non_two, pd.DataFrame(summed)], ignore_index=True)
     else:
@@ -336,18 +436,21 @@ def compute_surplus_for_snapshot(
 
     all_proj["_name_key"] = all_proj["Name"].apply(_name_key_fn)
 
+    # Add prediction_year for join_predictions_with_timeline
+    all_proj["prediction_year"] = all_proj["Year"]
+
     # ── Identify unique projected players ────────────────────────────────
     proj_players = (
         all_proj[all_proj["Year"] == snapshot_year]
         .drop_duplicates(subset=["IDfg"])
-        [["IDfg", "Name", "_name_key", "Age", "player_type"]]
+        [["IDfg", "Name", "_name_key", "Age", "player_type", "position_group"]]
         .copy()
     )
     extra = (
         all_proj[~all_proj["IDfg"].isin(proj_players["IDfg"])]
         .sort_values("Year")
         .drop_duplicates(subset=["IDfg"])
-        [["IDfg", "Name", "_name_key", "Age", "player_type"]]
+        [["IDfg", "Name", "_name_key", "Age", "player_type", "position_group"]]
         .copy()
     )
     proj_players = pd.concat([proj_players, extra], ignore_index=True)
@@ -358,129 +461,219 @@ def compute_surplus_for_snapshot(
     cots_name = cots[cots["IDfg"].isna()].drop_duplicates(subset=["_name_key"], keep="first")
     cots = pd.concat([cots_id, cots_name], ignore_index=True)
 
-    merged = proj_players.merge(
-        cots.drop(columns=["_name_key"]),
-        on="IDfg", how="left", suffixes=("", "_cots"),
+    # Merge player_type into Cot's for position group mapping
+    cots = cots.merge(
+        proj_players[["IDfg", "Name", "player_type"]],
+        on="IDfg", how="left", suffixes=("", "_proj"),
     )
-    n_matched = merged["player"].notna().sum()
-    logger.info(f"[{snapshot_year}]  {n_matched} matched in Cot's, {merged['player'].isna().sum()} estimated")
+    if "Name_proj" in cots.columns:
+        cots["Name"] = cots["Name_proj"].fillna(cots.get("player", ""))
+        cots.drop(columns=["Name_proj"], inplace=True)
+    if "player_type" not in cots.columns or cots["player_type"].isna().all():
+        cots["player_type"] = "batter"
+    cots["player_type"] = cots["player_type"].fillna("batter")
 
-    # ── Build surplus rows ───────────────────────────────────────────────
+    matched_idfgs = set(cots.dropna(subset=["IDfg"])["IDfg"].astype(int))
+    n_matched = len(matched_idfgs)
+    logger.info(f"[{snapshot_year}]  {n_matched} matched in Cot's")
+
+    # ── Build estimated players (not in Cot's) ───────────────────────────
+    all_idfgs = set(proj_players["IDfg"].astype(int))
+    unmatched_idfgs = all_idfgs - matched_idfgs
+    estimated_rows = []
+    for idfg in unmatched_idfgs:
+        pp = proj_players[proj_players["IDfg"] == idfg]
+        if pp.empty:
+            continue
+        pp = pp.iloc[0]
+        svc = _estimate_service_time(idfg, snapshot_year - 1)
+        yoc = _years_of_control_from_svc(svc)
+        if yoc <= 0:
+            continue
+        estimated_rows.append({
+            "IDfg": int(idfg),
+            "Name": pp["Name"],
+            "player_type": pp["player_type"],
+            "service_time": svc,
+            "years_of_control": yoc,
+        })
+    estimated_df = pd.DataFrame(estimated_rows) if estimated_rows else pd.DataFrame(
+        columns=["IDfg", "Name", "player_type", "service_time", "years_of_control"]
+    )
+    logger.info(f"[{snapshot_year}]  {len(estimated_df)} estimated (no Cot's match)")
+
+    # ── Build salary timeline via adapter ────────────────────────────────
+    salary_timeline = build_salary_timeline(
+        cots.dropna(subset=["IDfg"]),
+        estimated_df,
+        snapshot_year,
+    )
+
+    if salary_timeline.empty:
+        logger.warning(f"[{snapshot_year}]  empty salary timeline — no surplus output")
+        return pd.DataFrame()
+
+    # ── Add mlbam_id for prospect matching ───────────────────────────────
+    xw = _build_mlbam_crosswalk()
+    salary_timeline = salary_timeline.merge(
+        xw[["IDfg", "mlbam_id"]], on="IDfg", how="left",
+    )
+
+    # ══════════════════════════════════════════════════════════════════════
+    # SHARED VALUE PIPELINE (identical to value_determination/main.py)
+    # ══════════════════════════════════════════════════════════════════════
+
+    # Step 1: Extend FA timeline through 2040
+    extended = extend_fa_timeline(salary_timeline)
+    logger.info(f"[{snapshot_year}]  extended timeline: {len(extended)} rows")
+
+    # Step 2: Join predictions with timeline → adds WAR and Base_Value
+    with_war = join_predictions_with_timeline(extended, all_proj)
+
+    # Step 3: Calculate contract value (arb model for NaN Payroll rows)
+    with_contract = calculate_contract_value(with_war)
+
+    # Step 4: Calculate surplus value (Base_Value - contract_value)
+    with_surplus = calculate_surplus_value(with_contract)
+
+    # Step 4b: Add career game counts for confidence adjustments
+    #   The trade_value pipeline uses G_bat / G_pit / GS to compute
+    #   projection_confidence. Without these, every player gets minimum
+    #   confidence (0.10), which massively distorts blended trade values.
+    with_surplus = _add_career_game_counts(with_surplus, snapshot_year)
+
+    # Step 5: Analyze contract options (opt-outs, team options)
+    with_options = analyze_contract_options(with_surplus, current_year=snapshot_year)
+
+    # Step 6: Calculate trade values (surplus over control years)
+    with_trade = calculate_trade_values(with_options, current_year=snapshot_year)
+
+    # Step 7: Add trade ranking metrics
+    result = add_trade_ranking_metrics(with_trade, current_year=snapshot_year)
+
+    # Remove synthetic game-count rows added in Step 4b
+    if "_synthetic" in result.columns:
+        result = result[result["_synthetic"] != True].drop(columns=["_synthetic"])
+        # Also drop G_bat/G_pit/GS columns (not needed in summary)
+        result = result.drop(columns=[c for c in ["G_bat", "G_pit", "GS"] if c in result.columns],
+                             errors="ignore")
+
+    # ══════════════════════════════════════════════════════════════════════
+    # EXTRACT PER-PLAYER SUMMARY
+    # ══════════════════════════════════════════════════════════════════════
+
+    summary = _extract_player_summary(result, all_proj, snapshot_year)
+    if summary.empty:
+        logger.warning(f"[{snapshot_year}]  no surplus records produced")
+        return summary
+
+    summary = summary.sort_values("trade_value", ascending=False, na_position="last")
+    summary = summary.reset_index(drop=True)
+    summary.to_csv(out_path, index=False)
+    logger.info(
+        f"[{snapshot_year}]  wrote {len(summary)} players to {out_path.name}  "
+        f"(median trade_value ${summary['trade_value'].median():,.0f})"
+    )
+    return summary
+
+
+def _extract_player_summary(
+    pipeline_result: pd.DataFrame,
+    all_proj: pd.DataFrame,
+    snapshot_year: int,
+) -> pd.DataFrame:
+    """
+    Extract one-row-per-player summary from the pipeline output.
+
+    Columns mirror the old surplus format for timeline.py compatibility,
+    plus the pre-computed trade_value from the shared pipeline.
+    """
+    if pipeline_result.empty:
+        return pd.DataFrame()
+
+    xw = _build_mlbam_crosswalk()
     records = []
-    for _, p in merged.iterrows():
-        idfg  = p["IDfg"]
-        name  = p["Name"]
-        ptype = p["player_type"]
-        age   = p["Age"]
-        in_cots = pd.notna(p.get("player"))
 
-        if in_cots:
-            team = p.get("team", "")
-            pos  = p.get("position", "")
-            svc  = p.get("service_time", np.nan)
-            yoc  = p.get("years_of_control", 0)
-            cots_total_future = p.get("total_future_salary", 0)
-        else:
-            team = ""
-            pos  = ""
-            svc  = _estimate_service_time(idfg, snapshot_year - 1)
-            yoc  = _years_of_control_from_svc(svc)
-            cots_total_future = 0
-
-        if pd.isna(yoc) or yoc <= 0:
+    for idfg in pipeline_result["IDfg"].unique():
+        pdata = pipeline_result[pipeline_result["IDfg"] == idfg].sort_values("Year")
+        if pdata.empty:
             continue
 
-        status = _classify_status(svc)
-        control_years = list(range(snapshot_year, snapshot_year + int(yoc)))
-        player_proj = all_proj[all_proj["IDfg"] == idfg]
+        first = pdata.iloc[0]
+        name = first.get("Name", "")
+        team = first.get("Team", "")
+        pos_group = first.get("position_group", "")
 
-        total_war = 0.0
-        total_war_value = 0.0
-        per_year_war = {}
-        proj_war_snap = 0.0
-
-        for yr in control_years:
-            war_row = player_proj.loc[player_proj["Year"] == yr, "WAR"]
-            war = max(0.0, float(war_row.iloc[0])) if len(war_row) else 0.0
-            total_war += war
-            total_war_value += war_to_dollars(war, yr)
-            per_year_war[f"WAR_{yr}"] = round(war, 3)
-            if yr == snapshot_year:
-                proj_war_snap = war
-
-        # Salary estimation — delegates arb model to value_determination
-        estimated_sal, per_year_salary = _estimate_control_salaries(
-            idfg, svc, control_years, player_proj,
-        )
-
-        if in_cots:
-            cots_sal = float(cots_total_future) if pd.notna(cots_total_future) else 0.0
-            total_future_sal = max(cots_sal, estimated_sal)
-            if cots_sal > estimated_sal > 0:
-                scale = cots_sal / estimated_sal
-                per_year_salary = {k: round(v * scale) for k, v in per_year_salary.items()}
-            elif cots_sal > estimated_sal == 0:
-                n_yrs = len(control_years)
-                for yr in control_years:
-                    per_year_salary[f"salary_{yr}"] = round(cots_sal / n_yrs)
-        else:
-            total_future_sal = estimated_sal
-
-        surplus = total_war_value - total_future_sal
-
-        # Projected stats for snapshot year
-        snap_row = player_proj[player_proj["Year"] == snapshot_year]
-        proj_stats = {}
-        if not snap_row.empty:
-            sr = snap_row.iloc[0]
-            stat_cols = BATTER_PROJ_COLS if ptype == "batter" else PITCHER_PROJ_COLS
-            for c in stat_cols:
-                if c in sr.index and pd.notna(sr[c]):
-                    proj_stats[f"proj_{c}"] = sr[c]
-            proj_stats["proj_WAR"] = round(float(sr["WAR"]), 2)
-
-        # mlbam_id from crosswalk
-        xw = _build_mlbam_crosswalk()
+        # Get mlbam_id
         mlbam_row = xw.loc[xw["IDfg"] == idfg, "mlbam_id"]
         mlbam_id = int(mlbam_row.iloc[0]) if len(mlbam_row) else pd.NA
 
+        # Snapshot year data
+        snap = pdata[pdata["Year"] == snapshot_year]
+        age = float(snap["Age"].iloc[0]) if not snap.empty and "Age" in snap.columns and pd.notna(snap["Age"].iloc[0]) else np.nan
+
+        # Get player_type from all_proj
+        pp = all_proj[all_proj["IDfg"] == idfg]
+        player_type = pp["player_type"].iloc[0] if not pp.empty else ""
+
+        # Trade metrics (from add_trade_ranking_metrics — same for all rows)
+        trade_value = first.get("trade_value", np.nan)
+        years_control = first.get("years_control", 0)
+        total_future_war = first.get("total_future_war", 0)
+        total_contract = first.get("total_contract", 0)
+        contract_war = first.get("contract_war", 0)
+        avg_war = first.get("avg_war", 0)
+        total_surplus = first.get("total_surplus", 0)
+
+        # Service time / status
+        svc = first.get("Years_of_Service", np.nan)
+        status = first.get("Normalized_Status", "")
+        salary_source = "cots" if pd.notna(first.get("Payroll")) else "estimated"
+
+        # WAR per year
+        war_per_year = (
+            total_future_war / years_control
+            if pd.notna(years_control) and years_control > 0
+            else 0.0
+        )
+
+        # Per-year WAR and salary columns (for timeline.py compatibility)
+        per_year = {}
+        for _, row in pdata.iterrows():
+            yr = int(row["Year"])
+            war = row.get("WAR", np.nan)
+            sal = row.get("contract_value", np.nan)
+            if pd.notna(war):
+                per_year[f"WAR_{yr}"] = round(war, 3)
+            if pd.notna(sal):
+                per_year[f"salary_{yr}"] = round(sal)
+
         record = {
             "Name": name,
-            "IDfg": idfg,
+            "IDfg": int(idfg),
             "mlbam_id": mlbam_id,
             "snapshot_year": snapshot_year,
             "Team": team,
             "Age": age,
-            "Position": pos,
-            "player_type": ptype,
-        }
-        record.update(proj_stats)
-        record.update({
+            "player_type": player_type,
+            "position_group": pos_group,
             "service_time": round(svc, 3) if pd.notna(svc) else np.nan,
-            "years_of_control": int(yoc),
+            "years_of_control": int(years_control) if pd.notna(years_control) else 0,
             "status": status,
-            "salary_source": "cots" if in_cots else "estimated",
-            "total_future_WAR": round(total_war, 2),
-            "total_future_WAR_value": round(total_war_value),
-            "total_future_salary": round(total_future_sal),
-            "surplus": round(surplus),
-        })
-        record.update(per_year_war)
-        record.update(per_year_salary)
+            "salary_source": salary_source,
+            "trade_value": round(trade_value) if pd.notna(trade_value) else np.nan,
+            "total_future_WAR": round(total_future_war, 2) if pd.notna(total_future_war) else 0,
+            "total_future_WAR_value": round(first.get("total_future_value", 0)) if pd.notna(first.get("total_future_value")) else 0,
+            "total_future_salary": round(total_contract) if pd.notna(total_contract) else 0,
+            "surplus": round(total_surplus) if pd.notna(total_surplus) else 0,
+            "contract_war": round(contract_war, 1) if pd.notna(contract_war) else 0,
+            "avg_war": round(avg_war, 2) if pd.notna(avg_war) else 0,
+            "war_per_year": round(war_per_year, 2),
+        }
+        record.update(per_year)
         records.append(record)
 
-    result = pd.DataFrame(records)
-    if result.empty:
-        logger.warning(f"[{snapshot_year}]  no surplus records produced")
-        return result
-
-    result = result.sort_values("surplus", ascending=False).reset_index(drop=True)
-    result.to_csv(out_path, index=False)
-    logger.info(
-        f"[{snapshot_year}]  wrote {len(result)} players to {out_path.name}  "
-        f"(median surplus ${result['surplus'].median():,.0f})"
-    )
-    return result
+    return pd.DataFrame(records)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
