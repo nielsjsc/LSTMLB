@@ -291,6 +291,84 @@ def _add_career_game_counts(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Spotrac luxury_tax override
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_spotrac_ltax_cache: Optional[pd.DataFrame] = None
+
+
+def _load_spotrac_luxury_tax() -> pd.DataFrame:
+    """Load Spotrac salary data with luxury_tax values, keyed by (name, year)."""
+    global _spotrac_ltax_cache
+    if _spotrac_ltax_cache is not None:
+        return _spotrac_ltax_cache
+
+    spotrac_path = DATA_DIR / "salary" / "mlb_salary_data.csv"
+    if not spotrac_path.exists():
+        _spotrac_ltax_cache = pd.DataFrame()
+        return _spotrac_ltax_cache
+
+    df = pd.read_csv(spotrac_path)
+
+    def _parse_dollar(s):
+        s = str(s).split("(")[0].replace("$", "").replace(",", "").replace("-", "").strip()
+        try:
+            return float(s)
+        except (TypeError, ValueError):
+            return None
+
+    df["_ltax"] = df["luxury_tax"].apply(_parse_dollar)
+    df = df.dropna(subset=["_ltax"])
+    df["_name_key"] = df["player_name"].apply(_name_key_fn)
+    df["year"] = pd.to_numeric(df["year"], errors="coerce")
+    df = df.dropna(subset=["year"])
+    df["year"] = df["year"].astype(int)
+    _spotrac_ltax_cache = df[["_name_key", "year", "_ltax"]].drop_duplicates(
+        subset=["_name_key", "year"], keep="first"
+    )
+    return _spotrac_ltax_cache
+
+
+def _override_salary_with_luxury_tax(
+    salary_timeline: pd.DataFrame,
+) -> pd.DataFrame:
+    """Override Cot's-derived Payroll with Spotrac luxury_tax where available.
+
+    Cot's data uses nominal total_future_salary which overstates the
+    economic burden for deferred-money contracts (e.g. Ohtani $700M nominal
+    but $46M/yr luxury tax).  This function cross-references Spotrac data
+    to correct those values.
+    """
+    ltax = _load_spotrac_luxury_tax()
+    if ltax.empty:
+        return salary_timeline
+
+    st = salary_timeline.copy()
+    st["_name_key"] = st["Name"].apply(_name_key_fn)
+
+    merged = st.merge(
+        ltax, left_on=["_name_key", "Year"], right_on=["_name_key", "year"],
+        how="left", suffixes=("", "_sp"),
+    )
+
+    # Override Payroll with luxury_tax where: (a) luxury_tax is available,
+    # (b) the player has a non-arb contract (Signed status means Cot's
+    #     distributed total_future_salary, which may be wrong for deferrals)
+    mask = merged["_ltax"].notna() & merged["Status"].isin(["Signed"])
+    n_overridden = mask.sum()
+    if n_overridden > 0:
+        merged.loc[mask, "Payroll"] = merged.loc[mask, "_ltax"]
+        names = merged.loc[mask, "Name"].unique()
+        logger.info(
+            f"  Overrode {n_overridden} salary rows with Spotrac luxury_tax "
+            f"for {len(names)} players"
+        )
+
+    merged = merged.drop(columns=["_ltax", "year", "_name_key"], errors="ignore")
+    return merged
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Core surplus computation
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -512,6 +590,9 @@ def compute_surplus_for_snapshot(
     if salary_timeline.empty:
         logger.warning(f"[{snapshot_year}]  empty salary timeline — no surplus output")
         return pd.DataFrame()
+
+    # ── Override deferred salaries with Spotrac luxury_tax ───────────────
+    salary_timeline = _override_salary_with_luxury_tax(salary_timeline)
 
     # ── Add mlbam_id for prospect matching ───────────────────────────────
     xw = _build_mlbam_crosswalk()

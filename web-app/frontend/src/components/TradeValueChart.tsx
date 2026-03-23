@@ -136,13 +136,31 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
   const x = (fx: number) => MARGIN.left + ((fx - minFx) / fxSpan) * plotW;
   const y = (val: number) => MARGIN.top + (1 - (val - yMin) / yRange) * plotH;
 
-  // ── Path (line + area) — connect only non-transaction snapshots ─────
-  const lineData = sorted.filter((d) => !d.transactionType);
-  const linePoints = lineData.map((d) => `${x(d._fx)},${y(d.value)}`);
-  const linePath = linePoints.length > 1 ? `M${linePoints.join('L')}` : '';
+  // ── Smooth curve helpers (Catmull-Rom → cubic bezier) ─────────────────
+  const smoothPath = (pts: { x: number; y: number }[]): string => {
+    if (pts.length < 2) return '';
+    if (pts.length === 2) return `M${pts[0].x},${pts[0].y}L${pts[1].x},${pts[1].y}`;
+    let d = `M${pts[0].x},${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(i - 1, 0)];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[Math.min(i + 2, pts.length - 1)];
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+    }
+    return d;
+  };
+
+  // ── Path (line + area) — connect ALL data points with smooth curve ──
+  const linePoints = sorted.map((d) => ({ x: x(d._fx), y: y(d.value) }));
+  const linePath = smoothPath(linePoints);
   const areaPath =
-    lineData.length > 1
-      ? `${linePath}L${x(lineData[lineData.length - 1]._fx)},${y(0)}L${x(lineData[0]._fx)},${y(0)}Z`
+    linePoints.length > 1
+      ? `${linePath}L${linePoints[linePoints.length - 1].x},${y(0)}L${linePoints[0].x},${y(0)}Z`
       : '';
 
   // ── Gridlines ───────────────────────────────────────

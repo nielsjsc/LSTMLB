@@ -60,6 +60,7 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
         # Handle different column naming conventions
         name_col = 'player_name' if 'player_name' in cleaned_df.columns else 'Player Name'
         payroll_col = 'payroll_annual' if 'payroll_annual' in cleaned_df.columns else 'Payroll'
+        ltax_col = 'luxury_tax' if 'luxury_tax' in cleaned_df.columns else None
         status_col = 'status' if 'status' in cleaned_df.columns else 'Status'
         year_col = 'year' if 'year' in cleaned_df.columns else 'Year'
         team_col = 'team' if 'team' in cleaned_df.columns else 'Team'
@@ -90,13 +91,19 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
                   .str.replace('-', '', regex=False))
             return pd.to_numeric(s, errors='coerce')
         
-        # Parse payroll_annual — the primary salary basis, reflecting the
-        # actual cash  value of the contract year-by-year.
+        # Parse payroll_annual as fallback.
         cleaned_df['_payroll_annual'] = _parse_dollar_col(cleaned_df[payroll_col])
         
-        # Use payroll_annual directly as the player's salary for all downstream
-        # calculations (contract value, surplus, trade value).
-        cleaned_df['Payroll'] = cleaned_df['_payroll_annual']
+        # Use luxury_tax (CBT / AAV) as the primary salary basis for trade
+        # value calculations.  Luxury tax represents the competitive-balance
+        # obligation an acquiring team inherits in a trade — the economically
+        # relevant number, unlike payroll_annual which can be distorted by
+        # deferred money (e.g. Tucker $1M payroll vs $57M luxury tax).
+        if ltax_col is not None:
+            cleaned_df['_luxury_tax'] = _parse_dollar_col(cleaned_df[ltax_col])
+            cleaned_df['Payroll'] = cleaned_df['_luxury_tax'].fillna(cleaned_df['_payroll_annual'])
+        else:
+            cleaned_df['Payroll'] = cleaned_df['_payroll_annual']
         
         # Override Status for rows with FA markers in payroll column
         if status_col in cleaned_df.columns:

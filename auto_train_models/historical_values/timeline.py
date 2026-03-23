@@ -419,7 +419,7 @@ def build_mlb_timeline(
 # _normalise_name is imported from core.name_utils as name_key (see top of file)
 
 # Transaction types where the player has no team control → value = 0
-_ZERO_VALUE_TYPES = {"elected_fa", "released", "designated"}
+_ZERO_VALUE_TYPES = {"elected_fa", "released", "designated", "non_tendered", "opt_out"}
 
 
 def _build_name_to_mlbid(player_values: pd.DataFrame) -> dict[str, int]:
@@ -641,6 +641,25 @@ def build_transaction_entries(
     if n_skipped:
         logger.info(f"  Filtered out {n_skipped} pre-arb/arbitration entries")
 
+    # ── Filter "other" transactions: keep only contract-affecting events ──
+    # Many "other" entries are minor-league roster moves (optioned, recalled,
+    # promoted, demoted, contract purchased) that don't affect trade value.
+    # Keep only: non-tendered, club/player option exercised, opt-outs.
+    _KEEP_OTHER_PATTERNS = re.compile(
+        r"non.?tendered|option\s+for|player\s+option|termination\s+option|opted?\s+out",
+        re.IGNORECASE,
+    )
+    if "other" in txn["transaction_type"].values:
+        other_mask = txn["transaction_type"] == "other"
+        other_relevant = txn.loc[other_mask, "description"].str.contains(
+            _KEEP_OTHER_PATTERNS, na=False,
+        )
+        drop_mask = other_mask & ~other_relevant
+        n_other_dropped = drop_mask.sum()
+        txn = txn[~drop_mask].copy()
+        if n_other_dropped:
+            logger.info(f"  Filtered out {n_other_dropped} non-relevant 'other' transactions")
+
     # ── Player-ID lookups ─────────────────────────────────────────────────
     name_to_mlbid = _build_name_to_mlbid(player_values)
     idfg_to_mlb   = _build_idfg_to_mlb(player_values)
@@ -664,6 +683,18 @@ def build_transaction_entries(
         for _, ev in player_txns.sort_values("date").iterrows():
             ev_type = ev["transaction_type"]
             ev_date = ev["date"]
+            desc = str(ev.get("description", "") or "")
+
+            # Reclassify remaining "other" transactions to proper types
+            if ev_type == "other":
+                desc_lower = desc.lower()
+                if "non" in desc_lower and "tender" in desc_lower:
+                    ev_type = "non_tendered"
+                elif "option for" in desc_lower or "player option" in desc_lower:
+                    ev_type = "option_exercised"
+                elif "termination" in desc_lower or "opted out" in desc_lower or "opt out" in desc_lower:
+                    ev_type = "opt_out"
+
             if pd.isna(ev_date):
                 continue
             if isinstance(ev_date, str):
