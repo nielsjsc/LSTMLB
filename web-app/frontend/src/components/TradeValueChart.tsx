@@ -84,24 +84,6 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
   const isMobile = dims.width < MOBILE_BREAKPOINT;
   const MARGIN = isMobile ? MARGIN_MOBILE : MARGIN_DEFAULT;
 
-  // Keyboard navigation when a card is pinned
-  useEffect(() => {
-    if (pinnedIdx == null) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        setPinnedIdx((p) => (p != null && p > 0 ? p - 1 : p));
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        e.preventDefault();
-        setPinnedIdx((p) => (p != null && p < sorted.length - 1 ? p + 1 : p));
-      } else if (e.key === 'Escape') {
-        setPinnedIdx(null);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [pinnedIdx, sorted.length]);
-
   // Responsive width via ResizeObserver
   useEffect(() => {
     const node = containerRef.current;
@@ -129,6 +111,24 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
         .sort((a, b) => a._fx - b._fx),
     [data],
   );
+
+  // Keyboard navigation when a card is pinned
+  useEffect(() => {
+    if (pinnedIdx == null) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setPinnedIdx((p) => (p != null && p > 0 ? p - 1 : p));
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setPinnedIdx((p) => (p != null && p < sorted.length - 1 ? p + 1 : p));
+      } else if (e.key === 'Escape') {
+        setPinnedIdx(null);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [pinnedIdx, sorted.length]);
 
   if (sorted.length === 0) return null;
 
