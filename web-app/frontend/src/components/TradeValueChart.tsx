@@ -52,7 +52,9 @@ const dateToFx = (date: string | null | undefined, year: number): number => {
 };
 
 // ─── Chart Dimensions ───────────────────────────────────────
-const MARGIN = { top: 20, right: 20, bottom: 36, left: 60 };
+const MARGIN_DEFAULT = { top: 20, right: 20, bottom: 36, left: 60 };
+const MARGIN_MOBILE  = { top: 16, right: 12, bottom: 32, left: 44 };
+const MOBILE_BREAKPOINT = 480;
 const DOT_RADIUS = 5;
 const HOVER_RADIUS = 7;
 
@@ -77,6 +79,8 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [dims, setDims] = useState({ width: 700, height: 300 });
+  const isMobile = dims.width < MOBILE_BREAKPOINT;
+  const MARGIN = isMobile ? MARGIN_MOBILE : MARGIN_DEFAULT;
 
   // Responsive width via ResizeObserver
   useEffect(() => {
@@ -85,7 +89,12 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const w = entry.contentRect.width;
-        if (w > 0) setDims({ width: w, height: Math.min(320, Math.max(220, w * 0.4)) });
+        if (w > 0) {
+          // On mobile, use a taller aspect ratio so the chart isn't so squished
+          const minH = w < MOBILE_BREAKPOINT ? 240 : 220;
+          const ratio = w < MOBILE_BREAKPOINT ? 0.55 : 0.4;
+          setDims({ width: w, height: Math.min(360, Math.max(minH, w * ratio)) });
+        }
       }
     });
     ro.observe(node);
@@ -208,12 +217,12 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
               strokeWidth={1}
             />
             <text
-              x={MARGIN.left - 8}
+              x={MARGIN.left - 6}
               y={y(t)}
               textAnchor="end"
               dominantBaseline="middle"
               className="fill-gray-500"
-              fontSize={11}
+              fontSize={isMobile ? 9 : 11}
               fontFamily="inherit"
             >
               {fmtDollar(t)}
@@ -253,11 +262,13 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
           const isHovered = hoverIdx === i;
           const dotCx = x(d._fx);
           const dotCy = y(d.value);
-          const r = isHovered ? HOVER_RADIUS : DOT_RADIUS;
+          const baseR = isMobile ? 3.5 : DOT_RADIUS;
+          const hoverR = isMobile ? 5.5 : HOVER_RADIUS;
+          const r = isHovered ? hoverR : baseR;
           return (
             <g key={`dot-${i}`}>
               {isHovered && (
-                <circle cx={dotCx} cy={dotCy} r={HOVER_RADIUS + 4} fill={color} opacity={0.18} />
+                <circle cx={dotCx} cy={dotCy} r={hoverR + 4} fill={color} opacity={0.18} />
               )}
               <circle
                 cx={dotCx}
@@ -287,17 +298,19 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
         ))}
 
         {/* ── X-axis labels ───────────────────── */}
-        {uniqueYears.map((yr) => (
+        {uniqueYears
+          .filter((_, i) => !isMobile || i % 2 === 0 || i === uniqueYears.length - 1)
+          .map((yr) => (
           <text
             key={yr}
             x={x(yr)}
             y={dims.height - 8}
             textAnchor="middle"
             className="fill-gray-500"
-            fontSize={11}
+            fontSize={isMobile ? 9 : 11}
             fontFamily="inherit"
           >
-            {yr}
+            {isMobile ? String(yr).slice(-2) : yr}
           </text>
         ))}
 
@@ -320,14 +333,16 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
         <div
           className="pointer-events-none absolute z-20"
           style={{
-            left: `${x(hovered._fx)}px`,
-            top: `${y(hovered.value) - 8}px`,
-            transform: `translate(${
-              hoverIdx > sorted.length * 0.7 ? 'calc(-100% - 12px)' : '12px'
-            }, -100%)`,
+            left: isMobile ? '50%' : `${x(hovered._fx)}px`,
+            top: isMobile ? '8px' : `${y(hovered.value) - 8}px`,
+            transform: isMobile
+              ? 'translateX(-50%)'
+              : `translate(${
+                  hoverIdx > sorted.length * 0.7 ? 'calc(-100% - 12px)' : '12px'
+                }, -100%)`,
           }}
         >
-          <div className="bg-white border border-gray-200 rounded-lg shadow-xl px-4 py-3 text-xs space-y-1" style={{ minWidth: '220px', maxWidth: '340px' }}>
+          <div className="bg-white border border-gray-200 rounded-lg shadow-xl px-4 py-3 text-xs space-y-1" style={{ minWidth: isMobile ? '180px' : '220px', maxWidth: isMobile ? '260px' : '340px' }}>
             {/* Trade value */}
             <div className="font-semibold text-gray-900 text-sm">{fmtDollarFull(hovered.value)}</div>
 
