@@ -529,8 +529,11 @@ def _override_years_of_control(
     # timeline.  If Spotrac's first year is after Cot's last control year,
     # it describes a future contract (e.g. Soto's 2025 Mets deal shouldn't
     # affect his 2019 pre-arb snapshot where Cot's had control through ~2024).
+    # Also skip contracts that haven't started yet relative to the snapshot
+    # (e.g. Witt's 2024 extension shouldn't modify his 2023 snapshot).
     compare = compare[
-        compare["_first_ctrl_year"] <= compare["_cots_last"]
+        (compare["_first_ctrl_year"] <= compare["_cots_last"])
+        & (compare["_first_ctrl_year"] <= snapshot_year)
     ].copy()
     if compare.empty:
         st.drop(columns=["_name_key"], inplace=True)
