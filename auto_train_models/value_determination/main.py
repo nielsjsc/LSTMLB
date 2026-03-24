@@ -70,6 +70,7 @@ from value_determination.calculate_war import (
     calculate_war_components, calculate_pitcher_war,
     load_player_orgs, calculate_wrc_plus
 )
+from value_determination.playing_time import estimate_playing_time
 from core.position_profiles import (
     build_position_profiles, load_fielding_history, load_batting_for_games,
     get_display_position, get_defensive_positions
@@ -161,8 +162,9 @@ def calculate_pitcher_war_for_dataframe(pitcher_df: pd.DataFrame,
     """
     Calculate WAR for all pitchers in a DataFrame.
     
-    This function properly encapsulates the pitcher WAR calculation that was
-    previously inline in main(). Uses calculate_pitcher_war() from calculate_war.py.
+    Expects ``IP`` (and optionally ``GS``, ``G``) to already be set by
+    the playing-time estimator.  Falls back to config defaults if ``IP``
+    is missing.
     
     Args:
         pitcher_df: DataFrame with pitcher predictions (must have 'FIP', 'IDfg' columns)
@@ -170,7 +172,7 @@ def calculate_pitcher_war_for_dataframe(pitcher_df: pd.DataFrame,
         role: 'SP' or 'RP'
         
     Returns:
-        DataFrame with 'WAR' and 'IP' columns added
+        DataFrame with 'WAR' column added
     """
     default_ip = Config.WAR.DEFAULT_SP_IP if role == 'SP' else Config.WAR.DEFAULT_RP_IP
     
@@ -188,17 +190,26 @@ def calculate_pitcher_war_for_dataframe(pitcher_df: pd.DataFrame,
             'BB%': row.get('BB%', 0)
         }
         
+        # Use per-pitcher IP from playing time estimator, fall back to default
+        ip = row.get('IP', default_ip)
+        if pd.isna(ip):
+            ip = default_ip
+        
+        # 0 IP means intentionally projected as out (season-ending injury)
+        if ip <= 0:
+            pitcher_df.at[idx, 'WAR'] = 0.0
+            continue
+        
         # Calculate WAR using centralized function
         war, components = calculate_pitcher_war(
             fip=row['FIP'],
-            ip=default_ip,
+            ip=ip,
             team=team,
             role=role,
             rate_stats=rate_stats
         )
         
         pitcher_df.at[idx, 'WAR'] = war
-        pitcher_df.at[idx, 'IP'] = default_ip
 
     # Compute pitcher counting stats from rate stats and IP
     bf_per_ip = Config.WAR.BF_PER_IP
@@ -337,7 +348,21 @@ def main():
         # core/pitcher_prediction.py. Output regression and aging constraints are
         # no longer applied — input regression + in-loop constraints are sufficient.
         
-        # Calculate WAR for SP and RP using proper function
+        # Estimate pitcher playing time (IP, GS, G) before WAR calculation
+        # Run per-year so each projection year gets age-appropriate injury risk
+        # and current-IL status is only checked for the current season.
+        logger.info("\n[Step 2a/10] Estimating pitcher playing time (IP, GS, G)...")
+        combined_for_pt = pd.concat([sp_data, rp_data], ignore_index=True)
+        year_chunks = []
+        for proj_year in sorted(combined_for_pt['Year'].unique()):
+            chunk = combined_for_pt[combined_for_pt['Year'] == proj_year].copy()
+            chunk = estimate_playing_time(chunk, int(proj_year))
+            year_chunks.append(chunk)
+        combined_for_pt = pd.concat(year_chunks, ignore_index=True)
+        sp_data = combined_for_pt[combined_for_pt['Role'] == 'SP'].copy()
+        rp_data = combined_for_pt[combined_for_pt['Role'] == 'RP'].copy()
+        
+        # Calculate WAR for SP and RP using per-pitcher IP
         sp_data = calculate_pitcher_war_for_dataframe(sp_data, org_data, role='SP')
         rp_data = calculate_pitcher_war_for_dataframe(rp_data, org_data, role='RP')
         
