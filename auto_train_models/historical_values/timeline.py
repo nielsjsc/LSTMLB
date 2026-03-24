@@ -468,7 +468,7 @@ def _reclassify_arbitration(txn: pd.DataFrame) -> pd.DataFrame:
 
 # Pre-arb contract detection: 1-year contracts at or near league minimum
 _PRE_ARB_SALARY_RE = re.compile(
-    r"Signed a 1 year \$[\d,]+ contract with",
+    r"Signed a 1 year \$[\d,]+(?:k|K)?\s+contract with",
     re.IGNORECASE,
 )
 
@@ -493,8 +493,8 @@ def _reclassify_pre_arb(txn: pd.DataFrame) -> pd.DataFrame:
         if not _PRE_ARB_SALARY_RE.search(desc):
             continue
 
-        # Extract salary from description
-        sal_match = re.search(r"\$([\d,]+(?:\.\d+)?)\s", desc)
+        # Extract salary from description (handle "k" suffix)
+        sal_match = re.search(r"\$([\d,]+(?:\.\d+)?)(k|K)?\s", desc)
         if not sal_match:
             continue
         sal_str = sal_match.group(1).replace(",", "")
@@ -502,6 +502,8 @@ def _reclassify_pre_arb(txn: pd.DataFrame) -> pd.DataFrame:
             salary = float(sal_str)
         except ValueError:
             continue
+        if sal_match.group(2):     # "k" suffix → thousands
+            salary *= 1_000
 
         # Determine year
         try:
@@ -631,15 +633,26 @@ def build_transaction_entries(
     # ── Consolidate Qualifying Offer pairs ────────────────────────────────
     txn = _consolidate_qualifying_offers(txn)
 
-    # ── Filter out pre-arb and arb (they don't affect trade value) ────────
+    # ── Filter out pre-arb, arb, and option exercises ───────────────────
     # These are team-controlled contracts that don't change the player's
     # years of control or value — just salary negotiations.
-    _SKIP_TYPES = {"pre_arb", "arbitration"}
+    # Option exercises are handled by analyze_contract_options downstream.
+    _SKIP_TYPES = {"pre_arb", "arbitration", "option_exercised"}
     pre_filter = len(txn)
     txn = txn[~txn["transaction_type"].isin(_SKIP_TYPES)].copy()
-    n_skipped = pre_filter - len(txn)
-    if n_skipped:
-        logger.info(f"  Filtered out {n_skipped} pre-arb/arbitration entries")
+
+    # Also filter "other" reclassified option exercises (before they're reclassified)
+    _option_exercised_mask = (
+        (txn["transaction_type"] == "other")
+        & txn["description"].str.contains(
+            r"exercised.*option|option\s+for",
+            case=False, na=False, regex=True,
+        )
+    )
+    txn = txn[~_option_exercised_mask].copy()
+    pre_filter_after = pre_filter - len(txn)
+    if pre_filter_after:
+        logger.info(f"  Filtered out {pre_filter_after} pre-arb/arbitration/option_exercised entries")
 
     # ── Filter "other" transactions: keep only contract-affecting events ──
     # Many "other" entries are minor-league roster moves (optioned, recalled,
@@ -690,8 +703,6 @@ def build_transaction_entries(
                 desc_lower = desc.lower()
                 if "non" in desc_lower and "tender" in desc_lower:
                     ev_type = "non_tendered"
-                elif "option for" in desc_lower or "player option" in desc_lower:
-                    ev_type = "option_exercised"
                 elif "termination" in desc_lower or "opted out" in desc_lower or "opt out" in desc_lower:
                     ev_type = "opt_out"
 
@@ -706,6 +717,11 @@ def build_transaction_entries(
             ev_year = ev_date.year
             date_str = ev_date.strftime("%Y-%m-%d")
 
+            # After October, the offseason effectively belongs to the next
+            # season — use next year's projections so that new signings
+            # reflect the updated contract/control situation.
+            lookup_year = ev_year + 1 if ev_date.month >= 10 else ev_year
+
             # Skip events before our data range
             if ev_year < Config.CUTOFF_START:
                 continue
@@ -718,8 +734,35 @@ def build_transaction_entries(
                 proj_war = pd.NA
                 proj_sal = pd.NA
                 war_yr   = pd.NA
+            elif ev_type == "extension":
+                # Mid-season extensions: the current year's surplus may
+                # not yet reflect the new contract.  Compare current and
+                # next year surplus and use whichever has more years of
+                # control (i.e. the post-extension snapshot).
+                curr = value_map.get((mlb_id, lookup_year))
+                nxt  = value_map.get((mlb_id, ev_year + 1))
+                if curr and nxt:
+                    _cy = curr.get("years_control")
+                    _ny = nxt.get("years_control")
+                    curr_yrs = 0 if _cy is None or pd.isna(_cy) else float(_cy)
+                    nxt_yrs  = 0 if _ny is None or pd.isna(_ny) else float(_ny)
+                    entry = nxt if nxt_yrs > curr_yrs else curr
+                elif nxt:
+                    entry = nxt
+                elif curr:
+                    entry = curr
+                else:
+                    entry = _lookup_value(mlb_id, lookup_year, value_map)
+                if entry is None:
+                    continue
+                value    = entry["value"]
+                vtype    = "mlb_surplus"
+                yrs_ctrl = entry.get("years_control")
+                proj_war = entry.get("projected_war")
+                proj_sal = entry.get("projected_salary")
+                war_yr   = entry.get("war_per_year")
             else:
-                entry = _lookup_value(mlb_id, ev_year, value_map)
+                entry = _lookup_value(mlb_id, lookup_year, value_map)
                 if entry is None:
                     # No snapshot data at all — skip this transaction
                     continue
@@ -729,6 +772,17 @@ def build_transaction_entries(
                 proj_war = entry.get("projected_war")
                 proj_sal = entry.get("projected_salary")
                 war_yr   = entry.get("war_per_year")
+
+            # ── Skip fa_signing that are actually arb (player still
+            #    under team control for >1 year with a 1-year deal) ────────
+            if (
+                ev_type == "fa_signing"
+                and yrs_ctrl is not None
+                and not pd.isna(yrs_ctrl)
+                and yrs_ctrl > 1
+                and "1 year" in desc.lower()
+            ):
+                continue
 
             # ── Label from Spotrac description ────────────────────────────
             label = ev.get("description", "")
@@ -827,6 +881,42 @@ def generate_timeline() -> pd.DataFrame:
     # Final combine — no cross-source dedup (dates are different)
     combined = pd.concat([pre_combined, txn_entries], ignore_index=True)
     combined = combined.sort_values(["mlb_id", "date"]).reset_index(drop=True)
+
+    # ── Suppress April 1 dots when a nearby transaction already exists ────
+    # If a player has a transaction in the off-season / spring of the same
+    # year (Jan 1 – Mar 31) or within 14 days after April 1, suppress the
+    # April 1 surplus dot to avoid redundant/crowded points.
+    if not combined.empty:
+        combined["_dt"] = pd.to_datetime(combined["date"], errors="coerce")
+        drop_idx: set[int] = set()
+        for mid, grp in combined.groupby("mlb_id"):
+            for yr in grp["year"].unique():
+                yr_data = grp[grp["year"] == yr]
+                # Find April 1 surplus dots (no transaction_type)
+                april1 = yr_data[
+                    (yr_data["date"] == f"{yr}-04-01")
+                    & yr_data["transaction_type"].isna()
+                ]
+                if april1.empty:
+                    continue
+                # Check for transactions within 90 days before or 14 days
+                # after April 1 of the same year
+                txns = yr_data[yr_data["transaction_type"].notna()]
+                if txns.empty:
+                    continue
+                april1_dt = pd.Timestamp(f"{yr}-04-01")
+                for _, t in txns.iterrows():
+                    t_dt = t["_dt"]
+                    if pd.isna(t_dt):
+                        continue
+                    delta = (april1_dt - t_dt).days
+                    if -14 <= delta <= 90:
+                        drop_idx.update(april1.index)
+                        break
+        if drop_idx:
+            combined = combined.drop(index=drop_idx).reset_index(drop=True)
+            logger.info(f"  Suppressed {len(drop_idx)} April-1 dots near transactions")
+        combined = combined.drop(columns=["_dt"])
 
     # ── Write output ─────────────────────────────────────────────────────
     # Ensure column order

@@ -327,42 +327,75 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
             }, -100%)`,
           }}
         >
-          <div className="bg-white border border-gray-200 rounded-lg shadow-xl px-3 py-2 text-xs max-w-xs space-y-0.5">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-xl px-4 py-3 text-xs space-y-1" style={{ minWidth: '220px', maxWidth: '340px' }}>
             {/* Trade value */}
-            <div className="font-semibold text-gray-900">{fmtDollarFull(hovered.value)}</div>
+            <div className="font-semibold text-gray-900 text-sm">{fmtDollarFull(hovered.value)}</div>
 
             {/* Transaction type (only if present) */}
             {hovered.transactionType && (
-              <div className="text-amber-600 text-[10px]">{txnLabel(hovered.transactionType)}</div>
+              <div className="text-amber-600 font-medium text-[11px]">{txnLabel(hovered.transactionType)}</div>
             )}
 
-            {/* Date & label */}
-            <div className="text-gray-500 truncate">{hovered.date ?? hovered.year} · {hovered.label}</div>
+            {/* Date */}
+            <div className="text-gray-400 text-[11px]">{hovered.date ?? hovered.year}</div>
+
+            {/* Label — full text, word-wrapped */}
+            {hovered.label && (
+              <div className="text-gray-600 text-[11px] leading-snug" style={{ wordBreak: 'break-word' }}>
+                {hovered.label}
+              </div>
+            )}
+
+            {/* ── Visual years of control bar ── */}
+            {hovered.yearsControl != null && hovered.yearsControl > 0 && (() => {
+              const yrs = Math.round(hovered.yearsControl!);
+              const baseYear = hovered.year;
+              const cells = Array.from({ length: yrs }, (_, i) => baseYear + i);
+              return (
+                <div className="pt-1 mt-1 border-t border-gray-100">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className="text-[10px] text-gray-400 font-medium">Contract Control</span>
+                    <span className="text-[10px] text-gray-400">{yrs} yr{yrs > 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="flex gap-0.5">
+                    {cells.map((yr, i) => (
+                      <div key={yr} className="flex-1 flex flex-col items-center gap-0.5">
+                        <div
+                          className="w-full h-4 rounded-sm"
+                          style={{
+                            backgroundColor: i === 0
+                              ? (teamColor + 'FF')
+                              : (teamColor + '70'),
+                          }}
+                        />
+                        <span className="text-[8px] text-gray-400 tabular-nums">
+                          {String(yr).slice(-2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── Metadata from projections ── */}
-            {(hovered.yearsControl != null || hovered.projectedWar != null || hovered.projectedSalary != null || hovered.warPerYear != null) && (
-              <div className="border-t border-white/5 pt-1 mt-1 space-y-px text-[10px]">
-                {hovered.yearsControl != null && (
-                  <div className="flex justify-between gap-4">
-                    <span className="text-gray-500">Years of Control</span>
-                    <span className="text-gray-600 font-medium">{hovered.yearsControl}</span>
-                  </div>
-                )}
+            {(hovered.projectedWar != null || hovered.projectedSalary != null || hovered.warPerYear != null) && (
+              <div className="border-t border-gray-100 pt-1 mt-1 space-y-0.5 text-[11px]">
                 {hovered.projectedWar != null && (
                   <div className="flex justify-between gap-4">
-                    <span className="text-gray-500">Projected WAR</span>
+                    <span className="text-gray-400">Projected WAR</span>
                     <span className="text-gray-600 font-medium">{fmtWar(hovered.projectedWar)}</span>
                   </div>
                 )}
                 {hovered.warPerYear != null && (
                   <div className="flex justify-between gap-4">
-                    <span className="text-gray-500">WAR / Year</span>
+                    <span className="text-gray-400">WAR / Year</span>
                     <span className="text-gray-600 font-medium">{fmtWar(hovered.warPerYear)}</span>
                   </div>
                 )}
                 {hovered.projectedSalary != null && (
                   <div className="flex justify-between gap-4">
-                    <span className="text-gray-500">Projected Salary</span>
+                    <span className="text-gray-400">Projected Salary</span>
                     <span className="text-gray-600 font-medium">{fmtDollarFull(hovered.projectedSalary)}</span>
                   </div>
                 )}

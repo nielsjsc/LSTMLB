@@ -369,6 +369,326 @@ def _override_salary_with_luxury_tax(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Spotrac years-of-control override (all contract options)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_spotrac_control_cache: Optional[pd.DataFrame] = None
+
+
+def _load_spotrac_control_data() -> pd.DataFrame:
+    """Load per-player control boundaries from Spotrac contract data.
+
+    Returns a DataFrame with columns:
+        _name_key        — normalised player name key
+        _first_ctrl_year — first year in this Spotrac contract
+        _last_ctrl_year  — last non-UFA year in Spotrac (includes club options)
+
+    Only includes players who have at least one option clause (Club,
+    Player, Opt-Out, Mutual, Vesting) so that normal Pre-Arb/Arb players
+    aren't affected by minor Cot's-vs-Spotrac service-time differences.
+    """
+    global _spotrac_control_cache
+    if _spotrac_control_cache is not None:
+        return _spotrac_control_cache
+
+    spotrac_path = DATA_DIR / "salary" / "mlb_salary_data.csv"
+    if not spotrac_path.exists():
+        _spotrac_control_cache = pd.DataFrame(
+            columns=["_name_key", "_first_ctrl_year", "_last_ctrl_year"]
+        )
+        return _spotrac_control_cache
+
+    df = pd.read_csv(spotrac_path)
+    df["year"] = pd.to_numeric(df["year"], errors="coerce")
+    df = df.dropna(subset=["year", "status"])
+    df["year"] = df["year"].astype(int)
+    df["_name_key"] = df["player_name"].apply(_name_key_fn)
+
+    # Only consider players who have at least one option/exit clause
+    option_mask = df["status"].str.contains(
+        r"Opt-Out|Club|(?<!\bClub\b.)Player|Mutual|Vesting",
+        case=False, na=False, regex=True,
+    )
+    option_players = set(df.loc[option_mask, "_name_key"].unique())
+    df = df[df["_name_key"].isin(option_players)]
+
+    # --- First and last non-UFA year ---
+    non_ufa = df[~df["status"].str.contains(r"\bUFA\b", case=False, na=False)]
+    first_ctrl = (
+        non_ufa.groupby("_name_key")["year"]
+        .min()
+        .reset_index()
+        .rename(columns={"year": "_first_ctrl_year"})
+    )
+    last_ctrl = (
+        non_ufa.groupby("_name_key")["year"]
+        .max()
+        .reset_index()
+        .rename(columns={"year": "_last_ctrl_year"})
+    )
+
+    result = first_ctrl.merge(last_ctrl, on="_name_key")
+    _spotrac_control_cache = result
+    return _spotrac_control_cache
+
+
+_spotrac_status_cache: Optional[pd.DataFrame] = None
+
+
+def _load_spotrac_statuses() -> pd.DataFrame:
+    """Load per-player-year Spotrac contract statuses.
+
+    Returns a DataFrame with columns: _name_key, year, _spotrac_status
+    where _spotrac_status is the normalised status matching the modern
+    pipeline's contract_processor vocabulary (e.g. Opt-Out, Team Option,
+    Player Option, Signed).
+    """
+    global _spotrac_status_cache
+    if _spotrac_status_cache is not None:
+        return _spotrac_status_cache
+
+    spotrac_path = DATA_DIR / "salary" / "mlb_salary_data.csv"
+    if not spotrac_path.exists():
+        _spotrac_status_cache = pd.DataFrame(
+            columns=["_name_key", "year", "_spotrac_status"]
+        )
+        return _spotrac_status_cache
+
+    df = pd.read_csv(spotrac_path)
+    df["year"] = pd.to_numeric(df["year"], errors="coerce")
+    df = df.dropna(subset=["year", "status"])
+    df["year"] = df["year"].astype(int)
+    df["_name_key"] = df["player_name"].apply(_name_key_fn)
+
+    def _normalise(s: str) -> str:
+        s = str(s).upper().strip()
+        if "OPT-OUT" in s or "OPT OUT" in s:
+            return "Opt-Out"
+        if "CLUB" in s:
+            return "Team Option"
+        if "MUTUAL" in s:
+            return "Mutual Option"
+        if "VESTING" in s:
+            return "Vesting Option"
+        if "PLAYER" in s:
+            return "Player Option"
+        return "Signed"
+
+    df["_spotrac_status"] = df["status"].apply(_normalise)
+    _spotrac_status_cache = df[["_name_key", "year", "_spotrac_status"]].drop_duplicates(
+        subset=["_name_key", "year"], keep="first"
+    )
+    return _spotrac_status_cache
+
+
+def _override_years_of_control(
+    salary_timeline: pd.DataFrame,
+    snapshot_year: int,
+) -> pd.DataFrame:
+    """Align salary timeline with Spotrac contract boundaries.
+
+    Cot's data doesn't know about contract options, so it can both
+    over-count (ignoring opt-outs) and under-count (ignoring club options).
+    This function adjusts the timeline to match Spotrac's full contract:
+
+    - **Trim**: Cot's exceeds Spotrac → remove excess rows.
+    - **Extend**: Cot's falls short of Spotrac → add rows.
+    - **Status**: Overlay Spotrac per-year statuses (Opt-Out, Team Option,
+      etc.) so ``analyze_contract_options`` can evaluate them downstream,
+      exactly as the modern pipeline does.
+    """
+    ctrl = _load_spotrac_control_data()
+    if ctrl.empty:
+        return salary_timeline
+
+    ltax = _load_spotrac_luxury_tax()
+    statuses = _load_spotrac_statuses()
+
+    st = salary_timeline.copy()
+    st["_name_key"] = st["Name"].apply(_name_key_fn)
+
+    # Per-player last non-FA year in the current Cot's timeline
+    non_fa = st[st["Normalized_Status"] != "Free Agent"]
+    if non_fa.empty:
+        st.drop(columns=["_name_key"], inplace=True)
+        return st
+    cots_last = (
+        non_fa.groupby("_name_key")["Year"]
+        .max()
+        .reset_index()
+        .rename(columns={"Year": "_cots_last"})
+    )
+
+    # Merge with Spotrac control data
+    compare = cots_last.merge(ctrl, on="_name_key", how="inner")
+    if compare.empty:
+        st.drop(columns=["_name_key"], inplace=True)
+        return st
+
+    # Only apply overrides when Spotrac contract overlaps with Cot's
+    # timeline.  If Spotrac's first year is after Cot's last control year,
+    # it describes a future contract (e.g. Soto's 2025 Mets deal shouldn't
+    # affect his 2019 pre-arb snapshot where Cot's had control through ~2024).
+    compare = compare[
+        compare["_first_ctrl_year"] <= compare["_cots_last"]
+    ].copy()
+    if compare.empty:
+        st.drop(columns=["_name_key"], inplace=True)
+        return st
+
+    # Use the full Spotrac contract end — don't trim at exit years.
+    # The downstream analyze_contract_options will evaluate opt-outs
+    # using WAR projections vs remaining contract cost, exactly as the
+    # modern pipeline does.
+
+    # ── TRIM: Cot's has more years than Spotrac ─────────────────────────
+    to_trim = compare[compare["_cots_last"] > compare["_last_ctrl_year"]].copy()
+    n_trimmed_rows = 0
+    if not to_trim.empty:
+        for _, row in to_trim.iterrows():
+            nk = row["_name_key"]
+            fa_year = int(row["_last_ctrl_year"]) + 1
+
+            player_mask = st["_name_key"] == nk
+
+            # Convert the row at fa_year to FA
+            fa_mask = player_mask & (st["Year"] == fa_year)
+            if fa_mask.any():
+                st.loc[fa_mask, "Status"] = "Free Agent"
+                st.loc[fa_mask, "Normalized_Status"] = "Free Agent"
+                st.loc[fa_mask, "Payroll"] = np.nan
+
+            # Drop every row after fa_year
+            drop_mask = player_mask & (st["Year"] > fa_year)
+            n_trimmed_rows += drop_mask.sum()
+            st = st[~drop_mask].copy()
+
+        if n_trimmed_rows > 0:
+            logger.info(
+                f"  Trimmed {n_trimmed_rows} rows for "
+                f"{len(to_trim)} players (Spotrac contract end)"
+            )
+
+    # ── EXTEND: Cot's has fewer years than Spotrac ──────────────────────
+    to_extend = compare[compare["_cots_last"] < compare["_last_ctrl_year"]].copy()
+    n_extended_rows = 0
+    if not to_extend.empty:
+        new_rows_all: list[dict] = []
+        for _, row in to_extend.iterrows():
+            nk = row["_name_key"]
+            cots_last_yr = int(row["_cots_last"])
+            target_last = int(row["_last_ctrl_year"])
+
+            player_mask = st["_name_key"] == nk
+            player_rows = st[player_mask]
+            if player_rows.empty:
+                continue
+
+            template = player_rows.iloc[0]
+            idfg = template["IDfg"]
+            name = template["Name"]
+            team = template.get("Team", "")
+            pos_group = template.get("position_group", "")
+
+            # Last known Years_of_Service
+            last_sorted = player_rows.sort_values("Year")
+            last_yr = int(last_sorted.iloc[-1]["Year"])
+            last_yos = last_sorted.iloc[-1].get("Years_of_Service", np.nan)
+
+            # Convert the old FA row (at cots_last_yr + 1) to Signed
+            old_fa_year = cots_last_yr + 1
+            old_fa_mask = player_mask & (st["Year"] == old_fa_year)
+            if old_fa_mask.any():
+                ltax_match = ltax[
+                    (ltax["_name_key"] == nk) & (ltax["year"] == old_fa_year)
+                ]
+                sal = ltax_match["_ltax"].iloc[0] if not ltax_match.empty else np.nan
+                st.loc[old_fa_mask, "Status"] = "Signed"
+                st.loc[old_fa_mask, "Normalized_Status"] = "Signed"
+                st.loc[old_fa_mask, "Payroll"] = sal
+                n_extended_rows += 1
+
+            # Add new Signed rows for years after the old FA year
+            for yr in range(old_fa_year + 1, target_last + 1):
+                ltax_match = ltax[
+                    (ltax["_name_key"] == nk) & (ltax["year"] == yr)
+                ]
+                sal = ltax_match["_ltax"].iloc[0] if not ltax_match.empty else np.nan
+                yos = (
+                    round(last_yos + (yr - last_yr), 3)
+                    if pd.notna(last_yos)
+                    else np.nan
+                )
+                new_rows_all.append({
+                    "IDfg": idfg,
+                    "Name": name,
+                    "Year": yr,
+                    "Status": "Signed",
+                    "Normalized_Status": "Signed",
+                    "Payroll": sal,
+                    "Years_of_Service": yos,
+                    "Team": team,
+                    "position_group": pos_group,
+                    "_name_key": nk,
+                })
+                n_extended_rows += 1
+
+            # New FA row at target_last + 1
+            new_fa_year = target_last + 1
+            yos_fa = (
+                round(last_yos + (new_fa_year - last_yr), 3)
+                if pd.notna(last_yos)
+                else np.nan
+            )
+            new_rows_all.append({
+                "IDfg": idfg,
+                "Name": name,
+                "Year": new_fa_year,
+                "Status": "Free Agent",
+                "Normalized_Status": "Free Agent",
+                "Payroll": np.nan,
+                "Years_of_Service": yos_fa,
+                "Team": team,
+                "position_group": pos_group,
+                "_name_key": nk,
+            })
+
+        if new_rows_all:
+            st = pd.concat([st, pd.DataFrame(new_rows_all)], ignore_index=True)
+        if n_extended_rows > 0:
+            logger.info(
+                f"  Extended {n_extended_rows} club-option rows for "
+                f"{len(to_extend)} players (Spotrac control years)"
+            )
+
+    # ── OVERLAY Spotrac statuses on all affected players ────────────────
+    # So analyze_contract_options can see Opt-Out, Team Option, etc.
+    affected_keys = set(compare["_name_key"])
+    affected_mask = st["_name_key"].isin(affected_keys)
+    if affected_mask.any():
+        affected = st[affected_mask].merge(
+            statuses, left_on=["_name_key", "Year"],
+            right_on=["_name_key", "year"], how="left",
+        )
+        has_status = affected["_spotrac_status"].notna()
+        # Only override non-FA rows (keep FA rows as-is)
+        is_not_fa = affected["Status"] != "Free Agent"
+        override_mask = has_status & is_not_fa
+        if override_mask.any():
+            affected.loc[override_mask, "Status"] = (
+                affected.loc[override_mask, "_spotrac_status"]
+            )
+            affected.loc[override_mask, "Normalized_Status"] = (
+                affected.loc[override_mask, "_spotrac_status"]
+            )
+        affected.drop(columns=["_spotrac_status", "year"], inplace=True, errors="ignore")
+        st = pd.concat([st[~affected_mask], affected], ignore_index=True)
+
+    st.drop(columns=["_name_key"], inplace=True)
+    return st
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Core surplus computation
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -593,6 +913,9 @@ def compute_surplus_for_snapshot(
 
     # ── Override deferred salaries with Spotrac luxury_tax ───────────────
     salary_timeline = _override_salary_with_luxury_tax(salary_timeline)
+
+    # ── Override years of control using Spotrac opt-outs ─────────────────
+    salary_timeline = _override_years_of_control(salary_timeline, snapshot_year)
 
     # ── Add mlbam_id for prospect matching ───────────────────────────────
     xw = _build_mlbam_crosswalk()
