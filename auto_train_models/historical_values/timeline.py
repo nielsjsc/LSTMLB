@@ -419,7 +419,7 @@ def build_mlb_timeline(
 # _normalise_name is imported from core.name_utils as name_key (see top of file)
 
 # Transaction types where the player has no team control → value = 0
-_ZERO_VALUE_TYPES = {"elected_fa", "released", "designated", "non_tendered", "opt_out"}
+_ZERO_VALUE_TYPES = {"elected_fa", "released", "designated", "non_tendered", "opt_out", "option_declined"}
 
 
 def _build_name_to_mlbid(player_values: pd.DataFrame) -> dict[str, int]:
