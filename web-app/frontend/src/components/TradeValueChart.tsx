@@ -78,9 +78,29 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [pinnedIdx, setPinnedIdx] = useState<number | null>(null);
+  const activeIdx = pinnedIdx ?? hoverIdx;
   const [dims, setDims] = useState({ width: 700, height: 300 });
   const isMobile = dims.width < MOBILE_BREAKPOINT;
   const MARGIN = isMobile ? MARGIN_MOBILE : MARGIN_DEFAULT;
+
+  // Keyboard navigation when a card is pinned
+  useEffect(() => {
+    if (pinnedIdx == null) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setPinnedIdx((p) => (p != null && p > 0 ? p - 1 : p));
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setPinnedIdx((p) => (p != null && p < sorted.length - 1 ? p + 1 : p));
+      } else if (e.key === 'Escape') {
+        setPinnedIdx(null);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [pinnedIdx, sorted.length]);
 
   // Responsive width via ResizeObserver
   useEffect(() => {
@@ -187,7 +207,11 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
   }, [yMin, yMax, yRange]);
 
   // Build tooltip data
-  const hovered = hoverIdx != null ? sorted[hoverIdx] : null;
+  const hovered = activeIdx != null ? sorted[activeIdx] : null;
+  const canPrev = activeIdx != null && activeIdx > 0;
+  const canNext = activeIdx != null && activeIdx < sorted.length - 1;
+  const goPrev = () => { if (canPrev) { setPinnedIdx(activeIdx! - 1); } };
+  const goNext = () => { if (canNext) { setPinnedIdx(activeIdx! + 1); } };
 
   return (
     <div ref={containerRef} className="w-full relative">
@@ -196,7 +220,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
         width={dims.width}
         height={dims.height}
         className="select-none"
-        onMouseLeave={() => setHoverIdx(null)}
+        onMouseLeave={() => { if (pinnedIdx == null) setHoverIdx(null); }}
       >
         <defs>
           <linearGradient id="tvAreaGrad" x1="0" y1="0" x2="0" y2="1">
@@ -259,7 +283,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
         {/* ── Data dots (uniform circles — color by value type) ── */}
         {sorted.map((d, i) => {
           const color = DOT_COLOR[d.valueType] ?? DEFAULT_DOT_COLOR;
-          const isHovered = hoverIdx === i;
+          const isHovered = activeIdx === i;
           const dotCx = x(d._fx);
           const dotCy = y(d.value);
           const baseR = isMobile ? 3.5 : DOT_RADIUS;
@@ -283,7 +307,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
           );
         })}
 
-        {/* ── Invisible hit targets for hover ─── */}
+        {/* ── Invisible hit targets for hover + click ─── */}
         {sorted.map((d, i) => (
           <rect
             key={`hit-${i}`}
@@ -292,8 +316,10 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
             width={plotW / sorted.length}
             height={plotH}
             fill="transparent"
-            onMouseEnter={() => setHoverIdx(i)}
-            onTouchStart={() => setHoverIdx(i)}
+            style={{ cursor: 'pointer' }}
+            onMouseEnter={() => { if (pinnedIdx == null) setHoverIdx(i); }}
+            onClick={() => setPinnedIdx((prev) => prev === i ? null : i)}
+            onTouchStart={(e) => { e.preventDefault(); setPinnedIdx((prev) => prev === i ? null : i); }}
           />
         ))}
 
@@ -315,7 +341,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
         ))}
 
         {/* ── Hover crosshair ────────────────────── */}
-        {hovered && hoverIdx != null && (
+        {hovered && activeIdx != null && (
           <line
             x1={x(hovered._fx)}
             x2={x(hovered._fx)}
@@ -329,20 +355,45 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
       </svg>
 
       {/* ── Hover tooltip card ──────────────────────── */}
-      {hovered && hoverIdx != null && (
+      {hovered && activeIdx != null && (
         <div
-          className="pointer-events-none absolute z-20"
+          className={`absolute z-20 ${pinnedIdx != null ? '' : 'pointer-events-none'}`}
           style={{
             left: isMobile ? '50%' : `${x(hovered._fx)}px`,
             top: isMobile ? '8px' : `${y(hovered.value) - 8}px`,
             transform: isMobile
               ? 'translateX(-50%)'
               : `translate(${
-                  hoverIdx > sorted.length * 0.7 ? 'calc(-100% - 12px)' : '12px'
+                  activeIdx > sorted.length * 0.7 ? 'calc(-100% - 12px)' : '12px'
                 }, -100%)`,
           }}
         >
           <div className="bg-white border border-gray-200 rounded-lg shadow-xl px-4 py-3 text-xs space-y-1" style={{ minWidth: isMobile ? '180px' : '220px', maxWidth: isMobile ? '260px' : '340px' }}>
+            {/* Navigation header */}
+            <div className="flex items-center justify-between gap-2 -mt-1 -mx-1 mb-1">
+              <button
+                onClick={(e) => { e.stopPropagation(); goPrev(); }}
+                disabled={!canPrev}
+                className={`p-1 rounded transition-colors ${
+                  canPrev ? 'text-gray-500 hover:text-gray-800 hover:bg-gray-100' : 'text-gray-200 cursor-default'
+                }`}
+                aria-label="Previous"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+              </button>
+              <span className="text-[10px] text-gray-400 tabular-nums">{activeIdx + 1} / {sorted.length}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); goNext(); }}
+                disabled={!canNext}
+                className={`p-1 rounded transition-colors ${
+                  canNext ? 'text-gray-500 hover:text-gray-800 hover:bg-gray-100' : 'text-gray-200 cursor-default'
+                }`}
+                aria-label="Next"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+              </button>
+            </div>
+
             {/* Trade value */}
             <div className="font-semibold text-gray-900 text-sm">{fmtDollarFull(hovered.value)}</div>
 
