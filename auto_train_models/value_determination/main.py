@@ -71,6 +71,7 @@ from value_determination.calculate_war import (
     load_player_orgs, calculate_wrc_plus
 )
 from value_determination.playing_time import estimate_playing_time
+from value_determination.milb_regression import apply_milb_regression
 from core.position_profiles import (
     build_position_profiles, load_fielding_history, load_batting_for_games,
     get_display_position, get_defensive_positions
@@ -368,6 +369,12 @@ def main():
         
         logger.info(f"SP WAR: n={len(sp_data)}, avg={sp_data['WAR'].mean():.2f}")
         logger.info(f"RP WAR: n={len(rp_data)}, avg={rp_data['WAR'].mean():.2f}")
+        
+        # ============================================================
+        # Step 2.25: MiLB Regression for Low-Sample Batters
+        # ============================================================
+        logger.info("\n[Step 2.25/10] Applying MiLB regression to batter predictions...")
+        batter_data = apply_milb_regression(batter_data, CURRENT_YEAR)
         
         # ============================================================
         # Step 2.5: Calculate Batter WAR Components

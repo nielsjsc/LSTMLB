@@ -354,88 +354,14 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
         conf = Config.TradeConfidence.calculate_confidence(games, pos_type)
         result_df.loc[pmask, "projection_confidence"] = round(conf, 3)
 
-    # ── Prospect matching & blending ─────────────────────────────────────
-    if latest.empty:
-        logger.info("No recent prospects to blend — returning with confidence only")
-        return result_df
-
-    use_mlbam = "mlbam_id" in result_df.columns
-    if use_mlbam:
-        merge_cols = {"left_on": "mlbam_id", "right_on": "prospect_mlb_id"}
-    else:
-        logger.warning("mlbam_id not available — falling back to name matching")
-        result_df["_name_key"] = result_df["Name"].apply(_name_key_norm)
-        latest["_name_key"] = latest["name"].apply(_name_key_norm)
-        merge_cols = {"left_on": "_name_key", "right_on": "_name_key"}
-
-    candidates = result_df[
-        (result_df["Year"] >= current_year)
-        & result_df["trade_value"].notna()
-    ].drop_duplicates("IDfg" if use_mlbam else "_name_key")
-
-    matched = candidates.merge(
-        latest[["prospect_mlb_id", "name", "year", "rank", "grade_overall",
-                "top_100"] + (["_name_key"] if not use_mlbam else [])],
-        **merge_cols, how="inner"
-    )
-    logger.info(f"Matched {len(matched)} prospects with trade values")
-
-    adjusted = 0
-    for _, row in matched.iterrows():
-        pid = row["IDfg"]
-        pmask = (result_df["IDfg"] == pid) & (result_df["Year"] >= current_year)
-        conf = result_df.loc[pmask, "projection_confidence"].iloc[0]
-
-        if conf >= Config.TradeConfidence.CONFIDENCE_CEILING:
-            continue  # fully established — no blending needed
-
-        # Determine rank to use
-        prospect_year = row.get("year", None)
-        org_rank = row.get("rank", None)
-        top_100 = row.get("top_100", None)
-        if prospect_year == current_year and pd.notna(org_rank):
-            top_100 = org_rank
-            org_rank = None
-
-        prospect_val = _prospect_dollar_value(row.get("grade_overall"), top_100)
-        if prospect_val is None:
-            continue
-
-        proj_value = row.get("_proj_value_sum", None)
-        contract = row.get("_contract_sum", 0) or 0
-        if proj_value is None or pd.isna(proj_value):
-            continue
-
-        blended_proj = conf * proj_value + (1 - conf) * prospect_val
-        blended = blended_proj - contract
-
-        # Floor arb/pre-arb players at 0 after blending
-        pdata_status = result_df.loc[
-            (result_df["IDfg"] == pid), "Status"
-        ]
-        if pdata_status.str.contains("Arb|Pre-Arb", regex=True).any():
-            blended = max(0, blended)
-
-        perf_value = row["trade_value"]
-        # Sanity: don't let a negative-value player jump to 10× their absolute value
-        if perf_value < 0 and blended > abs(perf_value) * 10:
-            logger.warning(
-                f"Skipping confidence blend for {row.get('Name', 'Unknown')}: "
-                f"would create unrealistic value (perf=${perf_value:,.0f}, blended=${blended:,.0f})"
-            )
-            continue
-
-        result_df.loc[pmask, "trade_value"] = blended
-        adjusted += 1
-
-        logger.debug(
-            f"  {row.get('Name', f'ID{pid}')}: FV={row.get('grade_overall')}, "
-            f"conf={conf:.2f}, prospect_val=${prospect_val:,.0f}, "
-            f"proj_value=${proj_value:,.0f}, blended_proj=${blended_proj:,.0f}, "
-            f"contract=${contract:,.0f}, trade_value=${blended:,.0f}"
-        )
-
-    logger.info(f"Applied confidence blending to {adjusted} prospects")
+    # ── Prospect matching removed ──────────────────────────────────────
+    # Confidence-based trade-value blending with prospect FV grades has
+    # been removed.  MiLB regression (Step 2.25) now properly handles
+    # small-sample batter projections via reliability-weighted stat
+    # blending with age-adjusted MiLB MLEs, making the trade-value
+    # scaling redundant.  projection_confidence is retained as metadata.
+    logger.info("Confidence metadata computed — no prospect blending applied "
+                "(handled by MiLB regression)")
 
     # Clean up temp columns
     result_df.drop(["_name_key", "_proj_value_sum", "_contract_sum"],
