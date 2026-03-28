@@ -330,7 +330,7 @@ const ProspectProfile: React.FC<{
         )}
         {peakTop100Value != null && (
           <div className="flex flex-col items-center px-4 py-2 rounded-lg border bg-emerald-500/10 border-emerald-500/20">
-            <span className="text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Top 100 Value</span>
+            <span className="text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Trade Value</span>
             <span className="text-2xl font-bold text-emerald-400">${(peakTop100Value / 1_000_000).toFixed(1)}M</span>
           </div>
         )}
@@ -851,7 +851,7 @@ const PlayerDetails: React.FC = () => {
 
         {hasFielding && projectedFielding.length > 0 && !isHistorical && (
           <CollapsibleSection title="Fielding Projections" teamColor={colors.primary} defaultOpen={false}>
-            <CombinedFieldingTable data={projectedFielding.sort((a, b) => a.season - b.season || a.pos.localeCompare(b.pos))} hideTraditional />
+            <CombinedFieldingTable data={(() => { const sorted = projectedFielding.sort((a, b) => a.season - b.season || a.pos.localeCompare(b.pos)); const years = [...new Set(sorted.map(d => d.season))].slice(0, 5); return sorted.filter(d => years.includes(d.season)); })()} hideTraditional />
           </CollapsibleSection>
         )}
 

@@ -55,7 +55,7 @@ interface YearGroup<T> {
 
 function groupBySeason<T extends { season: number; level: string }>(data: T[]): YearGroup<T>[] {
   const sorted = [...data].sort(
-    (a, b) => b.season - a.season || levelOrder(a.level) - levelOrder(b.level),
+    (a, b) => a.season - b.season || levelOrder(a.level) - levelOrder(b.level),
   );
   const groups: YearGroup<T>[] = [];
   let cur: YearGroup<T> | null = null;
