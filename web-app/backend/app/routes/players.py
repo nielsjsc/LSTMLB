@@ -633,6 +633,29 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
         }
         for r in rows
     ]
+
+    # Override current-year entry with live trade_value from player_values_complete
+    if player.trade_value is not None:
+        yrs = player.years_control or 0
+        fw = player.total_future_war or 0
+        sal = player.total_contract or 0
+        wpy = fw / yrs if yrs > 0 else 0.0
+        label = f"{int(yrs)}yr control, {fw:.1f} WAR" if yrs > 0 else f"{fw:.1f} WAR projected"
+        current_entry = {
+            "year": CURRENT_YEAR,
+            "date": f"{CURRENT_YEAR}-03-01",
+            "value": round(float(player.trade_value), 2),
+            "valueType": "mlb_surplus",
+            "transactionType": None,
+            "label": label,
+            "yearsControl": round(float(yrs), 1),
+            "projectedWar": round(float(fw), 1),
+            "projectedSalary": round(float(sal), 2),
+            "warPerYear": round(float(wpy), 1),
+        }
+        result = [r for r in result if r["year"] != CURRENT_YEAR] + [current_entry]
+        result.sort(key=lambda r: r["date"] or f"{r['year']}-01-01")
+
     return JSONResponse(result)
 
 
