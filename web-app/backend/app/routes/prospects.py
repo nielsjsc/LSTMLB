@@ -26,7 +26,6 @@ def map_ui_to_prospect_team(team: str) -> str:
         'SF': 'SFG',
         'SD': 'SDP',
         'KC': 'KCR',
-        'ATH': 'OAK',
         'TB': 'TBR'
     }
     return ui_to_prospect.get(team.upper(), team.upper())
