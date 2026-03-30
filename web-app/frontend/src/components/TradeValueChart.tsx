@@ -74,7 +74,10 @@ interface Props {
   transactions?: Transaction[];
 }
 
-const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
+// Transaction types worth annotating on the chart
+const IMPORTANT_TXN = new Set(['TR', 'SGN', 'SFA', 'FA', 'EXT', 'DFA']);
+
+const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transactions }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -111,6 +114,17 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
         .sort((a, b) => a._fx - b._fx),
     [data],
   );
+
+  // Detect in-season year: the year with ≥ 3 data points (weekly/daily data)
+  const inSeasonYear = useMemo(() => {
+    const counts: Record<number, number> = {};
+    sorted.forEach((d) => { counts[d.year] = (counts[d.year] || 0) + 1; });
+    let best = 0, bestCount = 0;
+    for (const [yr, c] of Object.entries(counts)) {
+      if (c > bestCount) { bestCount = c; best = Number(yr); }
+    }
+    return bestCount >= 3 ? best : null;
+  }, [sorted]);
 
   // Keyboard navigation when a card is pinned
   useEffect(() => {
@@ -191,6 +205,34 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
     linePoints.length > 1
       ? `${linePath}L${linePoints[linePoints.length - 1].x},${y(0)}L${linePoints[0].x},${y(0)}Z`
       : '';
+
+  // ── Transaction annotations (positioned on the curve) ──────────────
+  const chartTxns = useMemo(() => {
+    if (!transactions?.length) return [];
+    return transactions
+      .filter((t) => IMPORTANT_TXN.has(t.typeCode) && t.date)
+      .map((t) => {
+        const d = new Date(t.date + 'T12:00:00');
+        const yr = isNaN(d.getTime()) ? 0 : d.getFullYear();
+        return { ...t, _fx: dateToFx(t.date, yr) };
+      })
+      .filter((t) => t._fx >= minFx && t._fx <= maxFx);
+  }, [transactions, minFx, maxFx]);
+
+  // Linear-interpolate trade value at an arbitrary fractional-year position
+  const interpolateValue = (fx: number): number => {
+    if (sorted.length === 0) return 0;
+    if (sorted.length === 1) return sorted[0].value;
+    if (fx <= sorted[0]._fx) return sorted[0].value;
+    if (fx >= sorted[sorted.length - 1]._fx) return sorted[sorted.length - 1].value;
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i]._fx <= fx && sorted[i + 1]._fx >= fx) {
+        const t = (fx - sorted[i]._fx) / (sorted[i + 1]._fx - sorted[i]._fx);
+        return sorted[i].value + t * (sorted[i + 1].value - sorted[i].value);
+      }
+    }
+    return sorted[sorted.length - 1].value;
+  };
 
   // ── Gridlines ───────────────────────────────────────
   const yTicks = useMemo(() => {
@@ -280,10 +322,13 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
           strokeLinecap="round"
         />
 
-        {/* ── Data dots (uniform circles — color by value type) ── */}
+        {/* ── Data dots — historical years get full dots; in-season only on hover ── */}
         {sorted.map((d, i) => {
+          const isInSeason = d.year === inSeasonYear;
           const color = DOT_COLOR[d.valueType] ?? DEFAULT_DOT_COLOR;
           const isHovered = activeIdx === i;
+          // In-season points: hide dot unless hovered
+          if (isInSeason && !isHovered) return null;
           const dotCx = x(d._fx);
           const dotCy = y(d.value);
           const baseR = isMobile ? 3.5 : DOT_RADIUS;
@@ -322,6 +367,25 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
             onTouchStart={(e) => { e.preventDefault(); setPinnedIdx((prev) => prev === i ? null : i); }}
           />
         ))}
+
+        {/* ── Transaction annotation diamonds ───── */}
+        {chartTxns.map((txn, i) => {
+          const cx = x(txn._fx);
+          const cy = y(interpolateValue(txn._fx));
+          const s = isMobile ? 4 : 5;
+          return (
+            <g key={`txn-${i}`}>
+              <line
+                x1={cx} x2={cx} y1={cy + s + 2} y2={MARGIN.top + plotH}
+                stroke="rgba(30,64,175,0.15)" strokeWidth={1} strokeDasharray="3,3"
+              />
+              <polygon
+                points={`${cx},${cy - s} ${cx + s},${cy} ${cx},${cy + s} ${cx - s},${cy}`}
+                fill="white" stroke="#1d4ed8" strokeWidth={1.5}
+              />
+            </g>
+          );
+        })}
 
         {/* ── X-axis labels ───────────────────── */}
         {uniqueYears
@@ -471,7 +535,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
         </div>
       )}
 
-      {/* ── Legend (simplified — no shape distinction) ─── */}
+      {/* ── Legend ─── */}
       <div className="flex flex-wrap gap-4 mt-3 px-1">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: DOT_COLOR.prospect }} />
@@ -485,6 +549,14 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent }) => {
           <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: DOT_COLOR.free_agent }} />
           <span className="text-[10px] text-gray-500 font-medium">Free Agent</span>
         </div>
+        {chartTxns.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <svg width="10" height="10" viewBox="0 0 10 10">
+              <polygon points="5,0 10,5 5,10 0,5" fill="white" stroke="#1d4ed8" strokeWidth="1.5" />
+            </svg>
+            <span className="text-[10px] text-gray-500 font-medium">Transaction</span>
+          </div>
+        )}
       </div>
     </div>
   );
