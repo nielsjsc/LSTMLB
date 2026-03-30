@@ -23,6 +23,7 @@ const ProjectionsPage = () => {
   const [playerType, setPlayerType] = useState<'hitter' | 'pitcher'>('hitter');
   const [team, setTeam] = useState<string>();
   const [position, setPosition] = useState<string>();
+  const [projectionType, setProjectionType] = useState<'ros' | 'preseason'>('ros');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [sortBy, setSortBy] = useState<string>(
@@ -32,11 +33,16 @@ const ProjectionsPage = () => {
 
   // React Query — replaces manual useState/useEffect/fetch
   const { data, isFetching: loading, error } = useProjections({
-    year, playerType, team, position, page, pageSize, sortBy, sortDirection,
+    year, playerType, team, position, projectionType, page, pageSize, sortBy, sortDirection,
   });
 
   // Reset to first page when filters or sort change
-  useEffect(() => { setPage(1); }, [year, playerType, team, position, sortBy, sortDirection]);
+  useEffect(() => { setPage(1); }, [year, playerType, team, position, projectionType, sortBy, sortDirection]);
+
+  // Reset projection type when year changes (preseason only for current year)
+  useEffect(() => {
+    if (year !== CURRENT_YEAR) setProjectionType('ros');
+  }, [year]);
 
   const handleSort = (key: string) => {
     const newDirection = sortBy === key && sortDirection === 'desc' ? 'asc' : 'desc';
@@ -95,6 +101,31 @@ const ProjectionsPage = () => {
               Pitchers
             </button>
             </div>
+
+            {year === CURRENT_YEAR && (
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setProjectionType('ros')}
+                  className={`px-3 py-2 rounded text-sm font-medium ${
+                    projectionType === 'ros'
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  ROS
+                </button>
+                <button
+                  onClick={() => setProjectionType('preseason')}
+                  className={`px-3 py-2 rounded text-sm font-medium ${
+                    projectionType === 'preseason'
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  Preseason
+                </button>
+              </div>
+            )}
   
             <select
               value={team || ''}

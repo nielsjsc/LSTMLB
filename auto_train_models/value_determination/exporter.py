@@ -8,17 +8,20 @@ from pathlib import Path
 from .constants import logger
 
 
-def export_value_data(df: pd.DataFrame, output_dir: Path) -> None:
+def export_value_data(df: pd.DataFrame, output_dir: Path, filename: str = None) -> None:
     """
     Export sorted value data by year.
     
     Args:
         df: DataFrame with all calculated values
         output_dir: Directory to export files to
+        filename: Override output CSV filename (default: player_values_complete.csv)
     """
     logger.info("Starting value data export")
     
     output_dir.mkdir(parents=True, exist_ok=True)
+    
+    output_filename = filename or 'player_values_complete.csv'
     
     # Define column groups
     base_cols = [
@@ -92,7 +95,7 @@ def export_value_data(df: pd.DataFrame, output_dir: Path) -> None:
                 export_df[col] = export_df[col].round(2)
         
         # Export to single file
-        output_file = output_dir / 'player_values_complete.csv'
+        output_file = output_dir / output_filename
         export_df.to_csv(output_file, index=False, na_rep='')
         
         logger.info(f"Exported {len(export_df)} records to {output_file}")

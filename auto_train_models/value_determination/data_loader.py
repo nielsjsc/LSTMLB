@@ -37,9 +37,12 @@ def validate_files_exist(directory: Path, filename: str) -> None:
         raise FileNotFoundError(f"Missing file: {filename} in {directory}")
 
 
-def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_prediction_files(pipeline_dir: Path = None) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Load and process consolidated prediction files from pipeline directory.
+    
+    Args:
+        pipeline_dir: Override directory for prediction CSVs (default: PIPELINE_DIR)
     
     Returns:
         Tuple containing (sp_data, rp_data, batter_data, baserunning_data, fielding_data, salary_data)
@@ -50,6 +53,8 @@ def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, p
         
     TODO: Track mlbam_id alongside IDfg for future migration
     """
+    src_dir = Path(pipeline_dir) if pipeline_dir else PIPELINE_DIR
+
     # Validate files exist
     required_files = [
         'pitcher_predictions.csv',
@@ -58,11 +63,11 @@ def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, p
         'fielding_predictions.csv'
     ]
     for file in required_files:
-        validate_files_exist(PIPELINE_DIR, file)
+        validate_files_exist(src_dir, file)
     
     try:
         # Load pitcher data
-        pitcher_df = pd.read_csv(PIPELINE_DIR / 'pitcher_predictions.csv')
+        pitcher_df = pd.read_csv(src_dir / 'pitcher_predictions.csv')
         
         # Validate required columns for pitchers (WAR calculated in pipeline)
         required_pitcher_cols = set(REQUIRED_COLUMNS['pitcher_predictions'])
@@ -88,9 +93,9 @@ def load_prediction_files() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, p
         rp_data['Position'] = rp_data['position_group']
         
         # Load raw batter prediction files (WAR will be calculated in main.py)
-        batter_data = pd.read_csv(PIPELINE_DIR / 'batter_predictions.csv')
-        baserunning_data = pd.read_csv(PIPELINE_DIR / 'baserunning_predictions.csv')
-        fielding_data = pd.read_csv(PIPELINE_DIR / 'fielding_predictions.csv')
+        batter_data = pd.read_csv(src_dir / 'batter_predictions.csv')
+        baserunning_data = pd.read_csv(src_dir / 'baserunning_predictions.csv')
+        fielding_data = pd.read_csv(src_dir / 'fielding_predictions.csv')
         
         # Validate required columns for batters
         # Only core prediction columns needed (WAR calculated later)

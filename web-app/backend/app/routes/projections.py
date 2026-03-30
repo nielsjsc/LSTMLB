@@ -29,6 +29,7 @@ async def get_projections(
     player_type: Literal["hitter", "pitcher"],
     team: Optional[str] = None,
     position: Optional[str] = None,
+    projection_type: Optional[Literal["ros", "preseason"]] = "ros",
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     sort_by: Optional[str] = None,
@@ -40,6 +41,7 @@ async def get_projections(
         
         # Apply all filters first
         query = query.filter(Player.year == year)
+        query = query.filter(Player.projection_type == projection_type)
         
         if player_type == "hitter":
             query = query.filter(Player.war_bat.isnot(None))

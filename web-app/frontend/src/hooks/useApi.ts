@@ -17,6 +17,7 @@ export function useProjections(params: {
   playerType: 'hitter' | 'pitcher';
   team?: string;
   position?: string;
+  projectionType?: 'ros' | 'preseason';
   page?: number;
   pageSize?: number;
   sortBy?: string;
@@ -34,6 +35,7 @@ export function useProjections(params: {
         params.pageSize ?? 50,
         params.sortBy,
         params.sortDirection ?? 'desc',
+        params.projectionType ?? 'ros',
       ),
     placeholderData: keepPreviousData,
   });

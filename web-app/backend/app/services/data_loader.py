@@ -81,6 +81,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 DATA_PATHS: Dict[str, Path] = {
     # ── Generated / processed ─────────────────────────────────────────
     "players":       PROJECT_ROOT / "data" / "generated" / "value_by_year" / "player_values_complete.csv",
+    "players_preseason": PROJECT_ROOT / "data" / "generated" / "value_by_year" / "player_values_preseason.csv",
     "prospects":     PROJECT_ROOT / "data" / "prospect_data" / "prospects_2014_2026_with_top100.csv",
     "historical":    PROJECT_ROOT / "data" / "generated" / "historical_players" / "historical_players.json",
     "trades":        PROJECT_ROOT / "data" / "generated" / "past_trades" / "trades.json",
@@ -201,7 +202,7 @@ PLAYER_INT_COLS = {
     "g_pit", "gs",
 }
 
-PLAYER_STR_COLS = {"name", "team", "position", "status"}
+PLAYER_STR_COLS = {"name", "team", "position", "status", "projection_type"}
 
 # ── Prospect source CSV (prospects_2014_2026_with_top100.csv) ──────────
 # This CSV has one row per player per year with lowercase column names.
@@ -326,9 +327,9 @@ class DataLoader:
 
     # ── Players ───────────────────────────────────────────────────────────
 
-    def load_players(self, csv_path: Path) -> None:
+    def load_players(self, csv_path: Path, projection_type: str = "ros") -> None:
         """Vectorised CSV read → Core bulk insert for the *players* table."""
-        with _Timer("Players"):
+        with _Timer(f"Players ({projection_type})"):
             df = pd.read_csv(csv_path, low_memory=False)
             initial = len(df)
 
@@ -338,6 +339,9 @@ class DataLoader:
             # Keep only columns that exist in the model
             model_cols = {c.key for c in Player.__table__.columns if c.key != "id"}
             df = df[[c for c in df.columns if c in model_cols]]
+
+            # Tag projection type
+            df["projection_type"] = projection_type
 
             # Drop rows without mlb_id (can't link them to anything)
             df = df.dropna(subset=["mlb_id"])
@@ -1153,7 +1157,7 @@ class DataLoader:
                 self.db.execute(text("TRUNCATE TABLE prospects CASCADE;"))
             self.db.commit()
 
-            self.load_players(Path(players_csv))
+            self.load_players(Path(players_csv), projection_type="ros")
             if prospects_csv:
                 self.load_prospects(Path(prospects_csv))
         except Exception as e:
@@ -1195,7 +1199,14 @@ def init_db():
 
         # ── 2. Players ────────────────────────────────────────────────────
         logger.info("\n[2/13] Loading players ...")
-        loader.load_players(DATA_PATHS["players"])
+        loader.load_players(DATA_PATHS["players"], projection_type="ros")
+
+        # ── 2b. Preseason players (current-year only) ─────────────────────
+        if DATA_PATHS["players_preseason"].exists():
+            logger.info("\n[2b/13] Loading preseason projections ...")
+            loader.load_players(DATA_PATHS["players_preseason"], projection_type="preseason")
+        else:
+            logger.info("\n[2b/13] No preseason file — skipping")
 
         # ── 3. Prospects ──────────────────────────────────────────────────
         logger.info("\n[3/13] Loading prospects ...")

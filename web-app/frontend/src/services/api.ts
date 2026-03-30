@@ -651,13 +651,15 @@ export const getPlayerMiLBStats = async (playerId: number): Promise<MiLBStatsRes
   page: number = 1,
   pageSize: number = 50,
   sortBy?: string,
-  sortDirection: 'asc' | 'desc' = 'desc'
+  sortDirection: 'asc' | 'desc' = 'desc',
+  projectionType: 'ros' | 'preseason' = 'ros'
 ): Promise<ProjectionResponse> => {
   const params = new URLSearchParams({
       year: year.toString(),
       player_type: playerType,
       page: page.toString(),
-      page_size: pageSize.toString()
+      page_size: pageSize.toString(),
+      projection_type: projectionType,
   });
 
   if (team) params.append('team', team);

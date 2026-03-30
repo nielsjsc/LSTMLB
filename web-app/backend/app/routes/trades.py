@@ -41,6 +41,7 @@ def get_player_values(player_name: str, db: Session):
         db.query(Player)
         .filter(Player.name == player_name)
         .filter(Player.year == CURRENT_YEAR)
+        .filter(Player.projection_type == "ros")
         .first()
     )
     
@@ -170,7 +171,7 @@ def get_trade_value_rankings(
 ):
     try:
         # Start with current-year players
-        query = db.query(Player).filter(Player.year == CURRENT_YEAR)
+        query = db.query(Player).filter(Player.year == CURRENT_YEAR, Player.projection_type == "ros")
         
         # Add filter for non-NaN trade values
         query = query.filter(Player.trade_value.isnot(None))  # Filter out NULL values

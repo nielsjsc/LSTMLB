@@ -25,6 +25,7 @@ class Player(Base):
     status = Column(String)
     age = Column(Integer)
     year = Column(Integer, index=True)
+    projection_type = Column(String, default='ros', index=True)
     
     # Contract/Value Info
     base_value = Column(Float)
@@ -93,6 +94,7 @@ class Player(Base):
         Index('idx_year_position', 'year', 'position'),
         Index('idx_year_war_bat', 'year', 'war_bat'),
         Index('idx_year_war_pit', 'year', 'war_pit'),
+        Index('idx_year_projection_type', 'year', 'projection_type'),
     )
 
     def __repr__(self):

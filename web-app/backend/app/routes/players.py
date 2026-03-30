@@ -153,6 +153,7 @@ async def get_players(
         
         # Base query
         query = db.query(Player).filter(Player.year == year)
+        query = query.filter(Player.projection_type == "ros")
         
         # Apply filters
         if search:
@@ -425,12 +426,12 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
     try:
         # Try lookup by mlb_id first, then fall back to real_id (IDfg)
         logger.debug(f"Trying mlb_id lookup for: {player_id}")
-        query = db.query(Player).filter(Player.mlb_id == player_id)
+        query = db.query(Player).filter(Player.mlb_id == player_id, Player.projection_type == "ros")
         player_years = query.order_by(Player.year).all()
         
         if not player_years:
             logger.info(f"No mlb_id match, trying real_id lookup for: {player_id}")
-            query = db.query(Player).filter(Player.real_id == player_id)
+            query = db.query(Player).filter(Player.real_id == player_id, Player.projection_type == "ros")
             player_years = query.order_by(Player.year).all()
         
         logger.info(f"Found {len(player_years)} years for player with ID: {player_id}")
@@ -650,7 +651,8 @@ async def get_trade_value_history(
     try:
         pid = int(player_id)
         player = db.query(Player).filter(
-            or_(Player.mlb_id == pid, Player.real_id == pid)
+            or_(Player.mlb_id == pid, Player.real_id == pid),
+            Player.projection_type == "ros"
         ).first()
     except (ValueError, TypeError):
         player = None
@@ -746,7 +748,8 @@ async def get_player_fielding_stats(player_id: int, db: Session = Depends(get_db
     try:
         # Resolve player → get both mlb_id and idfg
         player = db.query(Player).filter(
-            or_(Player.mlb_id == player_id, Player.real_id == player_id)
+            or_(Player.mlb_id == player_id, Player.real_id == player_id),
+            Player.projection_type == "ros"
         ).first()
 
         if player is None:
@@ -947,7 +950,8 @@ async def get_player_info(player_id: str, db: Session = Depends(get_db)):
     try:
         pid = int(player_id)
         player = db.query(Player).filter(
-            or_(Player.mlb_id == pid, Player.real_id == pid)
+            or_(Player.mlb_id == pid, Player.real_id == pid),
+            Player.projection_type == "ros"
         ).first()
     except (ValueError, TypeError):
         player = None
@@ -1056,7 +1060,7 @@ def _build_name_index(db: Session) -> Dict[str, List[Dict[str, Any]]]:
     """Build a name→[{mlb_id, real_id, name}] index for matching players in trade descriptions."""
     players = db.query(
         Player.name, Player.mlb_id, Player.real_id
-    ).filter(Player.year == CURRENT_YEAR).all()
+    ).filter(Player.year == CURRENT_YEAR, Player.projection_type == "ros").all()
 
     index: Dict[str, List[Dict[str, Any]]] = {}
     for p in players:
@@ -1134,7 +1138,8 @@ async def get_player_milb_stats(player_id: str, db: Session = Depends(get_db)):
     try:
         pid = int(player_id)
         player = db.query(Player).filter(
-            or_(Player.mlb_id == pid, Player.real_id == pid)
+            or_(Player.mlb_id == pid, Player.real_id == pid),
+            Player.projection_type == "ros"
         ).first()
     except (ValueError, TypeError):
         player = None
@@ -1251,7 +1256,8 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
     try:
         pid = int(player_id)
         player = db.query(Player).filter(
-            or_(Player.mlb_id == pid, Player.real_id == pid)
+            or_(Player.mlb_id == pid, Player.real_id == pid),
+            Player.projection_type == "ros"
         ).first()
     except (ValueError, TypeError):
         player = None

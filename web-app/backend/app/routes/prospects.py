@@ -378,7 +378,8 @@ async def get_prospect_detail(
                     from app.config import CURRENT_YEAR
                     player_record = db.query(Player).filter(
                         Player.name == latest.name,
-                        Player.year == CURRENT_YEAR
+                        Player.year == CURRENT_YEAR,
+                        Player.projection_type == "ros"
                     ).first()
                     if player_record and player_record.mlb_id:
                         mlb_info["mlb_id"] = player_record.mlb_id
