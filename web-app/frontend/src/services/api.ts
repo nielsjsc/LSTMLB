@@ -752,8 +752,16 @@ export interface TradeValuePoint {
   warPerYear: number | null;
 }
 
-export const getTradeValueHistory = async (playerId: number): Promise<TradeValuePoint[]> => {
-  const url = `${API_BASE}/players/${playerId}/trade-value-history`;
+export const getTradeValueHistory = async (
+  playerId: number,
+  opts?: { granularity?: string; startDate?: string; endDate?: string },
+): Promise<TradeValuePoint[]> => {
+  const params = new URLSearchParams();
+  if (opts?.granularity) params.set('granularity', opts.granularity);
+  if (opts?.startDate) params.set('start_date', opts.startDate);
+  if (opts?.endDate) params.set('end_date', opts.endDate);
+  const qs = params.toString();
+  const url = `${API_BASE}/players/${playerId}/trade-value-history${qs ? `?${qs}` : ''}`;
   try {
     const response = await fetch(url, { headers: createApiHeaders() });
     if (!response.ok) return [];

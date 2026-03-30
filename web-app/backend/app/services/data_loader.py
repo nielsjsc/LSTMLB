@@ -881,6 +881,45 @@ class DataLoader:
             n = _bulk_insert(self.db, TradeValueHistory, records)
             logger.info(f"    {n:,} trade-value-history rows loaded")
 
+    def upsert_trade_value_history(self, csv_path: Path, target_date: str) -> None:
+        """Insert/update only *target_date* rows in trade_value_history.
+
+        Much faster than a full reload for daily pipeline runs.
+        """
+        with _Timer(f"TVH upsert ({target_date})"):
+            if not csv_path.exists():
+                logger.warning(f"  File not found: {csv_path}")
+                return
+            df = pd.read_csv(csv_path, low_memory=False)
+            df = df.rename(columns={"IDfg": "idfg"})
+            df = df[df["date"] == target_date]
+            if df.empty:
+                logger.info(f"    No rows for date {target_date}")
+                return
+
+            for col in ("mlb_id", "idfg", "year"):
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            df = df.dropna(subset=["mlb_id"])
+            df["mlb_id"] = df["mlb_id"].astype(int)
+
+            model_cols = {c.key for c in TradeValueHistory.__table__.columns if c.key != "id"}
+            df = df[[c for c in df.columns if c in model_cols]]
+            records = _clean_records(df)
+            _coerce_int_cols(records, {"mlb_id", "idfg", "year"})
+
+            deleted = (
+                self.db.query(TradeValueHistory)
+                .filter(TradeValueHistory.date == target_date)
+                .delete()
+            )
+            self.db.flush()
+
+            n = _bulk_insert(self.db, TradeValueHistory, records)
+            logger.info(
+                f"    Upserted {n:,} rows (replaced {deleted:,}) "
+                f"for {target_date}"
+            )
+
     # ── Statcast expected stats ───────────────────────────────────────────
 
     def load_statcast_expected(

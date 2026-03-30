@@ -1,6 +1,7 @@
 import sys
 import re
 import time
+from datetime import date, datetime
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -582,10 +583,69 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+# ── Trade-value history helpers ───────────────────────────────────────────
+
+def _tvh_bucket_key(d_str: str | None, year: int, mode: str):
+    """Return a grouping key for a TVH point based on aggregation mode."""
+    if mode == "yearly":
+        return year
+    try:
+        d = datetime.strptime(d_str, "%Y-%m-%d").date() if d_str else date(year, 6, 15)
+    except ValueError:
+        d = date(year, 6, 15)
+    if mode == "monthly":
+        return (d.year, d.month)
+    if mode == "weekly":
+        iso = d.isocalendar()
+        return (iso[0], iso[1])
+    return d_str or f"{year}-06-15"  # daily / fallback — no bucketing
+
+
+def _aggregate_tvh(points: list[dict], granularity: str, current_year: int) -> list[dict]:
+    """Aggregate trade-value-history points by *granularity*.
+
+    For ``auto``, historical seasons (< *current_year*) are bucketed
+    yearly while the current season is bucketed weekly.
+    """
+    if granularity == "daily":
+        return points
+
+    if granularity == "auto":
+        historical = [p for p in points if p["year"] < current_year]
+        current = [p for p in points if p["year"] >= current_year]
+        agg_h = _aggregate_tvh(historical, "yearly", current_year)
+        agg_c = _aggregate_tvh(current, "weekly", current_year)
+        return agg_h + agg_c
+
+    buckets: dict[Any, dict] = {}
+    for p in points:
+        key = _tvh_bucket_key(p.get("date"), p["year"], granularity)
+        existing_date = buckets[key]["date"] if key in buckets else ""
+        p_date = p.get("date") or ""
+        if key not in buckets or p_date > existing_date:
+            buckets[key] = p
+    return sorted(buckets.values(), key=lambda r: r.get("date") or f"{r['year']}-01-01")
+
+
 # ── Trade-value history endpoint ──────────────────────────────────────────
 @router.get("/{player_id}/trade-value-history")
-async def get_trade_value_history(player_id: str, db: Session = Depends(get_db)):
-    """Return year-by-year trade value timeline for a player."""
+async def get_trade_value_history(
+    player_id: str,
+    db: Session = Depends(get_db),
+    granularity: str = Query("auto", pattern="^(auto|daily|weekly|monthly|yearly)$"),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+):
+    """Return trade value timeline for a player.
+
+    Query params
+    ------------
+    granularity : auto | daily | weekly | monthly | yearly
+        ``auto`` (default) returns yearly for historical seasons and weekly
+        for the current season.
+    start_date / end_date : YYYY-MM-DD
+        Optional date-range filter applied *before* aggregation.
+    """
     # Resolve the player so we can match on mlb_id
     try:
         pid = int(player_id)
@@ -634,8 +694,9 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
         for r in rows
     ]
 
-    # Override current-year entry with live trade_value from player_values_complete
+    # Override today's entry with live trade_value from Player table
     if player.trade_value is not None:
+        today_str = date.today().isoformat()
         yrs = player.years_control or 0
         fw = player.total_future_war or 0
         sal = player.total_contract or 0
@@ -643,7 +704,7 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
         label = f"{int(yrs)}yr control, {fw:.1f} WAR" if yrs > 0 else f"{fw:.1f} WAR projected"
         current_entry = {
             "year": CURRENT_YEAR,
-            "date": f"{CURRENT_YEAR}-03-01",
+            "date": today_str,
             "value": round(float(player.trade_value), 2),
             "valueType": "mlb_surplus",
             "transactionType": None,
@@ -653,8 +714,19 @@ async def get_trade_value_history(player_id: str, db: Session = Depends(get_db))
             "projectedSalary": round(float(sal), 2),
             "warPerYear": round(float(wpy), 1),
         }
-        result = [r for r in result if r["year"] != CURRENT_YEAR] + [current_entry]
+        # Remove only today's entry (not all current-year entries)
+        result = [r for r in result if r.get("date") != today_str]
+        result.append(current_entry)
         result.sort(key=lambda r: r["date"] or f"{r['year']}-01-01")
+
+    # Date-range filter
+    if start_date:
+        result = [r for r in result if (r["date"] or f"{r['year']}-01-01") >= start_date]
+    if end_date:
+        result = [r for r in result if (r["date"] or f"{r['year']}-12-31") <= end_date]
+
+    # Aggregation
+    result = _aggregate_tvh(result, granularity, CURRENT_YEAR)
 
     return JSONResponse(result)
 
