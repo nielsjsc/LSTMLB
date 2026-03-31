@@ -209,6 +209,129 @@ const ContractTimeline: React.FC<{
 
 
 /** ──────────────────────────────────────────────────────────
+ *  Current Season Actual Stats Table
+ *  ────────────────────────────────────────────────────────── */
+const StatCell: React.FC<{ val: number | string | null | undefined; decimals?: number; pct?: boolean }> = ({ val, decimals = 3, pct }) => {
+  if (val == null) return <td className="px-3 py-2 text-center text-gray-400">—</td>;
+  const display = pct
+    ? `${(Number(val) * 100).toFixed(1)}%`
+    : typeof val === 'number'
+      ? (Number.isInteger(val) ? val.toString() : val.toFixed(decimals))
+      : val;
+  return <td className="px-3 py-2 text-center text-sm text-gray-700 tabular-nums">{display}</td>;
+};
+
+const CurrentSeasonBattingTable: React.FC<{
+  stats: NonNullable<PlayerStats['currentSeasonStats']>['batting'];
+}> = ({ stats }) => {
+  if (!stats) return null;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
+            <th className="px-3 py-2 text-left">Year</th>
+            <th className="px-3 py-2 text-center">Team</th>
+            <th className="px-3 py-2 text-center">G</th>
+            <th className="px-3 py-2 text-center">PA</th>
+            <th className="px-3 py-2 text-center">WAR</th>
+            <th className="px-3 py-2 text-center">AVG</th>
+            <th className="px-3 py-2 text-center">OBP</th>
+            <th className="px-3 py-2 text-center">SLG</th>
+            <th className="px-3 py-2 text-center">OPS</th>
+            <th className="px-3 py-2 text-center">HR</th>
+            <th className="px-3 py-2 text-center">2B</th>
+            <th className="px-3 py-2 text-center">R</th>
+            <th className="px-3 py-2 text-center">RBI</th>
+            <th className="px-3 py-2 text-center">SB</th>
+            <th className="px-3 py-2 text-center">wOBA</th>
+            <th className="px-3 py-2 text-center">wRC+</th>
+            <th className="px-3 py-2 text-center">BB%</th>
+            <th className="px-3 py-2 text-center">K%</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="border-t border-gray-200 hover:bg-gray-50">
+            <td className="px-3 py-2 text-left font-medium text-gray-900">{stats.season}</td>
+            <td className="px-3 py-2 text-center text-sm text-gray-700">{stats.team}</td>
+            <StatCell val={stats.g} decimals={0} />
+            <StatCell val={stats.pa} decimals={0} />
+            <StatCell val={stats.war} decimals={1} />
+            <StatCell val={stats.avg} />
+            <StatCell val={stats.obp} />
+            <StatCell val={stats.slg} />
+            <StatCell val={stats.ops} />
+            <StatCell val={stats.hr} decimals={0} />
+            <StatCell val={stats.doubles} decimals={0} />
+            <StatCell val={stats.r} decimals={0} />
+            <StatCell val={stats.rbi} decimals={0} />
+            <StatCell val={stats.sb} decimals={0} />
+            <StatCell val={stats.woba} />
+            <StatCell val={stats.wrc_plus} decimals={0} />
+            <StatCell val={stats.bb_pct} pct />
+            <StatCell val={stats.k_pct} pct />
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const CurrentSeasonPitchingTable: React.FC<{
+  stats: NonNullable<PlayerStats['currentSeasonStats']>['pitching'];
+}> = ({ stats }) => {
+  if (!stats) return null;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
+            <th className="px-3 py-2 text-left">Year</th>
+            <th className="px-3 py-2 text-center">Team</th>
+            <th className="px-3 py-2 text-center">G</th>
+            <th className="px-3 py-2 text-center">GS</th>
+            <th className="px-3 py-2 text-center">IP</th>
+            <th className="px-3 py-2 text-center">W</th>
+            <th className="px-3 py-2 text-center">L</th>
+            <th className="px-3 py-2 text-center">SV</th>
+            <th className="px-3 py-2 text-center">WAR</th>
+            <th className="px-3 py-2 text-center">ERA</th>
+            <th className="px-3 py-2 text-center">FIP</th>
+            <th className="px-3 py-2 text-center">WHIP</th>
+            <th className="px-3 py-2 text-center">K%</th>
+            <th className="px-3 py-2 text-center">BB%</th>
+            <th className="px-3 py-2 text-center">K/9</th>
+            <th className="px-3 py-2 text-center">BB/9</th>
+            <th className="px-3 py-2 text-center">HR/9</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="border-t border-gray-200 hover:bg-gray-50">
+            <td className="px-3 py-2 text-left font-medium text-gray-900">{stats.season}</td>
+            <td className="px-3 py-2 text-center text-sm text-gray-700">{stats.team}</td>
+            <StatCell val={stats.g} decimals={0} />
+            <StatCell val={stats.gs} decimals={0} />
+            <StatCell val={stats.ip} decimals={1} />
+            <StatCell val={stats.w} decimals={0} />
+            <StatCell val={stats.l} decimals={0} />
+            <StatCell val={stats.sv} decimals={0} />
+            <StatCell val={stats.war} decimals={1} />
+            <StatCell val={stats.era} decimals={2} />
+            <StatCell val={stats.fip} decimals={2} />
+            <StatCell val={stats.whip} decimals={2} />
+            <StatCell val={stats.k_pct} pct />
+            <StatCell val={stats.bb_pct} pct />
+            <StatCell val={stats.k_9} decimals={1} />
+            <StatCell val={stats.bb_9} decimals={1} />
+            <StatCell val={stats.hr_9} decimals={1} />
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+/** ──────────────────────────────────────────────────────────
  *  Collapsible Section wrapper
  *  ────────────────────────────────────────────────────────── */
 const CollapsibleSection: React.FC<{
@@ -825,8 +948,15 @@ const PlayerDetails: React.FC = () => {
           </CollapsibleSection>
         )}
 
+        {/* Current season actual pitching stats */}
+        {!isHistorical && player.currentSeasonStats?.pitching && (
+          <CollapsibleSection title={`${CURRENT_YEAR} Pitching Statistics`} teamColor={colors.primary} defaultOpen>
+            <CurrentSeasonPitchingTable stats={player.currentSeasonStats.pitching} />
+          </CollapsibleSection>
+        )}
+
         {hasPitching && hasCurrentPitching && projectedPitching.length > 0 && !isHistorical && (
-          <CollapsibleSection title="Pitching Projections" teamColor={colors.primary} defaultOpen>
+          <CollapsibleSection title="ROS Pitching Projections" teamColor={colors.primary} defaultOpen>
             <CombinedPitchingTable data={projectedPitching.sort((a, b) => a.year - b.year)} hideXStats />
           </CollapsibleSection>
         )}
@@ -837,8 +967,15 @@ const PlayerDetails: React.FC = () => {
           </CollapsibleSection>
         )}
 
+        {/* Current season actual hitting stats */}
+        {!isHistorical && player.currentSeasonStats?.batting && (
+          <CollapsibleSection title={`${CURRENT_YEAR} Hitting Statistics`} teamColor={colors.primary} defaultOpen>
+            <CurrentSeasonBattingTable stats={player.currentSeasonStats.batting} />
+          </CollapsibleSection>
+        )}
+
         {showHitting && hasCurrentHitting && projectedHitting.length > 0 && !isHistorical && (
-          <CollapsibleSection title="Hitting Projections" teamColor={colors.primary} defaultOpen={hittingDefaultOpen}>
+          <CollapsibleSection title="ROS Hitting Projections" teamColor={colors.primary} defaultOpen={hittingDefaultOpen}>
             <CombinedHittingTable data={projectedHitting.sort((a, b) => a.year - b.year)} hideXStats />
           </CollapsibleSection>
         )}

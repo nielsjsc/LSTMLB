@@ -32,9 +32,140 @@ from app.models.trade_value_history import TradeValueHistory
 from app.models.statcast_expected import StatcastExpected
 from app.models.spotrac_transaction import SpotracTransaction
 from app.config import CURRENT_YEAR
+import pandas as pd
+import numpy as np
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# ── Paths for actual stats CSVs ────────────────────────────────────────
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
+_HISTORIC_MLB_DIR = _PROJECT_ROOT / "data" / "historic_mlb"
+
+# ── Crosswalk cache (IDfg ↔ mlbam_id) ──────────────────────────────────
+_CROSSWALK_CACHE: Optional[Dict[int, int]] = None   # mlbam_id → IDfg
+
+
+def _get_crosswalk_map() -> Dict[int, int]:
+    """Return {mlbam_id: IDfg} mapping, cached in memory."""
+    global _CROSSWALK_CACHE
+    if _CROSSWALK_CACHE is not None:
+        return _CROSSWALK_CACHE
+    cw_path = _PROJECT_ROOT / "data" / "generated" / "player_id_crosswalk.csv"
+    if not cw_path.exists():
+        _CROSSWALK_CACHE = {}
+        return _CROSSWALK_CACHE
+    cw = pd.read_csv(cw_path)
+    mapping = {}
+    for _, row in cw.iterrows():
+        try:
+            mid = int(row["mlbam_id"]) if pd.notna(row.get("mlbam_id")) else None
+            fid = int(row["fg_id"]) if pd.notna(row.get("fg_id")) else None
+            if mid and fid:
+                mapping[mid] = fid
+        except (ValueError, TypeError):
+            pass
+    _CROSSWALK_CACHE = mapping
+    return mapping
+
+
+def _safe_val(v):
+    """Convert numpy/pandas types to native Python (JSON-safe)."""
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return None
+    if isinstance(v, (np.integer,)):
+        return int(v)
+    if isinstance(v, (np.floating,)):
+        return round(float(v), 3)
+    return v
+
+
+def _load_current_season_stats(idfg: int) -> Optional[Dict[str, Any]]:
+    """Load actual current-season batting/pitching stats for a player by IDfg.
+
+    Reads from the historic CSV files that are updated by the daily pipeline.
+    Returns a dict with 'batting' and/or 'pitching' sub-dicts, or None.
+    """
+    result: Dict[str, Any] = {}
+
+    # Batting
+    bat_file = _HISTORIC_MLB_DIR / "mlb_batting_data_1950_2025.csv"
+    if bat_file.exists():
+        try:
+            bat = pd.read_csv(bat_file, low_memory=False)
+            bat["IDfg"] = pd.to_numeric(bat["IDfg"], errors="coerce")
+            row = bat[(bat["Season"] == CURRENT_YEAR) & (bat["IDfg"] == idfg)]
+            if not row.empty:
+                r = row.iloc[0]
+                result["batting"] = {
+                    "season": CURRENT_YEAR,
+                    "team": _safe_val(r.get("Team")),
+                    "g": _safe_val(r.get("G")),
+                    "pa": _safe_val(r.get("PA")),
+                    "ab": _safe_val(r.get("AB")),
+                    "h": _safe_val(r.get("H")),
+                    "hr": _safe_val(r.get("HR")),
+                    "doubles": _safe_val(r.get("2B")),
+                    "triples": _safe_val(r.get("3B")),
+                    "r": _safe_val(r.get("R")),
+                    "rbi": _safe_val(r.get("RBI")),
+                    "sb": _safe_val(r.get("SB")),
+                    "cs": _safe_val(r.get("CS")),
+                    "bb": _safe_val(r.get("BB")),
+                    "so": _safe_val(r.get("SO")),
+                    "avg": _safe_val(r.get("AVG")),
+                    "obp": _safe_val(r.get("OBP")),
+                    "slg": _safe_val(r.get("SLG")),
+                    "ops": _safe_val(r.get("OPS")),
+                    "woba": _safe_val(r.get("wOBA")),
+                    "wrc_plus": _safe_val(r.get("wRC+")),
+                    "bb_pct": _safe_val(r.get("BB%")),
+                    "k_pct": _safe_val(r.get("K%")),
+                    "babip": _safe_val(r.get("BABIP")),
+                    "war": _safe_val(r.get("WAR")),
+                    "bat": _safe_val(r.get("Bat")),
+                    "bsr": _safe_val(r.get("BsR")),
+                    "def_value": _safe_val(r.get("Def")),
+                }
+        except Exception as e:
+            logger.warning(f"Failed to load current-season batting stats: {e}")
+
+    # Pitching
+    pit_file = _HISTORIC_MLB_DIR / "mlb_pitching_data_1950_2025.csv"
+    if pit_file.exists():
+        try:
+            pit = pd.read_csv(pit_file, low_memory=False)
+            pit["IDfg"] = pd.to_numeric(pit["IDfg"], errors="coerce")
+            row = pit[(pit["Season"] == CURRENT_YEAR) & (pit["IDfg"] == idfg)]
+            if not row.empty:
+                r = row.iloc[0]
+                result["pitching"] = {
+                    "season": CURRENT_YEAR,
+                    "team": _safe_val(r.get("Team")),
+                    "g": _safe_val(r.get("G")),
+                    "gs": _safe_val(r.get("GS")),
+                    "ip": _safe_val(r.get("IP")),
+                    "w": _safe_val(r.get("W")),
+                    "l": _safe_val(r.get("L")),
+                    "sv": _safe_val(r.get("SV")),
+                    "era": _safe_val(r.get("ERA")),
+                    "fip": _safe_val(r.get("FIP")),
+                    "k_pct": _safe_val(r.get("K%")),
+                    "bb_pct": _safe_val(r.get("BB%")),
+                    "k_9": _safe_val(r.get("K/9")),
+                    "bb_9": _safe_val(r.get("BB/9")),
+                    "hr_9": _safe_val(r.get("HR/9")),
+                    "babip": _safe_val(r.get("BABIP")),
+                    "whip": _safe_val(r.get("WHIP")),
+                    "gb_pct": _safe_val(r.get("GB%")),
+                    "fb_pct": _safe_val(r.get("FB%")),
+                    "hr_fb": _safe_val(r.get("HR/FB")),
+                    "war": _safe_val(r.get("WAR")),
+                }
+        except Exception as e:
+            logger.warning(f"Failed to load current-season pitching stats: {e}")
+
+    return result if result else None
 
 
 # ── Prospect data helper ──────────────────────────────────────────────────
@@ -576,6 +707,13 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
         )
         if prospect_data is not None:
             response["prospectData"] = prospect_data
+
+        # Attach actual current-season stats (from FanGraphs historic data)
+        idfg = current_year_data.real_id
+        if idfg:
+            season_stats = _load_current_season_stats(int(idfg))
+            if season_stats:
+                response["currentSeasonStats"] = season_stats
 
         return response
         

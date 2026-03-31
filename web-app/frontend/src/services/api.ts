@@ -330,6 +330,61 @@ export interface PlayerStats {
         };
         
     }>;
+    currentSeasonStats?: {
+        batting?: {
+            season: number;
+            team: string;
+            g: number | null;
+            pa: number | null;
+            ab: number | null;
+            h: number | null;
+            hr: number | null;
+            doubles: number | null;
+            triples: number | null;
+            r: number | null;
+            rbi: number | null;
+            sb: number | null;
+            cs: number | null;
+            bb: number | null;
+            so: number | null;
+            avg: number | null;
+            obp: number | null;
+            slg: number | null;
+            ops: number | null;
+            woba: number | null;
+            wrc_plus: number | null;
+            bb_pct: number | null;
+            k_pct: number | null;
+            babip: number | null;
+            war: number | null;
+            bat: number | null;
+            bsr: number | null;
+            def_value: number | null;
+        };
+        pitching?: {
+            season: number;
+            team: string;
+            g: number | null;
+            gs: number | null;
+            ip: number | null;
+            w: number | null;
+            l: number | null;
+            sv: number | null;
+            era: number | null;
+            fip: number | null;
+            k_pct: number | null;
+            bb_pct: number | null;
+            k_9: number | null;
+            bb_9: number | null;
+            hr_9: number | null;
+            babip: number | null;
+            whip: number | null;
+            gb_pct: number | null;
+            fb_pct: number | null;
+            hr_fb: number | null;
+            war: number | null;
+        };
+    };
 }
   
 export const getPlayerDetails = async (real_id: number): Promise<PlayerStats> => {
