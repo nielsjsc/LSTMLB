@@ -70,6 +70,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _find_latest_preseason(directory: Path) -> Optional[Path]:
+    """Find the most recent player_values_preseason_YYYY.csv in *directory*.
+    Falls back to the legacy un-dated filename if no dated file exists."""
+    if not directory.is_dir():
+        return None
+    dated = sorted(directory.glob("player_values_preseason_*.csv"), reverse=True)
+    if dated:
+        return dated[0]
+    legacy = directory / "player_values_preseason.csv"
+    return legacy if legacy.exists() else None
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Data-file manifest
 # ══════════════════════════════════════════════════════════════════════════
@@ -81,7 +93,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 DATA_PATHS: Dict[str, Path] = {
     # ── Generated / processed ─────────────────────────────────────────
     "players":       PROJECT_ROOT / "data" / "generated" / "value_by_year" / "player_values_complete.csv",
-    "players_preseason": PROJECT_ROOT / "data" / "generated" / "value_by_year" / "player_values_preseason.csv",
+    "players_preseason": PROJECT_ROOT / "data" / "generated" / "value_by_year",  # directory; resolved dynamically
     "prospects":     PROJECT_ROOT / "data" / "prospect_data" / "prospects_2014_2026_with_top100.csv",
     "historical":    PROJECT_ROOT / "data" / "generated" / "historical_players" / "historical_players.json",
     "trades":        PROJECT_ROOT / "data" / "generated" / "past_trades" / "trades.json",
@@ -1285,9 +1297,11 @@ def init_db():
         loader.load_players(DATA_PATHS["players"], projection_type="ros")
 
         # ── 2b. Preseason players (current-year only) ─────────────────────
-        if DATA_PATHS["players_preseason"].exists():
-            logger.info("\n[2b/13] Loading preseason projections ...")
-            loader.load_players(DATA_PATHS["players_preseason"], projection_type="preseason")
+        preseason_dir = DATA_PATHS["players_preseason"]
+        preseason_file = _find_latest_preseason(preseason_dir)
+        if preseason_file:
+            logger.info(f"\n[2b/13] Loading preseason projections ({preseason_file.name}) ...")
+            loader.load_players(preseason_file, projection_type="preseason")
         else:
             logger.info("\n[2b/13] No preseason file — skipping")
 

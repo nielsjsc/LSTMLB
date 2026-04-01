@@ -7,7 +7,7 @@ from the project root directory or from auto_train_models.
 
 Usage:
     python run_value_determination.py
-    python run_value_determination.py --pipeline-dir ../data/generated/pipeline/preseason --output-file player_values_preseason.csv
+    python run_value_determination.py --pipeline-dir ../data/generated/pipeline/preseason --output-file player_values_preseason_2026.csv
 """
 
 import argparse
