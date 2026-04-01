@@ -260,6 +260,51 @@ def generate_pitcher_predictions(
     
     # Get data file from config
     sp_config_class = ModelFactory.get_config('pitcher_sp')
+    rp_config_class = ModelFactory.get_config('pitcher_rp')
+    
+    # Check for Marcel projection method (use SP config as primary toggle;
+    # if either SP or RP is set to marcel, both use Marcel for consistency)
+    prediction_method = getattr(sp_config_class, 'PREDICTION_METHOD', 'lstm').lower()
+    if prediction_method != 'marcel':
+        prediction_method = getattr(rp_config_class, 'PREDICTION_METHOD', 'lstm').lower()
+    
+    if prediction_method == 'marcel':
+        from core.marcel_projections import marcel_pitcher_projections
+        logger.info("Using Marcel projections for pitchers")
+        
+        data_file_path = resolve_data_path(sp_config_class.DATA_FILE)
+        raw_df = pd.read_csv(data_file_path)
+        raw_df = calculate_rate_stats(raw_df)
+        
+        pitcher_names_path = DATA_DIR / 'pitcher_names.csv'
+        if not pitcher_names_path.exists():
+            player_names = pd.DataFrame(raw_df[['Name', 'IDfg']].drop_duplicates()).sort_values('Name')
+            player_names.to_csv(pitcher_names_path, index=False)
+        else:
+            player_names = pd.read_csv(pitcher_names_path)
+        
+        predictions_df = marcel_pitcher_projections(
+            raw_df=raw_df,
+            player_names=player_names,
+            future_years=15,
+            cutoff_year=cutoff_year,
+            roster_ids=roster_ids,
+        )
+        
+        if predictions_df is not None:
+            output_path = output_file or str(PIPELINE_DIR / 'pitcher_predictions.csv')
+            predictions_df.to_csv(output_path, index=False)
+            logger.info(f"Saved {len(predictions_df)} Marcel pitcher predictions to {output_path}")
+            logger.info(f"Generated predictions for {predictions_df['Name'].nunique()} unique pitchers")
+            sp_count = len(predictions_df[predictions_df['Role'] == 'SP'])
+            rp_count = len(predictions_df[predictions_df['Role'] == 'RP'])
+            logger.info(f"SP predictions: {sp_count}")
+            logger.info(f"RP predictions: {rp_count}")
+            return predictions_df
+        else:
+            logger.error("Failed to generate Marcel pitcher predictions")
+            return None
+    
     data_file_path = resolve_data_path(sp_config_class.DATA_FILE)
     
     # Load data and compute derived rate stats (HR%, HBP% from counting stats)
@@ -334,6 +379,42 @@ def generate_batter_predictions(
     
     # Get config
     batter_config_class = ModelFactory.get_config('batter')
+    
+    # Check for Marcel projection method
+    prediction_method = getattr(batter_config_class, 'PREDICTION_METHOD', 'lstm').lower()
+    
+    if prediction_method == 'marcel':
+        from core.marcel_projections import marcel_batter_projections
+        logger.info("Using Marcel projections for batters")
+        
+        # Load data (use statcast data for x-stats if available)
+        if hasattr(batter_config_class, 'FINETUNE_DATA_FILE'):
+            data_file_path = resolve_data_path(batter_config_class.FINETUNE_DATA_FILE)
+        else:
+            data_file_path = resolve_data_path(batter_config_class.DATA_FILE)
+        
+        raw_df = pd.read_csv(data_file_path)
+        raw_df = calculate_rate_stats(raw_df)
+        player_names = generate_batter_names(raw_df)
+        
+        predictions_df = marcel_batter_projections(
+            raw_df=raw_df,
+            player_names=player_names,
+            future_years=15,
+            cutoff_year=cutoff_year,
+            roster_ids=roster_ids,
+            use_xstats=getattr(batter_config_class, 'USE_XWOBA_FOR_PREDICTIONS', True),
+        )
+        
+        if predictions_df is not None:
+            output_path = output_file or str(PIPELINE_DIR / 'batter_predictions.csv')
+            predictions_df.to_csv(output_path, index=False)
+            logger.info(f"Saved {len(predictions_df)} Marcel batter predictions to {output_path}")
+            logger.info(f"Generated predictions for {predictions_df['Name'].nunique()} unique batters")
+            return predictions_df
+        else:
+            logger.error("Failed to generate Marcel batter predictions")
+            return None
     
     # Determine which data file to use based on model type
     # Check if we'll be using finetuned model (has statcast features) or pretrained (classical only)
