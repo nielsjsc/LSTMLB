@@ -51,6 +51,12 @@ const dateToFx = (date: string | null | undefined, year: number): number => {
   return yr + (d.getTime() - start) / (end - start);
 };
 
+// ─── Log-scale helpers ──────────────────────────────────────
+const SYMLOG_THRESHOLD = 5_000_000; // $5M — linear below this, log above
+/** Symmetric log: linear near zero, logarithmic for large values */
+const symlog = (v: number): number =>
+  Math.sign(v) * Math.log10(1 + Math.abs(v) / SYMLOG_THRESHOLD);
+
 // ─── Chart Dimensions ───────────────────────────────────────
 const MARGIN_DEFAULT = { top: 20, right: 20, bottom: 36, left: 60 };
 const MARGIN_MOBILE  = { top: 16, right: 12, bottom: 32, left: 44 };
@@ -176,8 +182,19 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   const yMin = rawMin - (rawMin < 0 ? yPad : 0);
   const yRange = yMax - yMin || 1;
 
-  const x = (fx: number) => MARGIN.left + ((fx - minFx) / fxSpan) * plotW;
-  const y = (val: number) => MARGIN.top + (1 - (val - yMin) / yRange) * plotH;
+  // ── X scale: log-compressed time (recent dates get more space) ──
+  const logFxMax = Math.log(1 + fxSpan);
+  const x = (fx: number) => {
+    if (fxSpan === 0) return MARGIN.left + plotW / 2;
+    const dist = maxFx - fx;
+    return MARGIN.left + (1 - Math.log(1 + dist) / logFxMax) * plotW;
+  };
+
+  // ── Y scale: symlog (smooth vertical rise for large dollar values) ──
+  const sYMin = symlog(yMin);
+  const sYMax = symlog(yMax);
+  const sYRange = sYMax - sYMin || 1;
+  const y = (val: number) => MARGIN.top + (1 - (symlog(val) - sYMin) / sYRange) * plotH;
 
   // ── Smooth curve helpers (Catmull-Rom → cubic bezier) ─────────────────
   const smoothPath = (pts: { x: number; y: number }[]): string => {
@@ -235,18 +252,21 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   };
 
   // ── Gridlines ───────────────────────────────────────
+  // ── Y-axis ticks (log-scale-aware) ──
   const yTicks = useMemo(() => {
-    const count = 5;
-    const step = yRange / count;
-    const niceStep = Math.pow(10, Math.floor(Math.log10(step))) * Math.round(step / Math.pow(10, Math.floor(Math.log10(step))));
-    const ticks: number[] = [];
-    let t = Math.ceil(yMin / niceStep) * niceStep;
-    while (t <= yMax) {
-      ticks.push(t);
-      t += niceStep;
+    const candidates = [
+      -500_000_000, -200_000_000, -100_000_000, -50_000_000, -25_000_000,
+      -10_000_000, -5_000_000, -2_000_000, -1_000_000, -500_000, 0,
+      500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000, 25_000_000,
+      50_000_000, 100_000_000, 200_000_000, 500_000_000,
+    ];
+    const inRange = candidates.filter((v) => v >= yMin && v <= yMax);
+    if (inRange.length > 7) {
+      const step = Math.ceil(inRange.length / 6);
+      return inRange.filter((_, i) => i % step === 0 || i === inRange.length - 1);
     }
-    return ticks.length > 0 ? ticks : [0];
-  }, [yMin, yMax, yRange]);
+    return inRange.length > 0 ? inRange : [0];
+  }, [yMin, yMax]);
 
   // Build tooltip data
   const hovered = activeIdx != null ? sorted[activeIdx] : null;
