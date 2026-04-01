@@ -15,12 +15,17 @@ Usage:
     )
 """
 
+import glob
 import pandas as pd
 import numpy as np
 import re
+from pathlib import Path
 
 from .config import Config, logger, CURRENT_YEAR
 from core.name_utils import name_key_alpha_only as _name_key_norm
+
+# Register data directory for mlbam → IDfg crosswalk
+_REGISTER_DATA_DIR = Config.Paths.DATA_DIR / 'register' / 'data'
 
 
 # ---------------------------------------------------------------------------
@@ -247,8 +252,9 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
         2. Store the performance-based trade value as ``raw_trade_value``.
 
     For recent prospects (FV grade available, ranked within the recency window):
-        3. Compute a prospect-grade trade value from FV + rank.
-        4. Blend: ``trade_value = conf * perf_value + (1 - conf) * prospect_value``
+        3. Compute a prospect-grade dollar value from FV + rank.
+        4. Apply as a floor: ``trade_value = max(perf_value, prospect_value * prospect_weight)``
+           where prospect_weight fades from 1.0 (0 games) to 0.0 (experience threshold).
 
     Players without prospect data or with full confidence are untouched.
 
@@ -354,14 +360,82 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
         conf = Config.TradeConfidence.calculate_confidence(games, pos_type)
         result_df.loc[pmask, "projection_confidence"] = round(conf, 3)
 
-    # ── Prospect matching removed ──────────────────────────────────────
-    # Confidence-based trade-value blending with prospect FV grades has
-    # been removed.  MiLB regression (Step 2.25) now properly handles
-    # small-sample batter projections via reliability-weighted stat
-    # blending with age-adjusted MiLB MLEs, making the trade-value
-    # scaling redundant.  projection_confidence is retained as metadata.
-    logger.info("Confidence metadata computed — no prospect blending applied "
-                "(handled by MiLB regression)")
+    # ── Prospect-grade trade-value floor ─────────────────────────────────
+    # MiLB regression (Step 2.25) handles stat-level blending, but a
+    # prospect with a disastrous short MLB stint can still project ~0 WAR.
+    # The prospect floor ensures their trade value reflects their pedigree:
+    #   floor = prospect_dollar_value * prospect_weight
+    # where prospect_weight fades linearly from 1.0 (0 games) to 0.0
+    # (EXPERIENCE_THRESHOLD_GAMES reached).  The floor only RAISES value.
+
+    # Build mlbam → IDfg crosswalk from register files
+    people_files = glob.glob(str(_REGISTER_DATA_DIR / 'people-*.csv'))
+    if people_files:
+        xw_dfs = [
+            pd.read_csv(f, usecols=['key_mlbam', 'key_fangraphs'], low_memory=False)
+            for f in people_files
+        ]
+        xw = pd.concat(xw_dfs, ignore_index=True).dropna(
+            subset=['key_mlbam', 'key_fangraphs']
+        )
+        xw['key_mlbam'] = xw['key_mlbam'].astype(int)
+        xw['key_fangraphs'] = xw['key_fangraphs'].astype(int)
+        mlbam_to_idfg = dict(zip(xw['key_mlbam'], xw['key_fangraphs']))
+    else:
+        mlbam_to_idfg = {}
+        logger.warning(f"No register files found in {_REGISTER_DATA_DIR} — "
+                       "prospect floor disabled")
+
+    # Map prospects to IDfg and apply floor
+    latest["IDfg"] = latest["prospect_mlb_id"].astype(int).map(mlbam_to_idfg)
+    matched = latest.dropna(subset=["IDfg"])
+    matched = matched.copy()
+    matched["IDfg"] = matched["IDfg"].astype(int)
+    floor_count = 0
+
+    for _, prospect in matched.iterrows():
+        pid = prospect["IDfg"]
+        fv = prospect.get("grade_overall")
+        rank = prospect.get("top_100")
+
+        pmask = (result_df["IDfg"] == pid) & (result_df["Year"] >= current_year)
+        if not pmask.any() or pd.isna(result_df.loc[pmask, "trade_value"].iloc[0]):
+            continue
+
+        prospect_val = _prospect_dollar_value(fv, rank)
+        if prospect_val is None or prospect_val <= 0:
+            continue
+
+        # Determine experience-based prospect weight
+        pos = result_df.loc[pmask, "position_group"].iloc[0]
+        pos_type = "sp" if pos == "SP" else ("rp" if pos == "RP" else "batter")
+        if pid in career_games["IDfg"].values:
+            cg = career_games[career_games["IDfg"] == pid].iloc[0]
+            gs = cg.get("GS", 0) or 0
+            g_pit = cg.get("G_pit", 0) or 0
+            if pos_type == "sp":
+                games = gs
+            elif pos_type == "rp":
+                games = g_pit - gs if gs < 50 else gs
+            else:
+                games = cg.get("G_bat", 0) or 0
+        else:
+            games = 0
+
+        prospect_weight = Config.Prospects.calculate_prospect_weight(games, pos_type)
+        if prospect_weight <= 0:
+            continue  # Fully established — no floor needed
+
+        prospect_floor = prospect_val * prospect_weight
+        current_tv = result_df.loc[pmask, "trade_value"].iloc[0]
+
+        if prospect_floor > current_tv:
+            result_df.loc[pmask, "trade_value"] = prospect_floor
+            result_df.loc[pmask, "prospect_floor_applied"] = True
+            floor_count += 1
+
+    logger.info(f"Prospect floor: matched {len(matched)} prospects, "
+                f"raised trade value for {floor_count}")
 
     # Clean up temp columns
     result_df.drop(["_name_key", "_proj_value_sum", "_contract_sum"],
@@ -414,7 +488,7 @@ def add_trade_ranking_metrics(df: pd.DataFrame, current_year: int | None = None)
             "control_through": fa_year - 1 if pd.notna(fa_year) else None,
             "total_future_war": round(control.loc[control["WAR"] > 0, "WAR"].sum(), 1),
             "total_future_value": round(future["Base_Value"].sum(), 1),
-            "total_war": round(past["WAR"].sum() + future.loc[future["WAR"] > 0, "WAR"].sum(), 1),
+            "total_war": round(past["WAR"].sum() + control["WAR"].sum(), 1),
             "total_value": round(p["Base_Value"].sum(), 1),
             "historical_war": round(past["WAR"].sum(), 1),
             "historical_value": round(past["Base_Value"].sum(), 1),

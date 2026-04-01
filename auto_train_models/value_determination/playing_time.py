@@ -158,6 +158,30 @@ DEFAULT_INJURY_DAYS = 40
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  Utility
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _to_baseball_ip(ip: float) -> float:
+    """Convert a raw IP float to baseball notation (thirds as .1/.2).
+
+    In baseball, innings are counted in thirds:
+      150.0 → 150.0 (0 outs recorded in partial inning)
+      150.3 → 150.1 (1 out)
+      150.7 → 150.2 (2 outs)
+      150.9 → 151.0 (rounds to next full inning)
+
+    The rule: whole = int(ip), frac thirds = round(frac * 3),
+    if thirds == 3 → whole + 1, .0.
+    """
+    whole = int(ip)
+    frac = ip - whole
+    thirds = round(frac * 3)
+    if thirds >= 3:
+        return float(whole + 1)
+    return whole + thirds * 0.1
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  Internal helpers
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -670,7 +694,7 @@ def _ip_to_gs_g(
 
     if gs_rate >= 0.5:
         # Primarily starter: starts determine games
-        gs = round(ip / LG_IP_PER_GS * gs_rate)
+        gs = min(round(ip / LG_IP_PER_GS * gs_rate), FULL_SEASON_STARTS_SP)
         relief_g = round(ip / LG_IP_PER_GS * (1.0 - gs_rate)) if gs_rate < 1.0 else 0
         g = gs + relief_g
     else:
@@ -745,7 +769,7 @@ def estimate_playing_time(pitcher_df: pd.DataFrame, projection_year: int) -> pd.
         gs_rate = _estimate_gs_rate(fg_id, role, projection_year)
         gs, g = _ip_to_gs_g(ip_final, gs_rate, age)
 
-        ips[i] = round(ip_final, 1)
+        ips[i] = _to_baseball_ip(ip_final)
         gss[i] = gs
         gs_arr[i] = g
 

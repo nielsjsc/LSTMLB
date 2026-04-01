@@ -48,7 +48,7 @@ from .config import (
 from core.position_profiles import (
     get_primary_position, get_display_position,
     get_weighted_positional_adjustment, get_defensive_positions,
-    POSITION_TO_GROUP
+    POSITION_TO_GROUP, DEFENSIVE_POSITIONS,
 )
 
 # Additional constants from config
@@ -610,14 +610,26 @@ def calculate_defensive_value(
     
     weighted_fld = 0.0
     if not player_fielding.empty and total_def_fraction > 0:
+        # Collect FRV predictions by position
+        predicted_frv = {}
         for _, row in player_fielding.iterrows():
             pred_pos = row.get('Pos') or row.get('Position', '')
-            # Find this position's fraction in the profile
-            pos_frac = position_profile.get(pred_pos, 0.0)
-            if pos_frac > 0:
-                frv = row.get('sc_total_runs/150', 0)
-                # Weight by fraction of total playing time this position represents
-                weighted_fld += frv * pos_frac
+            if pred_pos in DEFENSIVE_POSITIONS:
+                predicted_frv[pred_pos] = row.get('sc_total_runs/150', 0)
+        
+        # Use direct predictions for positions in the profile
+        for pos, frac in def_positions.items():
+            if pos in predicted_frv:
+                weighted_fld += predicted_frv[pos] * frac
+        
+        # Estimate FRV for profile positions with no prediction (position switchers)
+        # Uses the position-to-position FRV transfer map
+        from core.position_profiles import estimate_missing_frv
+        estimated = estimate_missing_frv(position_profile, predicted_frv)
+        for pos, est_frv in estimated.items():
+            frac = def_positions.get(pos, 0.0)
+            if frac > 0:
+                weighted_fld += est_frv * frac
     
     # Scale fielding value to games
     def_value = weighted_fld * (games / 150.0)

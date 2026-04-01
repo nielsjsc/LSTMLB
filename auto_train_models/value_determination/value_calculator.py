@@ -383,7 +383,9 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     current_players = (timeline_df[['IDfg', 'Name', 'position_group']]
                       .drop_duplicates(subset=['IDfg']))
     
-    # Format batting data
+    # Format batting data — exclude current year and beyond so that
+    # incomplete in-season stats don't overwrite prediction-based values
+    # via the drop_duplicates(keep='last') below.
     batter_cols = ['IDfg', 'Season', 'Name', 'Team', 'G', 'WAR', 'BB%', 'K%', 'AVG',
                    'OBP', 'SLG', 'OPS', 'wOBA', 'wRC+', 'Bat', 'BsR', 'Def', 'Age', 
                    'HR', '2B', '3B', 'R', 'RBI', 'SB', 'CS']
@@ -391,7 +393,10 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     # Filter to columns that exist
     available_batter_cols = [c for c in batter_cols if c in batting_history.columns]
     
-    batting_filtered = (batting_history[batting_history['IDfg'].isin(current_players['IDfg'])]
+    batting_filtered = (batting_history[
+                            (batting_history['IDfg'].isin(current_players['IDfg'])) &
+                            (batting_history['Season'] < CURRENT_YEAR)
+                       ]
                        [available_batter_cols]
                        .rename(columns={'Season': 'Year', 'WAR': 'WAR_batter',
                                        'BB%': 'BB%_bat', 'K%': 'K%_bat', 'G': 'G_bat'}))
@@ -403,7 +408,10 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     # Filter to columns that exist
     available_pitcher_cols = [c for c in pitcher_cols if c in pitching_history.columns]
     
-    pitching_filtered = (pitching_history[pitching_history['IDfg'].isin(current_players['IDfg'])]
+    pitching_filtered = (pitching_history[
+                            (pitching_history['IDfg'].isin(current_players['IDfg'])) &
+                            (pitching_history['Season'] < CURRENT_YEAR)
+                        ]
                         [available_pitcher_cols]
                         .rename(columns={'Season': 'Year', 'WAR': 'WAR_pitcher',
                                         'K%': 'K%_pit', 'BB%': 'BB%_pit', 'G': 'G_pit',

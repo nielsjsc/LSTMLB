@@ -291,12 +291,16 @@ def validate_input_data(sp_data, rp_data, batter_data, salary_data) -> bool:
 # MAIN PIPELINE
 # =============================================================================
 
-def main():
+def main(pipeline_dir=None, output_filename=None):
     """
     Main pipeline execution.
     
     Runs all steps of the value determination pipeline in order.
     Each step is clearly logged and errors are handled gracefully.
+    
+    Args:
+        pipeline_dir: Override directory for prediction CSVs (default: PIPELINE_DIR)
+        output_filename: Override output CSV filename (default: player_values_complete.csv)
     """
     
     logger.info("=" * 60)
@@ -311,7 +315,9 @@ def main():
         # Step 1: Load Data
         # ============================================================
         logger.info("\n[Step 1/10] Loading prediction and salary data...")
-        sp_data, rp_data, batter_data, baserunning_data, fielding_data, salary_data = load_prediction_files()
+        sp_data, rp_data, batter_data, baserunning_data, fielding_data, salary_data = load_prediction_files(
+            pipeline_dir=pipeline_dir
+        )
         
         # Validate input data
         validate_input_data(sp_data, rp_data, batter_data, salary_data)
@@ -375,6 +381,33 @@ def main():
         # ============================================================
         logger.info("\n[Step 2.25/10] Applying MiLB regression to batter predictions...")
         batter_data = apply_milb_regression(batter_data, CURRENT_YEAR)
+        
+        # ── Filter pitchers who no longer bat (universal DH era) ────────
+        # Pitchers with old NL batting history still get batter predictions.
+        # Remove any pitcher who didn't record a PA in the prior season.
+        pitcher_idfgs = set(sp_data['IDfg'].unique()) | set(rp_data['IDfg'].unique())
+        pitchers_in_batters = pitcher_idfgs & set(batter_data['IDfg'].unique())
+        if pitchers_in_batters:
+            hist_bat = pd.read_csv(
+                Config.Paths.HISTORIC_MLB_DIR / 'mlb_batting_data_1950_2025.csv',
+                usecols=['IDfg', 'Season', 'PA'], low_memory=False,
+            )
+            hist_bat['PA'] = pd.to_numeric(hist_bat['PA'], errors='coerce').fillna(0)
+            recent_batters = set(
+                hist_bat.loc[
+                    (hist_bat['Season'] >= CURRENT_YEAR - 1) & (hist_bat['PA'] >= 1),
+                    'IDfg',
+                ].unique()
+            )
+            pitchers_to_remove = pitchers_in_batters - recent_batters
+            if pitchers_to_remove:
+                n_before = len(batter_data)
+                batter_data = batter_data[~batter_data['IDfg'].isin(pitchers_to_remove)]
+                logger.info(
+                    f"Removed {n_before - len(batter_data)} pitcher rows from "
+                    f"batter predictions ({len(pitchers_to_remove)} pitchers "
+                    f"with no batting PA since {CURRENT_YEAR - 1})"
+                )
         
         # ============================================================
         # Step 2.5: Calculate Batter WAR Components
@@ -622,7 +655,7 @@ def main():
         # Step 10: Export Data
         # ============================================================
         logger.info("\n[Step 10/10] Exporting value data...")
-        export_value_data(export_data, OUTPUT_DIR)
+        export_value_data(export_data, OUTPUT_DIR, filename=output_filename)
 
         # ── Export fielding projections for the web database ──────────
         logger.info("Exporting fielding projections (per-position, with innings)...")
@@ -630,7 +663,18 @@ def main():
             fielding_data, position_profiles, org_data,
             batter_data, OUTPUT_DIR.parent / "pipeline",
         )
-        
+
+        # ── Append to trade-value history (daily snapshot) ────────────
+        # Only for the default output (player_values_complete.csv), not
+        # preseason or other alternate outputs.
+        if output_filename is None:
+            try:
+                from daily_ros.snapshots import save_daily_trade_value_snapshot
+                logger.info("Saving daily trade-value snapshot...")
+                save_daily_trade_value_snapshot()
+            except Exception as e:
+                logger.warning(f"Could not save trade-value snapshot: {e}")
+
         # Log final summary
         if 'Year' in export_data.columns and 'Status' in export_data.columns:
             year_2025 = export_data[export_data['Year'] == 2025]
@@ -639,7 +683,7 @@ def main():
         
         logger.info("\n" + "=" * 60)
         logger.info("Pipeline completed successfully!")
-        logger.info(f"Output saved to: {OUTPUT_DIR / 'player_values_complete.csv'}")
+        logger.info(f"Output saved to: {OUTPUT_DIR / (output_filename or 'player_values_complete.csv')}")
         logger.info("=" * 60)
         
         return export_data
