@@ -55,7 +55,12 @@ from core.prediction import (
     generate_batter_names,
 )
 from core.pitcher_prediction import predict_all_pitchers
-from core.marcel_projections import marcel_fielding_projections, marcel_baserunning_projections
+from core.marcel_projections import (
+    marcel_fielding_projections,
+    marcel_baserunning_projections,
+    marcel_batter_projections,
+    marcel_pitcher_projections,
+)
 from core.position_profiles import build_position_profiles, load_batting_for_games
 
 # Model configs
@@ -97,9 +102,61 @@ def _generate_batter_predictions(
     cutoff_year: int,
     out_dir: Path,
 ) -> Optional[pd.DataFrame]:
-    """Generate batter predictions using the pretrained (classical) model."""
+    """Generate batter predictions using the configured method (LSTM or Marcel)."""
 
     config = ModelFactory.get_config("batter")
+    prediction_method = getattr(config, "PREDICTION_METHOD", "lstm").lower()
+
+    if prediction_method == "marcel":
+        return _generate_batter_predictions_marcel(cutoff_year, out_dir, config)
+    else:
+        return _generate_batter_predictions_lstm(cutoff_year, out_dir, config)
+
+
+def _generate_batter_predictions_marcel(
+    cutoff_year: int,
+    out_dir: Path,
+    config,
+) -> Optional[pd.DataFrame]:
+    """Generate batter predictions using Marcel projections."""
+
+    # Use statcast data for x-stats when available
+    if hasattr(config, "FINETUNE_DATA_FILE"):
+        data_path = _resolve_data_path(config.FINETUNE_DATA_FILE)
+    else:
+        data_path = _resolve_data_path(config.DATA_FILE)
+
+    raw_df = pd.read_csv(data_path)
+    raw_df = calculate_rate_stats(raw_df)
+    player_names = generate_batter_names(raw_df)
+
+    predictions = marcel_batter_projections(
+        raw_df=raw_df,
+        player_names=player_names,
+        future_years=Config.PROJECTION_HORIZON,
+        cutoff_year=cutoff_year,
+        use_xstats=getattr(config, "USE_XWOBA_FOR_PREDICTIONS", True),
+    )
+
+    if predictions is None:
+        logger.error(f"  batter cutoff={cutoff_year}: marcel_batter_projections returned None")
+        return None
+
+    out_path = out_dir / "batter_predictions.csv"
+    predictions.to_csv(out_path, index=False)
+    logger.info(
+        f"  batter cutoff={cutoff_year} [marcel]: {len(predictions)} rows, "
+        f"{predictions['Name'].nunique()} players → {out_path.name}"
+    )
+    return predictions
+
+
+def _generate_batter_predictions_lstm(
+    cutoff_year: int,
+    out_dir: Path,
+    config,
+) -> Optional[pd.DataFrame]:
+    """Generate batter predictions using the pretrained (classical) LSTM model."""
     data_path = _resolve_data_path(config.DATA_FILE)
 
     raw_df = pd.read_csv(data_path)
@@ -154,9 +211,68 @@ def _generate_pitcher_predictions(
     cutoff_year: int,
     out_dir: Path,
 ) -> Optional[pd.DataFrame]:
-    """Generate pitcher predictions using pretrained SP + RP models."""
+    """Generate pitcher predictions using the configured method (LSTM or Marcel)."""
 
     sp_config = ModelFactory.get_config("pitcher_sp")
+    rp_config = ModelFactory.get_config("pitcher_rp")
+
+    # If either SP or RP is set to marcel, use Marcel for both (consistency)
+    prediction_method = getattr(sp_config, "PREDICTION_METHOD", "lstm").lower()
+    if prediction_method != "marcel":
+        prediction_method = getattr(rp_config, "PREDICTION_METHOD", "lstm").lower()
+
+    if prediction_method == "marcel":
+        return _generate_pitcher_predictions_marcel(cutoff_year, out_dir, sp_config)
+    else:
+        return _generate_pitcher_predictions_lstm(cutoff_year, out_dir, sp_config, rp_config)
+
+
+def _generate_pitcher_predictions_marcel(
+    cutoff_year: int,
+    out_dir: Path,
+    sp_config,
+) -> Optional[pd.DataFrame]:
+    """Generate pitcher predictions using Marcel projections."""
+
+    data_path = _resolve_data_path(sp_config.DATA_FILE)
+    raw_df = pd.read_csv(data_path)
+    raw_df = calculate_rate_stats(raw_df)
+
+    pitcher_names_path = _DATA_DIR / "pitcher_names.csv"
+    if pitcher_names_path.exists():
+        player_names = pd.read_csv(pitcher_names_path)
+    else:
+        player_names = pd.DataFrame(
+            raw_df[["Name", "IDfg"]].drop_duplicates()
+        ).sort_values("Name")
+
+    predictions = marcel_pitcher_projections(
+        raw_df=raw_df,
+        player_names=player_names,
+        future_years=Config.PROJECTION_HORIZON,
+        cutoff_year=cutoff_year,
+    )
+
+    if predictions is None:
+        logger.error(f"  pitcher cutoff={cutoff_year}: marcel_pitcher_projections returned None")
+        return None
+
+    out_path = out_dir / "pitcher_predictions.csv"
+    predictions.to_csv(out_path, index=False)
+    logger.info(
+        f"  pitcher cutoff={cutoff_year} [marcel]: {len(predictions)} rows, "
+        f"{predictions['Name'].nunique()} players → {out_path.name}"
+    )
+    return predictions
+
+
+def _generate_pitcher_predictions_lstm(
+    cutoff_year: int,
+    out_dir: Path,
+    sp_config,
+    rp_config,
+) -> Optional[pd.DataFrame]:
+    """Generate pitcher predictions using pretrained SP + RP LSTM models."""
     data_path = _resolve_data_path(sp_config.DATA_FILE)
 
     raw_df = pd.read_csv(data_path)
@@ -176,7 +292,6 @@ def _generate_pitcher_predictions(
     sp_ckpt = _AUTO_TRAIN_DIR / sp_config.CHECKPOINT_DIR / sp_config.PRETRAIN_CHECKPOINT_FILE
     sp_scaler_path = _AUTO_TRAIN_DIR / sp_config.PRETRAIN_SCALER_FILE
 
-    rp_config = ModelFactory.get_config("pitcher_rp")
     rp_data_config = rp_config.get_data_config(mode="pretrain")
     rp_ckpt = _AUTO_TRAIN_DIR / rp_config.CHECKPOINT_DIR / rp_config.PRETRAIN_CHECKPOINT_FILE
     rp_scaler_path = _AUTO_TRAIN_DIR / rp_config.PRETRAIN_SCALER_FILE
