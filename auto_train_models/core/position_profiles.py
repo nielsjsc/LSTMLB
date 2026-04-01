@@ -17,7 +17,7 @@ adjustments.
 
 import pandas as pd
 import numpy as np
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
 # Valid defensive positions (excludes P and DH)
@@ -29,6 +29,114 @@ POSITION_TO_GROUP = {
     '1B': 'infield', '2B': 'infield', '3B': 'infield', 'SS': 'infield',
     'LF': 'outfield', 'CF': 'outfield', 'RF': 'outfield',
 }
+
+# ── Position-to-position FRV transfer map ───────────────────────────────────
+#
+# When a player moves to a new position and has no fielding history there,
+# we estimate their FRV at the new position from their FRV at a known position.
+#
+# Transfer factor: expected_new_FRV ≈ old_FRV × factor
+#
+# Factors are based on the defensive spectrum (C > SS > CF > 2B ~ 3B > RF ~ LF > 1B)
+# and skill transferability within / across position groups.
+#
+# Within-group transfers have higher factors (skills overlap more).
+# Cross-group transfers are lower (different skill sets: range vs. arm vs. footwork).
+
+FRV_TRANSFER_MAP: Dict[Tuple[str, str], float] = {
+    # ── Infield → Infield ──
+    ('SS', '3B'):  0.70,   # SS range/arm translates well to 3B
+    ('SS', '2B'):  0.75,   # SS range is top-tier; 2B is similar but easier pivot
+    ('SS', '1B'):  0.30,   # Very different skill set at 1B
+    ('3B', 'SS'):  0.55,   # 3B→SS is harder (less range usually)
+    ('3B', '2B'):  0.60,   # Moderate overlap
+    ('3B', '1B'):  0.35,   # 3B arm helps but 1B is scooping/stretch
+    ('2B', 'SS'):  0.55,   # 2B→SS is a step up in difficulty
+    ('2B', '3B'):  0.60,   # Moderate overlap
+    ('2B', '1B'):  0.30,   # Different skill set
+    ('1B', '3B'):  0.25,   # 1B rarely has the range/arm for 3B
+    ('1B', '2B'):  0.20,   # Very unlikely to translate
+    ('1B', 'SS'):  0.15,   # Almost no transferability
+
+    # ── Outfield → Outfield ──
+    ('CF', 'RF'):  0.80,   # CF range/speed translates well to corners
+    ('CF', 'LF'):  0.80,   # Same — usually an upgrade
+    ('RF', 'CF'):  0.50,   # RF→CF requires more range
+    ('RF', 'LF'):  0.85,   # Very similar, arm matters less in LF
+    ('LF', 'CF'):  0.45,   # LF→CF is a big step up
+    ('LF', 'RF'):  0.75,   # Similar, RF values arm a bit more
+
+    # ── Infield → Outfield (cross-group) ──
+    ('SS', 'CF'):  0.30,   ('SS', 'RF'):  0.25,   ('SS', 'LF'):  0.25,
+    ('2B', 'CF'):  0.25,   ('2B', 'RF'):  0.20,   ('2B', 'LF'):  0.20,
+    ('3B', 'CF'):  0.20,   ('3B', 'RF'):  0.20,   ('3B', 'LF'):  0.20,
+    ('1B', 'LF'):  0.15,   ('1B', 'CF'):  0.10,   ('1B', 'RF'):  0.15,
+
+    # ── Outfield → Infield (cross-group) ──
+    ('CF', 'SS'):  0.20,   ('CF', '2B'):  0.25,   ('CF', '3B'):  0.20,   ('CF', '1B'):  0.15,
+    ('RF', 'SS'):  0.15,   ('RF', '2B'):  0.20,   ('RF', '3B'):  0.20,   ('RF', '1B'):  0.15,
+    ('LF', 'SS'):  0.10,   ('LF', '2B'):  0.15,   ('LF', '3B'):  0.15,   ('LF', '1B'):  0.15,
+
+    # ── Catcher → others ──
+    ('C', 'SS'):   0.20,   ('C', '2B'):   0.20,   ('C', '3B'):   0.25,   ('C', '1B'):   0.30,
+    ('C', 'CF'):   0.15,   ('C', 'RF'):   0.15,   ('C', 'LF'):   0.15,
+
+    # ── Others → Catcher (very rare, very low transferability) ──
+    ('1B', 'C'):   0.10,   ('2B', 'C'):   0.15,   ('3B', 'C'):   0.15,   ('SS', 'C'):   0.15,
+    ('LF', 'C'):   0.10,   ('CF', 'C'):   0.10,   ('RF', 'C'):   0.10,
+}
+
+
+def get_frv_transfer_factor(from_pos: str, to_pos: str) -> float:
+    """
+    Get the FRV transfer factor for a position change.
+    
+    Returns the multiplicative factor to estimate FRV at to_pos
+    given a known FRV at from_pos.
+    
+    Falls back to 0.20 for any unmapped pair.
+    """
+    if from_pos == to_pos:
+        return 1.0
+    return FRV_TRANSFER_MAP.get((from_pos, to_pos), 0.20)
+
+
+def estimate_missing_frv(
+    position_profile: Dict[str, float],
+    existing_predictions: Dict[str, float],
+) -> Dict[str, float]:
+    """
+    Estimate FRV for positions in the profile that have no LSTM prediction.
+    
+    For each defensive position in the profile that lacks a prediction,
+    finds the best source position (one with a prediction and the highest
+    transfer factor) and applies the transfer.
+    
+    Args:
+        position_profile: {pos: fraction} — the player's current profile
+        existing_predictions: {pos: frv} — FRV values from LSTM predictions
+        
+    Returns:
+        Dict of {pos: estimated_frv} for the MISSING positions only
+    """
+    defensive = get_defensive_positions(position_profile)
+    missing = {p for p in defensive if p not in existing_predictions}
+    
+    if not missing or not existing_predictions:
+        return {}
+    
+    estimated = {}
+    for new_pos in missing:
+        best_factor = 0.0
+        best_frv = 0.0
+        for src_pos, src_frv in existing_predictions.items():
+            factor = get_frv_transfer_factor(src_pos, new_pos)
+            if factor > best_factor:
+                best_factor = factor
+                best_frv = src_frv * factor
+        estimated[new_pos] = best_frv
+    
+    return estimated
 
 
 def build_position_profiles(

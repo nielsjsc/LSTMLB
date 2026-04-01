@@ -1629,6 +1629,17 @@ def predict_all_fielders(
                     if pos in valid_positions and (player_id, pos) not in seen_pairs:
                         player_position_pairs.append((player_id, pos))
                         seen_pairs.add((player_id, pos))
+                
+                # Also predict at historical positions (even if no longer in profile)
+                # so the FRV transfer map can estimate FRV at new positions
+                player_hist_positions = group_df[
+                    (group_df['IDfg'] == player_id) &
+                    (group_df['Pos'].isin(valid_positions))
+                ]['Pos'].unique()
+                for hist_pos in player_hist_positions:
+                    if (player_id, hist_pos) not in seen_pairs:
+                        player_position_pairs.append((player_id, hist_pos))
+                        seen_pairs.add((player_id, hist_pos))
         
         # Also include players who qualified via cutoff-year innings but may not
         # have a profile (e.g. pitchers who field, or players not in batter predictions)

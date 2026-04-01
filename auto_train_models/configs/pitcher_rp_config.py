@@ -33,6 +33,9 @@ from core.data_processing import DataConfig
 class PitcherRPConfig:
     """Configuration for relief pitcher model with transfer learning support"""
     
+    # Prediction method: 'lstm' (default) or 'marcel' (weighted avg + aging curves)
+    PREDICTION_METHOD = 'marcel'
+    
     # Data configuration
     DATA_FILE = '../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv'
     SCALER_FILE = 'data/pitcher_rp_scaler.pkl'

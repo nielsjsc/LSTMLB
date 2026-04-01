@@ -47,6 +47,9 @@ class BatterConfig:
     
     OUTPUT_FILE = '../data/generated/pipeline/batter_predictions.csv'
     
+    # Prediction method: 'lstm' (default) or 'marcel' (weighted avg + aging curves)
+    PREDICTION_METHOD = 'marcel'
+    
     # Batter-specific configuration
     SEQ_LEN = 3
     MIN_PA = 50  # Minimum PA per season for training sequences
@@ -146,6 +149,23 @@ class BatterConfig:
     # Ordering: park neutralization happens BEFORE x-stat substitution because
     # x-stats (xBA, xSLG, xwOBA) are already park-neutral by design.
     ENABLE_PARK_FACTOR_ADJUSTMENT = False
+
+    # ============================================================================
+    # xwOBA-wOBA GAP ADJUSTMENT (Marcel only)
+    # ============================================================================
+    # Some players consistently over- or under-perform their expected stats due
+    # to batted ball direction, speed, or other skills not captured by xwOBA.
+    # Example: Jose Ramirez and Cal Raleigh pull the ball in the air, producing
+    # better real outcomes than xwOBA predicts.
+    #
+    # When enabled, the Marcel projection adds back a regressed portion of the
+    # player's historical wOBA - xwOBA gap (and analogous gaps for AVG/SLG).
+    # The gap is PA-weighted over the last 3 seasons, regressed toward 0 to
+    # account for sample noise, then scaled by the skill fraction.
+    ENABLE_XWOBA_GAP_ADJUSTMENT = True
+    XWOBA_GAP_SKILL_FRACTION = 0.5    # Fraction of regressed gap to add back
+    XWOBA_GAP_MIN_SEASONS = 2         # Minimum seasons with x-stat data needed
+    XWOBA_GAP_REGRESSION_PA = 800     # PA of regression toward 0 (higher = more conservative)
     
     # ============================================================================
     # WAR CALCULATION CONFIGURATION

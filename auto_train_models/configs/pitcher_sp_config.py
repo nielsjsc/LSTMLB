@@ -54,6 +54,9 @@ class PitcherSPConfig:
     # Set to False to revert to separate SP/RP models.
     UNIFIED_PITCHER_MODEL = False
     
+    # Prediction method: 'lstm' (default) or 'marcel' (weighted avg + aging curves)
+    PREDICTION_METHOD = 'marcel'
+    
     # Data configuration
     DATA_FILE = '../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv'
     SCALER_FILE = 'data/pitcher_sp_scaler.pkl'
