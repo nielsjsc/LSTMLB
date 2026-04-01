@@ -866,13 +866,96 @@ class DataLoader:
     # ── Trade-value history ───────────────────────────────────────────────
 
     def load_trade_value_history(self, csv_path: Path) -> None:
-        """Ingest ``trade_value_history.csv`` into the DB."""
+        """Ingest trade-value history from the legacy CSV **plus** snapshot files.
+
+        1. Load ``trade_value_history.csv`` for historical/transaction entries.
+        2. Scan ``snapshots/`` directory for ``YYYY-MM-DD.csv`` files and
+           extract current-year trade-value rows from each, using the
+           filename as the date.  This makes the DB loader self-sufficient —
+           no separate append step is required.
+        """
+        from app.config import CURRENT_YEAR
+
         with _Timer("Trade value history"):
-            if not csv_path.exists():
-                logger.warning(f"  File not found: {csv_path}")
+            frames: list[pd.DataFrame] = []
+
+            # ── 1. Legacy CSV (historical + transaction entries) ──────────
+            if csv_path.exists():
+                legacy = pd.read_csv(csv_path, low_memory=False)
+                legacy = legacy.rename(columns={"IDfg": "idfg"})
+                # Drop current-year snapshot rows from legacy — snapshots
+                # are the authoritative source for those.
+                legacy = legacy[
+                    ~((legacy["year"] == CURRENT_YEAR)
+                      & (legacy["transaction_type"].isna()))
+                ]
+                frames.append(legacy)
+                logger.info(f"    Legacy CSV: {len(legacy):,} rows (excl. {CURRENT_YEAR} snapshots)")
+            else:
+                logger.warning(f"  Legacy file not found: {csv_path}")
+
+            # ── 2. Snapshot files → current-year entries ──────────────────
+            snapshot_dir = csv_path.parent / "snapshots"
+            snapshot_count = 0
+            if snapshot_dir.is_dir():
+                import re
+                for snap_file in sorted(snapshot_dir.glob("*.csv")):
+                    m = re.match(r"^(\d{4}-\d{2}-\d{2})\.csv$", snap_file.name)
+                    if not m:
+                        continue
+                    snap_date = m.group(1)
+                    try:
+                        snap = pd.read_csv(snap_file, low_memory=False)
+                    except Exception as e:
+                        logger.warning(f"    Skipping snapshot {snap_file.name}: {e}")
+                        continue
+
+                    cur = snap[
+                        (snap["Year"] == CURRENT_YEAR)
+                        & snap["mlb_id"].notna()
+                        & snap["trade_value"].notna()
+                    ].copy()
+                    if cur.empty:
+                        continue
+
+                    name_col = "Player_Name" if "Player_Name" in cur.columns else "name"
+                    entries = pd.DataFrame({
+                        "mlb_id": cur["mlb_id"].astype(int),
+                        "idfg": pd.to_numeric(cur["IDfg"], errors="coerce"),
+                        "name": cur[name_col],
+                        "date": snap_date,
+                        "year": CURRENT_YEAR,
+                        "value": cur["trade_value"].round(0),
+                        "value_type": "mlb_surplus",
+                        "transaction_type": pd.NA,
+                        "label": cur.apply(
+                            lambda r: (
+                                f"{int(r.get('years_control', 0) or 0)}yr control, "
+                                f"{r.get('total_future_war', 0) or 0:.1f} WAR"
+                            ), axis=1
+                        ),
+                        "years_control": cur.get("years_control", 0),
+                        "projected_war": cur.get("total_future_war", 0),
+                        "projected_salary": cur.get("total_contract", 0),
+                        "war_per_year": cur.apply(
+                            lambda r: (
+                                round((r.get("total_future_war", 0) or 0)
+                                      / max(r.get("years_control", 0) or 0, 0.001), 2)
+                            ), axis=1
+                        ),
+                    })
+                    frames.append(entries)
+                    snapshot_count += 1
+
+                logger.info(f"    Snapshots: {snapshot_count} files ingested")
+            else:
+                logger.info("    No snapshots/ directory found")
+
+            if not frames:
+                logger.warning("    No trade-value history data to load")
                 return
-            df = pd.read_csv(csv_path, low_memory=False)
-            df = df.rename(columns={"IDfg": "idfg"})
+
+            df = pd.concat(frames, ignore_index=True)
             for col in ("mlb_id", "idfg", "year"):
                 df[col] = pd.to_numeric(df[col], errors="coerce")
             df = df.dropna(subset=["mlb_id"])
