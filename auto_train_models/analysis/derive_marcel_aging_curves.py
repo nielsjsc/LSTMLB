@@ -187,6 +187,146 @@ def derive_baserunning_aging_curves(batting_df: pd.DataFrame, min_games: int = 5
     return results
 
 
+def derive_batting_aging_curves(batting_df: pd.DataFrame, min_pa: int = 200) -> dict:
+    """
+    Derive aging curves for batting stats using the delta method.
+
+    Computes weighted average year-over-year deltas at each age for the
+    rate stats that drive batter Marcel projections.
+
+    Args:
+        batting_df: Historical batting data (output of calculate_rate_stats)
+        min_pa: Minimum PA in BOTH seasons for a pair to qualify
+
+    Returns:
+        Dict of {stat: {age_str: delta}}
+    """
+    # Rate stats only — counting stats are derived from wOBA in the projection
+    stats = ['BB%', 'K%', 'AVG', 'OBP', 'SLG', 'wOBA']
+
+    df = batting_df[(batting_df['PA'] >= min_pa)].copy()
+    df = df.dropna(subset=stats + ['Age'])
+
+    df_sorted = df.sort_values(['IDfg', 'Season'])
+
+    results = {}
+    for stat in stats:
+        pairs = []
+        for pid, player_data in df_sorted.groupby('IDfg'):
+            player_data = player_data.sort_values('Season')
+            seasons = player_data['Season'].values
+            for i in range(len(seasons) - 1):
+                if seasons[i + 1] - seasons[i] == 1:
+                    age_in_later_year = player_data.iloc[i + 1]['Age']
+                    val_before = player_data.iloc[i][stat]
+                    val_after = player_data.iloc[i + 1][stat]
+                    pa_before = player_data.iloc[i]['PA']
+                    pa_after = player_data.iloc[i + 1]['PA']
+
+                    if pd.notna(val_before) and pd.notna(val_after):
+                        pairs.append({
+                            'age': int(age_in_later_year),
+                            'delta': val_after - val_before,
+                            'weight': min(pa_before, pa_after),
+                        })
+
+        pairs_df = pd.DataFrame(pairs)
+        if pairs_df.empty:
+            results[stat] = {}
+            continue
+
+        age_deltas = {}
+        for age in range(20, 45):
+            age_pairs = pairs_df[pairs_df['age'] == age]
+            if len(age_pairs) >= 30:
+                weighted_delta = np.average(
+                    age_pairs['delta'].values,
+                    weights=age_pairs['weight'].values
+                )
+                age_deltas[str(age)] = round(float(weighted_delta), 6)
+
+        results[stat] = age_deltas
+
+    print(f"\n=== BATTING ===")
+    for stat, deltas in results.items():
+        print(f"\n  {stat}:")
+        for age in sorted(deltas.keys(), key=int):
+            print(f"    Age {age}: {deltas[age]:+.6f}")
+
+    return results
+
+
+def derive_pitching_aging_curves(pitching_df: pd.DataFrame, min_ip: float = 50) -> dict:
+    """
+    Derive aging curves for pitching stats using the delta method.
+
+    Computes weighted average year-over-year deltas at each age for the
+    component rate stats that drive pitcher Marcel projections.  Composite
+    stats like FIP and ERA are reconstructed from components, so they
+    don't need their own aging curves.
+
+    Args:
+        pitching_df: Historical pitching data (output of calculate_rate_stats)
+        min_ip: Minimum IP in BOTH seasons for a pair to qualify
+
+    Returns:
+        Dict of {stat: {age_str: delta}}
+    """
+    stats = ['K%', 'BB%', 'HBP%', 'BABIP', 'HR/FB', 'GB%', 'FB%', 'LD%']
+
+    df = pitching_df[(pitching_df['IP'] >= min_ip)].copy()
+    df = df.dropna(subset=['Age', 'K%', 'BB%'])
+
+    df_sorted = df.sort_values(['IDfg', 'Season'])
+
+    results = {}
+    for stat in stats:
+        stat_df = df_sorted.dropna(subset=[stat])
+        pairs = []
+        for pid, player_data in stat_df.groupby('IDfg'):
+            player_data = player_data.sort_values('Season')
+            seasons = player_data['Season'].values
+            for i in range(len(seasons) - 1):
+                if seasons[i + 1] - seasons[i] == 1:
+                    age_in_later_year = player_data.iloc[i + 1]['Age']
+                    val_before = player_data.iloc[i][stat]
+                    val_after = player_data.iloc[i + 1][stat]
+                    ip_before = player_data.iloc[i]['IP']
+                    ip_after = player_data.iloc[i + 1]['IP']
+
+                    if pd.notna(val_before) and pd.notna(val_after):
+                        pairs.append({
+                            'age': int(age_in_later_year),
+                            'delta': val_after - val_before,
+                            'weight': min(ip_before, ip_after),
+                        })
+
+        pairs_df = pd.DataFrame(pairs)
+        if pairs_df.empty:
+            results[stat] = {}
+            continue
+
+        age_deltas = {}
+        for age in range(20, 45):
+            age_pairs = pairs_df[pairs_df['age'] == age]
+            if len(age_pairs) >= 20:
+                weighted_delta = np.average(
+                    age_pairs['delta'].values,
+                    weights=age_pairs['weight'].values
+                )
+                age_deltas[str(age)] = round(float(weighted_delta), 6)
+
+        results[stat] = age_deltas
+
+    print(f"\n=== PITCHING ===")
+    for stat, deltas in results.items():
+        print(f"\n  {stat}:")
+        for age in sorted(deltas.keys(), key=int):
+            print(f"    Age {age}: {deltas[age]:+.6f}")
+
+    return results
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("DERIVING FIELDING AGING CURVES")
@@ -205,19 +345,41 @@ if __name__ == '__main__':
     # Only use statcast era for baserunning (sc_ columns)
     batting_statcast = batting_df[batting_df['Season'] >= 2016].copy()
     baserunning_curves = derive_baserunning_aging_curves(batting_statcast, min_games=50)
+
+    print("\n" + "=" * 60)
+    print("DERIVING BATTING AGING CURVES")
+    print("=" * 60)
+
+    batting_curves = derive_batting_aging_curves(batting_df, min_pa=200)
+
+    print("\n" + "=" * 60)
+    print("DERIVING PITCHING AGING CURVES")
+    print("=" * 60)
+
+    pitching_df = pd.read_csv('../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv')
+    pitching_df = calculate_rate_stats(pitching_df)
+    pitching_curves = derive_pitching_aging_curves(pitching_df, min_ip=50)
     
     # Combine into one output
     all_curves = {
         'fielding': fielding_curves,
         'baserunning': baserunning_curves,
+        'batting': batting_curves,
+        'pitching': pitching_curves,
         'metadata': {
             'method': 'delta_method',
             'fielding_min_innings': 200,
             'baserunning_min_games': 50,
+            'batting_min_pa': 200,
+            'pitching_min_ip': 50,
             'fielding_min_pairs_per_age': 10,
             'baserunning_min_pairs_per_age': 15,
+            'batting_min_pairs_per_age': 30,
+            'pitching_min_pairs_per_age': 20,
             'fielding_data_source': 'mlb_fielding_data_2000_2025_with_statcast.csv',
             'baserunning_data_source': 'mlb_batting_data_1950_2025_with_statcast.csv (2016+)',
+            'batting_data_source': 'mlb_batting_data_1950_2025_with_statcast.csv',
+            'pitching_data_source': 'mlb_pitching_data_1950_2025_with_statcast.csv',
         }
     }
     
