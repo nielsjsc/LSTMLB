@@ -51,11 +51,32 @@ const dateToFx = (date: string | null | undefined, year: number): number => {
   return yr + (d.getTime() - start) / (end - start);
 };
 
-// ─── Log-scale helpers ──────────────────────────────────────
-const SYMLOG_THRESHOLD = 5_000_000; // $5M — linear below this, log above
-/** Symmetric log: linear near zero, logarithmic for large values */
-const symlog = (v: number): number =>
-  Math.sign(v) * Math.log10(1 + Math.abs(v) / SYMLOG_THRESHOLD);
+/**
+ * Adaptive power-curve scale for the Y axis.
+ * Picks an exponent based on each player's data range:
+ *   - If values span many orders of magnitude (e.g. $1M → $400M), use strong
+ *     compression (low exponent) so small values are still visible.
+ *   - If values are clustered (e.g. $300M → $500M), stay near-linear so
+ *     differences within that band are clearly visible.
+ *
+ * powScale(v, exp) = sign(v) * |v|^exp   (exp in 0..1, 1 = fully linear)
+ */
+const powScale = (v: number, exp: number): number =>
+  Math.sign(v) * Math.pow(Math.abs(v), exp);
+
+/** Derive the best exponent for a given value array.
+ *  Ratio = min(abs) / max(abs).  High ratio → clustered → linear.
+ *  Low ratio → wide spread → compress. */
+const deriveExponent = (values: number[]): number => {
+  const absVals = values.map((v) => Math.abs(v)).filter((v) => v > 0);
+  if (absVals.length < 2) return 1; // linear if only one point
+  const lo = Math.min(...absVals);
+  const hi = Math.max(...absVals);
+  if (hi === 0) return 1;
+  const ratio = lo / hi; // 0..1  (1 = all same magnitude)
+  // Map ratio → exponent:  ratio=1 → exp=1 (linear), ratio→0 → exp≈0.35
+  return 0.35 + 0.65 * ratio;
+};
 
 // ─── Chart Dimensions ───────────────────────────────────────
 const MARGIN_DEFAULT = { top: 20, right: 20, bottom: 36, left: 60 };
@@ -190,11 +211,12 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
     return MARGIN.left + (1 - Math.log(1 + dist) / logFxMax) * plotW;
   };
 
-  // ── Y scale: symlog (smooth vertical rise for large dollar values) ──
-  const sYMin = symlog(yMin);
-  const sYMax = symlog(yMax);
+  // ── Y scale: adaptive power curve (per-player optimal compression) ──
+  const yExp = useMemo(() => deriveExponent(values), [values]);
+  const sYMin = powScale(yMin, yExp);
+  const sYMax = powScale(yMax, yExp);
   const sYRange = sYMax - sYMin || 1;
-  const y = (val: number) => MARGIN.top + (1 - (symlog(val) - sYMin) / sYRange) * plotH;
+  const y = (val: number) => MARGIN.top + (1 - (powScale(val, yExp) - sYMin) / sYRange) * plotH;
 
   // ── Smooth curve helpers (Catmull-Rom → cubic bezier) ─────────────────
   const smoothPath = (pts: { x: number; y: number }[]): string => {
@@ -252,20 +274,22 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   };
 
   // ── Gridlines ───────────────────────────────────────
-  // ── Y-axis ticks (log-scale-aware) ──
+  // ── Y-axis ticks (adaptive to data range) ──
   const yTicks = useMemo(() => {
-    const candidates = [
-      -500_000_000, -200_000_000, -100_000_000, -50_000_000, -25_000_000,
-      -10_000_000, -5_000_000, -2_000_000, -1_000_000, -500_000, 0,
-      500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000, 25_000_000,
-      50_000_000, 100_000_000, 200_000_000, 500_000_000,
-    ];
-    const inRange = candidates.filter((v) => v >= yMin && v <= yMax);
-    if (inRange.length > 7) {
-      const step = Math.ceil(inRange.length / 6);
-      return inRange.filter((_, i) => i % step === 0 || i === inRange.length - 1);
+    const range = yMax - yMin;
+    if (range === 0) return [0];
+    // Pick a "nice" step based on the data range
+    const rawStep = range / 5;
+    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const nice = [1, 2, 2.5, 5, 10];
+    const niceStep = mag * (nice.find((n) => n * mag >= rawStep) ?? 10);
+    const ticks: number[] = [];
+    let t = Math.ceil(yMin / niceStep) * niceStep;
+    while (t <= yMax + niceStep * 0.01) {
+      ticks.push(t);
+      t += niceStep;
     }
-    return inRange.length > 0 ? inRange : [0];
+    return ticks.length > 0 ? ticks : [0];
   }, [yMin, yMax]);
 
   // Build tooltip data
