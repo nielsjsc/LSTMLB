@@ -136,14 +136,20 @@ def print_header():
 
 def print_menu():
     """Display main menu"""
-    print("\nMAIN MENU:")
-    print("1. Train Models")
-    print("2. Generate Predictions")
-    print("3. Run Projection Engine (Playing Time + WAR)")
-    print("4. Calculate Trade Values (Surplus Value)")
-    print("5. Run Full Pipeline (Train → Predict → Project → Values)")
-    print("6. Regenerate Trade Value History (Historical Predictions + Surplus)")
-    print("7. Exit")
+    print("\nSelect a pipeline:")
+    print()
+    print("  PRESEASON")
+    print("    1. Train Models")
+    print("    2. Generate Predictions")
+    print("    3. Run Projections + Trade Values (Playing Time \u2192 WAR \u2192 Surplus)")
+    print("    4. Run Full Pipeline (Train \u2192 Predict \u2192 Project \u2192 Values)")
+    print()
+    print("  HISTORICAL")
+    print("    5. Generate Historical Predictions")
+    print("    6. Calculate Historical Surplus + Timeline")
+    print("    7. Run Full Historical Pipeline (Predict \u2192 Surplus \u2192 Timeline)")
+    print()
+    print("  Q. Exit")
     print()
 
 
@@ -566,37 +572,31 @@ def check_prediction_files() -> bool:
 
 def run_projection_engine(projection_year: int = 2026) -> bool:
     """
-    Run the projection engine: allocate playing time and calculate WAR.
-    
-    This unified step:
-    1. Allocates playing time based on rate stats (wOBA/FIP) and injuries
-    2. Calculates WAR based on allocated playing time
-    3. Exports final projections with all components
-    
-    Args:
-        projection_year: Year to project
-        
-    Returns:
-        True if successful
+    Run the projection engine: allocate playing time, calculate WAR,
+    and generate trade values.
+
+    Playing time estimation is integrated into value_determination.main,
+    so this runs the full value pipeline.
     """
-    print(f"\nRunning Projection Engine for {projection_year}...")
+    print(f"\nRunning Projection Engine + Trade Values for {projection_year}...")
     print("   → Allocating playing time based on wOBA/FIP rankings")
     print("   → Calculating WAR based on allocated games/IP")
     print("   → Incorporating injury adjustments")
+    print("   → Computing surplus value and trade rankings")
     
     # Check if prediction files exist
     if not check_prediction_files():
         return False
     
-    command = f"python -m playing_time.main --year {projection_year}"
-    description = f"Running projection engine for {projection_year}"
+    command = "python -m value_determination.main"
+    description = f"Projection engine + trade values for {projection_year}"
     
     success = run_command(command, description, timeout=600)
     
     if success:
-        output_file = DATA_DIR / 'generated' / 'playing_time' / f'projections_{projection_year}.csv'
+        output_file = DATA_DIR / 'generated' / 'value_by_year' / 'player_values_complete.csv'
         if output_file.exists():
-            logger.info(f"SUCCESS: Final projections saved to: {output_file}")
+            logger.info(f"SUCCESS: Trade values saved to: {output_file}")
         else:
             logger.warning("WARNING: Output file not found at expected location")
     
@@ -723,128 +723,65 @@ def run_full_pipeline() -> bool:
     return True
 
 
-def regenerate_trade_value_history() -> bool:
-    """
-    Sub-menu for regenerating the historical trade value pipeline.
+def _get_historical_year_range() -> tuple:
+    """Prompt for historical year range."""
+    print("\nStart year (default: 2014):")
+    s = input("> ").strip()
+    start = int(s) if s.isdigit() else 2014
+    print("End year (default: 2026):")
+    e = input("> ").strip()
+    end = int(e) if e.isdigit() else 2026
+    return start, end
 
-    Options:
-      A) Train historical models (baserunning, fielding)
-      B) Regenerate historical predictions (cutoff years)
-      C) Regenerate surplus + trade value history (skip predictions)
-      D) Run full historical pipeline (predictions → surplus → timeline)
-    """
+
+def run_historical_predictions() -> bool:
+    """Generate historical LSTM predictions for cutoff years."""
     print("\n" + "=" * 70)
-    print("REGENERATE TRADE VALUE HISTORY")
+    print("HISTORICAL PREDICTIONS")
     print("=" * 70)
 
-    while True:
-        print("\nSUB-MENU:")
-        print("A. Train Historical Models (baserunning, infield, outfield, catcher)")
-        print("B. Regenerate Historical Predictions Only")
-        print("C. Regenerate Surplus + Timeline Only (skip predictions)")
-        print("D. Run Full Historical Pipeline (Predict → Surplus → Timeline)")
-        print("Q. Back to main menu")
-        print()
+    start, end = _get_historical_year_range()
 
-        sub = input("Select option (A-D / Q): ").strip().upper()
-        if sub == 'Q':
-            return False
+    print("\nForce regenerate existing files? (y/n)")
+    force = "--force" if input("> ").strip().lower() == 'y' else ""
 
-        if sub not in ('A', 'B', 'C', 'D'):
-            print("Invalid choice.")
-            continue
+    command = f"python -m value_determination.pipelines.trade_history predictions --start {start} --end {end} {force}".strip()
+    return run_command(command, f"Historical predictions ({start}–{end})", timeout=14400)
 
-        # ── Common year-range prompt (everything but training) ───────────
-        start_year, end_year = 2014, 2026
-        if sub in ('B', 'C', 'D'):
-            print("\nStart year (default: 2014):")
-            s = input("> ").strip()
-            start_year = int(s) if s.isdigit() else 2014
 
-            print("End year (default: 2026):")
-            e = input("> ").strip()
-            end_year = int(e) if e.isdigit() else 2026
+def run_historical_surplus() -> bool:
+    """Run surplus + timeline on historical predictions."""
+    print("\n" + "=" * 70)
+    print("HISTORICAL SURPLUS + TIMELINE")
+    print("=" * 70)
 
-        # ── A: Train historical models ───────────────────────────────────
-        if sub == 'A':
-            hist_models = [
-                'baserunning_historical',
-                'defense_infield_historical',
-                'defense_outfield_historical',
-                'defense_catcher_historical',
-            ]
-            print(f"\nWill train: {', '.join(hist_models)}")
-            print("Continue? (y/n)")
-            if input("> ").strip().lower() != 'y':
-                continue
-            for m in hist_models:
-                cmd = f'"{PYTHON_EXE}" scripts/train_models.py --model {m}'
-                ok = run_command(cmd, f"Training {m}")
-                if not ok:
-                    logger.error(f"Training {m} failed — aborting")
-                    return False
-            print("\nAll historical models trained successfully!")
-            continue
+    start, end = _get_historical_year_range()
 
-        # ── Build command for B/C/D ──────────────────────────────────────
-        cmd_parts = [
-            f'"{PYTHON_EXE}" -m auto_train_models.historical_values.main',
-            f'--start {start_year}',
-            f'--end {end_year}',
-        ]
+    print("\nForce regenerate? (y/n)")
+    force = "--force" if input("> ").strip().lower() == 'y' else ""
 
-        if sub == 'B':
-            cmd_parts.append('--predictions-only')
-            desc = f"Historical predictions ({start_year}–{end_year})"
-        elif sub == 'C':
-            cmd_parts.append('--skip-predictions')
-            desc = f"Surplus + timeline ({start_year}–{end_year})"
-        else:  # D
-            desc = f"Full historical pipeline ({start_year}–{end_year})"
+    command = f"python -m value_determination.pipelines.trade_history surplus timeline --start {start} --end {end} {force}".strip()
+    return run_command(command, f"Historical surplus + timeline ({start}–{end})", timeout=7200)
 
-        print(f"\n{desc}")
-        print("Continue? (y/n)")
-        if input("> ").strip().lower() != 'y':
-            continue
 
-        start_time = datetime.now()
-        command = ' '.join(cmd_parts)
-        logger.info(f"Running: {command}")
+def run_full_historical() -> bool:
+    """Run full historical pipeline: predictions → surplus → timeline."""
+    print("\n" + "=" * 70)
+    print("FULL HISTORICAL PIPELINE")
+    print("=" * 70)
 
-        try:
-            process = subprocess.Popen(
-                command,
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True,
-                cwd=str(AUTO_TRAIN_DIR.parent)  # Run from LSTMLB/ root
-            )
+    start, end = _get_historical_year_range()
 
-            for line in process.stdout:
-                print(line, end='')
+    print("\nForce regenerate existing files? (y/n)")
+    force = "--force" if input("> ").strip().lower() == 'y' else ""
 
-            process.wait()
-            duration = datetime.now() - start_time
+    print(f"\nThis will run predictions + surplus + timeline for {start}–{end}.")
+    print("Continue? (y/n)")
+    if input("> ").strip().lower() != 'y':
+        return False
 
-            if process.returncode == 0:
-                print(f"\n{'='*70}")
-                print(f"SUCCESS: {desc}")
-                print(f"Duration: {duration}")
-                history_file = DATA_DIR / 'generated' / 'value_by_year' / 'trade_value_history.csv'
-                if history_file.exists():
-                    size = history_file.stat().st_size
-                    print(f"Output: {history_file} ({size:,} bytes)")
-                print(f"{'='*70}\n")
-            else:
-                logger.error(f"Historical pipeline failed with code {process.returncode}")
-
-        except Exception as e:
-            logger.error(f"Historical pipeline failed: {e}")
-
-    return True
+    command = f"python -m value_determination.pipelines.trade_history --start {start} --end {end} {force}".strip()
+    return run_command(command, f"Full historical pipeline ({start}–{end})", timeout=14400)
 
 
 def display_output_files():
@@ -852,7 +789,6 @@ def display_output_files():
     print("\nGenerated Files:")
     
     playing_time_dir = DATA_DIR / 'generated' / 'playing_time'
-    
     value_dir = DATA_DIR / 'generated' / 'value_by_year'
     
     output_files = {
@@ -866,8 +802,9 @@ def display_output_files():
             playing_time_dir / 'projections_2026.csv',
             playing_time_dir / 'team_summary_2026.csv'
         ],
-        'Trade Values (Surplus Value)': [
-            value_dir / 'player_values_complete.csv'
+        'Trade Values': [
+            value_dir / 'player_values_complete.csv',
+            value_dir / 'trade_value_history.csv',
         ]
     }
     
@@ -876,9 +813,9 @@ def display_output_files():
         for filepath in files:
             if filepath.exists():
                 size = filepath.stat().st_size
-                print(f"  SUCCESS: {filepath.name}: {size:,} bytes ({size/1024/1024:.1f} MB)")
+                print(f"  ✓ {filepath.name}: {size:,} bytes ({size/1024/1024:.1f} MB)")
             else:
-                print(f"  MISSING: {filepath.name}: Not found")
+                print(f"  - {filepath.name}: Not found")
 
 
 def main():
@@ -890,50 +827,47 @@ def main():
     
     while True:
         print_menu()
-        choice = get_user_choice("Select option (1-7): ", ['1', '2', '3', '4', '5', '6', '7'])
-        
-        if choice == '1':
-            # Train Models
+        choice = get_user_choice(
+            "Select option (1-7 / Q): ",
+            ['1', '2', '3', '4', '5', '6', '7', 'Q', 'q']
+        )
+        choice = choice.upper()
+
+        if choice == 'Q':
+            print("\nExiting pipeline. Goodbye!")
+            display_output_files()
+            break
+
+        elif choice == '1':
             selected = select_models_for_training()
             overrides = get_hyperparameter_overrides()
             train_models(selected, overrides)
             
         elif choice == '2':
-            # Generate Predictions
             selected = select_models_for_prediction()
-            
-            # Ask about aging enforcer for fielding predictions
             use_aging_enforcer = False
             if any('defense' in model for model in selected):
                 print("\nApply aging enforcer to fielding predictions? (y/n)")
                 print("(Prevents unrealistic late-career defensive improvements)")
                 if input("> ").strip().lower() == 'y':
                     use_aging_enforcer = True
-            
             generate_predictions(selected, use_aging_enforcer)
             
         elif choice == '3':
-            # Run Projection Engine
             projection_year = get_projection_year()
             run_projection_engine(projection_year)
             
         elif choice == '4':
-            # Calculate Trade Values
-            calculate_trade_values()
-            
-        elif choice == '5':
-            # Run Full Pipeline
             run_full_pipeline()
-            
+
+        elif choice == '5':
+            run_historical_predictions()
+
         elif choice == '6':
-            # Regenerate Trade Value History
-            regenerate_trade_value_history()
-            
+            run_historical_surplus()
+
         elif choice == '7':
-            # Exit
-            print("\nExiting pipeline. Goodbye!")
-            display_output_files()
-            break
+            run_full_historical()
         
         # Ask if user wants to continue
         print("\nReturn to main menu? (y/n)")

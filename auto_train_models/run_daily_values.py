@@ -74,14 +74,17 @@ from value_determination.main import (
 )
 
 # ── Daily ROS blending ──────────────────────────────────────────────────
-from daily_ros.ros_projections import (
+from value_determination.pipelines.ros import (
     load_current_season_actuals,
     blend_batter_projections,
     blend_pitcher_projections,
+    blend_fielding_projections,
+    blend_baserunning_projections,
+    reduce_to_remaining_season,
     prorate_current_year_war,
     fetch_team_games_played,
 )
-from daily_ros.snapshots import save_daily_trade_value_snapshot
+from value_determination.pipelines.snapshots import save_daily_trade_value_snapshot
 
 
 def main():
@@ -109,9 +112,11 @@ def main():
         # Fetch team games played for team-based remaining fraction
         team_games_map = fetch_team_games_played(season=CURRENT_YEAR)
         org_data = load_player_orgs()
+        org_data['IDfg'] = pd.to_numeric(org_data['IDfg'], errors='coerce')
+        org_valid = org_data.dropna(subset=['IDfg'])
         player_team_map = dict(zip(
-            org_data['IDfg'].astype(int),
-            org_data['Team'],
+            org_valid['IDfg'].astype(int),
+            org_valid['Team'],
         ))
 
         batter_data, batter_proration = blend_batter_projections(
@@ -123,6 +128,14 @@ def main():
             team_games_map=team_games_map, player_team_map=player_team_map,
         )
         war_proration = {**batter_proration, **pitcher_proration}
+
+        # Blend fielding and baserunning projections with actuals
+        fielding_data = blend_fielding_projections(
+            fielding_data, actual_batting, current_year=CURRENT_YEAR,
+        )
+        baserunning_data = blend_baserunning_projections(
+            baserunning_data, actual_batting, current_year=CURRENT_YEAR,
+        )
 
         # ============================================================
         # Step 2: Calculate Pitcher WAR
@@ -156,6 +169,14 @@ def main():
         combined_for_pt = pd.concat(year_chunks, ignore_index=True)
         sp_data = combined_for_pt[combined_for_pt['Role'] == 'SP'].copy()
         rp_data = combined_for_pt[combined_for_pt['Role'] == 'RP'].copy()
+
+        # Reduce pitcher playing time to remaining season
+        sp_data = reduce_to_remaining_season(
+            sp_data, pitcher_proration, player_type='pitcher',
+        )
+        rp_data = reduce_to_remaining_season(
+            rp_data, pitcher_proration, player_type='pitcher',
+        )
 
         # Calculate WAR for SP and RP
         sp_data = calculate_pitcher_war_for_dataframe(sp_data, org_data, role='SP')
@@ -211,6 +232,11 @@ def main():
 
         if 'PA' not in batter_data.columns:
             batter_data['PA'] = 650
+
+        # Reduce batter playing time to remaining season
+        batter_data = reduce_to_remaining_season(
+            batter_data, batter_proration, player_type='batter',
+        )
 
         logger.info("Calculating wRC+ with park factors...")
         batter_data['wRC+'] = batter_data.apply(
