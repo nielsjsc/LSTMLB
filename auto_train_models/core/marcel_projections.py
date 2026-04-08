@@ -203,14 +203,57 @@ SEASON_WEIGHTS = [5, 4, 3]
 # "innings worth of league average" we add to the denominator.
 # Lower = less regression (trust the data more).
 # Higher = more regression (pull toward 0 more).
+#
+# Values derived from empirical YoY stabilization analysis:
+#   stab_inn = avg_inn * (1 - r) / r, where r = year-to-year correlation
+# Infield statcast metrics are much noisier (r≈0.42) than outfield (r≈0.56)
+# or catcher (r≈0.51), so they need substantially more regression.
 FIELDING_REGRESSION_INNINGS = {
-    'sc_total_runs/150': 600,
-    'sc_range_runs/150': 600,
-    'sc_arm_runs/150': 800,
-    'sc_dp_runs/150': 800,
-    'sc_framing_runs/150': 600,
-    'sc_throwing_runs/150': 1000,
-    'sc_blocking_runs/150': 1000,
+    'outfield': {
+        'sc_total_runs/150': 550,    # stab=535, r=0.555
+        'sc_range_runs/150': 550,    # stab=532, r=0.557
+        'sc_arm_runs/150': 2000,     # stab=2032, r=0.247 (very noisy)
+    },
+    'infield': {
+        'sc_total_runs/150': 1100,   # stab=1114, r=0.416
+        'sc_range_runs/150': 1150,   # stab=1152, r=0.408
+        'sc_arm_runs/150': 2000,     # stab=inf, r=-0.16 (pure noise)
+        'sc_dp_runs/150': 2000,      # stab=3672, r=0.178 (near noise)
+    },
+    'catcher': {
+        'sc_total_runs/150': 600,    # stab=616, r=0.505
+        'sc_framing_runs/150': 700,  # stab=699, r=0.473
+        'sc_throwing_runs/150': 1050, # stab=1055, r=0.373
+        'sc_blocking_runs/150': 550,  # stab=557, r=0.526
+    },
+}
+
+# Reliability multipliers applied AFTER the Marcel weighted average.
+# Even with proper regression innings, full-season players (~1300 inn) have
+# so much data that the regression is negligible (<7%).  These multipliers
+# provide the additional shrinkage needed.
+#
+# Calibrated via out-of-sample grid search: for each player-year, compute
+# Marcel base through year N, multiply by α, and find α that minimises RMSE
+# predicting actual year N+1 fielding (2016-2025 statcast data, N≥1200 pairs).
+FIELDING_RELIABILITY = {
+    'outfield': {
+        'sc_total_runs/150': 0.70,   # optimal α=0.70, 3.8% RMSE improvement
+        'sc_range_runs/150': 0.70,   # optimal α=0.70, 3.3% RMSE improvement
+        'sc_arm_runs/150': 0.55,     # optimal α=0.55, 2.6% RMSE improvement
+    },
+    'infield': {
+        'sc_total_runs/150': 0.65,   # optimal α=0.65, 2.8% RMSE improvement
+        'sc_range_runs/150': 0.65,   # optimal α=0.65, 2.8% RMSE improvement
+        'sc_arm_runs/150': 0.10,     # optimal α=0.10, near-zero signal
+        'sc_dp_runs/150': 0.35,      # optimal α=0.35, 4.5% RMSE improvement
+    },
+    'catcher': {
+        'sc_total_runs/150': 0.70,   # optimal α=0.70, 2.4% RMSE improvement
+        'sc_framing_runs/150': 0.70, # optimal α=0.70, 2.0% RMSE improvement
+        'sc_throwing_runs/150': 0.60, # optimal α=0.60, 3.1% RMSE improvement
+        'sc_blocking_runs/150': 0.60, # optimal α=0.60, 6.6% RMSE improvement
+    },
 }
 
 BASERUNNING_REGRESSION_GAMES = {
@@ -390,12 +433,13 @@ def marcel_fielding_projections(
     use_statcast = cutoff_year >= STATCAST_MIN_CUTOFF
     if use_statcast:
         groups = FIELDING_GROUPS_STATCAST
-        regression = FIELDING_REGRESSION_INNINGS
+        regression_by_group = FIELDING_REGRESSION_INNINGS   # per-group dict
         output_col_map = None
         curve_key_map = None
     else:
         groups = FIELDING_GROUPS_TRADITIONAL
-        regression = FIELDING_REGRESSION_INNINGS_TRADITIONAL
+        regression_by_group = None  # flat dict for traditional era
+        regression_flat = FIELDING_REGRESSION_INNINGS_TRADITIONAL
         output_col_map = _TRAD_FIELDING_TO_OUTPUT
         curve_key_map = _TRAD_FIELDING_TO_CURVE
         logger.info(f"Marcel fielding: using traditional stats (cutoff {cutoff_year} < {STATCAST_MIN_CUTOFF})")
@@ -413,6 +457,12 @@ def marcel_fielding_projections(
         positions = group_info['positions']
         stats = group_info['stats']
         group_curves = fielding_curves.get(group_name, {})
+
+        # Select regression amounts for this position group
+        if regression_by_group is not None:
+            regression = regression_by_group.get(group_name, {})
+        else:
+            regression = regression_flat
 
         group_df = raw_df[raw_df['Pos'].isin(positions)].copy()
 
@@ -498,6 +548,17 @@ def marcel_fielding_projections(
             base = _compute_marcel_weighted_average(
                 seasons_data, stats, 'Inn', regression
             )
+
+            # Apply reliability shrinkage to the base.
+            # Even with proper regression innings, full-season players have
+            # enough data to overwhelm the regression.  The reliability
+            # multiplier provides the empirically-calibrated additional
+            # shrinkage needed to minimise out-of-sample prediction error.
+            reliability = FIELDING_RELIABILITY.get(group_name, {})
+            for stat in stats:
+                r_key = curve_key_map[stat] if curve_key_map and stat in curve_key_map else stat
+                alpha = reliability.get(r_key, 1.0)
+                base[stat] *= alpha
 
             # Project forward with aging
             for year_offset in range(1, future_years + 1):
@@ -683,57 +744,144 @@ def marcel_baserunning_projections(
 
 
 # ============================================================================
-# MARCEL BATTER PROJECTIONS
+# MARCEL BATTER PROJECTIONS  — Component-Based Architecture
+# ============================================================================
+#
+# Instead of projecting rate stats (AVG, OBP, SLG, wOBA) directly, we project
+# 8 base components and derive everything else via composition formulas.
+#
+# Base components: K%, BB%, HBP%, ISO, BABIP, HR/FB, GB%, LD%
+#
+# Flow:
+#   1. Marcel weighted average of base components (3-yr 5/4/3 × PA)
+#   2. Multivariate adjustment via Phase 2b regression equations
+#      (replaces the old single-stat regression-to-mean step)
+#   3. Aging curves applied year-by-year for Years 2–15
+#   4. Composition: AVG, SLG, OBP, wOBA, wRC+, HR, 2B, 3B from components
 # ============================================================================
 
-# Rate stats that Marcel directly projects for batters.
-# Counting stats (HR, 2B, 3B, RBI, R, HBP) are derived from projected wOBA
-# via career profile ratios — exactly as the LSTM pipeline does in Mode A.
-BATTER_MARCEL_RATE_STATS = ['BB%', 'K%', 'AVG', 'OBP', 'SLG', 'wOBA']
+from core.stat_composition import compose_all
 
-# Counting stats derived from wOBA × career profile
+# The 8 base components that Marcel directly projects for batters.
+BATTER_BASE_COMPONENTS = ['K%', 'BB%', 'HBP%', 'ISO', 'BABIP', 'HR/FB', 'GB%', 'LD%']
+
+# Output counting stats (derived from composition, not from career profile)
 BATTER_COUNTING_STATS = ['HR', '2B', '3B', 'RBI', 'R', 'HBP']
 
-# Regression toward league average for batters (in PA-equivalents).
-# Higher values → more regression (pull toward league avg).
+# Legacy alias so downstream code that imports BATTER_MARCEL_RATE_STATS still works
+BATTER_MARCEL_RATE_STATS = BATTER_BASE_COMPONENTS
+
+# Regression toward league average for base components (in PA-equivalents).
 BATTER_REGRESSION_PA = {
-    'BB%':  400,    # ~340 PA to stabilize
-    'K%':   150,    # ~60 PA to stabilize (very sticky)
-    'AVG':  800,    # ~910 PA to stabilize (noisy)
-    'OBP':  500,    # ~460 PA to stabilize
-    'SLG':  500,    # ~320 PA to stabilize
-    'wOBA': 400,    # ~310 PA to stabilize
+    'K%':    150,    # ~60 PA to stabilize (very sticky)
+    'BB%':   400,    # ~340 PA to stabilize
+    'HBP%':  800,    # very noisy, heavy regression
+    'ISO':   500,    # ~320 PA to stabilize
+    'BABIP': 800,    # ~910 PA to stabilize (very noisy)
+    'HR/FB': 600,    # noisy, moderate regression
+    'GB%':   150,    # ~60 PA to stabilize (very sticky)
+    'LD%':   500,    # moderate noise
 }
 
-# League-average priors for batting rate stats (approximately 2020-2024 average)
+# League-average priors for base components (approximately 2020-2024 average)
 BATTER_LEAGUE_AVG = {
-    'BB%':  0.083,
-    'K%':   0.224,
-    'AVG':  0.248,
-    'OBP':  0.314,
-    'SLG':  0.402,
-    'wOBA': 0.312,
+    'K%':    0.224,
+    'BB%':   0.083,
+    'HBP%':  0.012,
+    'ISO':   0.154,
+    'BABIP': 0.292,
+    'HR/FB': 0.127,
+    'GB%':   0.430,
+    'LD%':   0.213,
 }
 
-# Physical bounds for batter rate stats
+# Physical bounds for base components
 BATTER_BOUNDS = {
-    'BB%':  (0.02,  0.25),
-    'K%':   (0.05,  0.40),
-    'AVG':  (0.150, 0.380),
-    'OBP':  (0.200, 0.500),
-    'SLG':  (0.200, 0.850),
-    'wOBA': (0.200, 0.500),
+    'K%':    (0.05,  0.40),
+    'BB%':   (0.02,  0.25),
+    'HBP%':  (0.001, 0.04),
+    'ISO':   (0.020, 0.400),
+    'BABIP': (0.200, 0.380),
+    'HR/FB': (0.030, 0.350),
+    'GB%':   (0.20,  0.65),
+    'LD%':   (0.12,  0.28),
 }
 
-# 2025 FanGraphs wOBA linear weights (synced with batter_prediction.py)
-_WOBA_WEIGHTS = {
-    'wBB': 0.691,
-    'wHBP': 0.722,
-    'w1B': 0.882,
-    'w2B': 1.252,
-    'w3B': 1.584,
-    'wHR': 2.037,
+# ---------------------------------------------------------------------------
+# Multivariate regression equations (Phase 2b exhaustive brute-force search)
+#
+# Each entry maps a base-component target to a dict of
+#   {feature_name: coefficient, ..., '_intercept': value, '_r2': cv_r2}.
+#
+# The equation for Year N+1's target is:
+#   target_{N+1} = intercept + Σ(coef_i × feature_i_N)
+#
+# Features are the player's most recent season's values (after x-stat sub).
+# Features that are unavailable or NaN for a player fall back to league avg.
+# ---------------------------------------------------------------------------
+BATTER_MULTIVARIATE_EQUATIONS = {
+    'K%': {
+        'K%': 0.502673, 'Contact%': -0.272776, 'BB%': 0.104932,
+        '_intercept': 0.309488, '_r2': 0.659,
+    },
+    'BB%': {
+        'BB%': 0.229113, 'O-Swing%': -0.197499, 'Barrel%': 0.087445,
+        'ISO': 0.063516,
+        '_intercept': 0.110775, '_r2': 0.516,
+    },
+    'HBP%': {
+        'HBP%': 0.085738, 'OBP': 0.028392, 'Pull%': 0.011814,
+        'EV': -0.000460, 'K%': 0.010916,
+        '_intercept': 0.034203, '_r2': 0.102,
+    },
+    'ISO': {
+        'ISO': 0.166567, 'Hard%': 0.130315, 'sc_ev50': 0.009700,
+        'HardHit%': -0.122753, 'GB%': -0.121401, 'Pull%': 0.083149,
+        '_intercept': -0.801955, '_r2': 0.393,
+    },
+    'BABIP': {
+        'BABIP': 0.110756, 'FB%': -0.113637, 'Oppo%': 0.108819,
+        'Spd': 0.002997, 'F-Strike%': 0.086343, 'xSLG': 0.088158,
+        '_intercept': 0.175094, '_r2': 0.212,
+    },
+    'HR/FB': {
+        'HR/FB': 0.156716, 'sc_ev50': 0.011446, 'Hard%': 0.166396,
+        'HardHit%': -0.156014, 'Contact%': -0.146888, 'BB%': 0.117759,
+        '_intercept': -0.920288, '_r2': 0.452,
+    },
+    'GB%': {
+        'GB%': 0.409550, 'FB%': -0.241323, 'Pull%': -0.125978,
+        '_intercept': 0.387990, '_r2': 0.538,
+    },
+    'LD%': {
+        'LD%': 0.170445, 'IFFB%': -0.119454, 'sc_ev50': -0.002912,
+        'Oppo%': 0.060649, 'ISO': 0.052306,
+        '_intercept': 0.446693, '_r2': 0.182,
+    },
 }
+
+# League-average fallbacks for auxiliary features used in the equations.
+# These are used when a player's historical data lacks a feature (e.g. pre-Statcast).
+_AUX_FEATURE_LEAGUE_AVG = {
+    'Contact%': 0.776,
+    'O-Swing%': 0.300,
+    'Barrel%':  0.068,
+    'Hard%':    0.352,
+    'HardHit%': 0.352,
+    'sc_ev50':  89.0,
+    'Pull%':    0.400,
+    'Oppo%':    0.220,
+    'Spd':      5.0,
+    'F-Strike%': 0.600,
+    'xSLG':     0.402,
+    'FB%':      0.350,
+    'IFFB%':    0.100,
+    'EV':       88.5,
+    'OBP':      0.314,
+}
+
+# Default triple share: 3B / (2B + 3B), league average ~7.8%
+DEFAULT_TRIPLE_SHARE = 0.078
 
 
 def _compute_marcel_weighted_average_toward_league(
@@ -792,6 +940,55 @@ def _compute_marcel_weighted_average_toward_league(
     return result
 
 
+def _apply_multivariate_equations(
+    recent_features: Dict[str, float],
+    marcel_base: Dict[str, float],
+) -> Dict[str, float]:
+    """
+    Apply Phase 2b multivariate regression equations to produce Year 1 projection.
+
+    For each base component, two estimates are blended:
+      - marcel_base: 3-year weighted average with regression to league mean
+      - multivariate: intercept + Σ(coef × feature) from the player's most
+        recent season
+
+    The blend is weighted by each equation's R²: higher R² → more weight to
+    the multivariate estimate, lower R² → fall back to Marcel base.
+
+    Blend formula:  projected = r2 × multivariate + (1 − r2) × marcel_base
+
+    This preserves Marcel's stability for noisy targets (HBP% R²=0.10 → 90%
+    Marcel) while leveraging strong multivariate signal for sticky targets
+    (K% R²=0.66 → 66% multivariate).
+    """
+    result = {}
+    for component, equation in BATTER_MULTIVARIATE_EQUATIONS.items():
+        intercept = equation['_intercept']
+        r2 = equation['_r2']
+
+        # Compute multivariate prediction from most recent season features
+        mv_pred = intercept
+        for feat, coef in equation.items():
+            if feat.startswith('_'):
+                continue
+            # Get feature value: check recent season, then Marcel base, then league avg
+            val = recent_features.get(feat, np.nan)
+            if pd.isna(val):
+                val = marcel_base.get(feat, _AUX_FEATURE_LEAGUE_AVG.get(feat, 0.0))
+            mv_pred += coef * val
+
+        # Blend: r2-weighted mix of multivariate and Marcel base
+        mb = marcel_base.get(component, BATTER_LEAGUE_AVG.get(component, 0.0))
+        result[component] = r2 * mv_pred + (1.0 - r2) * mb
+
+        # Clip to physical bounds
+        if component in BATTER_BOUNDS:
+            lo, hi = BATTER_BOUNDS[component]
+            result[component] = float(np.clip(result[component], lo, hi))
+
+    return result
+
+
 def _build_batter_career_profile(
     player_hist: pd.DataFrame,
     n_recent: int = 3,
@@ -799,11 +996,8 @@ def _build_batter_career_profile(
     """
     Build a PA-weighted career counting profile for a single batter.
 
-    Returns profile dict with base_woba and per-150 counting stat rates,
-    matching the format expected by the counting derivation step.
+    Returns triple_share and RBI/R rates for composition.
     """
-    counting_available = [s for s in BATTER_COUNTING_STATS if s in player_hist.columns]
-
     recent = player_hist.tail(n_recent)
     if len(recent) == 0 or 'PA' not in recent.columns:
         return None
@@ -814,95 +1008,44 @@ def _build_batter_career_profile(
         return None
     weights = pa / total_pa
 
-    # Baseline wOBA
-    if 'wOBA' not in recent.columns:
-        return None
-    woba_vals = np.nan_to_num(recent['wOBA'].values.astype(float), nan=0.0)
-    base_woba = float(np.average(woba_vals, weights=weights))
-    if base_woba < 0.15:
-        return None
+    # Triple share: 3B / (2B + 3B)
+    triple_share = DEFAULT_TRIPLE_SHARE
+    if '2B' in recent.columns and '3B' in recent.columns:
+        d = np.nan_to_num(recent['2B'].values.astype(float), nan=0.0)
+        t = np.nan_to_num(recent['3B'].values.astype(float), nan=0.0)
+        total_2b = np.average(d, weights=weights)
+        total_3b = np.average(t, weights=weights)
+        if (total_2b + total_3b) > 1.0:
+            triple_share = total_3b / (total_2b + total_3b)
 
-    # Per-150 counting rates
-    base_counts = {}
-    for stat in counting_available:
-        vals = np.nan_to_num(recent[stat].values.astype(float), nan=0.0)
-        base_counts[stat] = float(np.average(vals, weights=weights))
+    # RBI and R rates (per 150 games) for output — these can't be composed
+    # from the 8 components, so we keep career profile ratios.
+    rbi_rate = 0.0
+    r_rate = 0.0
+    if 'RBI' in recent.columns:
+        rbi_rate = float(np.average(
+            np.nan_to_num(recent['RBI'].values.astype(float), nan=0.0), weights=weights
+        ))
+    if 'R' in recent.columns:
+        r_rate = float(np.average(
+            np.nan_to_num(recent['R'].values.astype(float), nan=0.0), weights=weights
+        ))
+
+    # Base wOBA for RBI/R scaling
+    base_woba = 0.312
+    if 'wOBA' in recent.columns:
+        woba_vals = np.nan_to_num(recent['wOBA'].values.astype(float), nan=0.0)
+        base_woba = max(0.15, float(np.average(woba_vals, weights=weights)))
 
     career_pa = float(player_hist['PA'].sum())
 
     return {
+        'triple_share': triple_share,
+        'rbi_rate': rbi_rate,
+        'r_rate': r_rate,
         'base_woba': base_woba,
-        'base_counts': base_counts,
         'career_pa': career_pa,
     }
-
-
-def _derive_counting_from_woba(
-    projected_woba: float,
-    career_profile: Dict,
-    pa_full: float = 1500.0,
-) -> Dict[str, float]:
-    """
-    Derive counting stats from projected wOBA × career profile ratio.
-
-    Matches the LSTM pipeline's Mode A (CALCULATE_COMPONENTS_FROM_WOBA):
-      ratio = projected_wOBA / career_wOBA
-      derived = career_count_per150 × ratio
-      blend = min(career_PA / pa_full, 1.0)
-      final = derived  (pure derivation for Marcel; no model fallback)
-    """
-    base_woba = career_profile['base_woba']
-    if base_woba < 0.15:
-        return {}
-
-    ratio = np.clip(projected_woba / base_woba, 0.50, 1.50)
-
-    counts = {}
-    for stat, career_rate in career_profile['base_counts'].items():
-        counts[stat] = max(0.0, career_rate * ratio)
-
-    return counts
-
-
-def _reconstruct_rate_stats(
-    bb_pct: float,
-    avg: float,
-    counting: Dict[str, float],
-    pa: float = 650.0,
-) -> Dict[str, float]:
-    """
-    Reconstruct OBP, SLG, and wOBA from counting components.
-
-    Ensures rate stat consistency after counting derivation.
-    """
-    bb = bb_pct * pa
-    hbp = counting.get('HBP', pa * 0.01)
-    sf = pa * 0.007
-    ab = pa - bb - hbp - sf
-    if ab <= 0:
-        return {}
-
-    h = avg * ab
-    hr = counting.get('HR', 0.0)
-    doubles = counting.get('2B', 0.0)
-    triples = counting.get('3B', 0.0)
-    singles = max(0.0, h - doubles - triples - hr)
-
-    # OBP
-    obp_den = ab + bb + hbp + sf
-    obp = np.clip((h + bb + hbp) / obp_den, 0, 1) if obp_den > 0 else 0.314
-
-    # SLG
-    slg_num = singles + 2.0 * doubles + 3.0 * triples + 4.0 * hr
-    slg = np.clip(slg_num / ab, 0, 4) if ab > 0 else 0.402
-
-    # wOBA
-    w = _WOBA_WEIGHTS
-    woba_num = (w['wBB'] * bb + w['wHBP'] * hbp + w['w1B'] * singles +
-                w['w2B'] * doubles + w['w3B'] * triples + w['wHR'] * hr)
-    woba = np.clip(woba_num / pa, 0, 1) if pa > 0 else 0.312
-
-    return {'OBP': obp, 'SLG': slg, 'wOBA': woba}
 
 
 def marcel_batter_projections(
@@ -914,53 +1057,35 @@ def marcel_batter_projections(
     use_xstats: bool = True,
 ) -> Optional[pd.DataFrame]:
     """
-    Generate Marcel-style batter projections.
+    Generate component-based Marcel batter projections.
 
-    Projects rate stats (BB%, K%, AVG, OBP, SLG, wOBA) using Marcel method:
-      1. Weighted average of last 3 seasons (5/4/3 × PA)
-      2. Regress toward league-average
-      3. Apply empirical aging curves year-by-year
+    Projects 8 base components (K%, BB%, HBP%, ISO, BABIP, HR/FB, GB%, LD%)
+    using the Marcel method with multivariate regression equations, then
+    derives all display stats via stat_composition.compose_all().
 
-    Then derives counting stats (HR, 2B, 3B, RBI, R, HBP) from projected wOBA
-    using career-profile ratios, and reconstructs OBP/SLG/wOBA for consistency.
+    Flow:
+      1. Marcel weighted average of base components (3-yr 5/4/3 × PA)
+      2. Year 1: Multivariate adjustment (Phase 2b equations) replaces
+         the old single-stat regression-to-mean step
+      3. Years 2–15: Apply empirical aging curves to base components
+      4. Composition: derive AVG, SLG, OBP, wOBA, wRC+, HR, 2B, 3B
 
-    When use_xstats=True, xwOBA replaces wOBA, xBA replaces AVG, and xSLG
-    replaces SLG in the input (x-stats are more predictive of future
-    performance, matching the LSTM pipeline's USE_XWOBA_FOR_PREDICTIONS).
+    When use_xstats=True, xwOBA/xBA/xSLG are used in feature extraction for
+    the multivariate equations (more predictive of future performance).
 
-    Output format matches the LSTM batter_predictions.csv exactly.
-
-    Args:
-        raw_df: Historical batting data with rate stats computed
-        player_names: DataFrame with IDfg and Name columns
-        future_years: Number of years to project
-        cutoff_year: Last year of actual data
-        roster_ids: Optional set of IDfg values for active roster players
-        use_xstats: Whether to substitute x-stats (xwOBA, xBA, xSLG)
-
-    Returns:
-        DataFrame matching the batter_predictions.csv format
+    Output format matches batter_predictions.csv.
     """
     from configs.batter_config import BatterConfig
 
     curves = _load_aging_curves()
     batting_curves = curves.get('batting', {})
-
     min_pa_current = getattr(BatterConfig, 'MIN_PA_CURRENT', 70)
-    pa_full = getattr(BatterConfig, 'COMPONENTS_FROM_WOBA_PA_WEIGHT', 1500)
-
-    # xwOBA-wOBA gap adjustment: add back a regressed portion of persistent over/under-performance
-    enable_gap_adj = use_xstats and getattr(BatterConfig, 'ENABLE_XWOBA_GAP_ADJUSTMENT', False)
-    gap_skill_fraction = getattr(BatterConfig, 'XWOBA_GAP_SKILL_FRACTION', 0.5)
-    gap_min_seasons = getattr(BatterConfig, 'XWOBA_GAP_MIN_SEASONS', 2)
-    gap_regress_pa = getattr(BatterConfig, 'XWOBA_GAP_REGRESSION_PA', 800)
 
     # Get current-year qualifying batters
     current_players = raw_df[
         (raw_df['Season'] == cutoff_year) &
         (raw_df['PA'] >= min_pa_current)
     ]['IDfg'].unique()
-
     current_ids = set(current_players)
 
     # Roster recovery: add roster players from history
@@ -978,20 +1103,15 @@ def marcel_batter_projections(
 
     logger.info(f"Marcel batting: {len(current_ids)} players")
 
-    all_predictions = []
-    stats = list(BATTER_MARCEL_RATE_STATS)
+    # All features needed by the multivariate equations
+    all_eq_features = set()
+    for eq in BATTER_MULTIVARIATE_EQUATIONS.values():
+        for feat in eq:
+            if not feat.startswith('_'):
+                all_eq_features.add(feat)
 
-    # Reliability regression setup (matches LSTM pipeline behavior)
-    enable_reliability_regression = getattr(
-        BatterConfig, 'ENABLE_RELIABILITY_REGRESSION_PREDICTION', False
-    )
-    if enable_reliability_regression:
-        from core.reliability import regress_player_sequence, get_era_for_features
-        batter_era = get_era_for_features(stats)
-        logger.info(f"Marcel batting: reliability regression ENABLED (era={batter_era})")
-    else:
-        regress_player_sequence = None  # unused
-        batter_era = None
+    all_predictions = []
+    components = list(BATTER_BASE_COMPONENTS)
 
     for player_id in current_ids:
         player_hist = raw_df[
@@ -1011,140 +1131,149 @@ def marcel_batter_projections(
         last_age = player_hist['Age'].iloc[-1]
         last_season = player_hist['Season'].iloc[-1]
 
-        # x-stat substitution: use xwOBA→wOBA, xBA→AVG, xSLG→SLG in the input
+        # ---- Prepare data for Marcel ----
+
+        # Derive HBP% if not present
+        if 'HBP%' not in player_hist.columns:
+            if 'HBP' in player_hist.columns and 'PA' in player_hist.columns:
+                player_hist['HBP%'] = player_hist['HBP'] / player_hist['PA'].replace(0, np.nan)
+            else:
+                player_hist['HBP%'] = BATTER_LEAGUE_AVG['HBP%']
+
+        # x-stat substitution for the multivariate equation features
+        hist_for_marcel = player_hist.copy()
         if use_xstats:
-            hist_for_marcel = player_hist.copy()
-            if 'xwOBA' in hist_for_marcel.columns:
-                mask = hist_for_marcel['xwOBA'].notna()
-                hist_for_marcel.loc[mask, 'wOBA'] = hist_for_marcel.loc[mask, 'xwOBA']
-            if 'xBA' in hist_for_marcel.columns:
-                mask = hist_for_marcel['xBA'].notna()
-                hist_for_marcel.loc[mask, 'AVG'] = hist_for_marcel.loc[mask, 'xBA']
-            if 'xSLG' in hist_for_marcel.columns:
-                mask = hist_for_marcel['xSLG'].notna()
-                hist_for_marcel.loc[mask, 'SLG'] = hist_for_marcel.loc[mask, 'xSLG']
-        else:
-            hist_for_marcel = player_hist
+            for real_col, x_col in [('wOBA', 'xwOBA'), ('AVG', 'xBA'), ('SLG', 'xSLG')]:
+                if x_col in hist_for_marcel.columns:
+                    mask = hist_for_marcel[x_col].notna()
+                    hist_for_marcel.loc[mask, real_col] = hist_for_marcel.loc[mask, x_col]
 
-        # Reliability regression: regress each season toward career/league prior
-        # before the Marcel weighted average (matches LSTM pipeline behavior)
-        if enable_reliability_regression:
-            hist_for_marcel = regress_player_sequence(
-                hist_for_marcel, stats,
-                model_type='batter', era=batter_era,
-                league_priors=BATTER_LEAGUE_AVG,
-            )
+        # ---- Extract most recent season features for multivariate equations ----
+        most_recent = hist_for_marcel.iloc[-1]
+        recent_features = {}
+        for feat in all_eq_features:
+            val = most_recent.get(feat, np.nan)
+            if pd.notna(val):
+                recent_features[feat] = float(val)
 
-        # Build recent seasons list (newest first)
-        recent = hist_for_marcel.tail(len(SEASON_WEIGHTS)).iloc[::-1]
+        # ---- Build recent seasons list for Marcel weighted average ----
+        recent_seasons = hist_for_marcel.tail(len(SEASON_WEIGHTS)).iloc[::-1]
         seasons_data = []
-        for _, row in recent.iterrows():
+        for _, row in recent_seasons.iterrows():
             s = {'PA': row.get('PA', 650)}
-            for stat in stats:
+            for stat in components:
                 s[stat] = row.get(stat, np.nan)
             seasons_data.append(s)
 
-        # Marcel weighted average with regression toward league average
-        base = _compute_marcel_weighted_average_toward_league(
-            seasons_data, stats, 'PA', BATTER_REGRESSION_PA, BATTER_LEAGUE_AVG
+        # Marcel weighted average of base components with regression to league avg
+        marcel_base = _compute_marcel_weighted_average_toward_league(
+            seasons_data, components, 'PA', BATTER_REGRESSION_PA, BATTER_LEAGUE_AVG
         )
 
-        # xwOBA-wOBA gap adjustment: for players who consistently over/under-perform
-        # their xwOBA (e.g. pull-heavy hitters like Ramirez, Raleigh), add back a
-        # regressed portion of their historical gap so the projection isn't purely
-        # anchored to expected stats.
-        if enable_gap_adj:
-            gap_pairs = [('wOBA', 'xwOBA'), ('AVG', 'xBA'), ('SLG', 'xSLG')]
-            for real_col, x_col in gap_pairs:
-                if x_col not in player_hist.columns:
-                    continue
-                recent_gap = player_hist.tail(len(SEASON_WEIGHTS)).copy()
-                mask = recent_gap[x_col].notna() & recent_gap[real_col].notna()
-                recent_gap = recent_gap[mask]
-                if len(recent_gap) < gap_min_seasons:
-                    continue
-                # PA-weighted gap (real - expected)
-                pa_vals = recent_gap['PA'].values
-                gaps = (recent_gap[real_col] - recent_gap[x_col]).values
-                total_pa = pa_vals.sum()
-                if total_pa <= 0:
-                    continue
-                raw_gap = np.average(gaps, weights=pa_vals)
-                # Regress toward 0: gap * total_pa / (total_pa + regression_pa)
-                regressed_gap = raw_gap * total_pa / (total_pa + gap_regress_pa)
-                adjustment = regressed_gap * gap_skill_fraction
-                base[real_col] += adjustment
+        # Apply multivariate equations → Year 1 base
+        year1_base = _apply_multivariate_equations(recent_features, marcel_base)
 
-        # Build career counting profile from x-stat substituted data so that
-        # the counting derivation ratio (projected_wOBA / career_wOBA) uses the
-        # same x-stat basis as the Marcel rate-stat projection.
+        # Build career profile (for triple_share and RBI/R rates)
         career_profile = _build_batter_career_profile(hist_for_marcel)
 
-        # Project forward with aging
+        triple_share = DEFAULT_TRIPLE_SHARE
+        rbi_rate = 75.0  # default per-150
+        r_rate = 75.0
+        base_woba = BATTER_LEAGUE_AVG.get('ISO', 0.154) + 0.248  # rough
+        if career_profile is not None:
+            triple_share = career_profile['triple_share']
+            rbi_rate = career_profile['rbi_rate']
+            r_rate = career_profile['r_rate']
+            base_woba = career_profile['base_woba']
+
+        # ---- Project forward ----
         for year_offset in range(1, future_years + 1):
             proj_year = cutoff_year + year_offset
             proj_age = last_age + (cutoff_year - last_season) + year_offset
 
-            # Apply cumulative aging
+            # Start from multivariate Year 1 base, apply cumulative aging
             projected = {}
-            for stat in stats:
+            for stat in components:
                 stat_curves = batting_curves.get(stat, {})
                 aging_total = 0.0
                 for y in range(1, year_offset + 1):
                     age_at_y = last_age + (cutoff_year - last_season) + y
                     aging_total += _get_smoothed_aging_delta(stat_curves, int(age_at_y))
 
-                val = base[stat] + aging_total
+                val = year1_base[stat] + aging_total
 
                 # Apply physical bounds
                 if stat in BATTER_BOUNDS:
                     lo, hi = BATTER_BOUNDS[stat]
-                    val = np.clip(val, lo, hi)
-
+                    val = float(np.clip(val, lo, hi))
                 projected[stat] = val
 
-            # Derive counting stats from projected wOBA × career profile
-            if career_profile is not None:
-                counting = _derive_counting_from_woba(
-                    projected['wOBA'], career_profile, pa_full
-                )
-            else:
-                counting = {s: 0.0 for s in BATTER_COUNTING_STATS}
+            # Normalize batted ball rates so GB% + LD% + FB% ≈ 1.0
+            gb = projected['GB%']
+            ld = projected['LD%']
+            fb_raw = 1.0 - gb - ld
+            if fb_raw < 0.10:
+                total = gb + ld
+                if total > 0:
+                    projected['GB%'] = gb / total * 0.90
+                    projected['LD%'] = ld / total * 0.90
 
-            # Reconstruct OBP/SLG/wOBA from counting components for consistency.
-            # All three must come from the same counting stats so that the
-            # displayed slash line is internally coherent.  The x-stat signal
-            # is preserved because counting stats were derived from the
-            # x-stat-based projected wOBA via career-profile ratios.
-            reconstructed = _reconstruct_rate_stats(
-                projected['BB%'], projected['AVG'], counting
+            # ---- Compose all derived stats ----
+            composed = compose_all(
+                k_pct=projected['K%'],
+                bb_pct=projected['BB%'],
+                hbp_pct=projected['HBP%'],
+                iso=projected['ISO'],
+                babip=projected['BABIP'],
+                hr_fb=projected['HR/FB'],
+                gb_pct=projected['GB%'],
+                ld_pct=projected['LD%'],
+                triple_share=triple_share,
             )
-            if reconstructed:
-                projected['OBP'] = reconstructed['OBP']
-                projected['SLG'] = reconstructed['SLG']
-                projected['wOBA'] = reconstructed['wOBA']
 
-            # Re-apply bounds after reconstruction
-            for stat in stats:
-                if stat in BATTER_BOUNDS:
-                    lo, hi = BATTER_BOUNDS[stat]
-                    projected[stat] = np.clip(projected[stat], lo, hi)
+            # Scale RBI and R using wOBA ratio from career profile
+            proj_woba = composed['wOBA']
+            if base_woba > 0.15:
+                woba_ratio = np.clip(proj_woba / base_woba, 0.50, 1.50)
+            else:
+                woba_ratio = 1.0
+            rbi = max(0.0, rbi_rate * woba_ratio)
+            r_count = max(0.0, r_rate * woba_ratio)
 
-            # Build output row matching LSTM format
+            # Build output row
             row = {
                 'Name': player_name,
                 'IDfg': player_id,
                 'Year': proj_year,
                 'Age': proj_age,
                 'PA': 650,
+                # Base components
+                'K%':    projected['K%'],
+                'BB%':   projected['BB%'],
+                'HBP%':  projected['HBP%'],
+                'ISO':   projected['ISO'],
+                'BABIP': projected['BABIP'],
+                'HR/FB': projected['HR/FB'],
+                'GB%':   projected['GB%'],
+                'LD%':   projected['LD%'],
+                # Composed rate stats
+                'AVG':   composed['AVG'],
+                'OBP':   composed['OBP'],
+                'SLG':   composed['SLG'],
+                'wOBA':  composed['wOBA'],
+                'wRC+':  composed['wRC+'],
+                'FB%':   composed['FB%'],
+                # Composed counting stats (per 150 games)
+                'HR':    composed['HR'],
+                '2B':    composed['2B'],
+                '3B':    composed['3B'],
+                '1B':    composed['1B'],
+                'H':     composed['H'],
+                # RBI and R from career profile scaling
+                'RBI':   rbi,
+                'R':     r_count,
+                'HBP':   composed['HBP'],
             }
-            # Rate stats
-            for stat in stats:
-                row[stat] = projected[stat]
-            # Counting stats
-            for stat in BATTER_COUNTING_STATS:
-                row[stat] = counting.get(stat, 0.0)
-
             all_predictions.append(row)
 
     if not all_predictions:
@@ -1153,16 +1282,25 @@ def marcel_batter_projections(
 
     result_df = pd.DataFrame(all_predictions)
 
-    # Ensure column order matches LSTM output
-    output_cols = ['Name', 'IDfg', 'Year', 'Age', 'PA'] + stats + BATTER_COUNTING_STATS
+    # Standard output column order (backward-compatible + new columns)
+    output_cols = [
+        'Name', 'IDfg', 'Year', 'Age', 'PA',
+        'BB%', 'K%', 'AVG', 'OBP', 'SLG', 'wOBA',   # legacy rate stats
+        'HR', '2B', '3B', 'RBI', 'R', 'HBP',          # counting stats
+        'ISO', 'BABIP', 'HR/FB', 'GB%', 'LD%', 'FB%', # base components
+        'HBP%', 'wRC+', '1B', 'H',                    # new columns
+    ]
     for col in output_cols:
         if col not in result_df.columns:
             result_df[col] = 0.0
-    result_df = result_df[output_cols]
+    result_df = result_df[[c for c in output_cols if c in result_df.columns]]
     result_df = result_df.sort_values(['Name', 'Year'])
 
-    logger.info(f"Marcel batting: generated {len(result_df)} projections for "
-                f"{result_df['Name'].nunique()} batters")
+    logger.info(
+        f"Marcel batting (component-based): {len(result_df)} projections for "
+        f"{result_df['Name'].nunique()} batters "
+        f"(avg wOBA={result_df['wOBA'].mean():.3f}, avg HR={result_df['HR'].mean():.1f})"
+    )
     return result_df
 
 
@@ -1209,6 +1347,172 @@ PITCHER_BOUNDS = {
     'FB%':   (0.15,  0.55),
     'LD%':   (0.15,  0.28),
 }
+
+# ---------------------------------------------------------------------------
+# Pitcher multivariate regression equations (Phase 2b exhaustive brute-force)
+#
+# Separate equations for SP and RP because reliever skill profiles stabilize
+# differently and different features matter (e.g. Stuff+ is more important
+# for RP where pure stuff dominates short outings).
+#
+# Same R²-weighted blending as batters:
+#   projected = r2 × multivariate + (1 − r2) × marcel_base
+# ---------------------------------------------------------------------------
+PITCHER_SP_MULTIVARIATE_EQUATIONS = {
+    'K%': {
+        'K%': 0.152914, 'Contact%': -0.093733, 'Stuff+': 0.001819,
+        'Z-Contact%': -0.080183, 'O-Contact%': -0.084590, 'FBv': 0.004091,
+        '_intercept': -0.180372, '_r2': 0.566,
+    },
+    'BB%': {
+        'BB%': 0.028227, 'F-Strike%': -0.038367, 'Location+': -0.001389,
+        'Zone%': -0.038033, 'Stuff+': -0.000831, 'FBv': 0.002500, 'ERA': -0.001798,
+        '_intercept': 0.109696, '_r2': 0.235,
+    },
+    'HBP%': {
+        'HBP%': 0.005164, 'Location+': 0.000583, 'ch_avg_speed': 0.000335,
+        'Pitching+': -0.000810, 'Stuff+': 0.000719, 'FB%': -0.006424,
+        '_intercept': -0.065534, '_r2': 0.089,
+    },
+    'BABIP': {
+        'BABIP': 0.026115, 'FB%': -0.090702, 'Pitching+': -0.000751,
+        'ch_avg_speed': -0.001349, 'ff_avg_speed': 0.000729,
+        '_intercept': 0.439166, '_r2': 0.121,
+    },
+    'HR/FB': {
+        'HR/FB': 0.029479, 'O-Contact%': -0.034033, 'K%': -0.038835,
+        '_intercept': 0.151505, '_r2': 0.007,
+    },
+    'GB%': {
+        'GB%': 0.303467, 'FB%': -0.280852, 'IFFB%': -0.096955,
+        'Swing%': -0.059745, 'ch_avg_speed': 0.002482,
+        '_intercept': 0.220851, '_r2': 0.579,
+    },
+    'FB%': {
+        'FB%': 0.319543, 'GB%': -0.306019, 'IFFB%': 0.104389,
+        'Swing%': 0.068787, 'F-Strike%': 0.050964,
+        '_intercept': 0.315306, '_r2': 0.607,
+    },
+    'LD%': {
+        'LD%': 0.029444, 'Pitching+': -0.000419, 'ch_avg_speed': -0.001050,
+        'FB%': -0.037707,
+        '_intercept': 0.341562, '_r2': 0.043,
+    },
+}
+
+PITCHER_RP_MULTIVARIATE_EQUATIONS = {
+    'K%': {
+        'K%': 0.192442, 'Contact%': -0.154788, 'Z-Contact%': -0.088205,
+        'FBv': 0.004157, 'Stuff+': 0.000960, 'GB%': -0.098306,
+        '_intercept': -0.067144, '_r2': 0.399,
+    },
+    'BB%': {
+        'BB%': 0.082734, 'F-Strike%': -0.076240, 'Zone%': -0.073591,
+        'Swing%': -0.074733, 'O-Contact%': -0.047265, 'ff_avg_speed': 0.001840,
+        'FB%': 0.039804,
+        '_intercept': 0.034978, '_r2': 0.291,
+    },
+    'HBP%': {
+        'HBP%': 0.010419, 'Swing%': -0.017130, 'Z-Swing%': -0.017871,
+        'O-Swing%': -0.012569, 'Stuff+': 0.000272, 'Pitching+': -0.000219,
+        '_intercept': 0.030153, '_r2': 0.084,
+    },
+    'BABIP': {
+        'BABIP': -0.006000, 'FB%': -0.086430, 'Stuff+': -0.000555,
+        '_intercept': 0.379093, '_r2': 0.053,
+    },
+    'HR/FB': {
+        'HR/FB': 0.006041, 'ff_avg_spin': -0.000031, 'Stuff+': -0.000573,
+        'ERA': -0.003671,
+        '_intercept': 0.252398, '_r2': 0.007,
+    },
+    'GB%': {
+        'GB%': 0.394343, 'FB%': -0.280045, 'IFFB%': -0.089278,
+        'K%': -0.105318, 'Z-Swing%': -0.092269,
+        '_intercept': 0.460009, '_r2': 0.571,
+    },
+    'FB%': {
+        'FB%': 0.291781, 'GB%': -0.361050, 'ff_avg_spin': 0.000059,
+        'IFFB%': 0.092249, 'ERA': -0.005357,
+        '_intercept': 0.301656, '_r2': 0.568,
+    },
+    'LD%': {
+        'LD%': 0.043393, 'Pitching+': -0.000876, 'Location+': 0.001064,
+        'K%': 0.050035,
+        '_intercept': 0.159601, '_r2': 0.038,
+    },
+}
+
+# Column mapping: Phase 2b feature names → actual pitching CSV column names
+_PITCHER_STATCAST_COL_MAP = {
+    'ch_avg_speed': 'sc_ch_avg_speed',
+    'ff_avg_speed': 'sc_ff_avg_speed',
+    'ff_avg_spin':  'sc_ff_avg_spin',
+}
+
+# League-average fallbacks for auxiliary pitcher features
+_PITCHER_AUX_FEATURE_LEAGUE_AVG = {
+    'Contact%':     0.776,
+    'Z-Contact%':   0.828,
+    'O-Contact%':   0.654,
+    'Stuff+':       100.0,
+    'Location+':    100.0,
+    'Pitching+':    100.0,
+    'FBv':          93.5,
+    'F-Strike%':    0.607,
+    'Zone%':        0.450,
+    'Swing%':       0.465,
+    'Z-Swing%':     0.685,
+    'O-Swing%':     0.300,
+    'IFFB%':        0.100,
+    'ERA':          4.20,
+    'ch_avg_speed':  84.0,
+    'ff_avg_speed':  93.5,
+    'ff_avg_spin':  2250.0,
+}
+
+
+def _apply_pitcher_multivariate_equations(
+    recent_features: Dict[str, float],
+    marcel_base: Dict[str, float],
+    role: str,
+) -> Dict[str, float]:
+    """
+    Apply Phase 2b multivariate regression equations for a pitcher.
+
+    Same R²-weighted blending as batters:
+      projected = r2 × multivariate + (1 − r2) × marcel_base
+
+    Uses SP or RP equations based on role.
+    """
+    equations = PITCHER_SP_MULTIVARIATE_EQUATIONS if role == 'SP' else PITCHER_RP_MULTIVARIATE_EQUATIONS
+
+    result = {}
+    for component, equation in equations.items():
+        intercept = equation['_intercept']
+        r2 = equation['_r2']
+
+        # Compute multivariate prediction
+        mv_pred = intercept
+        for feat, coef in equation.items():
+            if feat.startswith('_'):
+                continue
+            val = recent_features.get(feat, np.nan)
+            if pd.isna(val):
+                val = marcel_base.get(feat, _PITCHER_AUX_FEATURE_LEAGUE_AVG.get(feat, 0.0))
+            mv_pred += coef * val
+
+        # R²-weighted blend
+        mb = marcel_base.get(component, PITCHER_LEAGUE_AVG.get(component, 0.0))
+        result[component] = r2 * mv_pred + (1.0 - r2) * mb
+
+        # Clip to physical bounds
+        if component in PITCHER_BOUNDS:
+            lo, hi = PITCHER_BOUNDS[component]
+            result[component] = float(np.clip(result[component], lo, hi))
+
+    return result
+
 
 # FIP constant and BF/IP fallback (synced with pitcher_prediction.py)
 _FIP_CONSTANT = 3.15
@@ -1323,9 +1627,10 @@ def marcel_pitcher_projections(
     Generate Marcel-style pitcher projections for both SP and RP.
 
     Projects component rate stats (K%, BB%, HBP%, BABIP, HR/FB, GB%, FB%, LD%)
-    using Marcel method:
-      1. Weighted average of last 3 seasons (5/4/3 × IP)
-      2. Regress toward league-average
+    using the component-based Marcel method:
+      1. Weighted average of last 3 seasons (5/4/3 × IP) with regression
+      2. Multivariate adjustment via Phase 2b equations (role-specific SP/RP)
+         R²-weighted blend of multivariate prediction and Marcel base
       3. Apply empirical aging curves year-by-year
 
     Then reconstructs:
@@ -1436,19 +1741,13 @@ def marcel_pitcher_projections(
 
     all_predictions = []
 
-    # Reliability regression setup (matches LSTM pipeline behavior)
-    # Check both SP and RP configs — enable if either has it on
-    enable_reliability_regression = (
-        getattr(PitcherSPConfig, 'ENABLE_RELIABILITY_REGRESSION_PREDICTION', False) or
-        getattr(PitcherRPConfig, 'ENABLE_RELIABILITY_REGRESSION_PREDICTION', False)
-    )
-    if enable_reliability_regression:
-        from core.reliability import regress_player_sequence, get_era_for_features
-        pitcher_era = get_era_for_features(stats)
-        logger.info(f"Marcel pitching: reliability regression ENABLED (era={pitcher_era})")
-    else:
-        regress_player_sequence = None  # unused
-        pitcher_era = None
+    # Collect all features used by SP and RP multivariate equations
+    all_pitcher_eq_features = set()
+    for eq_dict in (PITCHER_SP_MULTIVARIATE_EQUATIONS, PITCHER_RP_MULTIVARIATE_EQUATIONS):
+        for eq in eq_dict.values():
+            for feat in eq:
+                if not feat.startswith('_'):
+                    all_pitcher_eq_features.add(feat)
 
     for player_id, role in player_roles.items():
         min_ip_season = 20 if role == 'SP' else 10
@@ -1470,16 +1769,27 @@ def marcel_pitcher_projections(
         last_age = player_hist['Age'].iloc[-1]
         last_season = player_hist['Season'].iloc[-1]
 
-        # Reliability regression: regress each season toward career/league prior
-        # before the Marcel weighted average (matches LSTM pipeline behavior)
-        if enable_reliability_regression:
-            hist_for_marcel = regress_player_sequence(
-                player_hist, stats,
-                model_type='pitcher', era=pitcher_era,
-                league_priors=PITCHER_LEAGUE_AVG,
-            )
-        else:
-            hist_for_marcel = player_hist
+        # Derive HBP% if not present
+        if 'HBP%' not in player_hist.columns:
+            if 'HBP' in player_hist.columns and 'TBF' in player_hist.columns:
+                player_hist['HBP%'] = player_hist['HBP'] / player_hist['TBF'].replace(0, np.nan)
+            elif 'HBP' in player_hist.columns and 'IP' in player_hist.columns:
+                tbf_est = player_hist['IP'] * _BF_PER_IP_FALLBACK
+                player_hist['HBP%'] = player_hist['HBP'] / tbf_est.replace(0, np.nan)
+            else:
+                player_hist['HBP%'] = PITCHER_LEAGUE_AVG['HBP%']
+
+        hist_for_marcel = player_hist
+
+        # ---- Extract most recent season features for multivariate equations ----
+        most_recent = hist_for_marcel.iloc[-1]
+        recent_features = {}
+        for feat in all_pitcher_eq_features:
+            # Map Phase 2b feature name → actual column name (sc_ prefix)
+            col_name = _PITCHER_STATCAST_COL_MAP.get(feat, feat)
+            val = most_recent.get(col_name, np.nan)
+            if pd.notna(val):
+                recent_features[feat] = float(val)
 
         # Build recent seasons list (newest first)
         recent = hist_for_marcel.tail(len(SEASON_WEIGHTS)).iloc[::-1]
@@ -1491,19 +1801,22 @@ def marcel_pitcher_projections(
             seasons_data.append(s)
 
         # Marcel weighted average with regression toward league average
-        base = _compute_marcel_weighted_average_toward_league(
+        marcel_base = _compute_marcel_weighted_average_toward_league(
             seasons_data, stats, 'IP', PITCHER_REGRESSION_IP, PITCHER_LEAGUE_AVG
         )
+
+        # Apply multivariate equations → Year 1 base (role-specific)
+        year1_base = _apply_pitcher_multivariate_equations(recent_features, marcel_base, role)
 
         # Career ERA-FIP gap
         era_fip_gap = _compute_career_era_fip_gap_marcel(player_hist)
 
-        # Project forward with aging
+        # Project forward with aging (from year1_base, not raw marcel_base)
         for year_offset in range(1, future_years + 1):
             proj_year = cutoff_year + year_offset
             proj_age = last_age + (cutoff_year - last_season) + year_offset
 
-            # Apply cumulative aging to each stat
+            # Apply cumulative aging to each stat from year1_base
             projected = {}
             for stat in stats:
                 stat_curves = pitching_curves.get(stat, {})
@@ -1512,7 +1825,7 @@ def marcel_pitcher_projections(
                     age_at_y = last_age + (cutoff_year - last_season) + y
                     aging_total += _get_smoothed_aging_delta(stat_curves, int(age_at_y))
 
-                val = base[stat] + aging_total
+                val = year1_base[stat] + aging_total
 
                 # Apply physical bounds
                 if stat in PITCHER_BOUNDS:
