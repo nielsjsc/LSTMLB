@@ -77,8 +77,9 @@ def _load_historical_salary() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Load convex model parameters at module initialization
+# Market valuation model (position-aware, replaces old convex model)
 # ---------------------------------------------------------------------------
+# Legacy convex parameters kept for backward compatibility / reference
 _CONVEX_ALPHA, _CONVEX_BETA = Config.ConvexModel.load_calibration()
 
 
@@ -140,30 +141,34 @@ def calculate_inflation_multiplier(year: int) -> float:
     return (1 + INFLATION_RATE) ** (year - BASE_YEAR)
 
 
-def calculate_war_value(war: float, year: int) -> float:
+def calculate_war_value(war: float, year: int,
+                       position_group: str = 'batter',
+                       **kwargs) -> float:
     """
-    Calculate WAR dollar value using the empirically calibrated convex power-law.
+    Calculate WAR dollar value using role-specific market valuation.
 
-    Formula:
-        value = alpha * WAR^beta * inflation(year)
+    Uses FA-calibrated base rates with a consolidation exponent:
+        value = role_rate * WAR^beta * inflation
 
-    Reference values (2025 dollars, alpha=$8.59M, beta=1.18):
-        0.5 WAR →   $1.7M       3 WAR →  $28.5M
-        1.0 WAR →   $8.6M       5 WAR →  $53.2M
-        2.0 WAR →  $19.4M       8 WAR → $93.8M
+    SP commands an 18% premium over RP/batters, reflecting the higher
+    replacement cost of quality starting pitching.
+
+    Reference values (2026 dollars):
+        SP:  1 WAR → $10.6M    3 WAR → $35.6M    5 WAR → $62.4M
+        Bat: 1 WAR →  $9.0M    3 WAR → $30.3M    5 WAR → $53.1M
 
     Args:
         war: WAR value (negative returns $0)
-        year: Year for inflation adjustment (relative to BASE_YEAR)
+        year: Year for inflation adjustment
+        position_group: 'SP', 'RP', or 'batter'
 
     Returns:
         Dollar value of WAR production for that year
     """
-    if pd.isna(war) or war <= 0:
-        return 0.0
-
-    inflation = calculate_inflation_multiplier(year)
-    return _CONVEX_ALPHA * (war ** _CONVEX_BETA) * inflation
+    return Config.Market.calculate_value(
+        war=war, year=year,
+        position_group=position_group,
+    )
 
 
 def _calculate_war_value_tiered(war: float, year: int) -> float:
@@ -225,12 +230,14 @@ def join_predictions_with_timeline(extended_timeline: pd.DataFrame,
     Returns:
         Timeline with WAR values calculated
     """
-    # Aggregate WAR by (IDfg, prediction_year) before merging so that
+    # Aggregate WAR and component columns by (IDfg, prediction_year) so that
     # two-way players (who appear in both batter and pitcher datasets)
     # produce ONE timeline row with their combined WAR, not two rows.
+    component_cols = ['Bat', 'BsR', 'Def']
+    agg_cols = ['WAR'] + [c for c in component_cols if c in player_predictions.columns]
     war_agg = (
         player_predictions
-        .groupby(['IDfg', 'prediction_year'], as_index=False)['WAR']
+        .groupby(['IDfg', 'prediction_year'], as_index=False)[agg_cols]
         .sum()
     )
 
@@ -241,10 +248,20 @@ def join_predictions_with_timeline(extended_timeline: pd.DataFrame,
         right_on=['IDfg', 'prediction_year'],
         how='left'
     )
-    
-    # Calculate WAR values
+
+    # Ensure component columns exist (pitchers will have NaN → fill with 0)
+    for col in component_cols:
+        if col not in timeline_with_war.columns:
+            timeline_with_war[col] = 0.0
+        else:
+            timeline_with_war[col] = timeline_with_war[col].fillna(0.0)
+
+    # Calculate WAR values using role-specific market model
     timeline_with_war['Base_Value'] = timeline_with_war.apply(
-        lambda x: calculate_war_value(x['WAR'], x['Year']),
+        lambda x: calculate_war_value(
+            x['WAR'], x['Year'],
+            position_group=x.get('position_group', 'batter'),
+        ),
         axis=1
     )
     
@@ -688,15 +705,25 @@ def post_process_export_data(df: pd.DataFrame) -> pd.DataFrame:
     export_data = export_data.drop('Contract_Value', axis=1, errors='ignore')
     export_data = export_data.drop('Payroll', axis=1, errors='ignore')
     
-    # Calculate combined WAR value for two-way players using convex model
+    # Calculate combined WAR value for two-way players using position-aware model
     if 'Two_Way' in export_data.columns:
         two_way_mask = export_data['Two_Way'] == True
         if two_way_mask.any():
             total_war = (export_data.loc[two_way_mask, 'WAR_batter'].fillna(0) + 
                         export_data.loc[two_way_mask, 'WAR_pitcher'].fillna(0))
+            # Two-way players: use batter components for the batter WAR portion,
+            # but value the combined WAR with batter position_group since that
+            # captures both hitting and pitching contributions.
             export_data.loc[two_way_mask, 'Base_Value'] = [
-                calculate_war_value(w, int(y))
-                for w, y in zip(total_war, export_data.loc[two_way_mask, 'Year'])
+                calculate_war_value(
+                    w, int(y),
+                    position_group=pg if pg in ('SP', 'RP') else 'batter',
+                )
+                for w, y, pg in zip(
+                    total_war,
+                    export_data.loc[two_way_mask, 'Year'],
+                    export_data.loc[two_way_mask, 'position_group'].fillna('batter'),
+                )
             ]
             export_data.loc[two_way_mask, 'surplus_value'] = (
                 export_data.loc[two_way_mask, 'Base_Value'] - 

@@ -250,10 +250,13 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
         1. Compute ``projection_confidence`` from career MLB games vs
            ``TradeConfidence.STABILIZATION_GAMES`` thresholds.
         2. Store the performance-based trade value as ``raw_trade_value``.
+        3. Apply confidence as a multiplier: ``trade_value *= confidence``.
+           Low-sample players are regressed toward zero, reflecting the
+           market's reluctance to pay full price for unproven projections.
 
     For recent prospects (FV grade available, ranked within the recency window):
-        3. Compute a prospect-grade dollar value from FV + rank.
-        4. Apply as a floor: ``trade_value = max(perf_value, prospect_value * prospect_weight)``
+        4. Compute a prospect-grade dollar value from FV + rank.
+        5. Apply as a floor: ``trade_value = max(conf_adjusted_value, prospect_value * prospect_weight)``
            where prospect_weight fades from 1.0 (0 games) to 0.0 (experience threshold).
 
     Players without prospect data or with full confidence are untouched.
@@ -359,6 +362,20 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
 
         conf = Config.TradeConfidence.calculate_confidence(games, pos_type)
         result_df.loc[pmask, "projection_confidence"] = round(conf, 3)
+
+        # ── Apply confidence as a universal discount ─────────────────
+        # Unproven players have their trade value regressed toward zero.
+        # This fixes overvaluation of low-sample players (e.g. Ryan Bliss
+        # getting $90M from defensive WAR in 50 career games).
+        if conf < 1.0:
+            current_tv = result_df.loc[pmask, "trade_value"].iloc[0]
+            if pd.notna(current_tv):
+                result_df.loc[pmask, "trade_value"] = current_tv * conf
+
+    logger.info(
+        f"Confidence discounting: "
+        f"{(result_df['projection_confidence'] < 1.0).sum()} player-rows discounted"
+    )
 
     # ── Prospect-grade trade-value floor ─────────────────────────────────
     # MiLB regression (Step 2.25) handles stat-level blending, but a
