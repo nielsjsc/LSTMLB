@@ -109,7 +109,13 @@ class BatterConfig:
     # When this is True, all legacy CALCULATE_*_FROM_COMPONENTS flags are
     # ignored — wOBA, OBP, SLG, and AVG are kept as the model predicted them,
     # and only counting stats are derived from career profiles.
-    CALCULATE_COMPONENTS_FROM_WOBA = True
+    #
+    # NOTE (2026-04): Set to False. The component-based Marcel architecture
+    # now projects 8 base components (K%, BB%, HBP%, ISO, BABIP, HR/FB, GB%,
+    # LD%) and derives all counting stats via stat_composition.compose_all().
+    # Mode A career-profile scaling is redundant and would overwrite the
+    # composition-derived values.
+    CALCULATE_COMPONENTS_FROM_WOBA = False
     COMPONENTS_FROM_WOBA_PA_WEIGHT = 1500       # ~2.5 full seasons for full trust
     COMPONENTS_FROM_WOBA_RECENT_SEASONS = 3     # seasons for career average
 
@@ -125,8 +131,14 @@ class BatterConfig:
     #   PREDICTION — applied to each player's historical sequence just before
     #                building the input window, so padding and per-season weights
     #                reflect regressed (less noisy) values at inference time.
+    #
+    # NOTE (2026-04): Both disabled. The component-based Marcel architecture
+    # uses multivariate regression equations (Phase 2b) that already account
+    # for signal strength via R²-weighted blending with Marcel base.  The
+    # Marcel base itself regresses toward league mean.  Layering reliability
+    # regression on top would double-regress.
     ENABLE_RELIABILITY_REGRESSION_TRAINING   = False
-    ENABLE_RELIABILITY_REGRESSION_PREDICTION = True
+    ENABLE_RELIABILITY_REGRESSION_PREDICTION = False
      # ============================================================================
     # PREDICTION CONFIGURATION
     # ============================================================================
@@ -162,7 +174,11 @@ class BatterConfig:
     # player's historical wOBA - xwOBA gap (and analogous gaps for AVG/SLG).
     # The gap is PA-weighted over the last 3 seasons, regressed toward 0 to
     # account for sample noise, then scaled by the skill fraction.
-    ENABLE_XWOBA_GAP_ADJUSTMENT = True
+    #
+    # NOTE (2026-04): Disabled. The component-based Marcel architecture uses
+    # multivariate equations whose features (Pull%, Hard%, Oppo%, etc.)
+    # already capture the batted-ball skills that drive the xwOBA-wOBA gap.
+    ENABLE_XWOBA_GAP_ADJUSTMENT = False
     XWOBA_GAP_SKILL_FRACTION = 0.5    # Fraction of regressed gap to add back
     XWOBA_GAP_MIN_SEASONS = 2         # Minimum seasons with x-stat data needed
     XWOBA_GAP_REGRESSION_PA = 800     # PA of regression toward 0 (higher = more conservative)
