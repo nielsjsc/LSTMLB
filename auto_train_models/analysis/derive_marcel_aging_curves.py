@@ -202,10 +202,21 @@ def derive_batting_aging_curves(batting_df: pd.DataFrame, min_pa: int = 200) -> 
         Dict of {stat: {age_str: delta}}
     """
     # Rate stats only — counting stats are derived from wOBA in the projection
-    stats = ['BB%', 'K%', 'AVG', 'OBP', 'SLG', 'wOBA']
+    # Core 6 (original) + 6 new component stats needed for multivariate projections
+    stats = ['BB%', 'K%', 'AVG', 'OBP', 'SLG', 'wOBA',
+             'ISO', 'BABIP', 'HR/FB', 'GB%', 'LD%', 'HBP%']
 
     df = batting_df[(batting_df['PA'] >= min_pa)].copy()
-    df = df.dropna(subset=stats + ['Age'])
+
+    # Derive HBP% and ISO if not present
+    if 'HBP%' not in df.columns and 'HBP' in df.columns:
+        df['HBP%'] = df['HBP'] / df['PA'].clip(lower=1)
+    if 'ISO' not in df.columns and 'SLG' in df.columns and 'AVG' in df.columns:
+        df['ISO'] = df['SLG'] - df['AVG']
+
+    # Only require the original core stats + Age for row filtering;
+    # new stats may be NaN in older eras (e.g. GB%/LD% pre-2002)
+    df = df.dropna(subset=['BB%', 'K%', 'AVG', 'OBP', 'SLG', 'wOBA', 'Age'])
 
     df_sorted = df.sort_values(['IDfg', 'Season'])
 
