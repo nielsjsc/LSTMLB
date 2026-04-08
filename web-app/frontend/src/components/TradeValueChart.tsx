@@ -423,9 +423,9 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
                 x1={cx} x2={cx} y1={cy + s + 2} y2={MARGIN.top + plotH}
                 stroke="rgba(30,64,175,0.15)" strokeWidth={1} strokeDasharray="3,3"
               />
-              <polygon
-                points={`${cx},${cy - s} ${cx + s},${cy} ${cx},${cy + s} ${cx - s},${cy}`}
-                fill="white" stroke="#1d4ed8" strokeWidth={1.5}
+              <circle
+                cx={cx} cy={cy} r={s * 0.7}
+                fill="#1d4ed8" stroke="white" strokeWidth={1.5}
               />
             </g>
           );
@@ -596,7 +596,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
         {chartTxns.length > 0 && (
           <div className="flex items-center gap-1.5">
             <svg width="10" height="10" viewBox="0 0 10 10">
-              <polygon points="5,0 10,5 5,10 0,5" fill="white" stroke="#1d4ed8" strokeWidth="1.5" />
+              <circle cx="5" cy="5" r="3.5" fill="#1d4ed8" stroke="white" strokeWidth="1.5" />
             </svg>
             <span className="text-[10px] text-gray-500 font-medium">Transaction</span>
           </div>
