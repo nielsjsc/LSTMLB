@@ -1,0 +1,796 @@
+IDfg,Name,Season,primary_position,profile
+23792,Alek Thomas,2026,CF,{'CF': 1.0}
+27769,Pete Crow-Armstrong,2026,CF,{'CF': 1.0}
+33266,Jacob Wilson,2026,SS,{'SS': 1.0}
+25764,Bobby Witt Jr.,2026,SS,{'SS': 1.0}
+19709,Fernando Tatis Jr.,2026,RF,{'RF': 1.0}
+20454,Jazz Chisholm Jr.,2026,2B,{'2B': 1.0}
+18577,Ke'Bryan Hayes,2026,3B,"{'3B': 0.7777777777777778, 'DH': 0.2222222222222222}"
+27790,Evan Carter,2026,CF,"{'CF': 0.6666666666666666, 'DH': 0.3333333333333333}"
+16530,Mauricio Dubon,2026,SS,"{'SS': 0.8888888888888888, '3B': 0.1111111111111111}"
+34985,JJ Wetherholt,2026,2B,"{'2B': 0.8888888888888888, 'DH': 0.1111111111111111}"
+18345,Kyle Tucker,2026,RF,"{'RF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+27479,Masyn Winn,2026,SS,{'SS': 1.0}
+22799,Geraldo Perdomo,2026,SS,{'SS': 1.0}
+31912,Chandler Simpson,2026,LF,"{'LF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+21479,Nico Hoerner,2026,2B,{'2B': 1.0}
+12916,Francisco Lindor,2026,SS,{'SS': 1.0}
+18360,Austin Riley,2026,3B,"{'3B': 0.9, 'DH': 0.1}"
+22563,Gabriel Arias,2026,SS,{'SS': 1.0}
+27478,Patrick Bailey,2026,C,{'C': 1.0}
+11739,J.T. Realmuto,2026,C,{'C': 1.0}
+19197,Will Smith,2026,C,"{'C': 0.7777777777777778, 'DH': 0.2222222222222222}"
+22715,Maikel Garcia,2026,3B,{'3B': 1.0}
+29931,Jacob Young,2026,CF,"{'CF': 0.75, 'DH': 0.25}"
+13611,Mookie Betts,2026,SS,"{'SS': 0.875, 'DH': 0.125}"
+37123,Kazuma Okamoto,2026,3B,{'3B': 1.0}
+19346,Eli White,2026,LF,"{'LF': 0.5, 'RF': 0.16666666666666666, 'DH': 0.3333333333333333}"
+11609,Willson Contreras,2026,1B,{'1B': 1.0}
+21618,Alec Bohm,2026,3B,{'3B': 1.0}
+26294,Bryson Stott,2026,2B,"{'2B': 0.875, 'DH': 0.125}"
+23697,Julio Rodriguez,2026,CF,{'CF': 1.0}
+29858,Denzel Clarke,2026,CF,"{'CF': 0.875, 'DH': 0.125}"
+22581,Alejandro Kirk,2026,C,{'C': 1.0}
+29646,Caleb Durbin,2026,3B,{'3B': 1.0}
+5361,Freddie Freeman,2026,1B,{'1B': 1.0}
+13624,Corey Seager,2026,SS,{'SS': 1.0}
+35108,Cam Smith,2026,RF,"{'RF': 0.9, 'DH': 0.1}"
+24598,Addison Barger,2026,RF,"{'RF': 0.625, 'DH': 0.375}"
+26288,Adley Rutschman,2026,C,"{'C': 0.8571428571428571, 'DH': 0.14285714285714285}"
+27490,Nick Gonzales,2026,3B,"{'SS': 0.14285714285714285, '2B': 0.14285714285714285, '3B': 0.7142857142857143}"
+23917,Jorbit Vivas,2026,3B,"{'3B': 0.5, '2B': 0.5}"
+21534,Cal Raleigh,2026,C,"{'C': 0.8, 'DH': 0.2}"
+31500,Ryan Ritter,2026,DH,"{'2B': 0.16666666666666666, 'DH': 0.8333333333333334}"
+16997,Gleyber Torres,2026,2B,"{'2B': 0.7777777777777778, 'DH': 0.2222222222222222}"
+25493,Joey Ortiz,2026,SS,{'SS': 1.0}
+22277,Nick Allen,2026,DH,"{'SS': 0.125, 'DH': 0.875}"
+16153,Austin Slater,2026,RF,"{'RF': 0.6666666666666666, 'DH': 0.3333333333333333}"
+19608,Otto Lopez,2026,SS,{'SS': 1.0}
+27562,Austin Wells,2026,C,{'C': 1.0}
+27690,Joey Wiemer,2026,RF,"{'RF': 0.5, 'CF': 0.5}"
+17273,Jorge Mateo,2026,SS,"{'SS': 0.5, 'DH': 0.5}"
+31680,Cole Young,2026,2B,{'2B': 1.0}
+29617,Henry Davis,2026,C,"{'C': 0.6666666666666666, 'DH': 0.3333333333333333}"
+28312,Coby Mayo,2026,3B,"{'3B': 0.8571428571428571, 'DH': 0.14285714285714285}"
+31539,Drake Baldwin,2026,C,"{'C': 0.7, 'DH': 0.3}"
+25976,Riley Greene,2026,LF,"{'LF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+25878,Corbin Carroll,2026,RF,"{'RF': 0.9, 'DH': 0.1}"
+16442,Ryan O'Hearn,2026,RF,"{'1B': 0.25, 'RF': 0.75}"
+20036,Isaac Paredes,2026,3B,"{'3B': 0.6666666666666666, '2B': 0.16666666666666666, 'DH': 0.16666666666666666}"
+24618,Ryan Jeffers,2026,C,"{'C': 0.8571428571428571, 'DH': 0.14285714285714285}"
+29805,T.J. Rumfield,2026,1B,"{'1B': 0.6666666666666666, 'DH': 0.3333333333333333}"
+23772,Wilyer Abreu,2026,RF,{'RF': 1.0}
+26548,Luisangel Acuna,2026,CF,"{'CF': 0.625, 'SS': 0.375}"
+21538,Nick Fortes,2026,C,"{'C': 0.625, 'DH': 0.375}"
+16939,Lane Thomas,2026,CF,"{'RF': 0.14285714285714285, 'LF': 0.14285714285714285, 'CF': 0.2857142857142857, 'DH': 0.42857142857142855}"
+31349,Victor Scott II,2026,CF,{'CF': 1.0}
+26668,Elly De La Cruz,2026,SS,{'SS': 1.0}
+21840,Freddy Fermin,2026,C,"{'C': 0.625, 'DH': 0.375}"
+27531,David Hamilton,2026,3B,"{'3B': 0.6666666666666666, 'SS': 0.3333333333333333}"
+16725,Jose Trevino,2026,C,{'C': 1.0}
+27475,Jordan Walker,2026,RF,"{'RF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+33252,Kyle Karros,2026,3B,"{'3B': 0.8888888888888888, 'DH': 0.1111111111111111}"
+20503,William Contreras,2026,C,"{'C': 0.875, 'DH': 0.125}"
+24064,Ezequiel Tovar,2026,SS,{'SS': 1.0}
+22263,Nolan Gorman,2026,3B,"{'3B': 0.5555555555555556, 'DH': 0.4444444444444444}"
+14162,Carlos Correa,2026,3B,"{'3B': 0.6, 'SS': 0.4}"
+29490,Jackson Merrill,2026,CF,"{'CF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+27464,Dillon Dingler,2026,C,"{'C': 0.875, 'DH': 0.125}"
+19953,Josh Lowe,2026,LF,{'LF': 1.0}
+12533,Marcus Semien,2026,2B,{'2B': 1.0}
+17338,Willi Castro,2026,2B,"{'2B': 0.7777777777777778, '3B': 0.1111111111111111, '1B': 0.1111111111111111}"
+29715,Hunter Goodman,2026,C,"{'C': 0.6666666666666666, 'DH': 0.3333333333333333}"
+13510,Jose Ramirez,2026,3B,"{'3B': 0.8, 'DH': 0.2}"
+23968,Jorge Barrosa,2026,LF,"{'RF': 0.25, 'CF': 0.25, 'LF': 0.5}"
+33333,Wyatt Langford,2026,LF,"{'LF': 0.6666666666666666, 'CF': 0.3333333333333333}"
+29712,Colson Montgomery,2026,SS,"{'3B': 0.3333333333333333, 'SS': 0.5555555555555556, 'DH': 0.1111111111111111}"
+9777,Nolan Arenado,2026,3B,{'3B': 1.0}
+31363,Graham Pauley,2026,3B,"{'3B': 0.5714285714285714, '1B': 0.14285714285714285, 'DH': 0.2857142857142857}"
+7802,Miguel Rojas,2026,2B,"{'2B': 0.5, 'SS': 0.3333333333333333, 'DH': 0.16666666666666666}"
+27577,Casey Schmitt,2026,1B,{'1B': 1.0}
+23789,Blaze Alexander,2026,3B,"{'3B': 0.42857142857142855, '2B': 0.42857142857142855, 'DH': 0.14285714285714285}"
+19290,Randy Arozarena,2026,LF,{'LF': 1.0}
+15362,Jeff McNeil,2026,2B,"{'2B': 0.75, 'DH': 0.25}"
+15491,J.P. Crawford,2026,SS,{'SS': 1.0}
+19858,Luis Rengifo,2026,3B,"{'3B': 0.8333333333333334, 'DH': 0.16666666666666666}"
+30063,Tristan Peters,2026,CF,"{'CF': 0.5, 'RF': 0.375, 'DH': 0.125}"
+25180,Daniel Schneemann,2026,CF,"{'CF': 0.5, '3B': 0.25, '2B': 0.125, 'DH': 0.125}"
+18882,Brandon Lowe,2026,2B,{'2B': 1.0}
+9774,Christian Vazquez,2026,C,"{'C': 0.6, 'DH': 0.4}"
+25643,Drew Millas,2026,C,"{'C': 0.8, 'DH': 0.2}"
+29844,Liam Hicks,2026,C,"{'C': 0.625, '1B': 0.125, 'DH': 0.25}"
+24729,Logan O'Hoppe,2026,C,"{'C': 0.8888888888888888, 'DH': 0.1111111111111111}"
+23800,Parker Meadows,2026,CF,{'CF': 1.0}
+25979,Nasim Nunez,2026,2B,"{'2B': 0.8571428571428571, 'SS': 0.14285714285714285}"
+25782,Pedro Pages,2026,C,"{'C': 0.8571428571428571, 'DH': 0.14285714285714285}"
+18054,Sam Haggerty,2026,LF,"{'LF': 0.75, 'DH': 0.25}"
+19610,Keibert Ruiz,2026,C,{'C': 1.0}
+24617,Jarren Duran,2026,LF,"{'CF': 0.25, 'LF': 0.375, 'DH': 0.375}"
+22515,Heliot Ramos,2026,LF,{'LF': 1.0}
+15905,Luis Torrens,2026,C,"{'C': 0.6, 'DH': 0.4}"
+16930,Jonah Heim,2026,C,{'C': 1.0}
+12859,James McCann,2026,C,"{'C': 0.8, 'DH': 0.2}"
+25931,Michael Harris II,2026,CF,{'CF': 1.0}
+20308,Jake Meyers,2026,CF,"{'CF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+21009,Leo Rivas,2026,SS,"{'SS': 0.7, '3B': 0.2, 'DH': 0.1}"
+21865,Bo Naylor,2026,C,{'C': 1.0}
+27504,Nick Yorke,2026,3B,"{'3B': 0.5, 'RF': 0.16666666666666666, 'DH': 0.3333333333333333}"
+19722,Carlos Narvaez,2026,C,{'C': 1.0}
+15518,Amed Rosario,2026,3B,"{'3B': 0.6666666666666666, 'DH': 0.3333333333333333}"
+18123,Nathan Lukes,2026,LF,"{'RF': 0.14285714285714285, 'LF': 0.2857142857142857, 'DH': 0.5714285714285714}"
+18819,Andy Ibanez,2026,2B,"{'2B': 0.2, '1B': 0.2, 'DH': 0.6}"
+29695,Matt McLain,2026,2B,{'2B': 1.0}
+19950,Andres Gimenez,2026,SS,{'SS': 1.0}
+33572,Kevin McGonigle,2026,3B,"{'3B': 0.6666666666666666, 'SS': 0.3333333333333333}"
+19455,Andruw Monasterio,2026,3B,"{'3B': 0.3333333333333333, 'DH': 0.6666666666666666}"
+28253,Javier Sanoja,2026,3B,"{'3B': 0.8333333333333334, 'DH': 0.16666666666666666}"
+13620,Carson Kelly,2026,C,"{'C': 0.75, 'DH': 0.25}"
+28824,Samuel Basallo,2026,C,"{'C': 0.42857142857142855, 'DH': 0.5714285714285714}"
+13301,Max Muncy,2026,3B,"{'3B': 0.875, 'DH': 0.125}"
+18030,Harrison Bader,2026,CF,{'CF': 1.0}
+31791,Justin Crawford,2026,CF,{'CF': 1.0}
+21626,Griffin Conine,2026,LF,"{'LF': 0.375, 'RF': 0.125, 'DH': 0.5}"
+23003,Yainer Diaz,2026,C,"{'C': 0.875, 'DH': 0.125}"
+17128,Ramon Laureano,2026,LF,"{'LF': 0.875, 'DH': 0.125}"
+21693,Miguel Amaya,2026,C,"{'C': 0.6, 'DH': 0.4}"
+7304,Salvador Perez,2026,C,"{'C': 0.7777777777777778, 'DH': 0.2222222222222222}"
+29478,Carter Jensen,2026,C,"{'C': 0.25, 'DH': 0.75}"
+23372,Hunter Feduccia,2026,C,"{'C': 0.8, 'DH': 0.2}"
+18900,Leody Taveras,2026,CF,"{'CF': 0.5, 'DH': 0.5}"
+23565,Davis Schneider,2026,LF,"{'LF': 0.6, 'DH': 0.4}"
+16535,Danny Jansen,2026,C,{'C': 1.0}
+22217,Luis Campusano,2026,C,{'C': 1.0}
+25816,Shea Langeliers,2026,C,"{'C': 0.7777777777777778, 'DH': 0.2222222222222222}"
+22823,Oswald Peraza,2026,2B,"{'2B': 0.8888888888888888, 'DH': 0.1111111111111111}"
+28020,Jose Fernandez,2026,1B,"{'3B': 0.2, '1B': 0.4, 'DH': 0.4}"
+21646,Rafael Marchan,2026,C,"{'C': 0.7142857142857143, 'DH': 0.2857142857142857}"
+35376,Konnor Griffin,2026,SS,{'SS': 1.0}
+13897,Tyler Heineman,2026,C,"{'C': 0.5, 'DH': 0.5}"
+35110,Nick Kurtz,2026,1B,{'1B': 1.0}
+5517,Kyle Higashioka,2026,C,"{'C': 0.75, 'DH': 0.25}"
+29976,Jordan Lawlar,2026,LF,"{'LF': 0.8333333333333334, 'CF': 0.16666666666666666}"
+21496,Brandon Lockridge,2026,LF,"{'LF': 0.5, 'CF': 0.25, 'DH': 0.25}"
+20599,Ivan Herrera,2026,C,"{'C': 0.3333333333333333, 'DH': 0.6666666666666666}"
+13613,Ketel Marte,2026,2B,"{'2B': 0.9, 'DH': 0.1}"
+24816,Andy Pages,2026,CF,{'CF': 1.0}
+29794,Kyle Manzardo,2026,1B,"{'1B': 0.5555555555555556, 'DH': 0.4444444444444444}"
+24878,Heriberto Hernandez,2026,LF,"{'LF': 0.75, 'DH': 0.25}"
+20352,Ernie Clement,2026,2B,{'2B': 1.0}
+26546,Agustin Ramirez,2026,C,"{'C': 0.5, 'DH': 0.5}"
+22896,Lenyn Sosa,2026,DH,"{'2B': 0.14285714285714285, 'DH': 0.8571428571428571}"
+22664,Gabriel Moreno,2026,C,"{'C': 0.6666666666666666, 'DH': 0.3333333333333333}"
+12976,Austin Hedges,2026,C,"{'C': 0.7714285714285715, 'DH': 0.22857142857142856}"
+26121,Francisco Alvarez,2026,C,"{'C': 0.7777777777777778, 'DH': 0.2222222222222222}"
+19452,Jake Rogers,2026,C,"{'C': 0.7959183673469388, 'DH': 0.20408163265306123}"
+19896,Connor Wong,2026,C,"{'C': 0.75, 'DH': 0.25}"
+23986,Curtis Mead,2026,1B,"{'1B': 0.5, 'DH': 0.5}"
+18217,Brett Sullivan,2026,C,"{'C': 0.6, 'DH': 0.4}"
+16512,Isiah Kiner-Falefa,2026,2B,"{'2B': 0.6666666666666666, 'DH': 0.3333333333333333}"
+22266,Xavier Edwards,2026,2B,{'2B': 1.0}
+12552,Eugenio Suarez,2026,3B,"{'3B': 0.2222222222222222, 'DH': 0.7777777777777778}"
+13324,Ildemaro Vargas,2026,2B,"{'2B': 0.25, 'DH': 0.75}"
+37120,Munetaka Murakami,2026,1B,"{'1B': 0.8888888888888888, 'DH': 0.1111111111111111}"
+15986,Willy Adames,2026,SS,{'SS': 1.0}
+21524,Joey Bart,2026,C,{'C': 1.0}
+31441,Daniel Susac,2026,C,"{'C': 0.3333333333333333, 'DH': 0.6666666666666666}"
+33197,Ben Williamson,2026,2B,"{'SS': 0.3333333333333333, '2B': 0.4444444444444444, 'DH': 0.2222222222222222}"
+14161,Byron Buxton,2026,CF,"{'CF': 0.875, 'DH': 0.125}"
+26224,Darell Hernaiz,2026,2B,"{'2B': 0.4, 'DH': 0.6}"
+17982,Ty France,2026,1B,"{'1B': 0.6666666666666666, 'DH': 0.3333333333333333}"
+26202,Jake Mangum,2026,LF,"{'CF': 0.14285714285714285, 'LF': 0.2857142857142857, 'RF': 0.2857142857142857, 'DH': 0.2857142857142857}"
+31382,Dalton Rushing,2026,C,"{'C': 0.6981132075471698, '1B': 0.018867924528301886, 'DH': 0.2830188679245283}"
+29668,Marcelo Mayer,2026,2B,"{'2B': 0.7777777777777778, 'DH': 0.2222222222222222}"
+21636,Jeremy Pena,2026,SS,{'SS': 1.0}
+11442,Gary Sanchez,2026,1B,"{'C': 0.2, '1B': 0.4, 'DH': 0.4}"
+23733,Ezequiel Duran,2026,3B,"{'3B': 0.3333333333333333, '2B': 0.3333333333333333, 'DH': 0.3333333333333333}"
+9218,Paul Goldschmidt,2026,1B,"{'1B': 0.6666666666666666, 'DH': 0.3333333333333333}"
+14968,Victor Caratini,2026,C,"{'C': 0.5, '1B': 0.5}"
+15674,Reese McGuire,2026,C,"{'C': 0.6, 'DH': 0.4}"
+23690,Brayan Rocchio,2026,2B,"{'SS': 0.1, '2B': 0.9}"
+16505,Matt Chapman,2026,3B,{'3B': 1.0}
+19392,Zach McKinstry,2026,RF,"{'2B': 0.4, 'RF': 0.6}"
+15161,Mitch Garver,2026,C,"{'C': 0.4827586206896552, 'DH': 0.5172413793103449}"
+31347,Zach Neto,2026,SS,{'SS': 1.0}
+22542,Lawrence Butler,2026,RF,"{'CF': 0.25, 'RF': 0.5, 'DH': 0.25}"
+15998,Cody Bellinger,2026,LF,"{'LF': 0.8888888888888888, 'CF': 0.1111111111111111}"
+16556,Ozzie Albies,2026,2B,{'2B': 1.0}
+24934,David Fry,2026,C,"{'C': 0.2, 'RF': 0.2, 'DH': 0.6}"
+18373,Ryan Mountcastle,2026,1B,"{'1B': 0.3333333333333333, 'DH': 0.6666666666666666}"
+20084,J.C. Escarra,2026,C,"{'C': 0.3333333333333333, 'DH': 0.6666666666666666}"
+27883,Thomas Saggese,2026,SS,"{'SS': 0.4, '2B': 0.2, 'LF': 0.4}"
+16947,Derek Hill,2026,DH,"{'RF': 0.16666666666666666, 'DH': 0.8333333333333334}"
+28022,Edgar Quero,2026,C,"{'C': 0.8571428571428571, 'DH': 0.14285714285714285}"
+14813,Kyle Farmer,2026,DH,{'DH': 1.0}
+26319,Michael Busch,2026,1B,{'1B': 1.0}
+35177,Carson Benge,2026,RF,"{'CF': 0.2222222222222222, 'RF': 0.6666666666666666, 'DH': 0.1111111111111111}"
+27534,Edouard Julien,2026,DH,"{'2B': 0.14285714285714285, 'DH': 0.8571428571428571}"
+28272,Jeferson Quero,2026,C,{'C': 1.0}
+23813,Brandon Valenzuela,2026,C,{'C': 1.0}
+26197,Andrew Vaughn,2026,1B,"{'1B': 0.7946428571428571, 'DH': 0.20535714285714285}"
+21501,Trevor Larnach,2026,LF,"{'LF': 0.5714285714285714, 'DH': 0.42857142857142855}"
+7739,Travis d'Arnaud,2026,C,"{'C': 0.7681159420289855, 'DH': 0.2318840579710145}"
+31357,Nathan Church,2026,LF,"{'RF': 0.125, 'LF': 0.75, 'DH': 0.125}"
+15271,Austin Wynns,2026,C,"{'C': 0.6666666666666666, 'DH': 0.3333333333333333}"
+26365,Jonny DeLuca,2026,RF,"{'CF': 0.125, 'RF': 0.375, 'DH': 0.5}"
+20404,Jared Young,2026,1B,"{'1B': 0.2857142857142857, 'LF': 0.2857142857142857, 'DH': 0.42857142857142855}"
+27676,Vinnie Pasquantino,2026,1B,{'1B': 1.0}
+33280,Brice Matthews,2026,LF,"{'CF': 0.125, 'LF': 0.5, 'DH': 0.375}"
+27630,Nick Loftin,2026,2B,"{'2B': 0.5, 'LF': 0.25, 'DH': 0.25}"
+29573,Billy Cook,2026,DH,{'DH': 1.0}
+21558,Matt Vierling,2026,CF,"{'CF': 0.16666666666666666, 'LF': 0.16666666666666666, 'DH': 0.6666666666666666}"
+28848,Tanner Murray,2026,SS,{'SS': 1.0}
+29704,Braxton Fulford,2026,DH,{'DH': 1.0}
+21622,Jake McCarthy,2026,LF,"{'CF': 0.2222222222222222, 'LF': 0.5555555555555556, 'DH': 0.2222222222222222}"
+19877,Tristan Gray,2026,SS,"{'3B': 0.2, 'SS': 0.6, 'DH': 0.2}"
+24610,Steven Kwan,2026,CF,"{'LF': 0.4, 'CF': 0.6}"
+18036,Jake Cronenworth,2026,2B,{'2B': 1.0}
+18848,Yohel Pozo,2026,C,"{'C': 0.5223880597014925, '1B': 0.014925373134328358, 'DH': 0.4626865671641791}"
+19522,TJ Friedl,2026,CF,"{'LF': 0.1111111111111111, 'CF': 0.7777777777777778, 'DH': 0.1111111111111111}"
+20002,Bryce Johnson,2026,CF,"{'CF': 0.2, 'LF': 0.2, 'DH': 0.6}"
+27462,Austin Martin,2026,LF,"{'CF': 0.125, 'LF': 0.625, 'DH': 0.25}"
+27899,Colt Keith,2026,3B,"{'1B': 0.125, '3B': 0.375, 'DH': 0.5}"
+33322,Matt Shaw,2026,RF,"{'3B': 0.125, 'RF': 0.75, 'DH': 0.125}"
+26299,Josh Jung,2026,3B,"{'3B': 0.875, 'DH': 0.125}"
+19968,Jared Oliva,2026,DH,{'DH': 1.0}
+26540,Angel Martinez,2026,RF,"{'RF': 0.3333333333333333, 'LF': 0.3333333333333333, 'DH': 0.3333333333333333}"
+25779,Tyler Tolbert,2026,DH,{'DH': 1.0}
+18795,Ramon Urias,2026,3B,"{'3B': 0.5714285714285714, 'DH': 0.42857142857142855}"
+29524,Bryce Teodosio,2026,DH,"{'LF': 0.14285714285714285, 'DH': 0.8571428571428571}"
+27789,Shay Whitcomb,2026,2B,"{'3B': 0.1, '2B': 0.15, 'DH': 0.75}"
+35322,Hyeseong Kim,2026,2B,"{'2B': 0.4507042253521127, 'CF': 0.1267605633802817, 'SS': 0.056338028169014086, 'DH': 0.36619718309859156}"
+21853,Will Benson,2026,RF,"{'LF': 0.125, 'RF': 0.5, 'DH': 0.375}"
+23782,Leo Jimenez,2026,DH,{'DH': 1.0}
+26323,Spencer Steer,2026,LF,"{'1B': 0.125, 'LF': 0.875}"
+27653,Christian Koss,2026,2B,"{'2B': 0.5131578947368421, '3B': 0.09210526315789473, 'SS': 0.039473684210526314, 'DH': 0.35526315789473684}"
+17620,Myles Straw,2026,RF,"{'CF': 0.14285714285714285, 'RF': 0.2857142857142857, 'DH': 0.5714285714285714}"
+20572,Kody Clemens,2026,1B,"{'1B': 0.8333333333333334, 'DH': 0.16666666666666666}"
+26143,Troy Johnston,2026,RF,"{'1B': 0.25, 'RF': 0.5, 'DH': 0.25}"
+12979,Javier Baez,2026,SS,{'SS': 1.0}
+22165,Ryan Vilade,2026,LF,"{'LF': 0.2, 'RF': 0.2, 'DH': 0.6}"
+19566,Nathaniel Lowe,2026,DH,{'DH': 1.0}
+18872,Jahmai Jones,2026,DH,{'DH': 1.0}
+20126,Dylan Carlson,2026,LF,"{'CF': 0.14457831325301204, 'LF': 0.5060240963855421, 'RF': 0.0963855421686747, 'DH': 0.25301204819277107}"
+20202,Brandon Marsh,2026,LF,"{'LF': 0.7777777777777778, 'CF': 0.1111111111111111, 'DH': 0.1111111111111111}"
+14854,Mike Yastrzemski,2026,LF,"{'LF': 0.7777777777777778, 'DH': 0.2222222222222222}"
+15223,Adam Frazier,2026,2B,"{'2B': 0.5, 'DH': 0.5}"
+21842,Carlos Cortes,2026,RF,"{'RF': 0.6, 'DH': 0.4}"
+15878,Miguel Andujar,2026,DH,{'DH': 1.0}
+18042,Dylan Moore,2026,DH,{'DH': 1.0}
+19997,Santiago Espinal,2026,3B,"{'3B': 0.6666666666666666, 'DH': 0.3333333333333333}"
+10243,Randal Grichuk,2026,LF,"{'LF': 0.3333333333333333, 'DH': 0.6666666666666666}"
+11477,Christian Yelich,2026,DH,"{'LF': 0.1111111111111111, 'DH': 0.8888888888888888}"
+27969,Deyvison De Los Santos,2026,1B,{'1B': 1.0}
+20220,Jo Adell,2026,RF,"{'CF': 0.1, 'RF': 0.9}"
+19296,Alex Call,2026,LF,"{'LF': 0.3333333333333333, 'RF': 0.3333333333333333, 'DH': 0.3333333333333333}"
+17919,Ian Happ,2026,LF,"{'LF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+27555,Garrett Mitchell,2026,CF,"{'CF': 0.75, 'DH': 0.25}"
+24770,James Outman,2026,DH,"{'CF': 0.125, 'DH': 0.875}"
+12161,Xander Bogaerts,2026,SS,{'SS': 1.0}
+19251,Pete Alonso,2026,1B,"{'1B': 0.8888888888888888, 'DH': 0.1111111111111111}"
+29630,Joey Loperfido,2026,LF,"{'RF': 0.1111111111111111, 'LF': 0.3333333333333333, 'CF': 0.1111111111111111, 'DH': 0.4444444444444444}"
+15194,Jake Bauers,2026,1B,"{'LF': 0.1111111111111111, '1B': 0.6666666666666666, 'DH': 0.2222222222222222}"
+26467,Luis Matos,2026,RF,"{'LF': 0.14035087719298245, 'CF': 0.14035087719298245, 'RF': 0.5263157894736842, 'DH': 0.19298245614035087}"
+29518,James Wood,2026,RF,"{'RF': 0.6666666666666666, 'LF': 0.2222222222222222, 'DH': 0.1111111111111111}"
+9241,Starling Marte,2026,RF,"{'RF': 0.6666666666666666, 'DH': 0.3333333333333333}"
+19921,Blake Perkins,2026,LF,"{'LF': 0.5, 'CF': 0.16666666666666666, 'DH': 0.3333333333333333}"
+21797,Andres Chaparro,2026,1B,"{'1B': 0.6666666666666666, 'DH': 0.3333333333333333}"
+29591,Colton Cowser,2026,CF,"{'RF': 0.2857142857142857, 'CF': 0.7142857142857143}"
+31431,Jordan Beck,2026,LF,"{'LF': 0.5714285714285714, 'RF': 0.2857142857142857, 'DH': 0.14285714285714285}"
+22532,Tyler Freeman,2026,RF,"{'2B': 0.10909090909090909, 'RF': 0.5454545454545454, 'DH': 0.34545454545454546}"
+13675,Tyrone Taylor,2026,RF,"{'LF': 0.16666666666666666, 'RF': 0.3333333333333333, 'DH': 0.5}"
+17022,Edmundo Sosa,2026,2B,"{'2B': 0.4, 'DH': 0.6}"
+33321,Luke Keaschall,2026,2B,{'2B': 1.0}
+11737,Nick Castellanos,2026,1B,"{'1B': 0.14285714285714285, 'LF': 0.14285714285714285, 'DH': 0.7142857142857143}"
+18401,Ronald Acuna Jr.,2026,RF,"{'RF': 0.9, 'DH': 0.1}"
+26123,Brett Baty,2026,RF,"{'RF': 0.25, '1B': 0.25, 'DH': 0.5}"
+29571,Tim Tawa,2026,LF,"{'LF': 0.6, 'DH': 0.4}"
+19627,Brent Rooker,2026,RF,"{'RF': 0.2222222222222222, 'DH': 0.7777777777777778}"
+13145,Josh Bell,2026,DH,"{'1B': 0.1111111111111111, 'DH': 0.8888888888888888}"
+17350,Rafael Devers,2026,DH,"{'1B': 0.1, 'DH': 0.9}"
+19611,Vladimir Guerrero Jr.,2026,1B,{'1B': 1.0}
+20043,Luis Robert Jr.,2026,CF,"{'CF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+25807,Jared Triolo,2026,SS,"{'3B': 0.16666666666666666, 'SS': 0.8333333333333334}"
+19918,Daulton Varsho,2026,CF,"{'CF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+23401,Jose Caballero,2026,SS,{'SS': 1.0}
+16376,Michael Conforto,2026,RF,"{'RF': 0.6, 'DH': 0.4}"
+5417,Jose Altuve,2026,2B,"{'2B': 0.9, 'DH': 0.1}"
+19913,Jesus Sanchez,2026,LF,"{'RF': 0.125, 'LF': 0.5, 'DH': 0.375}"
+33704,C.J. Kayfus,2026,LF,"{'RF': 0.3333333333333333, 'LF': 0.5, 'DH': 0.16666666666666666}"
+20178,Miguel Vargas,2026,3B,"{'3B': 0.6666666666666666, '1B': 0.1111111111111111, 'DH': 0.2222222222222222}"
+21746,Jose Fermin,2026,2B,"{'2B': 0.3333333333333333, 'LF': 0.03333333333333333, 'RF': 0.03333333333333333, '3B': 0.06666666666666667, 'DH': 0.5333333333333333}"
+18568,Luis Arraez,2026,2B,{'2B': 1.0}
+29995,Daylen Lile,2026,LF,"{'LF': 0.7777777777777778, 'DH': 0.2222222222222222}"
+29779,Max Muncy,2026,3B,{'3B': 1.0}
+17232,Yoan Moncada,2026,3B,{'3B': 1.0}
+9847,Andrew McCutchen,2026,DH,"{'RF': 0.14285714285714285, 'DH': 0.8571428571428571}"
+15640,Aaron Judge,2026,RF,{'RF': 1.0}
+31370,Jakob Marsee,2026,CF,{'CF': 1.0}
+27496,Owen Caissie,2026,RF,"{'RF': 0.4444444444444444, 'DH': 0.5555555555555556}"
+29576,Ben Rice,2026,1B,"{'1B': 0.875, 'DH': 0.125}"
+33824,Jung Hoo Lee,2026,RF,{'RF': 1.0}
+17929,Cedric Mullins,2026,CF,"{'CF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+31580,Chase Meidroth,2026,2B,{'2B': 1.0}
+17988,Tyler Stephenson,2026,C,"{'C': 0.8571428571428571, 'DH': 0.14285714285714285}"
+31812,Roman Anthony,2026,LF,"{'LF': 0.4444444444444444, 'DH': 0.5555555555555556}"
+22054,Dane Myers,2026,CF,"{'CF': 0.2222222222222222, 'DH': 0.7777777777777778}"
+13066,Teoscar Hernandez,2026,LF,{'LF': 1.0}
+33189,Nolan Schanuel,2026,1B,{'1B': 1.0}
+29622,Sal Frelick,2026,RF,{'RF': 1.0}
+30038,Carson Williams,2026,SS,"{'SS': 0.8571428571428571, 'DH': 0.14285714285714285}"
+26517,Noelvi Marte,2026,RF,"{'RF': 0.8333333333333334, 'DH': 0.16666666666666666}"
+21871,Jerar Encarnacion,2026,1B,"{'1B': 0.5, 'DH': 0.5}"
+17548,Taylor Ward,2026,LF,"{'LF': 0.7777777777777778, 'DH': 0.2222222222222222}"
+13152,Jorge Polanco,2026,1B,"{'1B': 0.25, 'DH': 0.75}"
+16472,Rhys Hoskins,2026,1B,"{'1B': 0.8333333333333334, 'DH': 0.16666666666666666}"
+14344,Matt Olson,2026,1B,{'1B': 1.0}
+22184,Mark Vientos,2026,1B,"{'1B': 0.5714285714285714, 'DH': 0.42857142857142855}"
+11493,Manny Machado,2026,3B,{'3B': 1.0}
+16252,Trea Turner,2026,SS,{'SS': 1.0}
+19556,Yordan Alvarez,2026,LF,"{'LF': 0.3, 'DH': 0.7}"
+20123,Juan Soto,2026,LF,"{'LF': 0.875, 'DH': 0.125}"
+26477,Spencer Horwitz,2026,1B,"{'1B': 0.875, 'DH': 0.125}"
+23695,Everson Pereira,2026,RF,{'RF': 1.0}
+12927,Brandon Nimmo,2026,RF,"{'RF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+13621,Jeimer Candelario,2026,3B,"{'3B': 0.5, '1B': 0.25, 'DH': 0.25}"
+19287,Adolis Garcia,2026,RF,{'RF': 1.0}
+21614,Kyle Isbel,2026,CF,{'CF': 1.0}
+31695,Dylan Beavers,2026,RF,"{'LF': 0.2857142857142857, 'RF': 0.42857142857142855, 'CF': 0.14285714285714285, 'DH': 0.14285714285714285}"
+19612,Bo Bichette,2026,3B,{'3B': 1.0}
+12564,Trevor Story,2026,SS,{'SS': 1.0}
+18363,Victor Robles,2026,RF,{'RF': 1.0}
+15711,Tyler O'Neill,2026,RF,"{'RF': 0.5714285714285714, 'DH': 0.42857142857142855}"
+25768,CJ Abrams,2026,SS,{'SS': 1.0}
+18314,Dansby Swanson,2026,SS,{'SS': 1.0}
+32127,Chase DeLauter,2026,RF,"{'RF': 0.4444444444444444, 'DH': 0.5555555555555556}"
+35041,Jac Caglianone,2026,RF,"{'RF': 0.6666666666666666, 'DH': 0.3333333333333333}"
+24589,Richie Palacios,2026,2B,"{'2B': 0.7142857142857143, 'DH': 0.2857142857142857}"
+28163,Junior Caminero,2026,3B,{'3B': 1.0}
+31665,Alex Freeland,2026,2B,"{'2B': 0.8571428571428571, 'DH': 0.14285714285714285}"
+29592,Connor Norby,2026,1B,"{'1B': 0.75, 'DH': 0.25}"
+21523,Jonathan India,2026,2B,{'2B': 1.0}
+22186,Brice Turang,2026,2B,{'2B': 1.0}
+26396,Josh Smith,2026,2B,"{'2B': 0.875, 'DH': 0.125}"
+19363,Austin Hays,2026,LF,"{'LF': 0.875, 'DH': 0.125}"
+18564,Trent Grisham,2026,CF,"{'CF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+18839,Josh Naylor,2026,1B,{'1B': 1.0}
+17678,Alex Bregman,2026,3B,"{'3B': 0.8888888888888888, 'DH': 0.1111111111111111}"
+31837,Masataka Yoshida,2026,LF,"{'LF': 0.2857142857142857, 'DH': 0.7142857142857143}"
+22239,Jeremiah Jackson,2026,2B,"{'2B': 0.8571428571428571, 'DH': 0.14285714285714285}"
+14221,Jorge Soler,2026,DH,"{'RF': 0.1, 'DH': 0.9}"
+25479,Brenton Doyle,2026,CF,"{'CF': 0.7777777777777778, 'DH': 0.2222222222222222}"
+15112,Ryan McMahon,2026,3B,"{'3B': 0.7777777777777778, 'DH': 0.2222222222222222}"
+19326,Bryan Reynolds,2026,LF,"{'LF': 0.7777777777777778, 'DH': 0.2222222222222222}"
+26289,Gunnar Henderson,2026,SS,{'SS': 1.0}
+19956,Mickey Moniak,2026,RF,"{'RF': 0.6666666666666666, 'DH': 0.3333333333333333}"
+21837,Jonathan Aranda,2026,1B,{'1B': 1.0}
+19901,Gavin Sheets,2026,1B,"{'1B': 0.75, 'DH': 0.25}"
+31595,Brooks Lee,2026,SS,"{'SS': 0.8571428571428571, 'DH': 0.14285714285714285}"
+22275,Jake Burger,2026,1B,{'1B': 1.0}
+20391,Luis Garcia Jr.,2026,1B,"{'1B': 0.5555555555555556, 'DH': 0.4444444444444444}"
+19354,Luke Raley,2026,RF,"{'RF': 0.75, 'DH': 0.25}"
+31792,Otto Kemp,2026,LF,"{'LF': 0.5, 'DH': 0.5}"
+24262,Ceddanne Rafaela,2026,CF,"{'CF': 0.7777777777777778, 'DH': 0.2222222222222222}"
+31505,Sal Stewart,2026,1B,"{'1B': 0.8888888888888888, 'DH': 0.1111111111111111}"
+27465,Spencer Torkelson,2026,1B,{'1B': 1.0}
+17901,Andrew Benintendi,2026,LF,"{'LF': 0.25, 'DH': 0.75}"
+21711,Oneil Cruz,2026,CF,"{'CF': 0.8888888888888888, 'DH': 0.1111111111111111}"
+10155,Mike Trout,2026,CF,"{'CF': 0.9, 'DH': 0.1}"
+25961,Kerry Carpenter,2026,RF,"{'RF': 0.6666666666666666, 'DH': 0.3333333333333333}"
+19260,Jake Fraley,2026,RF,"{'RF': 0.7142857142857143, 'DH': 0.2857142857142857}"
+29993,Brady House,2026,3B,"{'3B': 0.6666666666666666, 'DH': 0.3333333333333333}"
+27467,Tyler Soderstrom,2026,LF,{'LF': 1.0}
+24679,Brendan Donovan,2026,3B,{'3B': 1.0}
+27615,Alec Burleson,2026,1B,{'1B': 1.0}
+26466,Matt Wallner,2026,RF,{'RF': 1.0}
+13419,Christian Walker,2026,1B,{'1B': 1.0}
+2396,Carlos Santana,2026,1B,{'1B': 1.0}
+20437,Royce Lewis,2026,3B,{'3B': 1.0}
+11579,Bryce Harper,2026,1B,{'1B': 1.0}
+25477,Isaac Collins,2026,LF,"{'LF': 0.7777777777777778, 'DH': 0.2222222222222222}"
+3096,Kenley Jansen,2026,DH,{'DH': 1.0}
+3137,Max Scherzer,2026,DH,{'DH': 1.0}
+6107,Huascar Brazoban,2026,DH,{'DH': 1.0}
+6175,Albert Suarez,2026,DH,{'DH': 1.0}
+6902,Martin Perez,2026,DH,{'DH': 1.0}
+6984,Luis Garcia,2026,DH,{'DH': 1.0}
+7048,Fernando Cruz,2026,DH,{'DH': 1.0}
+8700,Justin Verlander,2026,DH,{'DH': 1.0}
+9132,Nathan Eovaldi,2026,DH,{'DH': 1.0}
+9803,Miles Mikolas,2026,DH,{'DH': 1.0}
+10061,Brooks Raley,2026,DH,{'DH': 1.0}
+10078,Caleb Thielbar,2026,DH,{'DH': 1.0}
+10233,Aroldis Chapman,2026,DH,{'DH': 1.0}
+10603,Chris Sale,2026,DH,{'DH': 1.0}
+10954,Jacob deGrom,2026,DH,{'DH': 1.0}
+11423,Jose Quintana,2026,DH,{'DH': 1.0}
+11426,Drew Pomeranz,2026,DH,{'DH': 1.0}
+11486,Robbie Ray,2026,DH,{'DH': 1.0}
+11674,Jameson Taillon,2026,DH,{'DH': 1.0}
+11836,Taijuan Walker,2026,DH,{'DH': 1.0}
+11847,Chris Martin,2026,DH,{'DH': 1.0}
+12304,Chris Bassitt,2026,DH,{'DH': 1.0}
+12317,Colin Rea,2026,DH,{'DH': 1.0}
+12447,Seth Lugo,2026,DH,{'DH': 1.0}
+12572,Blake Treinen,2026,DH,{'DH': 1.0}
+12718,Adrian Houser,2026,DH,{'DH': 1.0}
+12730,Nick Martinez,2026,DH,{'DH': 1.0}
+12768,Sonny Gray,2026,DH,{'DH': 1.0}
+12791,Michael Kelly,2026,DH,{'DH': 1.0}
+12857,Shawn Armstrong,2026,DH,{'DH': 1.0}
+12972,Joe Ross,2026,DH,{'DH': 1.0}
+13164,Eduardo Rodriguez,2026,DH,{'DH': 1.0}
+13293,Danny Coulombe,2026,DH,{'DH': 1.0}
+13346,Hoby Milner,2026,DH,{'DH': 1.0}
+13361,Steven Matz,2026,DH,{'DH': 1.0}
+13435,Pierce Johnson,2026,DH,{'DH': 1.0}
+13449,Taylor Rogers,2026,DH,{'DH': 1.0}
+13470,Lucas Sims,2026,DH,{'DH': 1.0}
+13580,Steven Okert,2026,DH,{'DH': 1.0}
+13619,Jakob Junis,2026,DH,{'DH': 1.0}
+13649,Clay Holmes,2026,DH,{'DH': 1.0}
+13743,Max Fried,2026,DH,{'DH': 1.0}
+13774,Zach Eflin,2026,DH,{'DH': 1.0}
+13799,Matt Strahm,2026,DH,{'DH': 1.0}
+13892,Paul Sewald,2026,DH,{'DH': 1.0}
+13932,Dietrich Enns,2026,DH,{'DH': 1.0}
+13942,Brent Suter,2026,DH,{'DH': 1.0}
+14078,Michael Wacha,2026,DH,{'DH': 1.0}
+14107,Kevin Gausman,2026,DH,{'DH': 1.0}
+14120,Lance McCullers Jr.,2026,DH,{'DH': 1.0}
+14295,Wandy Peralta,2026,DH,{'DH': 1.0}
+14332,Joel Payamps,2026,DH,{'DH': 1.0}
+14374,Tyler Glasnow,2026,DH,{'DH': 1.0}
+14542,Carlos Estevez,2026,DH,{'DH': 1.0}
+14706,Anthony Banda,2026,DH,{'DH': 1.0}
+14710,Edwin Diaz,2026,DH,{'DH': 1.0}
+14739,Paul Blackburn,2026,DH,{'DH': 1.0}
+14771,Emilio Pagan,2026,DH,{'DH': 1.0}
+14843,Michael Lorenzen,2026,DH,{'DH': 1.0}
+14857,Joe Mantiply,2026,DH,{'DH': 1.0}
+14874,Sam Moll,2026,DH,{'DH': 1.0}
+14993,Scott Barlow,2026,DH,{'DH': 1.0}
+15009,Kyle Finnegan,2026,DH,{'DH': 1.0}
+15038,German Marquez,2026,DH,{'DH': 1.0}
+15042,Tim Mayza,2026,DH,{'DH': 1.0}
+15047,Austin Voth,2026,DH,{'DH': 1.0}
+15130,Drew Anderson,2026,DH,{'DH': 1.0}
+15145,Justin Topa,2026,DH,{'DH': 1.0}
+15256,Cole Sulser,2026,DH,{'DH': 1.0}
+15440,Matthew Boyd,2026,DH,{'DH': 1.0}
+15454,Nick Pivetta,2026,DH,{'DH': 1.0}
+15488,Antonio Senzatela,2026,DH,{'DH': 1.0}
+15507,Hunter Harvey,2026,DH,{'DH': 1.0}
+15541,Tyler Rogers,2026,DH,{'DH': 1.0}
+15551,Mark Leiter Jr.,2026,DH,{'DH': 1.0}
+15689,Luis Castillo,2026,DH,{'DH': 1.0}
+15734,Brad Keller,2026,DH,{'DH': 1.0}
+15816,Devin Williams,2026,DH,{'DH': 1.0}
+15823,Zack Littell,2026,DH,{'DH': 1.0}
+15873,Sean Manaea,2026,DH,{'DH': 1.0}
+15890,Luis Severino,2026,DH,{'DH': 1.0}
+15947,Ryne Stanek,2026,DH,{'DH': 1.0}
+16122,Jordan Romano,2026,DH,{'DH': 1.0}
+16149,Aaron Nola,2026,DH,{'DH': 1.0}
+16162,Brandon Woodruff,2026,DH,{'DH': 1.0}
+16256,Kyle Freeland,2026,DH,{'DH': 1.0}
+16258,Aaron Bummer,2026,DH,{'DH': 1.0}
+16350,Ryan Borucki,2026,DH,{'DH': 1.0}
+16358,Tyler Mahle,2026,DH,{'DH': 1.0}
+16400,Reynaldo Lopez,2026,DH,{'DH': 1.0}
+16432,Foster Griffin,2026,DH,{'DH': 1.0}
+16502,Ryan Yarbrough,2026,DH,{'DH': 1.0}
+16609,Bryan Abreu,2026,DH,{'DH': 1.0}
+16647,Ryan Thompson,2026,DH,{'DH': 1.0}
+16814,Tim Hill,2026,DH,{'DH': 1.0}
+16835,Brennan Bernardino,2026,DH,{'DH': 1.0}
+16918,Luke Weaver,2026,DH,{'DH': 1.0}
+16943,Sean Newcomb,2026,DH,{'DH': 1.0}
+16944,Grant Holmes,2026,DH,{'DH': 1.0}
+16990,Tanner Banks,2026,DH,{'DH': 1.0}
+17130,Raisel Iglesias,2026,DH,{'DH': 1.0}
+17170,Gabe Speier,2026,DH,{'DH': 1.0}
+17192,Jalen Beeks,2026,DH,{'DH': 1.0}
+17277,Ranger Suarez,2026,DH,{'DH': 1.0}
+17295,Framber Valdez,2026,DH,{'DH': 1.0}
+17381,Matt Gage,2026,DH,{'DH': 1.0}
+17425,Erick Fedde,2026,DH,{'DH': 1.0}
+17432,Jeff Hoffman,2026,DH,{'DH': 1.0}
+17479,Jack Flaherty,2026,DH,{'DH': 1.0}
+17556,Jimmy Herget,2026,DH,{'DH': 1.0}
+17578,JT Brubaker,2026,DH,{'DH': 1.0}
+17586,Tanner Scott,2026,DH,{'DH': 1.0}
+17594,Mitch Keller,2026,DH,{'DH': 1.0}
+17606,Cristian Javier,2026,DH,{'DH': 1.0}
+17611,Taylor Clarke,2026,DH,{'DH': 1.0}
+17639,Justin Lawrence,2026,DH,{'DH': 1.0}
+17677,Jeffrey Springs,2026,DH,{'DH': 1.0}
+17722,Trevor Megill,2026,DH,{'DH': 1.0}
+17735,Tyler Alexander,2026,DH,{'DH': 1.0}
+17780,Jose Alvarado,2026,DH,{'DH': 1.0}
+17878,Dennis Santana,2026,DH,{'DH': 1.0}
+17897,Garrett Cleavinger,2026,DH,{'DH': 1.0}
+17920,Cody Ponce,2026,DH,{'DH': 1.0}
+17964,Tyler Gilbert,2026,DH,{'DH': 1.0}
+17968,Brock Burke,2026,DH,{'DH': 1.0}
+17995,Logan Webb,2026,DH,{'DH': 1.0}
+17998,Pete Fairbanks,2026,DH,{'DH': 1.0}
+18064,Phil Maton,2026,DH,{'DH': 1.0}
+18138,Ryan Helsley,2026,DH,{'DH': 1.0}
+18297,Tyler Kinley,2026,DH,{'DH': 1.0}
+18383,Michael Soroka,2026,DH,{'DH': 1.0}
+18413,Jose Urquidy,2026,DH,{'DH': 1.0}
+18525,Dylan Cease,2026,DH,{'DH': 1.0}
+18554,Enmanuel De Jesus,2026,DH,{'DH': 1.0}
+18674,Jake Woodford,2026,DH,{'DH': 1.0}
+18679,Freddy Peralta,2026,DH,{'DH': 1.0}
+18684,Sandy Alcantara,2026,DH,{'DH': 1.0}
+18694,Kolby Allard,2026,DH,{'DH': 1.0}
+19178,Tommy Nance,2026,DH,{'DH': 1.0}
+19222,Lake Bachar,2026,DH,{'DH': 1.0}
+19249,Seranthony Dominguez,2026,DH,{'DH': 1.0}
+19274,Jacob Webb,2026,DH,{'DH': 1.0}
+19291,Zac Gallen,2026,DH,{'DH': 1.0}
+19316,Eric Lauer,2026,DH,{'DH': 1.0}
+19320,Joey Lucchesi,2026,DH,{'DH': 1.0}
+19330,Matt Festa,2026,DH,{'DH': 1.0}
+19337,Richard Lovelady,2026,DH,{'DH': 1.0}
+19360,Lucas Erceg,2026,DH,{'DH': 1.0}
+19374,Walker Buehler,2026,DH,{'DH': 1.0}
+19444,Yohan Ramirez,2026,DH,{'DH': 1.0}
+19453,Shaun Anderson,2026,DH,{'DH': 1.0}
+19479,Aaron Civale,2026,DH,{'DH': 1.0}
+19569,David Bednar,2026,DH,{'DH': 1.0}
+19574,JoJo Romero,2026,DH,{'DH': 1.0}
+19614,Cionel Perez,2026,DH,{'DH': 1.0}
+19618,Jordan Hicks,2026,DH,{'DH': 1.0}
+19646,Kyle Hart,2026,DH,{'DH': 1.0}
+19677,Gregory Soto,2026,DH,{'DH': 1.0}
+19695,Connor Seabold,2026,DH,{'DH': 1.0}
+19716,Dustin May,2026,DH,{'DH': 1.0}
+19742,Anthony Bender,2026,DH,{'DH': 1.0}
+19753,Jonathan Loaisiga,2026,DH,{'DH': 1.0}
+19755,Shohei Ohtani,2026,DH,{'DH': 1.0}
+19769,Will Vest,2026,DH,{'DH': 1.0}
+19804,Bryan Baker,2026,DH,{'DH': 1.0}
+19853,Michael King,2026,DH,{'DH': 1.0}
+19876,Kevin Ginkel,2026,DH,{'DH': 1.0}
+19883,Alex Lange,2026,DH,{'DH': 1.0}
+19911,Jose Suarez,2026,DH,{'DH': 1.0}
+19924,Bryan Hudson,2026,DH,{'DH': 1.0}
+19926,Tony Santillan,2026,DH,{'DH': 1.0}
+19959,Jesus Luzardo,2026,DH,{'DH': 1.0}
+19996,Dylan Lee,2026,DH,{'DH': 1.0}
+20000,Tyler Wells,2026,DH,{'DH': 1.0}
+20020,John Schreiber,2026,DH,{'DH': 1.0}
+20023,Rico Garcia,2026,DH,{'DH': 1.0}
+20039,Adrian Morejon,2026,DH,{'DH': 1.0}
+20070,Bailey Falter,2026,DH,{'DH': 1.0}
+20099,Chris Paddack,2026,DH,{'DH': 1.0}
+20116,Calvin Faucher,2026,DH,{'DH': 1.0}
+20185,Zach Pop,2026,DH,{'DH': 1.0}
+20191,Garrett Whitlock,2026,DH,{'DH': 1.0}
+20203,Eli Morgan,2026,DH,{'DH': 1.0}
+20253,Griffin Jax,2026,DH,{'DH': 1.0}
+20302,David Peterson,2026,DH,{'DH': 1.0}
+20348,Riley O'Brien,2026,DH,{'DH': 1.0}
+20349,Zack Kelly,2026,DH,{'DH': 1.0}
+20373,Andres Munoz,2026,DH,{'DH': 1.0}
+20375,Greg Weissert,2026,DH,{'DH': 1.0}
+20385,Isaac Mattson,2026,DH,{'DH': 1.0}
+20387,Anthony Kay,2026,DH,{'DH': 1.0}
+20422,Jovani Moran,2026,DH,{'DH': 1.0}
+20423,Ryan Walker,2026,DH,{'DH': 1.0}
+20492,Casey Mize,2026,DH,{'DH': 1.0}
+20546,Grant Anderson,2026,DH,{'DH': 1.0}
+20629,Tyler Phillips,2026,DH,{'DH': 1.0}
+20633,Yusei Kikuchi,2026,DH,{'DH': 1.0}
+20778,Cristopher Sanchez,2026,DH,{'DH': 1.0}
+20827,Michael Petersen,2026,DH,{'DH': 1.0}
+20997,Eduard Bazardo,2026,DH,{'DH': 1.0}
+21029,Jhoan Duran,2026,DH,{'DH': 1.0}
+21205,Connor Brogdon,2026,DH,{'DH': 1.0}
+21224,Bailey Ober,2026,DH,{'DH': 1.0}
+21267,Jake Bird,2026,DH,{'DH': 1.0}
+21306,Jacob Latz,2026,DH,{'DH': 1.0}
+21390,Joe Ryan,2026,DH,{'DH': 1.0}
+21446,Ryan Feltner,2026,DH,{'DH': 1.0}
+21448,Davis Martin,2026,DH,{'DH': 1.0}
+21455,Kris Bubic,2026,DH,{'DH': 1.0}
+21461,Cole Sands,2026,DH,{'DH': 1.0}
+21483,Shane McClanahan,2026,DH,{'DH': 1.0}
+21504,Jake Irvin,2026,DH,{'DH': 1.0}
+21520,Hogan Harris,2026,DH,{'DH': 1.0}
+21537,Daniel Lynch IV,2026,DH,{'DH': 1.0}
+21574,Brendon Little,2026,DH,{'DH': 1.0}
+21623,Grant Wolfram,2026,DH,{'DH': 1.0}
+21649,Luis Medina,2026,DH,{'DH': 1.0}
+21662,Elvis Alvarado,2026,DH,{'DH': 1.0}
+21690,Edward Cabrera,2026,DH,{'DH': 1.0}
+21846,Cole Ragans,2026,DH,{'DH': 1.0}
+21863,George Soriano,2026,DH,{'DH': 1.0}
+21924,Juan Morillo,2026,DH,{'DH': 1.0}
+21992,Camilo Doval,2026,DH,{'DH': 1.0}
+22051,John King,2026,DH,{'DH': 1.0}
+22100,Jose Soriano,2026,DH,{'DH': 1.0}
+22113,Cole Winn,2026,DH,{'DH': 1.0}
+22191,Tobias Myers,2026,DH,{'DH': 1.0}
+22201,MacKenzie Gore,2026,DH,{'DH': 1.0}
+22207,DL Hall,2026,DH,{'DH': 1.0}
+22210,Jeremiah Estrada,2026,DH,{'DH': 1.0}
+22250,Logan Gilbert,2026,DH,{'DH': 1.0}
+22264,Shane Baz,2026,DH,{'DH': 1.0}
+22267,Tarik Skubal,2026,DH,{'DH': 1.0}
+22286,Trevor Rogers,2026,DH,{'DH': 1.0}
+22288,Mason Englert,2026,DH,{'DH': 1.0}
+22294,Matthew Liberatore,2026,DH,{'DH': 1.0}
+22361,Colin Holderman,2026,DH,{'DH': 1.0}
+22487,Johan Oviedo,2026,DH,{'DH': 1.0}
+22543,Taj Bradley,2026,DH,{'DH': 1.0}
+22630,Keider Montero,2026,DH,{'DH': 1.0}
+22717,Angel Zerpa,2026,DH,{'DH': 1.0}
+22872,Yoendrys Gomez,2026,DH,{'DH': 1.0}
+23150,Osvaldo Bido,2026,DH,{'DH': 1.0}
+23165,Steven Cruz,2026,DH,{'DH': 1.0}
+23237,Juan Mejia,2026,DH,{'DH': 1.0}
+23265,Cody Bolton,2026,DH,{'DH': 1.0}
+23301,Janson Junk,2026,DH,{'DH': 1.0}
+23313,Jose Butto,2026,DH,{'DH': 1.0}
+23335,Joey Cantillo,2026,DH,{'DH': 1.0}
+23363,Robert Garcia,2026,DH,{'DH': 1.0}
+23394,PJ Poulin,2026,DH,{'DH': 1.0}
+23488,Ron Marinaccio,2026,DH,{'DH': 1.0}
+23499,Keaton Winn,2026,DH,{'DH': 1.0}
+23550,Aaron Ashby,2026,DH,{'DH': 1.0}
+23590,Ben Brown,2026,DH,{'DH': 1.0}
+23779,Justin Bruihl,2026,DH,{'DH': 1.0}
+23793,Braxton Ashcraft,2026,DH,{'DH': 1.0}
+23796,Ryan Weathers,2026,DH,{'DH': 1.0}
+23899,Valente Bellozo,2026,DH,{'DH': 1.0}
+23920,Brayan Bello,2026,DH,{'DH': 1.0}
+24017,Jose A. Ferrer,2026,DH,{'DH': 1.0}
+24282,Kai-Wei Teng,2026,DH,{'DH': 1.0}
+24452,Luinder Avila,2026,DH,{'DH': 1.0}
+24494,Simeon Woods Richardson,2026,DH,{'DH': 1.0}
+24586,Kyle Bradish,2026,DH,{'DH': 1.0}
+24607,Jonathan Bowlan,2026,DH,{'DH': 1.0}
+24609,Braydon Fisher,2026,DH,{'DH': 1.0}
+24614,Victor Vodnik,2026,DH,{'DH': 1.0}
+24621,Ryan Weiss,2026,DH,{'DH': 1.0}
+24719,Randy Vasquez,2026,DH,{'DH': 1.0}
+24728,Mike Burrows,2026,DH,{'DH': 1.0}
+24737,Gus Varland,2026,DH,{'DH': 1.0}
+24763,Kyle Leahy,2026,DH,{'DH': 1.0}
+24930,Ethan Roberts,2026,DH,{'DH': 1.0}
+24975,Cooper Criswell,2026,DH,{'DH': 1.0}
+24978,Erik Sabrowski,2026,DH,{'DH': 1.0}
+24993,Kody Funderburk,2026,DH,{'DH': 1.0}
+25007,Alex Vesia,2026,DH,{'DH': 1.0}
+25098,Jacob Lopez,2026,DH,{'DH': 1.0}
+25139,Tim Herrin,2026,DH,{'DH': 1.0}
+25215,Yaramil Hiraldo,2026,DH,{'DH': 1.0}
+25311,Roddery Munoz,2026,DH,{'DH': 1.0}
+25327,Abner Uribe,2026,DH,{'DH': 1.0}
+25376,Nick Mears,2026,DH,{'DH': 1.0}
+25377,Brady Singer,2026,DH,{'DH': 1.0}
+25385,Drew Rasmussen,2026,DH,{'DH': 1.0}
+25420,Ryan Zeferjahn,2026,DH,{'DH': 1.0}
+25436,George Kirby,2026,DH,{'DH': 1.0}
+25463,Brandon Williamson,2026,DH,{'DH': 1.0}
+25648,Justin Slaten,2026,DH,{'DH': 1.0}
+25679,Kevin Kelly,2026,DH,{'DH': 1.0}
+25703,Zak Kent,2026,DH,{'DH': 1.0}
+25756,Matt Brash,2026,DH,{'DH': 1.0}
+25796,Anthony Nunez,2026,DH,{'DH': 1.0}
+25880,Hunter Brown,2026,DH,{'DH': 1.0}
+25890,Bryan King,2026,DH,{'DH': 1.0}
+25911,Yennier Cano,2026,DH,{'DH': 1.0}
+25921,Casey Legumina,2026,DH,{'DH': 1.0}
+25942,Andrew Nardi,2026,DH,{'DH': 1.0}
+26108,Andre Pallante,2026,DH,{'DH': 1.0}
+26213,Caleb Kilian,2026,DH,{'DH': 1.0}
+26214,Chris Murphy,2026,DH,{'DH': 1.0}
+26231,Tyler Holton,2026,DH,{'DH': 1.0}
+26252,Erik Miller,2026,DH,{'DH': 1.0}
+26253,Ryne Nelson,2026,DH,{'DH': 1.0}
+26259,Hunter Bigge,2026,DH,{'DH': 1.0}
+26344,Taylor Rashi,2026,DH,{'DH': 1.0}
+26429,Cody Laweryson,2026,DH,{'DH': 1.0}
+26944,Edgardo Henriquez,2026,DH,{'DH': 1.0}
+27463,Garrett Crochet,2026,DH,{'DH': 1.0}
+27468,Reid Detmers,2026,DH,{'DH': 1.0}
+27470,Emerson Hancock,2026,DH,{'DH': 1.0}
+27473,Cade Cavalli,2026,DH,{'DH': 1.0}
+27474,Max Meyer,2026,DH,{'DH': 1.0}
+27481,Cole Wilcox,2026,DH,{'DH': 1.0}
+27494,Clayton Beeter,2026,DH,{'DH': 1.0}
+27500,Slade Cecconi,2026,DH,{'DH': 1.0}
+27517,Jared Koenig,2026,DH,{'DH': 1.0}
+27552,Graham Ashcraft,2026,DH,{'DH': 1.0}
+27570,Cole Henry,2026,DH,{'DH': 1.0}
+27572,Carmen Mlodzinski,2026,DH,{'DH': 1.0}
+27626,Eric Orze,2026,DH,{'DH': 1.0}
+27649,Connor Phillips,2026,DH,{'DH': 1.0}
+27662,Christian Roa,2026,DH,{'DH': 1.0}
+27681,Ken Waldichuk,2026,DH,{'DH': 1.0}
+27688,Jack Kochanowicz,2026,DH,{'DH': 1.0}
+27691,Louie Varland,2026,DH,{'DH': 1.0}
+27694,Justin Sterner,2026,DH,{'DH': 1.0}
+27702,Brent Headrick,2026,DH,{'DH': 1.0}
+27756,Mick Abel,2026,DH,{'DH': 1.0}
+27758,Kyle Harrison,2026,DH,{'DH': 1.0}
+27768,Eury Perez,2026,DH,{'DH': 1.0}
+27779,Bryce Elder,2026,DH,{'DH': 1.0}
+27782,Brandon Pfaadt,2026,DH,{'DH': 1.0}
+27787,Will Klein,2026,DH,{'DH': 1.0}
+27853,Ryan Watson,2026,DH,{'DH': 1.0}
+27867,Cade Smith,2026,DH,{'DH': 1.0}
+27889,J.T. Ginn,2026,DH,{'DH': 1.0}
+27914,Daniel Palencia,2026,DH,{'DH': 1.0}
+27932,Ian Seymour,2026,DH,{'DH': 1.0}
+29107,Bradgley Rodriguez,2026,DH,{'DH': 1.0}
+29114,Jedixson Paez,2026,DH,{'DH': 1.0}
+29519,Gordon Graceffo,2026,DH,{'DH': 1.0}
+29542,Andre Granillo,2026,DH,{'DH': 1.0}
+29608,Joe Boyle,2026,DH,{'DH': 1.0}
+29615,Kyle Backhus,2026,DH,{'DH': 1.0}
+29629,Matt Svanson,2026,DH,{'DH': 1.0}
+29633,Andrew Hoffmann,2026,DH,{'DH': 1.0}
+29754,Sam Bachman,2026,DH,{'DH': 1.0}
+29770,Mason Montgomery,2026,DH,{'DH': 1.0}
+29839,Emmet Sheehan,2026,DH,{'DH': 1.0}
+29868,Bubba Chandler,2026,DH,{'DH': 1.0}
+29869,Michael McGreevy,2026,DH,{'DH': 1.0}
+29878,Sean Burke,2026,DH,{'DH': 1.0}
+29911,Andrew Abbott,2026,DH,{'DH': 1.0}
+29950,Jordan Leasure,2026,DH,{'DH': 1.0}
+30055,Cade Povich,2026,DH,{'DH': 1.0}
+30074,Chase Silseth,2026,DH,{'DH': 1.0}
+30076,Landen Roupp,2026,DH,{'DH': 1.0}
+30085,Ben Casparius,2026,DH,{'DH': 1.0}
+30113,Chad Patrick,2026,DH,{'DH': 1.0}
+30115,Robert Suarez,2026,DH,{'DH': 1.0}
+30122,Gavin Williams,2026,DH,{'DH': 1.0}
+30133,Brant Hurter,2026,DH,{'DH': 1.0}
+30134,Tanner Bibee,2026,DH,{'DH': 1.0}
+30146,Jack Leiter,2026,DH,{'DH': 1.0}
+30182,Will Warren,2026,DH,{'DH': 1.0}
+30184,Noah Cameron,2026,DH,{'DH': 1.0}
+30231,Carter Baumler,2026,DH,{'DH': 1.0}
+30249,Jack Dreyer,2026,DH,{'DH': 1.0}
+30250,Jaden Hill,2026,DH,{'DH': 1.0}
+30279,Bryan Woo,2026,DH,{'DH': 1.0}
+30661,Didier Fuentes,2026,DH,{'DH': 1.0}
+31204,Justin Wrobleski,2026,DH,{'DH': 1.0}
+31261,Chris Roycroft,2026,DH,{'DH': 1.0}
+31475,Logan Henderson,2026,DH,{'DH': 1.0}
+31552,Zach Agnos,2026,DH,{'DH': 1.0}
+31553,Mason Fluharty,2026,DH,{'DH': 1.0}
+31616,David Morgan,2026,DH,{'DH': 1.0}
+31621,Spencer Miles,2026,DH,{'DH': 1.0}
+31623,Jacob Misiorowski,2026,DH,{'DH': 1.0}
+31687,Shane Smith,2026,DH,{'DH': 1.0}
+31701,Blade Tidwell,2026,DH,{'DH': 1.0}
+31757,Mason Miller,2026,DH,{'DH': 1.0}
+31764,A.J. Blubaugh,2026,DH,{'DH': 1.0}
+31838,Kodai Senga,2026,DH,{'DH': 1.0}
+31843,Kumar Rocker,2026,DH,{'DH': 1.0}
+31865,Peyton Pallette,2026,DH,{'DH': 1.0}
+31872,Cade Horton,2026,DH,{'DH': 1.0}
+31972,Brad Lord,2026,DH,{'DH': 1.0}
+31986,Parker Messick,2026,DH,{'DH': 1.0}
+32095,Cameron Schlittler,2026,DH,{'DH': 1.0}
+32227,Luis Morales,2026,DH,{'DH': 1.0}
+33174,Hunter Barco,2026,DH,{'DH': 1.0}
+33482,Chase Dollander,2026,DH,{'DH': 1.0}
+33666,Connelly Early,2026,DH,{'DH': 1.0}
+33677,Paul Skenes,2026,DH,{'DH': 1.0}
+33703,Nolan McLean,2026,DH,{'DH': 1.0}
+33825,Yoshinobu Yamamoto,2026,DH,{'DH': 1.0}
+33829,Shota Imanaga,2026,DH,{'DH': 1.0}
+33850,Brandon Sproat,2026,DH,{'DH': 1.0}
+33876,Rhett Lowder,2026,DH,{'DH': 1.0}
+33927,Grant Taylor,2026,DH,{'DH': 1.0}
+35321,Tomoyuki Sugano,2026,DH,{'DH': 1.0}
+35323,Roki Sasaki,2026,DH,{'DH': 1.0}
+35325,Ryan Johnson,2026,DH,{'DH': 1.0}
+35333,Chase Burns,2026,DH,{'DH': 1.0}
