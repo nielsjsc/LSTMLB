@@ -56,8 +56,12 @@ class PitcherRPConfig:
     #
     #   TRAINING   — applied to the historical DataFrame before the LSTM sees it.
     #   PREDICTION — applied to each player's historical sequence at inference time.
+    #
+    # NOTE (2026-04): Both disabled. The component-based Marcel architecture
+    # uses multivariate regression equations (Phase 2b) with R²-weighted
+    # blending that already accounts for signal strength per component.
     ENABLE_RELIABILITY_REGRESSION_TRAINING   = False
-    ENABLE_RELIABILITY_REGRESSION_PREDICTION = True
+    ENABLE_RELIABILITY_REGRESSION_PREDICTION = False
     
     # ============================================================================
     # POST-PREDICTION RECONSTRUCTION & CONSTRAINT TOGGLES
