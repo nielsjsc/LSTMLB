@@ -46,7 +46,7 @@ datasets/
 *.pkl
 *.h5
 *.model
-
+.github/
 # Model weights (large files)
 *.npz
 *.npy
@@ -57,6 +57,9 @@ datasets/
 logs/
 wandb/
 mlruns/
+
+# Chrome profile for Cloudflare bypass
+.chrome_temp/
 
 # Node.js
 node_modules/
