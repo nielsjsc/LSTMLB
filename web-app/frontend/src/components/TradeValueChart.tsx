@@ -104,6 +104,24 @@ interface Props {
 // Transaction types worth annotating on the chart
 const IMPORTANT_TXN = new Set(['TR', 'SGN', 'SFA', 'FA', 'EXT', 'DFA']);
 
+// Short label for transaction type annotation on the chart
+const txnShortLabel = (t: string): string => {
+  const map: Record<string, string> = {
+    TR: 'Trade', SGN: 'Signed', SFA: 'FA Signing', FA: 'FA',
+    EXT: 'Extension', DFA: 'DFA',
+  };
+  return map[t] ?? t;
+};
+
+type TimeRange = '1m' | '3m' | '1y' | '5y' | 'all';
+const TIME_RANGE_OPTIONS: { key: TimeRange; label: string }[] = [
+  { key: '1m', label: '1M' },
+  { key: '3m', label: '3M' },
+  { key: '1y', label: '1Y' },
+  { key: '5y', label: '5Y' },
+  { key: 'all', label: 'All' },
+];
+
 const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transactions }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -111,6 +129,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   const [pinnedIdx, setPinnedIdx] = useState<number | null>(null);
   const activeIdx = pinnedIdx ?? hoverIdx;
   const [dims, setDims] = useState({ width: 700, height: 300 });
+  const [timeRange, setTimeRange] = useState<TimeRange>('all');
   const isMobile = dims.width < MOBILE_BREAKPOINT;
   const MARGIN = isMobile ? MARGIN_MOBILE : MARGIN_DEFAULT;
 
@@ -133,13 +152,29 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
     return () => ro.disconnect();
   }, []);
 
+  // Filter data by selected time range
+  const filtered = useMemo(() => {
+    if (timeRange === 'all') return data;
+    const now = new Date();
+    let cutoff: Date;
+    switch (timeRange) {
+      case '1m': cutoff = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()); break;
+      case '3m': cutoff = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()); break;
+      case '1y': cutoff = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()); break;
+      case '5y': cutoff = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate()); break;
+      default: return data;
+    }
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    return data.filter(d => (d.date || `${d.year}-01-01`) >= cutoffStr);
+  }, [data, timeRange]);
+
   // Sort by date (fractional year) for proper within-year positioning
   const sorted = useMemo(
     () =>
-      [...data]
+      [...filtered]
         .map((d) => ({ ...d, _fx: dateToFx(d.date, d.year) }))
         .sort((a, b) => a._fx - b._fx),
-    [data],
+    [filtered],
   );
 
   // Detect in-season year: the year with ≥ 3 data points (weekly/daily data)
@@ -201,14 +236,11 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   const yPad = valRange * 0.12;
   const yMax = rawMax + yPad;
   const yMin = rawMin - (rawMin < 0 ? yPad : 0);
-  const yRange = yMax - yMin || 1;
 
-  // ── X scale: log-compressed time (recent dates get more space) ──
-  const logFxMax = Math.log(1 + fxSpan);
+  // ── X scale: linear time ──
   const x = (fx: number) => {
     if (fxSpan === 0) return MARGIN.left + plotW / 2;
-    const dist = maxFx - fx;
-    return MARGIN.left + (1 - Math.log(1 + dist) / logFxMax) * plotW;
+    return MARGIN.left + ((fx - minFx) / fxSpan) * plotW;
   };
 
   // ── Y scale: adaptive power curve (per-player optimal compression) ──
@@ -301,6 +333,22 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
 
   return (
     <div ref={containerRef} className="w-full relative">
+      {/* ── Time range filter buttons ──────── */}
+      <div className="flex items-center gap-1 mb-2 px-1">
+        {TIME_RANGE_OPTIONS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => { setTimeRange(key); setPinnedIdx(null); setHoverIdx(null); }}
+            className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-colors ${
+              timeRange === key
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <svg
         ref={svgRef}
         width={dims.width}
@@ -417,6 +465,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
           const cx = x(txn._fx);
           const cy = y(interpolateValue(txn._fx));
           const s = isMobile ? 4 : 5;
+          const label = txnShortLabel(txn.typeCode);
           return (
             <g key={`txn-${i}`}>
               <line
@@ -427,26 +476,61 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
                 cx={cx} cy={cy} r={s * 0.7}
                 fill="#1d4ed8" stroke="white" strokeWidth={1.5}
               />
+              {!isMobile && (
+                <text
+                  x={cx}
+                  y={MARGIN.top + plotH + 10}
+                  textAnchor="middle"
+                  className="fill-blue-700"
+                  fontSize={8}
+                  fontWeight={600}
+                  fontFamily="inherit"
+                >
+                  {label}
+                </text>
+              )}
             </g>
           );
         })}
 
         {/* ── X-axis labels ───────────────────── */}
-        {uniqueYears
-          .filter((_, i) => !isMobile || i % 2 === 0 || i === uniqueYears.length - 1)
-          .map((yr) => (
-          <text
-            key={yr}
-            x={x(yr)}
-            y={dims.height - 8}
-            textAnchor="middle"
-            className="fill-gray-500"
-            fontSize={isMobile ? 9 : 11}
-            fontFamily="inherit"
-          >
-            {isMobile ? String(yr).slice(-2) : yr}
-          </text>
-        ))}
+        {(() => {
+          const shortMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          // For short ranges, show month labels; for longer ranges, show years
+          if (timeRange === '1m' || timeRange === '3m') {
+            // Generate monthly ticks within the data range
+            const startYear = Math.floor(minFx);
+            const endYear = Math.ceil(maxFx);
+            const ticks: { fx: number; label: string }[] = [];
+            for (let yr = startYear; yr <= endYear; yr++) {
+              for (let m = 0; m < 12; m++) {
+                const fx = yr + m / 12;
+                if (fx >= minFx && fx <= maxFx) {
+                  ticks.push({ fx, label: `${shortMonths[m]} '${String(yr).slice(-2)}` });
+                }
+              }
+            }
+            // Limit to ~6 ticks
+            const step = Math.max(1, Math.floor(ticks.length / 6));
+            return ticks.filter((_, i) => i % step === 0).map((t) => (
+              <text key={t.fx} x={x(t.fx)} y={dims.height - 8} textAnchor="middle"
+                className="fill-gray-500" fontSize={isMobile ? 8 : 10} fontFamily="inherit">
+                {t.label}
+              </text>
+            ));
+          }
+          // Default: year labels
+          const maxLabels = isMobile ? Math.floor(plotW / 32) : Math.floor(plotW / 44);
+          const step = Math.max(1, Math.ceil(uniqueYears.length / maxLabels));
+          return uniqueYears
+            .filter((_, i) => i % step === 0 || i === uniqueYears.length - 1)
+            .map((yr) => (
+              <text key={yr} x={x(yr)} y={dims.height - 8} textAnchor="middle"
+                className="fill-gray-500" fontSize={isMobile ? 9 : 11} fontFamily="inherit">
+                {isMobile ? `'${String(yr).slice(-2)}` : yr}
+              </text>
+            ));
+        })()}
 
         {/* ── Hover crosshair ────────────────────── */}
         {hovered && activeIdx != null && (
