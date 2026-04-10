@@ -208,128 +208,9 @@ const ContractTimeline: React.FC<{
 
 
 
-/** ──────────────────────────────────────────────────────────
- *  Current Season Actual Stats Table
- *  ────────────────────────────────────────────────────────── */
-const StatCell: React.FC<{ val: number | string | null | undefined; decimals?: number; pct?: boolean }> = ({ val, decimals = 3, pct }) => {
-  if (val == null) return <td className="px-3 py-2 text-center text-gray-400">—</td>;
-  const display = pct
-    ? `${(Number(val) * 100).toFixed(1)}%`
-    : typeof val === 'number'
-      ? (Number.isInteger(val) ? val.toString() : val.toFixed(decimals))
-      : val;
-  return <td className="px-3 py-2 text-center text-sm text-gray-700 tabular-nums">{display}</td>;
-};
 
-const CurrentSeasonBattingTable: React.FC<{
-  stats: NonNullable<PlayerStats['currentSeasonStats']>['batting'];
-}> = ({ stats }) => {
-  if (!stats) return null;
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
-            <th className="px-3 py-2 text-left">Year</th>
-            <th className="px-3 py-2 text-center">Team</th>
-            <th className="px-3 py-2 text-center">G</th>
-            <th className="px-3 py-2 text-center">PA</th>
-            <th className="px-3 py-2 text-center">WAR</th>
-            <th className="px-3 py-2 text-center">AVG</th>
-            <th className="px-3 py-2 text-center">OBP</th>
-            <th className="px-3 py-2 text-center">SLG</th>
-            <th className="px-3 py-2 text-center">OPS</th>
-            <th className="px-3 py-2 text-center">HR</th>
-            <th className="px-3 py-2 text-center">2B</th>
-            <th className="px-3 py-2 text-center">R</th>
-            <th className="px-3 py-2 text-center">RBI</th>
-            <th className="px-3 py-2 text-center">SB</th>
-            <th className="px-3 py-2 text-center">wOBA</th>
-            <th className="px-3 py-2 text-center">wRC+</th>
-            <th className="px-3 py-2 text-center">BB%</th>
-            <th className="px-3 py-2 text-center">K%</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="border-t border-gray-200 hover:bg-gray-50">
-            <td className="px-3 py-2 text-left font-medium text-gray-900">{stats.season}</td>
-            <td className="px-3 py-2 text-center text-sm text-gray-700">{stats.team}</td>
-            <StatCell val={stats.g} decimals={0} />
-            <StatCell val={stats.pa} decimals={0} />
-            <StatCell val={stats.war} decimals={1} />
-            <StatCell val={stats.avg} />
-            <StatCell val={stats.obp} />
-            <StatCell val={stats.slg} />
-            <StatCell val={stats.ops} />
-            <StatCell val={stats.hr} decimals={0} />
-            <StatCell val={stats.doubles} decimals={0} />
-            <StatCell val={stats.r} decimals={0} />
-            <StatCell val={stats.rbi} decimals={0} />
-            <StatCell val={stats.sb} decimals={0} />
-            <StatCell val={stats.woba} />
-            <StatCell val={stats.wrc_plus} decimals={0} />
-            <StatCell val={stats.bb_pct} pct />
-            <StatCell val={stats.k_pct} pct />
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  );
-};
 
-const CurrentSeasonPitchingTable: React.FC<{
-  stats: NonNullable<PlayerStats['currentSeasonStats']>['pitching'];
-}> = ({ stats }) => {
-  if (!stats) return null;
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
-            <th className="px-3 py-2 text-left">Year</th>
-            <th className="px-3 py-2 text-center">Team</th>
-            <th className="px-3 py-2 text-center">G</th>
-            <th className="px-3 py-2 text-center">GS</th>
-            <th className="px-3 py-2 text-center">IP</th>
-            <th className="px-3 py-2 text-center">W</th>
-            <th className="px-3 py-2 text-center">L</th>
-            <th className="px-3 py-2 text-center">SV</th>
-            <th className="px-3 py-2 text-center">WAR</th>
-            <th className="px-3 py-2 text-center">ERA</th>
-            <th className="px-3 py-2 text-center">FIP</th>
-            <th className="px-3 py-2 text-center">WHIP</th>
-            <th className="px-3 py-2 text-center">K%</th>
-            <th className="px-3 py-2 text-center">BB%</th>
-            <th className="px-3 py-2 text-center">K/9</th>
-            <th className="px-3 py-2 text-center">BB/9</th>
-            <th className="px-3 py-2 text-center">HR/9</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="border-t border-gray-200 hover:bg-gray-50">
-            <td className="px-3 py-2 text-left font-medium text-gray-900">{stats.season}</td>
-            <td className="px-3 py-2 text-center text-sm text-gray-700">{stats.team}</td>
-            <StatCell val={stats.g} decimals={0} />
-            <StatCell val={stats.gs} decimals={0} />
-            <StatCell val={stats.ip} decimals={1} />
-            <StatCell val={stats.w} decimals={0} />
-            <StatCell val={stats.l} decimals={0} />
-            <StatCell val={stats.sv} decimals={0} />
-            <StatCell val={stats.war} decimals={1} />
-            <StatCell val={stats.era} decimals={2} />
-            <StatCell val={stats.fip} decimals={2} />
-            <StatCell val={stats.whip} decimals={2} />
-            <StatCell val={stats.k_pct} pct />
-            <StatCell val={stats.bb_pct} pct />
-            <StatCell val={stats.k_9} decimals={1} />
-            <StatCell val={stats.bb_9} decimals={1} />
-            <StatCell val={stats.hr_9} decimals={1} />
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  );
-};
+
 
 /** ──────────────────────────────────────────────────────────
  *  Collapsible Section wrapper
@@ -600,7 +481,7 @@ const PlayerDetails: React.FC = () => {
   useEffect(() => {
     const id = player?.mlb_id ?? (playerId ? parseInt(playerId) : null);
     if (id == null) return;
-    getTradeValueHistory(id).then(setTradeHistory).catch(() => setTradeHistory([]));
+    getTradeValueHistory(id, { granularity: 'daily' }).then(setTradeHistory).catch(() => setTradeHistory([]));
     getPlayerTransactions(id).then(setTransactions).catch(() => setTransactions([]));
     getPlayerInfo(id).then(setPlayerInfo).catch(() => setPlayerInfo(null));
     getPlayerPastTrades(id).then(r => setPastTrades(r.trades)).catch(() => setPastTrades([]));
@@ -674,10 +555,78 @@ const PlayerDetails: React.FC = () => {
   }, [player, MAX_PROJECTION_YEAR, isHistorical]);
 
   // Split historical vs projected data for separate tables
-  const historicalPitching = useMemo(() => pitchingTableData.filter(d => d.year < CURRENT_YEAR), [pitchingTableData]);
+  const historicalPitchingBase = useMemo(() => pitchingTableData.filter(d => d.year < CURRENT_YEAR), [pitchingTableData]);
   const projectedPitching = useMemo(() => pitchingTableData.filter(d => d.year >= CURRENT_YEAR), [pitchingTableData]);
-  const historicalHitting = useMemo(() => hittingTableData.filter(d => d.year < CURRENT_YEAR), [hittingTableData]);
+  const historicalHittingBase = useMemo(() => hittingTableData.filter(d => d.year < CURRENT_YEAR), [hittingTableData]);
   const projectedHitting = useMemo(() => hittingTableData.filter(d => d.year >= CURRENT_YEAR), [hittingTableData]);
+
+  // Build a 2026 actual-stats row from currentSeasonStats and prepend to historical tables
+  const curProj = player?.projections.find(p => p.year === CURRENT_YEAR);
+  const historicalHitting = useMemo(() => {
+    const base = [...historicalHittingBase];
+    const bat = player?.currentSeasonStats?.batting;
+    if (bat && bat.g != null && bat.g > 0) {
+      base.push({
+        year: CURRENT_YEAR,
+        age: curProj?.age ?? 0,
+        team: bat.team ?? curProj?.team ?? '',
+        status: curProj?.status ?? '',
+        value: curProj?.value ?? { base_value: 0, contract_value: 0, surplus_value: 0 } as any,
+        hitting: {
+          g_bat: bat.g ?? 0,
+          war_bat: bat.war ?? 0,
+          bb_pct_bat: bat.bb_pct ?? 0,
+          k_pct_bat: bat.k_pct ?? 0,
+          avg: bat.avg ?? 0,
+          obp: bat.obp ?? 0,
+          slg: bat.slg ?? 0,
+          ops: bat.ops ?? 0,
+          woba: bat.woba ?? 0,
+          wrc_plus: bat.wrc_plus ?? 0,
+          bat: bat.bat ?? 0,
+          bsr: bat.bsr ?? 0,
+          def_value: bat.def_value ?? 0,
+          hr: bat.hr ?? 0,
+          doubles: bat.doubles ?? 0,
+          triples: bat.triples ?? 0,
+          r: bat.r ?? 0,
+          rbi: bat.rbi ?? 0,
+          sb: bat.sb ?? 0,
+          cs: bat.cs ?? 0,
+        } as any,
+      });
+    }
+    return base;
+  }, [historicalHittingBase, player?.currentSeasonStats?.batting, curProj]);
+
+  const historicalPitching = useMemo(() => {
+    const base = [...historicalPitchingBase];
+    const pit = player?.currentSeasonStats?.pitching;
+    if (pit && pit.g != null && pit.g > 0) {
+      base.push({
+        year: CURRENT_YEAR,
+        age: curProj?.age ?? 0,
+        team: pit.team ?? curProj?.team ?? '',
+        status: curProj?.status ?? '',
+        value: curProj?.value ?? { base_value: 0, contract_value: 0, surplus_value: 0 } as any,
+        pitching: {
+          g_pit: pit.g ?? 0,
+          gs: pit.gs ?? 0,
+          ip: pit.ip ?? 0,
+          war_pit: pit.war ?? 0,
+          era: pit.era ?? 0,
+          fip: pit.fip ?? 0,
+          k_pct_pit: pit.k_pct ?? 0,
+          bb_pct_pit: pit.bb_pct ?? 0,
+          gb_pct: pit.gb_pct ?? undefined,
+          fb_pct: pit.fb_pct ?? undefined,
+          hr_fb: pit.hr_fb ?? undefined,
+          hr_9: pit.hr_9 ?? undefined,
+        } as any,
+      });
+    }
+    return base;
+  }, [historicalPitchingBase, player?.currentSeasonStats?.pitching, curProj]);
 
   // Fielding splits
   const historicalFielding = useMemo(() => fieldingStats.filter(d => !d.is_projection), [fieldingStats]);
@@ -948,13 +897,6 @@ const PlayerDetails: React.FC = () => {
           </CollapsibleSection>
         )}
 
-        {/* Current season actual pitching stats */}
-        {!isHistorical && player.currentSeasonStats?.pitching && (
-          <CollapsibleSection title={`${CURRENT_YEAR} Pitching Statistics`} teamColor={colors.primary} defaultOpen>
-            <CurrentSeasonPitchingTable stats={player.currentSeasonStats.pitching} />
-          </CollapsibleSection>
-        )}
-
         {hasPitching && hasCurrentPitching && projectedPitching.length > 0 && !isHistorical && (
           <CollapsibleSection title="ROS Pitching Projections" teamColor={colors.primary} defaultOpen>
             <CombinedPitchingTable data={projectedPitching.sort((a, b) => a.year - b.year)} hideXStats />
@@ -964,13 +906,6 @@ const PlayerDetails: React.FC = () => {
         {showHitting && historicalHitting.length > 0 && (
           <CollapsibleSection title="Hitting Statistics" teamColor={colors.primary} defaultOpen={hittingDefaultOpen}>
             <CombinedHittingTable data={historicalHitting.sort((a, b) => b.year - a.year)} showCareerTotals />
-          </CollapsibleSection>
-        )}
-
-        {/* Current season actual hitting stats */}
-        {!isHistorical && player.currentSeasonStats?.batting && (
-          <CollapsibleSection title={`${CURRENT_YEAR} Hitting Statistics`} teamColor={colors.primary} defaultOpen>
-            <CurrentSeasonBattingTable stats={player.currentSeasonStats.batting} />
           </CollapsibleSection>
         )}
 
