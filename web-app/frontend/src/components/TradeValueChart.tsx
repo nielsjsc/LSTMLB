@@ -215,10 +215,10 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   const fxValues = sorted.map((d) => d._fx);
   const minFx = fxValues[0];
   const maxFx = fxValues[fxValues.length - 1];
-  // Use actual data span — for short ranges (1m, 3m) add small padding instead of a fixed minimum
+  // Use actual data span with proportional padding (4% each side → data fills ~92%)
   const rawFxSpan = maxFx - minFx;
-  const fxPad = rawFxSpan < 0.08 ? 0.04 : rawFxSpan * 0.05; // pad ~5%, min half-month
-  const fxSpan = rawFxSpan + fxPad * 2 || 0.1;
+  const fxPad = rawFxSpan > 0 ? rawFxSpan * 0.04 : 0.5; // single-point fallback: ±6 months
+  const fxSpan = rawFxSpan + fxPad * 2;
   const adjMinFx = minFx - fxPad;
   const adjMaxFx = maxFx + fxPad;
 
