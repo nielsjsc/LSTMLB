@@ -215,7 +215,12 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   const fxValues = sorted.map((d) => d._fx);
   const minFx = fxValues[0];
   const maxFx = fxValues[fxValues.length - 1];
-  const fxSpan = Math.max(maxFx - minFx, 1);
+  // Use actual data span — for short ranges (1m, 3m) add small padding instead of a fixed minimum
+  const rawFxSpan = maxFx - minFx;
+  const fxPad = rawFxSpan < 0.08 ? 0.04 : rawFxSpan * 0.05; // pad ~5%, min half-month
+  const fxSpan = rawFxSpan + fxPad * 2 || 0.1;
+  const adjMinFx = minFx - fxPad;
+  const adjMaxFx = maxFx + fxPad;
 
   // Unique integer years for x-axis labels
   const uniqueYears = useMemo(() => {
@@ -240,7 +245,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   // ── X scale: linear time ──
   const x = (fx: number) => {
     if (fxSpan === 0) return MARGIN.left + plotW / 2;
-    return MARGIN.left + ((fx - minFx) / fxSpan) * plotW;
+    return MARGIN.left + ((fx - adjMinFx) / fxSpan) * plotW;
   };
 
   // ── Y scale: adaptive power curve (per-player optimal compression) ──
@@ -287,7 +292,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
         const yr = isNaN(d.getTime()) ? 0 : d.getFullYear();
         return { ...t, _fx: dateToFx(t.date, yr) };
       })
-      .filter((t) => t._fx >= minFx && t._fx <= maxFx);
+      .filter((t) => t._fx >= adjMinFx && t._fx <= adjMaxFx);
   }, [transactions, minFx, maxFx]);
 
   // Linear-interpolate trade value at an arbitrary fractional-year position

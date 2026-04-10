@@ -526,6 +526,50 @@ def _reclassify_pre_arb(txn: pd.DataFrame) -> pd.DataFrame:
     return txn
 
 
+def _reclassify_minor_league(txn: pd.DataFrame) -> pd.DataFrame:
+    """Reclassify ``fa_signing`` rows that are minor-league signings.
+
+    Spotrac descriptions containing 'minor league contract' are not real
+    FA signings — they are minor-league depth signings or MiLB free-agent
+    pickups.  Reclassify so they can be filtered from the trade-value chart.
+    """
+    mask = (
+        (txn["transaction_type"] == "fa_signing")
+        & txn["description"].str.contains(
+            "minor league", case=False, na=False,
+        )
+    )
+    txn.loc[mask, "transaction_type"] = "minor_league_signing"
+    n = int(mask.sum())
+    if n:
+        logger.info(f"  Reclassified {n} fa_signing → minor_league_signing")
+    return txn
+
+
+def _reclassify_initial_signing(txn: pd.DataFrame) -> pd.DataFrame:
+    """Reclassify ``fa_signing`` rows that are draft or IFA signings.
+
+    Spotrac records draft bonus signings and international free-agent
+    signings as plain "Signed a contract with [team]" (no years or salary).
+    Because the old ``fa_signing`` regex matched ``contract with``, these
+    were incorrectly classified.
+
+    Detection:  fa_signing + no dollar amount in description + no explicit
+    year/salary contract terms → almost certainly a draft or IFA signing,
+    not a true MLB free-agent deal.
+    """
+    mask = (
+        (txn["transaction_type"] == "fa_signing")
+        & ~txn["description"].str.contains(r"\$", na=False, regex=True)
+        & ~txn["description"].str.contains("minor league", case=False, na=False)
+    )
+    txn.loc[mask, "transaction_type"] = "initial_signing"
+    n = int(mask.sum())
+    if n:
+        logger.info(f"  Reclassified {n} fa_signing → initial_signing")
+    return txn
+
+
 def _consolidate_qualifying_offers(txn: pd.DataFrame) -> pd.DataFrame:
     """Consolidate QO extended + QO declined into a single free-agency event.
 
@@ -634,14 +678,21 @@ def build_transaction_entries(
     txn = _reclassify_arbitration(txn)
     txn = _reclassify_pre_arb(txn)
 
+    # ── Reclassify minor-league and draft/IFA signings ────────────────────
+    txn = _reclassify_minor_league(txn)
+    txn = _reclassify_initial_signing(txn)
+
     # ── Consolidate Qualifying Offer pairs ────────────────────────────────
     txn = _consolidate_qualifying_offers(txn)
 
-    # ── Filter out pre-arb, arb, and option exercises ───────────────────
+    # ── Filter out non-value-changing contract types ────────────────────
     # These are team-controlled contracts that don't change the player's
-    # years of control or value — just salary negotiations.
+    # years of control or value — just salary negotiations or initial signings.
     # Option exercises are handled by analyze_contract_options downstream.
-    _SKIP_TYPES = {"pre_arb", "arbitration", "option_exercised"}
+    _SKIP_TYPES = {
+        "pre_arb", "arbitration", "option_exercised",
+        "minor_league_signing", "initial_signing",
+    }
     pre_filter = len(txn)
     txn = txn[~txn["transaction_type"].isin(_SKIP_TYPES)].copy()
 
