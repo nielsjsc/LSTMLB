@@ -745,6 +745,9 @@ def _aggregate_tvh(points: list[dict], granularity: str, current_year: int) -> l
 
     For ``auto``, historical seasons (< *current_year*) are bucketed
     yearly while the current season is bucketed weekly.
+
+    Points with a ``transactionType`` (trades, signings, FA elections,
+    etc.) are always preserved — they are never collapsed into a bucket.
     """
     if granularity == "daily":
         return points
@@ -756,14 +759,20 @@ def _aggregate_tvh(points: list[dict], granularity: str, current_year: int) -> l
         agg_c = _aggregate_tvh(current, "weekly", current_year)
         return agg_h + agg_c
 
+    # Separate transaction points (always kept) from regular points (bucketed)
+    txn_points = [p for p in points if p.get("transactionType")]
+    regular_points = [p for p in points if not p.get("transactionType")]
+
     buckets: dict[Any, dict] = {}
-    for p in points:
+    for p in regular_points:
         key = _tvh_bucket_key(p.get("date"), p["year"], granularity)
         existing_date = buckets[key]["date"] if key in buckets else ""
         p_date = p.get("date") or ""
         if key not in buckets or p_date > existing_date:
             buckets[key] = p
-    return sorted(buckets.values(), key=lambda r: r.get("date") or f"{r['year']}-01-01")
+
+    combined = list(buckets.values()) + txn_points
+    return sorted(combined, key=lambda r: r.get("date") or f"{r['year']}-01-01")
 
 
 # ── Trade-value history endpoint ──────────────────────────────────────────
