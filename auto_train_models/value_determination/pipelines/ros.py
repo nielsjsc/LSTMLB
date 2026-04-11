@@ -515,7 +515,7 @@ def blend_pitcher_projections(preseason_sp, preseason_rp, actual_pitching,
 
 # Counting stats that scale with playing time (batters)
 BATTER_COUNTING_COLS = [
-    'PA', 'HR', '2B', '3B', '1B', 'H', 'AB', 'K',
+    'PA', 'G', 'HR', '2B', '3B', '1B', 'H', 'AB', 'K',
     'BB_count', 'HBP_count', 'RBI', 'R', 'HBP', 'BB',
     'SB', 'CS', 'SF',
 ]

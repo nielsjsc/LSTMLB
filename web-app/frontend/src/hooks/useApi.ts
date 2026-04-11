@@ -113,6 +113,7 @@ export function usePastTrades(params: {
   search?: string;
   featured?: boolean;
   confidence?: string;
+  minWar?: number;
 }) {
   return useQuery({
     queryKey: ['pastTrades', params] as const,
@@ -127,6 +128,7 @@ export function usePastTrades(params: {
         search: params.search || undefined,
         featured: params.featured,
         confidence: params.confidence || undefined,
+        min_war: params.minWar,
       }),
     placeholderData: keepPreviousData,
   });

@@ -28,7 +28,7 @@ const Home = () => {
       try {
         const [tvRes, tradeRes] = await Promise.all([
           getTradeValueRankings({ pageSize: 10, sortBy: 'trade_value', sortDirection: 'desc' }),
-          getPastTrades({ page_size: 5, sort_by: 'total_trade_war', sort_dir: 'desc', min_war: 5 }),
+          getPastTrades({ page_size: 5, sort_by: 'date', sort_dir: 'desc', min_war: 8 }),
         ])
         if (!cancelled) {
           setTopPlayers(tvRes.players)

@@ -575,6 +575,7 @@ def calculate_defensive_value(
     player_id: int,
     year: int,
     position_profile: Optional[Dict[str, float]] = None,
+    games: int = 150,
 ) -> tuple[float, float]:
     """
     Calculate defensive value and positional adjustment using position profiles.
@@ -589,14 +590,13 @@ def calculate_defensive_value(
         player_id: Player IDfg
         year: Projection year
         position_profile: {pos: fraction} from build_position_profiles
+        games: Projected games (default 150, reduced for ROS projections)
         
     Returns:
         tuple: (defensive_value, positional_adjustment)
     """
     if not position_profile:
-        return 0.0, POSITIONAL_ADJUSTMENTS.get('DH', -17.5) * (150 / 162.0)
-    
-    games = 150
+        return 0.0, POSITIONAL_ADJUSTMENTS.get('DH', -17.5) * (games / 162.0)
     
     # Get all fielding predictions for this player-year
     player_fielding = fielding_data[
@@ -662,10 +662,9 @@ def calculate_war_components(
     profile = position_profiles.get(player_id) if position_profiles else None
     position = infer_position_from_profile(profile)
     
-    # Use predicted PA (per 150 games) scaled to 150 games
-    pa_per_150 = row.get('PA', 650)
-    games = 150
-    pa = pa_per_150 * (games / 150)
+    # Use PA from the row (already reduced to remaining season if applicable)
+    games = row.get('G', 150)
+    pa = row.get('PA', 650)
     
     # Get team for park factor
     team = row.get('Team', '')
@@ -690,7 +689,8 @@ def calculate_war_components(
     
     # Get defensive value and positional adjustment (weighted by position profile)
     fld_value, pos_adjustment = calculate_defensive_value(
-        fielding_data, player_id, year, position_profile=profile
+        fielding_data, player_id, year, position_profile=profile,
+        games=games,
     )
     
     # Total defensive value = fielding + positional adjustment
@@ -713,15 +713,15 @@ def calculate_war_components(
     # WAR
     war = rar / RPW
     
-    # Counting stats (scale from per-150 rates by games)
+    # Counting stats — already reduced for ROS projections, just round
     counting_stats = {}
     for stat in ['HR', '2B', '3B', 'RBI', 'R']:
         if stat in row:
-            counting_stats[stat] = round(row[stat] * (games / 150.0), 1)
+            counting_stats[stat] = round(float(row[stat]), 1)
         else:
             counting_stats[stat] = 0.0
     
-    # Add baserunning counting stats (SB_rate and CS_rate are per 150 games)
+    # Baserunning counting stats (SB_rate/CS_rate are per 150 → scale by games)
     if not bsr_row.empty:
         counting_stats['SB'] = round(bsr_row.iloc[0].get('SB_rate', 0) * (games / 150.0), 1)
         counting_stats['CS'] = round(bsr_row.iloc[0].get('CS_rate', 0) * (games / 150.0), 1)

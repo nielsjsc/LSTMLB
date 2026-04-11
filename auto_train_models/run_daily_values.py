@@ -232,6 +232,8 @@ def main():
 
         if 'PA' not in batter_data.columns:
             batter_data['PA'] = 650
+        if 'G' not in batter_data.columns:
+            batter_data['G'] = 150
 
         # Reduce batter playing time to remaining season
         batter_data = reduce_to_remaining_season(

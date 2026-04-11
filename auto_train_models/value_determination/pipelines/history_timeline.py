@@ -894,6 +894,11 @@ def _interpolate_monthly(combined: pd.DataFrame) -> pd.DataFrame:
       interpolated value.  Value changes are frozen until the next April.
     • Offseason *transactions* still cause jumps — they are anchor points
       whose value is authoritative at that date.
+    • When the destination anchor is a **transaction** (extension, signing,
+      etc.), we do NOT interpolate toward it — the pre-transaction months
+      hold flat at the starting anchor's value because the transaction was
+      not predictable.  The transaction creates a discontinuous jump at its
+      date.
     """
     if combined.empty:
         return combined
@@ -916,6 +921,11 @@ def _interpolate_monthly(combined: pd.DataFrame) -> pd.DataFrame:
                 total += (hi - lo).days
         return total
 
+    def _is_transaction(row) -> bool:
+        """Check if a row is a transaction (has a non-null transaction_type)."""
+        tt = row.get("transaction_type")
+        return pd.notna(tt) and tt != ""
+
     interpolated_rows: list[dict] = []
 
     for mlb_id, grp in combined.groupby("mlb_id"):
@@ -937,6 +947,11 @@ def _interpolate_monthly(combined: pd.DataFrame) -> pd.DataFrame:
 
             val_a = row_a["value"]
             val_b = row_b["value"]
+
+            # If the destination is a transaction, don't interpolate toward it.
+            # Hold flat at val_a — the transaction creates a jump at dt_b.
+            b_is_txn = _is_transaction(row_b)
+
             total_season = _season_days(dt_a, dt_b)
 
             # Walk month-by-month (1st of each month, exclusive of endpoints)
@@ -944,10 +959,10 @@ def _interpolate_monthly(combined: pd.DataFrame) -> pd.DataFrame:
             current = pd.Timestamp(current.year, current.month, 1)
 
             while current < dt_b:
-                # Fraction of value change = proportion of in-season days
-                # elapsed.  During offseason months this fraction does not
-                # increase, so the value stays flat.
-                if total_season > 0:
+                if b_is_txn:
+                    # Hold flat — we can't predict the transaction
+                    frac = 0.0
+                elif total_season > 0:
                     elapsed = _season_days(dt_a, current)
                     frac = min(elapsed / total_season, 1.0)
                 else:

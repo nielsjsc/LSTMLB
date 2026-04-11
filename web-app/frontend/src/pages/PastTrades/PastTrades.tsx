@@ -47,15 +47,19 @@ function SortTh({ label, field, sortBy, sortDir, onSort, className = '' }: {
 
 function TradeRow({ trade, onClick }: { trade: PastTradeSummary; onClick: () => void }) {
   const sides = trade.sides || [];
-  const side1 = sides[0];
-  const side2 = sides[1];
 
-  // Build compact player list: top 3 names
-  const playerList = (side: typeof side1) => {
-    if (!side) return '';
+  // Build compact "Team receives Player1, Player2" label for a side
+  const sideLabel = (side: typeof sides[0]) => {
+    if (!side) return null;
     const names = side.players_received.slice(0, 3).map((p) => p.name);
     const suffix = side.players_received.length > 3 ? ` +${side.players_received.length - 3}` : '';
-    return names.join(', ') + suffix;
+    return (
+      <span>
+        <span className="text-gray-800 font-medium">{side.team}</span>
+        <span className="text-gray-400 mx-1">←</span>
+        <span className="text-gray-500">{names.join(', ')}{suffix}</span>
+      </span>
+    );
   };
 
   return (
@@ -68,34 +72,27 @@ function TradeRow({ trade, onClick }: { trade: PastTradeSummary; onClick: () => 
           {fmtDate(trade.date)}
         </td>
 
-        {/* Teams */}
-        <td className="px-3 py-2.5 text-[12px] whitespace-nowrap">
-          <span className="text-gray-800 font-medium">{side1?.team || '—'}</span>
-          <span className="text-gray-400 mx-1.5">↔</span>
-          <span className="text-gray-800 font-medium">{side2?.team || '—'}</span>
-          {trade.n_teams > 2 && (
-            <span className="text-gray-400 text-[10px] ml-1">+{trade.n_teams - 2}</span>
-          )}
+        {/* Side 1: team receives players */}
+        <td className="px-3 py-2.5 text-[12px] truncate max-w-[280px]">
+          {sideLabel(sides[0])}
         </td>
 
-        {/* Side 1 players */}
-        <td className="px-3 py-2.5 text-[12px] text-gray-500 truncate max-w-[200px]">
-          {playerList(side1)}
-        </td>
-
-        {/* Side 2 players */}
-        <td className="px-3 py-2.5 text-[12px] text-gray-500 truncate max-w-[200px]">
-          {playerList(side2)}
+        {/* Side 2: team receives players */}
+        <td className="px-3 py-2.5 text-[12px] truncate max-w-[280px]">
+          {sideLabel(sides[1])}
+          {trade.n_teams > 2 && sides.slice(2).map((s, i) => (
+            <span key={i} className="block mt-0.5">{sideLabel(s)}</span>
+          ))}
         </td>
 
         {/* WAR per side */}
         <td className="px-3 py-2.5 text-[12px] tabular-nums whitespace-nowrap text-right">
-          <span className={side1 && side1.total_war >= (side2?.total_war ?? 0) ? 'text-gray-800 font-medium' : 'text-gray-500'}>
-            {side1?.total_war ?? '—'}
+          <span className={sides[0] && sides[0].total_war >= (sides[1]?.total_war ?? 0) ? 'text-gray-800 font-medium' : 'text-gray-500'}>
+            {sides[0]?.total_war ?? '—'}
           </span>
           <span className="text-gray-400 mx-1">/</span>
-          <span className={side2 && side2.total_war >= (side1?.total_war ?? 0) ? 'text-gray-800 font-medium' : 'text-gray-500'}>
-            {side2?.total_war ?? '—'}
+          <span className={sides[1] && sides[1].total_war >= (sides[0]?.total_war ?? 0) ? 'text-gray-800 font-medium' : 'text-gray-500'}>
+            {sides[1]?.total_war ?? '—'}
           </span>
         </td>
       </tr>
@@ -107,25 +104,27 @@ function TradeRow({ trade, onClick }: { trade: PastTradeSummary; onClick: () => 
 export default function PastTrades() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState('date');
+  const [sortBy, setSortBy] = useState('total_trade_war');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [teamFilter, setTeamFilter] = useState('');
   const [yearFilter, setYearFilter] = useState<number | ''>('');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [viewMode, setViewMode] = useState<'notable' | 'all'>('notable');
 
   const pageSize = 40;
 
   const { data: res, isFetching: loading } = usePastTrades({
     page, pageSize, sortBy, sortDir,
     team: teamFilter, year: yearFilter, search,
+    ...(viewMode === 'notable' ? { minWar: 2 } : {}),
   });
 
   const trades = res?.trades ?? [];
   const total = res?.total ?? 0;
   const totalPages = res?.total_pages ?? 1;
 
-  useEffect(() => { setPage(1); }, [sortBy, sortDir, teamFilter, yearFilter, search]);
+  useEffect(() => { setPage(1); }, [sortBy, sortDir, teamFilter, yearFilter, search, viewMode]);
 
   const handleSearch = () => setSearch(searchInput);
 
@@ -150,6 +149,26 @@ export default function PastTrades() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex rounded bg-gray-100 p-0.5 mr-2">
+            <button
+              onClick={() => { setViewMode('notable'); setSortBy('total_trade_war'); setSortDir('desc'); }}
+              className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                viewMode === 'notable' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Notable
+            </button>
+            <button
+              onClick={() => { setViewMode('all'); setSortBy('date'); setSortDir('desc'); }}
+              className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                viewMode === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              All Trades
+            </button>
+          </div>
+
           <div className="relative">
             <input
               type="text"
@@ -200,9 +219,8 @@ export default function PastTrades() {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <SortTh label="Date" field="date" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="w-24" />
-                <th className="text-left text-[11px] font-medium uppercase tracking-wider text-gray-400 px-3 py-2.5 w-36">Teams</th>
-                <th className="text-left text-[11px] font-medium uppercase tracking-wider text-gray-400 px-3 py-2.5">Side 1</th>
-                <th className="text-left text-[11px] font-medium uppercase tracking-wider text-gray-400 px-3 py-2.5">Side 2</th>
+                <th className="text-left text-[11px] font-medium uppercase tracking-wider text-gray-400 px-3 py-2.5">Side 1 Received</th>
+                <th className="text-left text-[11px] font-medium uppercase tracking-wider text-gray-400 px-3 py-2.5">Side 2 Received</th>
                 <SortTh label="WAR" field="total_trade_war" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-right w-28" />
               </tr>
             </thead>
