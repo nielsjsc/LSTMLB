@@ -79,7 +79,7 @@ const deriveExponent = (values: number[]): number => {
 };
 
 // ─── Chart Dimensions ───────────────────────────────────────
-const MARGIN_DEFAULT = { top: 20, right: 20, bottom: 36, left: 60 };
+const MARGIN_DEFAULT = { top: 20, right: 20, bottom: 44, left: 60 };
 const MARGIN_MOBILE  = { top: 16, right: 12, bottom: 32, left: 44 };
 const MOBILE_BREAKPOINT = 480;
 const DOT_RADIUS = 5;
@@ -236,11 +236,11 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
 
   const values = sorted.map((d) => d.value);
   const rawMax = Math.max(...values);
-  const rawMin = Math.min(0, ...values);
+  const rawMin = Math.min(...values);
   const valRange = rawMax - rawMin || 1;
   const yPad = valRange * 0.12;
   const yMax = rawMax + yPad;
-  const yMin = rawMin - (rawMin < 0 ? yPad : 0);
+  const yMin = rawMin - yPad;
 
   // ── X scale: linear time ──
   const x = (fx: number) => {
@@ -279,7 +279,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   const linePath = smoothPath(linePoints);
   const areaPath =
     linePoints.length > 1
-      ? `${linePath}L${linePoints[linePoints.length - 1].x},${y(0)}L${linePoints[0].x},${y(0)}Z`
+      ? `${linePath}L${linePoints[linePoints.length - 1].x},${MARGIN.top + plotH}L${linePoints[0].x},${MARGIN.top + plotH}Z`
       : '';
 
   // ── Transaction annotations (positioned on the curve) ──────────────
@@ -394,7 +394,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
         ))}
 
         {/* ── Zero line ──────────────────────── */}
-        {yMin < 0 && (
+        {yMin < 0 && yMax > 0 && (
           <line
             x1={MARGIN.left}
             x2={dims.width - MARGIN.right}
@@ -466,37 +466,56 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
         ))}
 
         {/* ── Transaction annotation diamonds ───── */}
-        {chartTxns.map((txn, i) => {
-          const cx = x(txn._fx);
-          const cy = y(interpolateValue(txn._fx));
+        {(() => {
+          // Build positioned labels and resolve overlaps
+          const items = chartTxns.map((txn) => {
+            const cx = x(txn._fx);
+            const cy = y(interpolateValue(txn._fx));
+            const label = txnShortLabel(txn.typeCode);
+            return { txn, cx, cy, label, labelY: MARGIN.top + plotH + 10 };
+          });
+
+          // Sort by X position and nudge overlapping labels downward
+          if (!isMobile) {
+            const sorted = [...items].sort((a, b) => a.cx - b.cx);
+            const MIN_GAP_X = 40; // min horizontal pixels between label centers
+            const NUDGE_Y = 10;   // vertical offset per overlap level
+            for (let i = 1; i < sorted.length; i++) {
+              const prev = sorted[i - 1];
+              const cur = sorted[i];
+              if (Math.abs(cur.cx - prev.cx) < MIN_GAP_X) {
+                cur.labelY = prev.labelY + NUDGE_Y;
+              }
+            }
+          }
+
           const s = isMobile ? 4 : 5;
-          const label = txnShortLabel(txn.typeCode);
-          return (
+          return items.map((it, i) => (
             <g key={`txn-${i}`}>
               <line
-                x1={cx} x2={cx} y1={cy + s + 2} y2={MARGIN.top + plotH}
+                x1={it.cx} x2={it.cx} y1={it.cy + s + 2} y2={MARGIN.top + plotH}
                 stroke="rgba(30,64,175,0.15)" strokeWidth={1} strokeDasharray="3,3"
               />
               <circle
-                cx={cx} cy={cy} r={s * 0.7}
+                cx={it.cx} cy={it.cy} r={s * 0.7}
                 fill="#1d4ed8" stroke="white" strokeWidth={1.5}
               />
               {!isMobile && (
                 <text
-                  x={cx}
-                  y={MARGIN.top + plotH + 10}
+                  x={it.cx}
+                  y={it.labelY}
                   textAnchor="middle"
                   className="fill-blue-700"
                   fontSize={8}
                   fontWeight={600}
                   fontFamily="inherit"
                 >
-                  {label}
+                  {it.label}
                 </text>
               )}
             </g>
-          );
-        })}
+          ));
+        })()}
 
         {/* ── X-axis labels ───────────────────── */}
         {(() => {
