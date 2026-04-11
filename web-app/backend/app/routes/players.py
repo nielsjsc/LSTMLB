@@ -83,13 +83,14 @@ def _safe_val(v):
 def _load_current_season_stats(idfg: int) -> Optional[Dict[str, Any]]:
     """Load actual current-season batting/pitching stats for a player by IDfg.
 
-    Reads from the historic CSV files that are updated by the daily pipeline.
+    Reads from the current-season CSV files updated by the daily pipeline.
     Returns a dict with 'batting' and/or 'pitching' sub-dicts, or None.
     """
     result: Dict[str, Any] = {}
+    _CURRENT_SEASON_DIR = _PROJECT_ROOT / "data" / "current_season"
 
     # Batting
-    bat_file = _HISTORIC_MLB_DIR / "mlb_batting_data_1950_2025.csv"
+    bat_file = _CURRENT_SEASON_DIR / f"mlb_batting_data_{CURRENT_YEAR}_{CURRENT_YEAR}.csv"
     if bat_file.exists():
         try:
             bat = pd.read_csv(bat_file, low_memory=False)
@@ -131,7 +132,7 @@ def _load_current_season_stats(idfg: int) -> Optional[Dict[str, Any]]:
             logger.warning(f"Failed to load current-season batting stats: {e}")
 
     # Pitching
-    pit_file = _HISTORIC_MLB_DIR / "mlb_pitching_data_1950_2025.csv"
+    pit_file = _CURRENT_SEASON_DIR / f"mlb_pitching_data_{CURRENT_YEAR}_{CURRENT_YEAR}.csv"
     if pit_file.exists():
         try:
             pit = pd.read_csv(pit_file, low_memory=False)
