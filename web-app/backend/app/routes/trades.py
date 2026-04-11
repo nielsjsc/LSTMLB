@@ -728,7 +728,7 @@ def _estimate_prospect_value(fv: int) -> int:
     return _FV_VALUE_MAP.get(50, 30_000_000)
 
 
-def _augment_with_prospect_values(trades: List[Dict[str, Any]]) -> None:
+def _augment_with_prospect_values(trades: List[Dict[str, Any]], db=None) -> None:
     """
     Enrich trade players with prospect dollar values and fix prospect_top_100.
     
@@ -741,11 +741,15 @@ def _augment_with_prospect_values(trades: List[Dict[str, Any]]) -> None:
     from app.database import SessionLocal
 
     # Build a (name_lower, year) → value lookup from the prospect DB
-    db = SessionLocal()
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
     try:
         all_prospects = db.query(Prospect).all()
     finally:
-        db.close()
+        if close_db:
+            db.close()
 
     prospect_db: Dict[Tuple[str, int], Dict[str, Any]] = {}
     for p in all_prospects:
@@ -927,7 +931,7 @@ def _add_has_data_flags(trades: List[Dict[str, Any]]) -> None:
     logger.info(f"Flagged {flagged} trade players with has_data=False")
 
 
-def _link_prospect_ids(trades: List[Dict[str, Any]]) -> None:
+def _link_prospect_ids(trades: List[Dict[str, Any]], db=None) -> None:
     """
     Cross-reference trade players against the Prospect table by MLB ID → IDfg
     mapping and by name.  Attaches ``prospect_id`` (the Prospect table PK) so
@@ -941,11 +945,15 @@ def _link_prospect_ids(trades: List[Dict[str, Any]]) -> None:
     """
     from app.database import SessionLocal
 
-    db = SessionLocal()
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
     try:
         all_prospects = db.query(Prospect).all()
     finally:
-        db.close()
+        if close_db:
+            db.close()
 
     # Build lookups: (name_lower, year) → prospect row, and idfg → prospect row
     name_year_lookup: Dict[Tuple[str, int], Any] = {}

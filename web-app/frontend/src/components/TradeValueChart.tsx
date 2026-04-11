@@ -419,13 +419,15 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
           strokeLinecap="round"
         />
 
-        {/* ── Data dots — historical years get full dots; in-season only on hover ── */}
+        {/* ── Data dots — only show for transaction points + first/last; all others on hover only ── */}
         {sorted.map((d, i) => {
-          const isInSeason = d.year === inSeasonYear;
           const color = DOT_COLOR[d.valueType] ?? DEFAULT_DOT_COLOR;
           const isHovered = activeIdx === i;
-          // In-season points: hide dot unless hovered
-          if (isInSeason && !isHovered) return null;
+          const hasTxn = !!d.transactionType;
+          const isEndpoint = i === 0 || i === sorted.length - 1;
+          // Only show persistent dots for transaction points and first/last;
+          // everything else only appears on hover
+          if (!hasTxn && !isEndpoint && !isHovered) return null;
           const dotCx = x(d._fx);
           const dotCy = y(d.value);
           const baseR = isMobile ? 3.5 : DOT_RADIUS;

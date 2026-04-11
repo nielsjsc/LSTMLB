@@ -828,7 +828,7 @@ class DataLoader:
                     if idfg not in idfg_set:
                         continue
                     bat_by_idfg[idfg] = {
-                        "season": CURRENT_YEAR, "team": _sv(r.get("Team")),
+                        "year": CURRENT_YEAR, "season": CURRENT_YEAR, "team": _sv(r.get("Team")),
                         "g": _sv(r.get("G")), "pa": _sv(r.get("PA")),
                         "ab": _sv(r.get("AB")), "h": _sv(r.get("H")),
                         "hr": _sv(r.get("HR")),
@@ -859,7 +859,7 @@ class DataLoader:
                     if idfg not in idfg_set:
                         continue
                     pit_by_idfg[idfg] = {
-                        "season": CURRENT_YEAR, "team": _sv(r.get("Team")),
+                        "year": CURRENT_YEAR, "season": CURRENT_YEAR, "team": _sv(r.get("Team")),
                         "g": _sv(r.get("G")), "gs": _sv(r.get("GS")),
                         "ip": _sv(r.get("IP")), "w": _sv(r.get("W")),
                         "l": _sv(r.get("L")), "sv": _sv(r.get("SV")),
@@ -943,8 +943,8 @@ class DataLoader:
             _augment_with_historical_war(trades)
             _attach_future_projections(trades)
             _attach_contract_remaining(trades)
-            _augment_with_prospect_values(trades)
-            _link_prospect_ids(trades)
+            _augment_with_prospect_values(trades, db=self.db)
+            _link_prospect_ids(trades, db=self.db)
             _add_has_data_flags(trades)
             _compute_confidence_and_featured(trades)
 

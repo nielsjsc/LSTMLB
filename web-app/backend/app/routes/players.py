@@ -177,12 +177,12 @@ def _load_current_season_stats(idfg: int, db: Session = None) -> Optional[Dict[s
             if hp:
                 # Search batting JSON array for current-year season
                 for s in (hp.batting or []):
-                    if s.get("season") == CURRENT_YEAR:
+                    if s.get("year") == CURRENT_YEAR or s.get("season") == CURRENT_YEAR:
                         result["batting"] = s
                         break
                 # Search pitching JSON array for current-year season
                 for s in (hp.pitching or []):
-                    if s.get("season") == CURRENT_YEAR:
+                    if s.get("year") == CURRENT_YEAR or s.get("season") == CURRENT_YEAR:
                         result["pitching"] = s
                         break
         except Exception as e:

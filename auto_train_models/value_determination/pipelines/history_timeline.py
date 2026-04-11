@@ -881,68 +881,87 @@ def build_transaction_entries(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _interpolate_monthly(combined: pd.DataFrame) -> pd.DataFrame:
-    """Insert monthly interpolated points between consecutive annual snapshots.
+    """Insert monthly interpolated points between consecutive anchor points.
 
-    For each player, find pairs of consecutive annual snapshot entries
-    (mlb_surplus or prospect, with no transaction_type) and generate
-    monthly interpolated points between them.  Transaction entries are
-    left untouched.
+    Every entry (snapshot or transaction) is an anchor.  Transactions act
+    as breakpoints — interpolation restarts from the transaction value.
 
-    This gives the chart smooth month-by-month transitions instead of
-    abrupt year-to-year jumps.
+    Interpolation rules
+    ───────────────────
+    • **In-season** (April – September): linearly interpolate between
+      adjacent anchors, proportional to *in-season days* elapsed.
+    • **Offseason** (October – March): hold flat at the last in-season
+      interpolated value.  Value changes are frozen until the next April.
+    • Offseason *transactions* still cause jumps — they are anchor points
+      whose value is authoritative at that date.
     """
     if combined.empty:
         return combined
 
-    # Separate snapshots (no transaction) from transaction entries
-    is_snapshot = combined["transaction_type"].isna()
-    snapshots = combined[is_snapshot].copy()
-    transactions = combined[~is_snapshot].copy()
+    combined = combined.copy()
+    combined["_dt"] = pd.to_datetime(combined["date"], errors="coerce")
+    combined = combined.sort_values(["mlb_id", "_dt"]).reset_index(drop=True)
 
-    if snapshots.empty or snapshots["mlb_id"].nunique() == 0:
-        return combined
-
-    snapshots["_dt"] = pd.to_datetime(snapshots["date"], errors="coerce")
-    snapshots = snapshots.sort_values(["mlb_id", "_dt"])
+    # ── helper: count in-season (Apr–Sep) days in [start, end) ────────────
+    def _season_days(start: pd.Timestamp, end: pd.Timestamp) -> int:
+        if start >= end:
+            return 0
+        total = 0
+        for y in range(start.year, end.year + 1):
+            s0 = pd.Timestamp(y, 4, 1)
+            s1 = pd.Timestamp(y, 10, 1)  # Oct 1 = first day after season
+            lo = max(start, s0)
+            hi = min(end, s1)
+            if lo < hi:
+                total += (hi - lo).days
+        return total
 
     interpolated_rows: list[dict] = []
 
-    for mlb_id, grp in snapshots.groupby("mlb_id"):
+    for mlb_id, grp in combined.groupby("mlb_id"):
         grp = grp.sort_values("_dt").reset_index(drop=True)
         if len(grp) < 2:
             continue
 
-        for i in range(len(grp) - 1):
-            row_a = grp.iloc[i]
-            row_b = grp.iloc[i + 1]
-
+        for idx in range(len(grp) - 1):
+            row_a = grp.iloc[idx]
+            row_b = grp.iloc[idx + 1]
             dt_a = row_a["_dt"]
             dt_b = row_b["_dt"]
             if pd.isna(dt_a) or pd.isna(dt_b):
                 continue
 
-            # Generate monthly points between dt_a and dt_b (exclusive of both endpoints)
-            val_a = row_a["value"]
-            val_b = row_b["value"]
             total_days = (dt_b - dt_a).days
-            if total_days <= 32:  # less than ~1 month apart, skip
+            if total_days <= 32:       # less than ~1 month apart → skip
                 continue
 
-            # Walk month by month from dt_a
+            val_a = row_a["value"]
+            val_b = row_b["value"]
+            total_season = _season_days(dt_a, dt_b)
+
+            # Walk month-by-month (1st of each month, exclusive of endpoints)
             current = dt_a + pd.DateOffset(months=1)
-            # Snap to 1st of month
             current = pd.Timestamp(current.year, current.month, 1)
 
             while current < dt_b:
-                frac = (current - dt_a).days / total_days
+                # Fraction of value change = proportion of in-season days
+                # elapsed.  During offseason months this fraction does not
+                # increase, so the value stays flat.
+                if total_season > 0:
+                    elapsed = _season_days(dt_a, current)
+                    frac = min(elapsed / total_season, 1.0)
+                else:
+                    # Both anchors fall in the offseason with no in-season
+                    # time between them → hold flat at val_a.
+                    frac = 0.0
+
                 interp_val = val_a + frac * (val_b - val_a)
 
-                # Interpolate numeric metadata fields
-                def _lerp(field):
+                def _lerp(field, _frac=frac):
                     a = row_a.get(field)
                     b = row_b.get(field)
                     if pd.notna(a) and pd.notna(b):
-                        return round(float(a) + frac * (float(b) - float(a)), 2)
+                        return round(float(a) + _frac * (float(b) - float(a)), 2)
                     return a if pd.notna(a) else b
 
                 interpolated_rows.append({
@@ -964,15 +983,15 @@ def _interpolate_monthly(combined: pd.DataFrame) -> pd.DataFrame:
                 current += pd.DateOffset(months=1)
                 current = pd.Timestamp(current.year, current.month, 1)
 
-    snapshots = snapshots.drop(columns=["_dt"])
+    combined = combined.drop(columns=["_dt"])
 
     if interpolated_rows:
         interp_df = pd.DataFrame(interpolated_rows)
         logger.info(f"  Interpolated {len(interp_df)} monthly points for "
                     f"{interp_df['mlb_id'].nunique()} players")
-        result = pd.concat([snapshots, transactions, interp_df], ignore_index=True)
+        result = pd.concat([combined, interp_df], ignore_index=True)
     else:
-        result = pd.concat([snapshots, transactions], ignore_index=True)
+        result = combined
 
     return result.sort_values(["mlb_id", "date"]).reset_index(drop=True)
 
