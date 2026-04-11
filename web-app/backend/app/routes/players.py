@@ -80,10 +80,12 @@ def _safe_val(v):
     return v
 
 
-def _load_current_season_stats(idfg: int) -> Optional[Dict[str, Any]]:
+def _load_current_season_stats(idfg: int, db: Session = None) -> Optional[Dict[str, Any]]:
     """Load actual current-season batting/pitching stats for a player by IDfg.
 
     Reads from the current-season CSV files updated by the daily pipeline.
+    Falls back to the HistoricalPlayer DB table when CSVs are not available
+    (e.g. on a remote deployment without the data/ directory).
     Returns a dict with 'batting' and/or 'pitching' sub-dicts, or None.
     """
     result: Dict[str, Any] = {}
@@ -165,6 +167,26 @@ def _load_current_season_stats(idfg: int) -> Optional[Dict[str, Any]]:
                 }
         except Exception as e:
             logger.warning(f"Failed to load current-season pitching stats: {e}")
+
+    # ── DB fallback: HistoricalPlayer JSON arrays ─────────────────────────
+    # When CSVs are unavailable (remote deployment), check the DB.
+    if not result and db is not None:
+        try:
+            from app.models.historical import HistoricalPlayer
+            hp = db.query(HistoricalPlayer).filter(HistoricalPlayer.idfg == idfg).first()
+            if hp:
+                # Search batting JSON array for current-year season
+                for s in (hp.batting or []):
+                    if s.get("season") == CURRENT_YEAR:
+                        result["batting"] = s
+                        break
+                # Search pitching JSON array for current-year season
+                for s in (hp.pitching or []):
+                    if s.get("season") == CURRENT_YEAR:
+                        result["pitching"] = s
+                        break
+        except Exception as e:
+            logger.warning(f"Failed to load current-season stats from DB: {e}")
 
     return result if result else None
 
@@ -712,7 +734,7 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
         # Attach actual current-season stats (from FanGraphs historic data)
         idfg = current_year_data.real_id
         if idfg:
-            season_stats = _load_current_season_stats(int(idfg))
+            season_stats = _load_current_season_stats(int(idfg), db=db)
             if season_stats:
                 response["currentSeasonStats"] = season_stats
 
@@ -756,7 +778,7 @@ def _aggregate_tvh(points: list[dict], granularity: str, current_year: int) -> l
     if granularity == "auto":
         historical = [p for p in points if p["year"] < current_year]
         current = [p for p in points if p["year"] >= current_year]
-        agg_h = _aggregate_tvh(historical, "yearly", current_year)
+        agg_h = _aggregate_tvh(historical, "monthly", current_year)
         agg_c = _aggregate_tvh(current, "weekly", current_year)
         return agg_h + agg_c
 

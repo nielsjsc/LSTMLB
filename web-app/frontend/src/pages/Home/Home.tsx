@@ -28,7 +28,7 @@ const Home = () => {
       try {
         const [tvRes, tradeRes] = await Promise.all([
           getTradeValueRankings({ pageSize: 10, sortBy: 'trade_value', sortDirection: 'desc' }),
-          getPastTrades({ page_size: 5, sort_by: 'date', sort_dir: 'desc' }),
+          getPastTrades({ page_size: 5, sort_by: 'total_trade_war', sort_dir: 'desc', min_war: 5 }),
         ])
         if (!cancelled) {
           setTopPlayers(tvRes.players)
@@ -136,7 +136,7 @@ const Home = () => {
         {/* Recent Trades */}
         <div className="mt-6 bg-white rounded-lg border border-gray-200 shadow-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <h2 className="text-sm font-bold text-gray-900 font-display uppercase tracking-wide">Recent Trades</h2>
+            <h2 className="text-sm font-bold text-gray-900 font-display uppercase tracking-wide">Biggest Trades</h2>
             <Link to="/trades" className="text-xs text-accent-blue hover:underline font-medium">View All &rarr;</Link>
           </div>
           {loading ? (

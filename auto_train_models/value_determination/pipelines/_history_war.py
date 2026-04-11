@@ -78,7 +78,7 @@ def calculate_pitcher_war(pitcher_df: pd.DataFrame) -> pd.DataFrame:
     FIP-based pitcher WAR — delegates each row to
     ``value_determination.calculate_war.calculate_pitcher_war()``.
     """
-    C = Config
+    C = Config.WAR
     out = pitcher_df.copy()
 
     if "IP" not in out.columns:

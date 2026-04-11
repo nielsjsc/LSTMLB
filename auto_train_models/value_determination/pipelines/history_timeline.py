@@ -877,6 +877,107 @@ def build_transaction_entries(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Monthly interpolation for annual snapshots
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _interpolate_monthly(combined: pd.DataFrame) -> pd.DataFrame:
+    """Insert monthly interpolated points between consecutive annual snapshots.
+
+    For each player, find pairs of consecutive annual snapshot entries
+    (mlb_surplus or prospect, with no transaction_type) and generate
+    monthly interpolated points between them.  Transaction entries are
+    left untouched.
+
+    This gives the chart smooth month-by-month transitions instead of
+    abrupt year-to-year jumps.
+    """
+    if combined.empty:
+        return combined
+
+    # Separate snapshots (no transaction) from transaction entries
+    is_snapshot = combined["transaction_type"].isna()
+    snapshots = combined[is_snapshot].copy()
+    transactions = combined[~is_snapshot].copy()
+
+    if snapshots.empty or snapshots["mlb_id"].nunique() == 0:
+        return combined
+
+    snapshots["_dt"] = pd.to_datetime(snapshots["date"], errors="coerce")
+    snapshots = snapshots.sort_values(["mlb_id", "_dt"])
+
+    interpolated_rows: list[dict] = []
+
+    for mlb_id, grp in snapshots.groupby("mlb_id"):
+        grp = grp.sort_values("_dt").reset_index(drop=True)
+        if len(grp) < 2:
+            continue
+
+        for i in range(len(grp) - 1):
+            row_a = grp.iloc[i]
+            row_b = grp.iloc[i + 1]
+
+            dt_a = row_a["_dt"]
+            dt_b = row_b["_dt"]
+            if pd.isna(dt_a) or pd.isna(dt_b):
+                continue
+
+            # Generate monthly points between dt_a and dt_b (exclusive of both endpoints)
+            val_a = row_a["value"]
+            val_b = row_b["value"]
+            total_days = (dt_b - dt_a).days
+            if total_days <= 32:  # less than ~1 month apart, skip
+                continue
+
+            # Walk month by month from dt_a
+            current = dt_a + pd.DateOffset(months=1)
+            # Snap to 1st of month
+            current = pd.Timestamp(current.year, current.month, 1)
+
+            while current < dt_b:
+                frac = (current - dt_a).days / total_days
+                interp_val = val_a + frac * (val_b - val_a)
+
+                # Interpolate numeric metadata fields
+                def _lerp(field):
+                    a = row_a.get(field)
+                    b = row_b.get(field)
+                    if pd.notna(a) and pd.notna(b):
+                        return round(float(a) + frac * (float(b) - float(a)), 2)
+                    return a if pd.notna(a) else b
+
+                interpolated_rows.append({
+                    "mlb_id": mlb_id,
+                    "IDfg": row_a.get("IDfg") if pd.notna(row_a.get("IDfg")) else row_b.get("IDfg"),
+                    "name": row_a["name"],
+                    "date": current.strftime("%Y-%m-%d"),
+                    "year": current.year,
+                    "value": round(interp_val),
+                    "value_type": "mlb_surplus",
+                    "transaction_type": pd.NA,
+                    "label": "",
+                    "years_control": _lerp("years_control"),
+                    "projected_war": _lerp("projected_war"),
+                    "projected_salary": _lerp("projected_salary"),
+                    "war_per_year": _lerp("war_per_year"),
+                })
+
+                current += pd.DateOffset(months=1)
+                current = pd.Timestamp(current.year, current.month, 1)
+
+    snapshots = snapshots.drop(columns=["_dt"])
+
+    if interpolated_rows:
+        interp_df = pd.DataFrame(interpolated_rows)
+        logger.info(f"  Interpolated {len(interp_df)} monthly points for "
+                    f"{interp_df['mlb_id'].nunique()} players")
+        result = pd.concat([snapshots, transactions, interp_df], ignore_index=True)
+    else:
+        result = pd.concat([snapshots, transactions], ignore_index=True)
+
+    return result.sort_values(["mlb_id", "date"]).reset_index(drop=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Public API
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -972,6 +1073,12 @@ def generate_timeline() -> pd.DataFrame:
             combined = combined.drop(index=drop_idx).reset_index(drop=True)
             logger.info(f"  Suppressed {len(drop_idx)} April-1 dots near transactions")
         combined = combined.drop(columns=["_dt"])
+
+    # ── Monthly interpolation of annual snapshots ─────────────────────────
+    # Annual snapshots jump from one year to the next.  Insert monthly
+    # interpolated points between consecutive annual snapshots so the
+    # chart shows smooth transitions instead of abrupt jumps.
+    combined = _interpolate_monthly(combined)
 
     # ── Write output ─────────────────────────────────────────────────────
     # Ensure column order

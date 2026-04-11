@@ -787,6 +787,126 @@ class DataLoader:
             n = _bulk_insert(self.db, HistoricalPlayer, records)
             logger.info(f"    {n:,} historical players loaded")
 
+            # ── Inject current-season stats from CSV ──────────────────────
+            # The historical_players.json only covers through last year.
+            # Append current-year actual stats from the daily pipeline CSVs
+            # so the DB-only backend (remote deployment) can serve them.
+            self._inject_current_season_stats(records)
+
+    def _inject_current_season_stats(self, records: list[dict]) -> None:
+        """Append current-season batting/pitching stats to HistoricalPlayer rows."""
+        from app.config import CURRENT_YEAR
+
+        current_season_dir = PROJECT_ROOT / "data" / "current_season"
+        bat_file = current_season_dir / f"mlb_batting_data_{CURRENT_YEAR}_{CURRENT_YEAR}.csv"
+        pit_file = current_season_dir / f"mlb_pitching_data_{CURRENT_YEAR}_{CURRENT_YEAR}.csv"
+
+        if not bat_file.exists() and not pit_file.exists():
+            return
+
+        # Build IDfg lookup from just-inserted records
+        idfg_set = {r["idfg"] for r in records}
+
+        bat_by_idfg: dict[int, dict] = {}
+        pit_by_idfg: dict[int, dict] = {}
+
+        def _sv(v):
+            """Safe value: NaN/None → None, else native type."""
+            if v is None or (isinstance(v, float) and math.isnan(v)):
+                return None
+            return v
+
+        if bat_file.exists():
+            try:
+                bat = pd.read_csv(bat_file, low_memory=False)
+                bat["IDfg"] = pd.to_numeric(bat["IDfg"], errors="coerce")
+                for _, r in bat[bat["Season"] == CURRENT_YEAR].iterrows():
+                    idfg = r.get("IDfg")
+                    if pd.isna(idfg):
+                        continue
+                    idfg = int(idfg)
+                    if idfg not in idfg_set:
+                        continue
+                    bat_by_idfg[idfg] = {
+                        "season": CURRENT_YEAR, "team": _sv(r.get("Team")),
+                        "g": _sv(r.get("G")), "pa": _sv(r.get("PA")),
+                        "ab": _sv(r.get("AB")), "h": _sv(r.get("H")),
+                        "hr": _sv(r.get("HR")),
+                        "doubles": _sv(r.get("2B")), "triples": _sv(r.get("3B")),
+                        "r": _sv(r.get("R")), "rbi": _sv(r.get("RBI")),
+                        "sb": _sv(r.get("SB")), "cs": _sv(r.get("CS")),
+                        "bb": _sv(r.get("BB")), "so": _sv(r.get("SO")),
+                        "avg": _sv(r.get("AVG")), "obp": _sv(r.get("OBP")),
+                        "slg": _sv(r.get("SLG")), "ops": _sv(r.get("OPS")),
+                        "woba": _sv(r.get("wOBA")), "wrc_plus": _sv(r.get("wRC+")),
+                        "bb_pct": _sv(r.get("BB%")), "k_pct": _sv(r.get("K%")),
+                        "babip": _sv(r.get("BABIP")), "war": _sv(r.get("WAR")),
+                        "bat": _sv(r.get("Bat")), "bsr": _sv(r.get("BsR")),
+                        "def_value": _sv(r.get("Def")),
+                    }
+            except Exception as e:
+                logger.warning(f"    Failed to load current-season batting CSV: {e}")
+
+        if pit_file.exists():
+            try:
+                pit = pd.read_csv(pit_file, low_memory=False)
+                pit["IDfg"] = pd.to_numeric(pit["IDfg"], errors="coerce")
+                for _, r in pit[pit["Season"] == CURRENT_YEAR].iterrows():
+                    idfg = r.get("IDfg")
+                    if pd.isna(idfg):
+                        continue
+                    idfg = int(idfg)
+                    if idfg not in idfg_set:
+                        continue
+                    pit_by_idfg[idfg] = {
+                        "season": CURRENT_YEAR, "team": _sv(r.get("Team")),
+                        "g": _sv(r.get("G")), "gs": _sv(r.get("GS")),
+                        "ip": _sv(r.get("IP")), "w": _sv(r.get("W")),
+                        "l": _sv(r.get("L")), "sv": _sv(r.get("SV")),
+                        "era": _sv(r.get("ERA")), "fip": _sv(r.get("FIP")),
+                        "k_pct": _sv(r.get("K%")), "bb_pct": _sv(r.get("BB%")),
+                        "k_9": _sv(r.get("K/9")), "bb_9": _sv(r.get("BB/9")),
+                        "hr_9": _sv(r.get("HR/9")), "babip": _sv(r.get("BABIP")),
+                        "whip": _sv(r.get("WHIP")), "gb_pct": _sv(r.get("GB%")),
+                        "fb_pct": _sv(r.get("FB%")), "hr_fb": _sv(r.get("HR/FB")),
+                        "war": _sv(r.get("WAR")),
+                    }
+            except Exception as e:
+                logger.warning(f"    Failed to load current-season pitching CSV: {e}")
+
+        if not bat_by_idfg and not pit_by_idfg:
+            return
+
+        # Update HistoricalPlayer rows: append current-season entries
+        updated = 0
+        for hp in self.db.query(HistoricalPlayer).filter(
+            HistoricalPlayer.idfg.in_(set(bat_by_idfg) | set(pit_by_idfg))
+        ):
+            changed = False
+            if hp.idfg in bat_by_idfg:
+                batting = list(hp.batting or [])
+                # Remove any existing entry for this season
+                batting = [s for s in batting if s.get("season") != CURRENT_YEAR]
+                batting.append(bat_by_idfg[hp.idfg])
+                hp.batting = batting
+                changed = True
+            if hp.idfg in pit_by_idfg:
+                pitching = list(hp.pitching or [])
+                pitching = [s for s in pitching if s.get("season") != CURRENT_YEAR]
+                pitching.append(pit_by_idfg[hp.idfg])
+                hp.pitching = pitching
+                changed = True
+            if changed:
+                # Update last_year if needed
+                if hp.last_year is None or hp.last_year < CURRENT_YEAR:
+                    hp.last_year = CURRENT_YEAR
+                updated += 1
+
+        if updated:
+            self.db.flush()
+            logger.info(f"    Injected {CURRENT_YEAR} stats into {updated:,} historical players "
+                        f"(bat={len(bat_by_idfg)}, pit={len(pit_by_idfg)})")
+
     # ── Past trades ───────────────────────────────────────────────────────
 
     def load_past_trades(self, json_path: Path) -> None:
