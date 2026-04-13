@@ -117,7 +117,7 @@ export default function PastTrades() {
   const { data: res, isFetching: loading } = usePastTrades({
     page, pageSize, sortBy, sortDir,
     team: teamFilter, year: yearFilter, search,
-    ...(viewMode === 'notable' ? { minWar: 2 } : {}),
+    ...(viewMode === 'notable' ? { featured: true } : {}),
   });
 
   const trades = res?.trades ?? [];
