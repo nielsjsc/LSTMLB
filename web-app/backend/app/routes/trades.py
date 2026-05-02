@@ -288,8 +288,13 @@ def _load_surplus_projections() -> Dict[int, Dict[str, Any]]:
                 total_war_value = float(row.get("total_future_WAR_value", 0) or 0)
                 total_salary = float(row.get("total_future_salary", 0) or 0)
                 surplus = float(row.get("surplus", 0) or 0)
+                years_control = int(float(row.get("years_control", 0) or 0))
+                control_through_raw = row.get("control_through", 0) or 0
+                control_through = int(float(control_through_raw)) if control_through_raw not in ("", "nan", None) else 0
             except (ValueError, TypeError):
                 total_war = total_war_value = total_salary = surplus = 0.0
+                years_control = 0
+                control_through = 0
 
             projections[mlbam_id] = {
                 "name": row.get("Name", ""),
@@ -298,6 +303,8 @@ def _load_surplus_projections() -> Dict[int, Dict[str, Any]]:
                 "projected_salary": int(total_salary),
                 "projected_surplus": int(surplus),
                 "projected_yearly_war": yearly_war,
+                "years_control": years_control,
+                "control_through": control_through or None,
             }
 
     logger.info(f"Loaded {len(projections)} surplus projections for trade augmentation")
@@ -347,6 +354,8 @@ def _augment_with_projections(trades: List[Dict[str, Any]]) -> None:
                     player["projected_salary"] = proj["projected_salary"]
                     player["projected_surplus"] = proj["projected_surplus"]
                     player["projected_yearly_war"] = proj["projected_yearly_war"]
+                    player["years_control"] = proj.get("years_control")
+                    player["control_through"] = proj.get("control_through")
                     player["has_projection"] = True
 
                     side_proj_war += proj["projected_war"]
@@ -553,9 +562,15 @@ def _attach_future_projections(trades: List[Dict[str, Any]]) -> None:
                 future = [
                     yw for yw in proj["projected_yearly_war"]
                     if yw["year"] not in actual_years
+                    and (
+                        not proj.get("control_through")
+                        or yw["year"] <= int(proj["control_through"])
+                    )
                 ]
                 if future:
                     player["projected_yearly_war"] = future
+                    player["years_control"] = proj.get("years_control")
+                    player["control_through"] = proj.get("control_through")
                     player["has_projection"] = True
                     attached += 1
 

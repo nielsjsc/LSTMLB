@@ -43,7 +43,23 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
 
   // Combine actual + projected WAR into one timeline
   const actualYears = player.yearly_war || [];
-  const projectedYears = player.projected_yearly_war || [];
+  const lastActualYear = actualYears.length > 0 ? Math.max(...actualYears.map((yw) => yw.year)) : null;
+  const projectedYears = (player.projected_yearly_war || []).filter((yw) => {
+    if (lastActualYear != null && yw.year <= lastActualYear) {
+      return false;
+    }
+    if (player.control_through != null) {
+      return yw.year <= player.control_through;
+    }
+    return true;
+  });
+
+  const actualYearClass = (war: number) =>
+    war > 0
+      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15'
+      : war < 0
+      ? 'bg-red-500/10 text-red-400 border border-red-500/15'
+      : 'bg-gray-100/60 text-gray-600';
 
   return (
     <div className="py-3 border-b border-gray-100 last:border-b-0">
@@ -130,7 +146,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
               {actualYears.map((yw) => (
                 <span
                   key={yw.year}
-                  className="text-[10px] px-1.5 py-0.5 rounded font-mono tabular-nums bg-gray-100/60 text-gray-600"
+                  className={`text-[10px] px-1.5 py-0.5 rounded font-mono tabular-nums ${actualYearClass(yw.war)}`}
                 >
                   {yw.year}: {yw.war > 0 ? '+' : ''}{yw.war}
                 </span>
