@@ -662,6 +662,8 @@ const PlayerDetails: React.FC = () => {
   const h = cur?.hitting;
   const pit = cur?.pitching;
   const v = cur?.value;
+  const prospectTradeValue = player.prospectData?.history.find((entry) => entry.value != null)?.value ?? null;
+  const displayTradeValue = v?.trade_value ?? prospectTradeValue;
 
   const projWar = isHistorical ? (histMeta?.career_war ?? 0) : (v?.contract_war ?? 0);
 
@@ -748,8 +750,10 @@ const PlayerDetails: React.FC = () => {
                 )}
               </div>
 
-              {/* Surplus value bar — only for projected players */}
-              {!isHistorical && v && <SurplusBar value={v.trade_value ?? 0} teamColor={colors.accent} />}
+              {/* Surplus value bar — for projected players and prospect-only pages with loaded value */}
+              {!isHistorical && displayTradeValue != null && (
+                <SurplusBar value={displayTradeValue} teamColor={colors.accent} />
+              )}
 
               {/* Career WAR summary for historical players */}
               {isHistorical && histMeta && (
@@ -804,9 +808,9 @@ const PlayerDetails: React.FC = () => {
       )}
 
       {/* ════════════════════════════════════════════════════
-       *  VALUE & CONTRACT SECTION — only for projected players
+       *  VALUE & CONTRACT SECTION — only for projected MLB players
        *  ════════════════════════════════════════════════════ */}
-      {!isHistorical && (
+      {!isHistorical && !player.isProspectOnly && (
       <div className="max-w-6xl mx-auto px-4 mb-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Left: Contract timeline + financial summary */}

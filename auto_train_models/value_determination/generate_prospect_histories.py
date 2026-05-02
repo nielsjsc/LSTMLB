@@ -183,17 +183,28 @@ def fill_missing_fv_grades(df: pd.DataFrame) -> pd.DataFrame:
                 prev_data = df[(df['year'] == prev_year) & (df['name'] == player_name)]
                 
                 if len(prev_data) > 0 and pd.notna(prev_data.iloc[0]['grade_overall']):
-                    df.loc[idx, 'grade_overall'] = prev_data.iloc[0]['grade_overall']
-                    filled_count += 1
+                    prev_row = prev_data.iloc[0]
+                    df.loc[idx, 'grade_overall'] = prev_row['grade_overall']
+
+                    # Also copy individual scouting/tool grades when missing
+                    tool_cols = [
+                        'grade_hit', 'grade_power', 'grade_run', 'grade_arm', 'grade_field',
+                        'grade_fastball', 'grade_slider', 'grade_curveball', 'grade_changeup',
+                        'grade_cutter', 'grade_splitter', 'grade_control'
+                    ]
+                    for col in tool_cols:
+                        if col in df.columns:
+                            prev_val = prev_row.get(col)
+                            cur_val = df.loc[idx, col]
+                            if (pd.isna(cur_val) or cur_val == '') and pd.notna(prev_val):
+                                df.loc[idx, col] = prev_val
             
             if filled_count > 0:
                 logger.info(f"    Filled {filled_count} from previous year")
         
-        # Strategy B: Interpolate based on rank for remaining missing values
-        year_indices = df[year_mask].index.tolist()
-        year_subset = df.loc[year_indices].copy()
+        # Strategy B: Interpolate by ranking for remaining missing
+        year_subset = df[year_mask].copy()
         
-        # Sort by rank or top_100
         if 'top_100' in year_subset.columns:
             year_subset['sort_rank'] = year_subset['top_100'].fillna(year_subset['rank'])
         else:

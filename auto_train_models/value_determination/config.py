@@ -76,7 +76,7 @@ class Paths:
     HISTORIC_FIELDING_FILE = HISTORIC_MLB_DIR / 'mlb_fielding_data_2000_2025_with_statcast.csv'
     CROSSWALK_FILE         = GENERATED_DIR / 'player_id_crosswalk.csv'
     PLAYER_VALUES_FILE     = OUTPUT_DIR / 'player_values_complete.csv'
-    SPOTRAC_TRANSACTIONS_FILE = ROOT_DIR / 'scrapers' / 'data' / 'salary' / 'spotrac_transactions.csv'
+    SPOTRAC_TRANSACTIONS_FILE = SALARY_DIR / 'spotrac_transactions.csv'
     PROJECTIONS_DIR        = GENERATED_DIR / 'historical_values' / 'projections'
     SURPLUS_DIR            = GENERATED_DIR / 'historical_values' / 'surplus'
     TRADE_VALUE_HISTORY_FILE = OUTPUT_DIR / 'trade_value_history.csv'

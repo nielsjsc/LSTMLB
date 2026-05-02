@@ -600,17 +600,17 @@ def reduce_to_remaining_season(df, war_proration, current_year=None,
 # ─────────────────────────────────────────────────────────────────────────
 
 def prorate_current_year_war(df, war_proration, current_year=None):
-    """Replace current-year WAR with actual + ROS projected WAR.
+    """Replace current-year WAR with ROS projected WAR.
 
     If playing time was already reduced to remaining season via
     :func:`reduce_to_remaining_season`, the projected WAR is already
-    ROS-scale and we simply add::
+    ROS-scale and we simply use it::
 
-        new_WAR = actual_war + projected_ros_war
+        new_WAR = projected_ros_war
 
     Otherwise (full-season projection), the old formula applies::
 
-        new_WAR = actual_war + projected_full_war × remaining_fraction
+        new_WAR = projected_full_war × remaining_fraction
 
     Future years (Year > current_year) are untouched.
 
@@ -645,11 +645,10 @@ def prorate_current_year_war(df, war_proration, current_year=None):
 
         if info.get('playing_time_reduced', False):
             # Playing time already reduced → projected WAR is ROS-scale
-            prorated_war = info['actual_war'] + projected_war
+            prorated_war = projected_war
         else:
             # Full-season projection → scale down
-            prorated_war = (info['actual_war']
-                           + projected_war * info['remaining_fraction'])
+            prorated_war = projected_war * info['remaining_fraction']
 
         df.at[idx, 'WAR'] = prorated_war
         prorated += 1

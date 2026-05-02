@@ -223,16 +223,28 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
             components_merged = pre_agg - len(cleaned_df)
 
             # Re-emit FA marker rows that were absorbed during aggregation.
-            # For option years where Spotrac had a separate UFA row, we need
-            # to keep that signal so normalize_contract_status sees it.
+            #
+            # Spotrac sometimes encodes a player's *final contract year* as two
+            # rows for the SAME year:
+            #   - a paid contract row (Active / option / etc.)
+            #   - a "UFA" marker row with NaN payroll
+            #
+            # If we keep the UFA marker in the same year, downstream contract
+            # processing will incorrectly treat that *contract year* as a
+            # Free Agent year (off-by-one FA_Year), and it can also introduce
+            # duplicate (player, year) rows.
+            #
+            # Fix: re-emit the marker in the FOLLOWING year to represent the
+            # first free-agent season after the last paid contract year.
             fa_marker_rows = cleaned_df[cleaned_df['_has_fa_marker'] & ~cleaned_df['Status'].apply(_has_fa_status)]
             if len(fa_marker_rows) > 0:
                 fa_rows = fa_marker_rows[['IDfg', 'Year', 'Player Name', 'Team']].copy()
+                fa_rows['Year'] = fa_rows['Year'] + 1
                 fa_rows['Payroll'] = np.nan
                 fa_rows['Status'] = 'UFA'
                 fa_rows['Years_of_Service'] = np.nan
                 cleaned_df = pd.concat([cleaned_df, fa_rows], ignore_index=True)
-                logger.info(f"Preserved {len(fa_rows)} FA marker rows from dual-row option years")
+                logger.info(f"Preserved {len(fa_rows)} FA marker rows (shifted +1 year) from dual-row Spotrac years")
 
             cleaned_df = cleaned_df.drop(columns=['_has_fa_marker'], errors='ignore')
             

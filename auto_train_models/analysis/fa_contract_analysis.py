@@ -37,7 +37,7 @@ from collections import defaultdict
 DATA_DIR = _ROOT / "data"
 HISTORIC_BATTING = DATA_DIR / "historic_mlb" / "mlb_batting_data_1950_2025.csv"
 HISTORIC_PITCHING = DATA_DIR / "historic_mlb" / "mlb_pitching_data_1950_2025.csv"
-SPOTRAC_TRANSACTIONS = _ROOT / "scrapers" / "data" / "salary" / "spotrac_transactions.csv"
+SPOTRAC_TRANSACTIONS = DATA_DIR / "salary" / "spotrac_transactions.csv"
 PROJECTIONS_DIR = DATA_DIR / "generated" / "historical_values" / "projections"
 CROSSWALK = DATA_DIR / "generated" / "player_id_crosswalk.csv"
 OUTPUT_DIR = DATA_DIR / "generated" / "historical_values"
