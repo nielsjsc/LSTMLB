@@ -1182,12 +1182,12 @@ def _spotrac_type_to_code(txn_type: str) -> str:
     mapping = {
         "extension": "EXT",
         "fa_signing": "SFA",
-        "signing": "SFA",  # If Spotrac explicitly tracks a "signing" post-filter, count it as SFA
+        "signing": "SGN",
         "elected_fa": "FA",
         "option_exercised": "EXT",
         "option_declined": "FA",
     }
-    return mapping.get(txn_type, "SFA")
+    return mapping.get(txn_type, "SGN")
 
 
 def _spotrac_type_desc(txn_type: str) -> str:
@@ -1516,6 +1516,27 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
 
         for evt in spotrac_rows:
             evt_date = str(evt.date or "")[:10]
+            desc = evt.description or ""
+
+            # Dynamic filtering for pre-arb / arbitration / minor league (in case DB isn't refreshed)
+            if evt.transaction_type in ("fa_signing", "signing"):
+                desc_lower = desc.lower()
+                if "arbitration" in desc_lower or "minor league" in desc_lower:
+                    continue
+                if "$" not in desc: # initial draft/IFA signings
+                    continue
+                # Pre-arb 1-year low-value checks
+                if re.search(r"signed a 1 year \$[\d,]+(?:k|K)?\s+contract", desc, re.IGNORECASE):
+                    sal_match = re.search(r"\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?)(k|K)?", desc)
+                    if sal_match:
+                        try:
+                            sal = float(sal_match.group(1).replace(",", ""))
+                            if sal_match.group(2):
+                                sal *= 1000
+                            if sal <= 1500000:
+                                continue
+                        except ValueError:
+                            pass
 
             # De-duplicate: skip if MLB API already has a signing on the same date
             if evt_date in mlb_api_dates and evt.transaction_type not in ("extension",):
