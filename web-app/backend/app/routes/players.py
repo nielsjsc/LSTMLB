@@ -1502,7 +1502,7 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
             "linkedPlayers": linked_players,
         })
 
-if date and display_type_code in ("SFA", "FA", "EXT"):
+        if date and display_type_code in ("SFA", "FA", "EXT"):
             mlb_api_dates.add(date[:10])  # YYYY-MM-DD
 
     # ── Merge Spotrac contract events ─────────────────────────────────────
