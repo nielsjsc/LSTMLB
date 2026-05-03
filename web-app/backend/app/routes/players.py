@@ -1162,7 +1162,6 @@ _TRANSACTION_CACHE_TTL = 60 * 60 * 24  # 24 hours
 # Transaction types we want to display (filter out noise)
 _IMPORTANT_TYPE_CODES = {
     "TR",   # Trade
-    "SGN",  # Signed
     "SFA",  # Signed as Free Agent
     "DFA",  # Declared Free Agency (player elects FA — NOT "Designated for Assignment")
     "FA",   # Free Agency declared
@@ -1183,12 +1182,12 @@ def _spotrac_type_to_code(txn_type: str) -> str:
     mapping = {
         "extension": "EXT",
         "fa_signing": "SFA",
-        "signing": "SGN",
+        "signing": "SFA",  # If Spotrac explicitly tracks a "signing" post-filter, count it as SFA
         "elected_fa": "FA",
-        "option_exercised": "SGN",
+        "option_exercised": "EXT",
         "option_declined": "FA",
     }
-    return mapping.get(txn_type, "SGN")
+    return mapping.get(txn_type, "SFA")
 
 
 def _spotrac_type_desc(txn_type: str) -> str:
@@ -1503,7 +1502,7 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
             "linkedPlayers": linked_players,
         })
 
-        if date and display_type_code in ("SGN", "SFA", "FA"):
+if date and display_type_code in ("SFA", "FA", "EXT"):
             mlb_api_dates.add(date[:10])  # YYYY-MM-DD
 
     # ── Merge Spotrac contract events ─────────────────────────────────────

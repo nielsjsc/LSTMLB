@@ -1206,12 +1206,54 @@ class DataLoader:
             }
             df = df[df["transaction_type"].isin(contract_types)].copy()
 
-            # Filter out arbitration settlements misclassified as fa_signing
+            # Filter out arbitration settlements misclassified as fa_signing or signing
             arb_mask = (
-                (df["transaction_type"] == "fa_signing")
+                df["transaction_type"].isin(["fa_signing", "signing"])
                 & df["description"].str.contains("arbitration", case=False, na=False)
             )
             df = df[~arb_mask]
+
+            # Filter out pre-arbitration 1-year minimal salary contracts
+            import re
+            pre_arb_re = re.compile(r"signed a 1 year \$[\d,]+(?:k|K)?\s+contract", re.IGNORECASE)
+            pre_arb_mask = (
+                df["transaction_type"].isin(["fa_signing", "signing"])
+                & df["description"].str.contains(pre_arb_re, na=False, regex=True)
+            )
+            # Further verify salary is under a generous minimal threshold (e.g. < $1.0M)
+            # Since historical minimums vary, $1M is a safe upper bound for pre-arb before 2025 except 2026. 
+            # Or we just rely on exactly this formulation since 1-year low deals without arbitration description are pre-arb.
+            
+            def is_low_salary(desc: str) -> bool:
+                match = re.search(r"\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?)(k|K)?", str(desc))
+                if not match:
+                    return False
+                sal_str = match.group(1).replace(",", "")
+                try:
+                    salary = float(sal_str)
+                    if match.group(2):
+                        salary *= 1000
+                    return salary <= 1500000.0  # safe threshold
+                except ValueError:
+                    return False
+            
+            low_sal_mask = df["description"].apply(is_low_salary)
+            df = df[~(pre_arb_mask & low_sal_mask)]
+
+            # Filter out minor league signings
+            minor_league_mask = (
+                df["transaction_type"].isin(["fa_signing", "signing"])
+                & df["description"].str.contains("minor league", case=False, na=False)
+            )
+            df = df[~minor_league_mask]
+
+            # Filter out initial free agent/draft signings (no dollar amount)
+            initial_signing_mask = (
+                df["transaction_type"].isin(["fa_signing", "signing"])
+                & ~df["description"].str.contains(r"\$", na=False, regex=True)
+                & ~df["description"].str.contains("minor league", case=False, na=False)
+            )
+            df = df[~initial_signing_mask]
 
             # Add lowered name for indexed lookups
             df["player_name_lower"] = df["player_name"].str.strip().str.lower()

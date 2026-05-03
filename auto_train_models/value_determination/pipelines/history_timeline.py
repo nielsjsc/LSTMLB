@@ -457,7 +457,7 @@ def _reclassify_arbitration(txn: pd.DataFrame) -> pd.DataFrame:
     history can distinguish true FA signings from arb settlements.
     """
     arb_mask = (
-        (txn["transaction_type"] == "fa_signing")
+        txn["transaction_type"].isin(["fa_signing", "signing"])
         & txn["description"].str.contains(
             "avoiding arbitration|settling in arbitration",
             case=False, na=False, regex=True,
@@ -466,7 +466,7 @@ def _reclassify_arbitration(txn: pd.DataFrame) -> pd.DataFrame:
     txn.loc[arb_mask, "transaction_type"] = "arbitration"
     n = int(arb_mask.sum())
     if n:
-        logger.info(f"  Reclassified {n} fa_signing → arbitration")
+        logger.info(f"  Reclassified {n} fa_signing/signing → arbitration")
     return txn
 
 
@@ -477,21 +477,49 @@ _PRE_ARB_SALARY_RE = re.compile(
 )
 
 
-def _reclassify_pre_arb(txn: pd.DataFrame) -> pd.DataFrame:
+def _reclassify_pre_arb(txn: pd.DataFrame, name_to_mlbid: dict[str, int], cots_lookup: dict[tuple[int, int], dict]) -> pd.DataFrame:
     """Reclassify ``fa_signing`` rows that are actually pre-arb contracts.
 
     Pre-arb contracts are 1-year deals at or near the league minimum salary.
     We detect them by: (a) the contract is 1 year, (b) the salary is near
     the historical minimum for that year, and (c) the event is not already
     classified as arbitration, extension, etc.
+    
+    We ALSO use Cot's service time: if service time < 3.0, they are pre-arb.
+    If service time < 6.0, they are arbitration (unless they have an extension, but this affects fa_signing).
     """
     min_sal = Config.History.HISTORICAL_MIN_SALARY
-    mask = txn["transaction_type"] == "fa_signing"
-    count = 0
+    mask = txn["transaction_type"].isin(["fa_signing", "signing"])
+    count_salary = 0
+    count_cots = 0
 
     for idx in txn.index[mask]:
         desc = str(txn.at[idx, "description"])
         ev_date = txn.at[idx, "date"]
+        player_name = str(txn.at[idx, "player_name"])
+
+        # Determine year
+        try:
+            yr = pd.Timestamp(ev_date).year
+        except Exception:
+            continue
+            
+        mlb_id = name_to_mlbid.get(_normalise_name(player_name))
+        cots_svc = None
+        if mlb_id:
+            cots_data = cots_lookup.get((mlb_id, yr))
+            if cots_data and 'service_time' in cots_data:
+                cots_svc = cots_data['service_time']
+
+        if cots_svc is not None:
+            if cots_svc < 3.0:
+                txn.at[idx, "transaction_type"] = "pre_arb"
+                count_cots += 1
+                continue
+            elif cots_svc < 6.0:
+                txn.at[idx, "transaction_type"] = "arbitration"
+                count_cots += 1
+                continue
 
         # Must match "Signed a 1 year $XXX,XXX contract"
         if not _PRE_ARB_SALARY_RE.search(desc):
@@ -509,20 +537,14 @@ def _reclassify_pre_arb(txn: pd.DataFrame) -> pd.DataFrame:
         if sal_match.group(2):     # "k" suffix → thousands
             salary *= 1_000
 
-        # Determine year
-        try:
-            yr = pd.Timestamp(ev_date).year
-        except Exception:
-            continue
-
         # Pre-arb threshold: within 50% above the league minimum
         threshold = min_sal.get(yr, 800_000) * 1.5
         if salary <= threshold:
             txn.at[idx, "transaction_type"] = "pre_arb"
-            count += 1
+            count_salary += 1
 
-    if count:
-        logger.info(f"  Reclassified {count} fa_signing → pre_arb")
+    if count_cots or count_salary:
+        logger.info(f"  Reclassified fa_signing → {count_cots} by Cot's service time, {count_salary} by salary")
     return txn
 
 
@@ -534,7 +556,7 @@ def _reclassify_minor_league(txn: pd.DataFrame) -> pd.DataFrame:
     pickups.  Reclassify so they can be filtered from the trade-value chart.
     """
     mask = (
-        (txn["transaction_type"] == "fa_signing")
+        txn["transaction_type"].isin(["fa_signing", "signing"])
         & txn["description"].str.contains(
             "minor league", case=False, na=False,
         )
@@ -542,7 +564,7 @@ def _reclassify_minor_league(txn: pd.DataFrame) -> pd.DataFrame:
     txn.loc[mask, "transaction_type"] = "minor_league_signing"
     n = int(mask.sum())
     if n:
-        logger.info(f"  Reclassified {n} fa_signing → minor_league_signing")
+        logger.info(f"  Reclassified {n} fa_signing/signing → minor_league_signing")
     return txn
 
 
@@ -559,14 +581,14 @@ def _reclassify_initial_signing(txn: pd.DataFrame) -> pd.DataFrame:
     not a true MLB free-agent deal.
     """
     mask = (
-        (txn["transaction_type"] == "fa_signing")
+        txn["transaction_type"].isin(["fa_signing", "signing"])
         & ~txn["description"].str.contains(r"\$", na=False, regex=True)
         & ~txn["description"].str.contains("minor league", case=False, na=False)
     )
     txn.loc[mask, "transaction_type"] = "initial_signing"
     n = int(mask.sum())
     if n:
-        logger.info(f"  Reclassified {n} fa_signing → initial_signing")
+        logger.info(f"  Reclassified {n} fa_signing/signing → initial_signing")
     return txn
 
 
@@ -609,11 +631,17 @@ def _build_value_lookup(
     """(mlb_id, year) → {value, years_control, projected_war, projected_salary, war_per_year}.
 
     When both surplus and prospect exist for the same key, surplus wins.
+    Prospect entries without years_control are excluded (they don't affect transaction
+    lookups and would add NaN to the timeline).
     """
     lookup: dict[tuple[int, int], dict] = {}
     if value_timeline is None or value_timeline.empty:
         return lookup
     for _, r in value_timeline.iterrows():
+        # Exclude prospect entries without years_control — they can't be used
+        # for transaction value lookups and would pollute the timeline with NaN
+        if r.get("value_type") == "prospect" and (r.get("years_control") is None or pd.isna(r.get("years_control"))):
+            continue
         key = (int(r["mlb_id"]), int(r["year"]))
         entry = {
             "value": r["value"],
@@ -628,20 +656,107 @@ def _build_value_lookup(
     return lookup
 
 
+def _build_cots_lookup() -> dict[tuple[int, int], dict]:
+    """Build a lookup of Cot's data by (mlb_id, year) for exact-year fallback.
+    
+    Returns {(mlb_id, year) -> {'years_control': int, ...}}
+    """
+    lookup: dict[tuple[int, int], dict] = {}
+    cots_dir = Config.Paths.DATA_DIR / 'salary' / 'by_year'
+    if not cots_dir.exists():
+        logger.warning(f"Cot's directory not found: {cots_dir}")
+        return lookup
+    
+    # Load crosswalk and build name → mlb_id map
+    xw = _load_crosswalk()
+    if xw.empty:
+        logger.warning("Crosswalk empty - Cot's lookup disabled")
+        return lookup
+    
+    # Build player name → mlb_id from crosswalk
+    name_to_mlbid = {}
+    for _, row in xw.iterrows():
+        name = str(row.get('name', '')).lower().strip()
+        mlb_id = row.get('mlb_id')
+        if name and pd.notna(mlb_id):
+            name_to_mlbid[name] = int(mlb_id)
+    
+    logger.debug(f"Built name→mlb_id map: {len(name_to_mlbid)} entries")
+    
+    for cots_file in sorted(cots_dir.glob('*.csv')):
+        try:
+            year = int(cots_file.stem)
+        except ValueError:
+            continue
+        
+        try:
+            cots = pd.read_csv(cots_file, low_memory=False)
+            
+            # Ensure required columns exist
+            if 'player' not in cots.columns or 'years_of_control' not in cots.columns:
+                continue
+            
+            # Match player names to mlb_id and build lookup
+            for _, row in cots.iterrows():
+                player_name = str(row.get('player', '')).lower().strip()
+                yoc = row.get('years_of_control')
+                svc = row.get('service_time')
+                
+                if not player_name or pd.isna(yoc):
+                    continue
+                
+                # Try exact match first
+                mlb_id = name_to_mlbid.get(player_name)
+                if mlb_id:
+                    lookup[(int(mlb_id), year)] = {
+                        'years_control': int(yoc),
+                        'service_time': float(svc) if pd.notna(svc) else 0.0
+                    }
+        
+        except Exception as e:
+            logger.debug(f"Could not load Cot's {year}: {e}")
+    
+    logger.info(f"Loaded Cot's data: {len(lookup)} (player-year) entries")
+    return lookup
+
+
 def _lookup_value(
     mlb_id: int,
     ev_year: int,
     value_map: dict[tuple[int, int], dict],
+    cots_lookup: dict[tuple[int, int], dict] | None = None,
 ) -> dict | None:
-    """Find the best value entry for *mlb_id* near *ev_year*."""
+    """Find the best value entry for *mlb_id* near *ev_year*.
+    
+    Priority:
+    1. Exact year in value_map (surplus snapshots)
+    2. Next year in value_map (off-season signings)
+    3. Previous year in value_map
+    
+    Then, if available, enhance years_control with Cot's data for exact year.
+    """
+    entry = None
+    
+    # Try to find a value entry (required for transaction to be included)
     if (mlb_id, ev_year) in value_map:
-        return value_map[(mlb_id, ev_year)]
-    # Off-season signing may precede the next snapshot
-    if (mlb_id, ev_year + 1) in value_map:
-        return value_map[(mlb_id, ev_year + 1)]
-    if (mlb_id, ev_year - 1) in value_map:
-        return value_map[(mlb_id, ev_year - 1)]
-    return None
+        entry = value_map[(mlb_id, ev_year)]
+    elif (mlb_id, ev_year + 1) in value_map:
+        entry = value_map[(mlb_id, ev_year + 1)]
+    elif (mlb_id, ev_year - 1) in value_map:
+        entry = value_map[(mlb_id, ev_year - 1)]
+    
+    if entry is None:
+        return None
+    
+    # Enhance years_control with Cot's data if available for exact year
+    if cots_lookup and (mlb_id, ev_year) in cots_lookup:
+        cots_entry = cots_lookup[(mlb_id, ev_year)]
+        # Override years_control from Cot's if Cot's has it (higher priority)
+        if 'years_control' in cots_entry:
+            entry = entry.copy()
+            entry['years_control'] = cots_entry['years_control']
+    
+    return entry
 
 
 def build_transaction_entries(
@@ -674,9 +789,18 @@ def build_transaction_entries(
     txn = pd.read_csv(SPOTRAC_TRANSACTIONS_FILE, parse_dates=["date"])
     logger.info(f"Loaded {len(txn)} Spotrac transactions")
 
+    # ── Player-ID lookups (needed early for Cot's matching) ───────────────
+    name_to_mlbid = _build_name_to_mlbid(player_values)
+    idfg_to_mlb   = _build_idfg_to_mlb(player_values)
+    mlb_to_name   = _build_mlb_to_name(player_values)
+    mlb_to_idfg: dict[int, int] = {v: k for k, v in idfg_to_mlb.items()}
+
+    # ── Load Cot's data as fallback for exact-year lookups ────────────────
+    cots_lookup = _build_cots_lookup()
+
     # ── Reclassify arb and pre-arb signings ───────────────────────────────
     txn = _reclassify_arbitration(txn)
-    txn = _reclassify_pre_arb(txn)
+    txn = _reclassify_pre_arb(txn, name_to_mlbid, cots_lookup)
 
     # ── Reclassify minor-league and draft/IFA signings ────────────────────
     txn = _reclassify_minor_league(txn)
@@ -727,12 +851,6 @@ def build_transaction_entries(
         txn = txn[~drop_mask].copy()
         if n_other_dropped:
             logger.info(f"  Filtered out {n_other_dropped} non-relevant 'other' transactions")
-
-    # ── Player-ID lookups ─────────────────────────────────────────────────
-    name_to_mlbid = _build_name_to_mlbid(player_values)
-    idfg_to_mlb   = _build_idfg_to_mlb(player_values)
-    mlb_to_name   = _build_mlb_to_name(player_values)
-    mlb_to_idfg: dict[int, int] = {v: k for k, v in idfg_to_mlb.items()}
 
     # ── Value lookup from existing surplus + prospect timeline ────────────
     value_map = _build_value_lookup(value_timeline)
@@ -807,7 +925,7 @@ def build_transaction_entries(
                 elif curr:
                     entry = curr
                 else:
-                    entry = _lookup_value(mlb_id, lookup_year, value_map)
+                    entry = _lookup_value(mlb_id, lookup_year, value_map, cots_lookup)
                 if entry is None:
                     continue
                 value    = entry["value"]
@@ -817,7 +935,7 @@ def build_transaction_entries(
                 proj_sal = entry.get("projected_salary")
                 war_yr   = entry.get("war_per_year")
             else:
-                entry = _lookup_value(mlb_id, lookup_year, value_map)
+                entry = _lookup_value(mlb_id, lookup_year, value_map, cots_lookup)
                 if entry is None:
                     # No snapshot data at all — skip this transaction
                     continue
@@ -1113,6 +1231,42 @@ def generate_timeline() -> pd.DataFrame:
     # interpolated points between consecutive annual snapshots so the
     # chart shows smooth transitions instead of abrupt jumps.
     combined = _interpolate_monthly(combined)
+
+    # ── Enhance labels with FV for prospect years ─────────────────────────
+    # If a player was a prospect in a given year, prepend their FV grade
+    # (e.g. "FV 50") to ALL rows for that year (transactions, interpolations)
+    if not combined.empty:
+        prospect_lookup = {}
+        prospect_rows = combined[combined["value_type"] == "prospect"]
+        for _, r in prospect_rows.iterrows():
+            if pd.notna(r["mlb_id"]) and pd.notna(r["year"]) and pd.notna(r["label"]):
+                prospect_lookup[(int(r["mlb_id"]), int(r["year"]))] = str(r["label"])
+                
+        def _enhance_with_fv(row):
+            mid = row.get("mlb_id")
+            yr = row.get("year")
+            if pd.isna(mid) or pd.isna(yr):
+                return row["label"]
+            
+            fv_label = prospect_lookup.get((int(mid), int(yr)))
+            if not fv_label:
+                return row["label"]
+                
+            # If it's already the prospect row, no change needed
+            if row.get("value_type") == "prospect":
+                return row["label"]
+                
+            curr_label = row.get("label")
+            if pd.isna(curr_label) or not str(curr_label).strip():
+                return fv_label
+                
+            # If the current label already contains the FV label, don't duplicate
+            if fv_label in str(curr_label):
+                return curr_label
+                
+            return f"[{fv_label}] {curr_label}"
+
+        combined["label"] = combined.apply(_enhance_with_fv, axis=1)
 
     # ── Write output ─────────────────────────────────────────────────────
     # Ensure column order
