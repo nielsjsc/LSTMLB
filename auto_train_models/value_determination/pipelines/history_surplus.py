@@ -703,6 +703,7 @@ def _override_years_of_control(
 def compute_surplus_for_snapshot(
     snapshot_year: int,
     *,
+    is_eoy: bool = False,
     force: bool = False,
 ) -> pd.DataFrame:
     """
@@ -714,7 +715,8 @@ def compute_surplus_for_snapshot(
     snapshot_year S  →  cutoff_year = S − 1
     """
     cutoff_year = snapshot_year - Config.History.SNAPSHOT_LAG
-    out_path = SURPLUS_DIR / f"surplus_{snapshot_year}.csv"
+    suffix = "_eoy" if is_eoy else ""
+    out_path = SURPLUS_DIR / f"surplus_{snapshot_year}{suffix}.csv"
 
     if out_path.exists() and not force:
         logger.info(f"[{snapshot_year}]  surplus file already exists — skipping")
@@ -723,7 +725,8 @@ def compute_surplus_for_snapshot(
     SURPLUS_DIR.mkdir(parents=True, exist_ok=True)
 
     # ── Load Cot's salary ────────────────────────────────────────────────
-    cots_file = COTS_BY_YEAR_DIR / f"{snapshot_year}.csv"
+    cots_year = snapshot_year - 1 if is_eoy else snapshot_year
+    cots_file = COTS_BY_YEAR_DIR / f"{cots_year}.csv"
     if not cots_file.exists():
         logger.warning(f"[{snapshot_year}]  Cot's salary file missing: {cots_file}")
         return pd.DataFrame()
@@ -732,6 +735,14 @@ def compute_surplus_for_snapshot(
     cots = cots.dropna(subset=["player"]).copy()
     # Filter out aggregate "Running Payroll Total" rows
     cots = cots[~cots["player"].str.contains("Running|Payroll", na=False)]
+    
+    # Pre-offseason / EOY adjustment
+    if is_eoy:
+        cots["service_time"] += 1.0
+        cots["years_of_control"] = (cots["years_of_control"] - 1).clip(lower=0)
+        cots["total_future_salary"] = (cots["total_future_salary"] - cots["salary"]).clip(lower=0)
+        cots = cots[cots["years_of_control"] > 0].copy()
+
     cots["_name_key"] = cots["player"].apply(_name_key_fn)
     cots = cots.sort_values("salary", ascending=False, na_position="last")
     logger.info(f"[{snapshot_year}]  loaded {len(cots)} Cot's rows")
@@ -1096,7 +1107,7 @@ def compute_all_surpluses(
     start: int | None = None,
     end: int | None = None,
     force: bool = False,
-) -> dict[int, pd.DataFrame]:
+) -> dict[str, pd.DataFrame]:
     """Compute surplus for every snapshot year in [start, end]."""
     start = start or (Config.History.CUTOFF_START + Config.History.SNAPSHOT_LAG)
     end   = end   or (Config.History.CUTOFF_END   + Config.History.SNAPSHOT_LAG)
@@ -1108,11 +1119,16 @@ def compute_all_surpluses(
     logger.info(f"Snapshot years {start} → {end}")
     logger.info("=" * 60)
 
-    results: dict[int, pd.DataFrame] = {}
+    results: dict[str, pd.DataFrame] = {}
     for snap_year in range(start, end + 1):
-        df = compute_surplus_for_snapshot(snap_year, force=force)
-        results[snap_year] = df
-
-    total = sum(len(df) for df in results.values())
-    logger.info(f"Surplus computation complete — {total} total player rows across {len(results)} years")
+        df_reg = compute_surplus_for_snapshot(snap_year, force=force)
+        results[str(snap_year)] = df_reg
+        # We can also compute End of Year value for the previous year
+        # E.g. snapshot_year=2024 uses 2023 Cot's data -> surplus_2024_eoy.csv
+        try:
+            df_eoy = compute_surplus_for_snapshot(snap_year, is_eoy=True, force=force)
+            if not df_eoy.empty:
+                results[f"{snap_year}_eoy"] = df_eoy
+        except Exception as e:
+            logger.warning(f"Could not compute EOY for {snap_year}: {e}")
     return results

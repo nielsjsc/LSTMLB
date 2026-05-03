@@ -233,11 +233,46 @@ def build_prospect_timeline(
 # 2. MLB surplus timeline
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _load_surplus_files() -> dict[int, pd.DataFrame]:
-    """Load all ``surplus_YYYY.csv`` from the surplus directory."""
+def _load_surplus_files() -> tuple[dict[int, pd.DataFrame], dict[int, pd.DataFrame]]:
     surplus_by_year: dict[int, pd.DataFrame] = {}
+    surplus_eoy_by_year: dict[int, pd.DataFrame] = {}
+    
     if not SURPLUS_DIR.exists():
-        return surplus_by_year
+        return surplus_by_year, surplus_eoy_by_year
+
+    for path in sorted(SURPLUS_DIR.glob("surplus_*.csv")):
+        try:
+            parts = path.stem.split("_")
+            yr = int(parts[1])
+            is_eoy = len(parts) > 2 and parts[2] == "eoy"
+            
+            if is_eoy:
+                surplus_eoy_by_year[yr] = pd.read_csv(path, low_memory=False)
+                logger.info(f"  Loaded {path.name}: {len(surplus_eoy_by_year[yr])} players")
+            else:
+                surplus_by_year[yr] = pd.read_csv(path, low_memory=False)
+                logger.info(f"  Loaded {path.name}: {len(surplus_by_year[yr])} players")
+        except Exception as e:
+            logger.warning(f"  Failed to load {path.name}: {e}")
+            
+    return surplus_by_year, surplus_eoy_by_year
+
+    for path in sorted(SURPLUS_DIR.glob("surplus_*.csv")):
+        try:
+            parts = path.stem.split("_")
+            yr = int(parts[1])
+            is_eoy = len(parts) > 2 and parts[2] == "eoy"
+            
+            if is_eoy:
+                surplus_eoy_by_year[yr] = pd.read_csv(path, low_memory=False)
+                logger.info(f"  Loaded {path.name}: {len(surplus_eoy_by_year[yr])} players")
+            else:
+                surplus_by_year[yr] = pd.read_csv(path, low_memory=False)
+                logger.info(f"  Loaded {path.name}: {len(surplus_by_year[yr])} players")
+        except Exception as e:
+            logger.warning(f"  Failed to load {path.name}: {e}")
+            
+    return surplus_by_year, surplus_eoy_by_year
 
     for path in sorted(SURPLUS_DIR.glob("surplus_*.csv")):
         try:
@@ -267,24 +302,28 @@ def build_mlb_timeline(
 
     Returns DataFrame: mlb_id, IDfg, name, year, value, value_type, label
     """
-    surplus_by_year = _load_surplus_files()
+    surplus_by_year, surplus_eoy_by_year = _load_surplus_files()
 
     idfg_to_mlb = _build_idfg_to_mlb(player_values)
     mlb_to_name = _build_mlb_to_name(player_values)
 
     rows: list[dict] = []
 
-    # ── Historical years ─────────────────────────────────────────────────
-    for snap_year, sdf in surplus_by_year.items():
+    def _process_surplus_df(sdf: pd.DataFrame, snap_year: int, date_str: str, year_value: int) -> None:
         has_trade_value = "trade_value" in sdf.columns
-
         for _, pr in sdf.iterrows():
-            idfg = int(pr["IDfg"])
-            mlbam = int(pr["mlbam_id"]) if pd.notna(pr.get("mlbam_id")) else None
-
-            mlb_id = mlbam
-            if mlb_id is None:
-                mlb_id = idfg_to_mlb.get(idfg)
+            mlb_id = None
+            mlbam = pr.get("mlbam_id")
+            if pd.notna(mlbam):
+                try:
+                    mlb_id = int(mlbam)
+                except (TypeError, ValueError):
+                    mlb_id = None
+            if mlb_id is None and pd.notna(pr.get("IDfg")):
+                try:
+                    mlb_id = idfg_to_mlb.get(int(pr["IDfg"]))
+                except (TypeError, ValueError):
+                    mlb_id = None
             if mlb_id is None:
                 continue
 
@@ -336,10 +375,10 @@ def build_mlb_timeline(
 
             rows.append({
                 "mlb_id": mlb_id,
-                "IDfg": idfg,
+                "IDfg": int(pr["IDfg"]) if pd.notna(pr.get("IDfg")) else pd.NA,
                 "name": name,
-                "date": f"{snap_year}-04-01",
-                "year": snap_year,
+                "date": date_str,
+                "year": year_value,
                 "value": round(trade_val),
                 "value_type": "mlb_surplus",
                 "transaction_type": pd.NA,
@@ -349,6 +388,25 @@ def build_mlb_timeline(
                 "projected_salary": round(total_salary),
                 "war_per_year": round(war_per_yr, 2),
             })
+
+    for snap_year in sorted(surplus_by_year):
+        _process_surplus_df(
+            surplus_by_year[snap_year],
+            snap_year,
+            f"{snap_year}-04-01",
+            snap_year,
+        )
+
+    for snap_year in sorted(surplus_eoy_by_year):
+        eoy_year = snap_year - 1
+        if eoy_year < Config.History.CUTOFF_START:
+            continue
+        _process_surplus_df(
+            surplus_eoy_by_year[snap_year],
+            snap_year,
+            f"{eoy_year}-10-01",
+            eoy_year,
+        )
 
     # ── Current year from value_determination ─────────────────────────────
     if player_values is not None and not player_values.empty:
@@ -627,135 +685,75 @@ def _consolidate_qualifying_offers(txn: pd.DataFrame) -> pd.DataFrame:
 
 def _build_value_lookup(
     value_timeline: pd.DataFrame,
-) -> dict[tuple[int, int], dict]:
-    """(mlb_id, year) → {value, years_control, projected_war, projected_salary, war_per_year}.
-
-    When both surplus and prospect exist for the same key, surplus wins.
-    Prospect entries without years_control are excluded (they don't affect transaction
-    lookups and would add NaN to the timeline).
-    """
-    lookup: dict[tuple[int, int], dict] = {}
+) -> dict[int, pd.DataFrame]:
     if value_timeline is None or value_timeline.empty:
-        return lookup
-    for _, r in value_timeline.iterrows():
-        # Exclude prospect entries without years_control — they can't be used
-        # for transaction value lookups and would pollute the timeline with NaN
-        if r.get("value_type") == "prospect" and (r.get("years_control") is None or pd.isna(r.get("years_control"))):
-            continue
-        key = (int(r["mlb_id"]), int(r["year"]))
-        entry = {
-            "value": r["value"],
-            "years_control": r.get("years_control"),
-            "projected_war": r.get("projected_war"),
-            "projected_salary": r.get("projected_salary"),
-            "war_per_year": r.get("war_per_year"),
-        }
-        # mlb_surplus overwrites prospect
-        if key not in lookup or r["value_type"] == "mlb_surplus":
-            lookup[key] = entry
-    return lookup
-
+        return {}
+    valid = value_timeline[
+        (value_timeline["value_type"] != "prospect") | 
+        pd.notna(value_timeline["years_control"])
+    ].copy()
+    valid["_dt"] = pd.to_datetime(valid["date"], errors="coerce")
+    valid = valid.dropna(subset=["_dt"]).sort_values("_dt")
+    return {mlb_id: grp for mlb_id, grp in valid.groupby("mlb_id")}
 
 def _build_cots_lookup() -> dict[tuple[int, int], dict]:
-    """Build a lookup of Cot's data by (mlb_id, year) for exact-year fallback.
-    
-    Returns {(mlb_id, year) -> {'years_control': int, ...}}
-    """
+    """Build a lookup of Cot's data by (mlb_id, year) for exact-year fallback."""
     lookup: dict[tuple[int, int], dict] = {}
     cots_dir = Config.Paths.DATA_DIR / 'salary' / 'by_year'
-    if not cots_dir.exists():
-        logger.warning(f"Cot's directory not found: {cots_dir}")
-        return lookup
-    
-    # Load crosswalk and build name → mlb_id map
+    if not cots_dir.exists(): return lookup
     xw = _load_crosswalk()
-    if xw.empty:
-        logger.warning("Crosswalk empty - Cot's lookup disabled")
-        return lookup
-    
-    # Build player name → mlb_id from crosswalk
+    if xw.empty: return lookup
     name_to_mlbid = {}
     for _, row in xw.iterrows():
         name = str(row.get('name', '')).lower().strip()
         mlb_id = row.get('mlb_id')
-        if name and pd.notna(mlb_id):
-            name_to_mlbid[name] = int(mlb_id)
-    
-    logger.debug(f"Built name→mlb_id map: {len(name_to_mlbid)} entries")
+        if name and pd.notna(mlb_id): name_to_mlbid[name] = int(mlb_id)
     
     for cots_file in sorted(cots_dir.glob('*.csv')):
         try:
             year = int(cots_file.stem)
-        except ValueError:
-            continue
-        
-        try:
             cots = pd.read_csv(cots_file, low_memory=False)
-            
-            # Ensure required columns exist
-            if 'player' not in cots.columns or 'years_of_control' not in cots.columns:
-                continue
-            
-            # Match player names to mlb_id and build lookup
+            if 'player' not in cots.columns or 'years_of_control' not in cots.columns: continue
             for _, row in cots.iterrows():
                 player_name = str(row.get('player', '')).lower().strip()
                 yoc = row.get('years_of_control')
                 svc = row.get('service_time')
-                
-                if not player_name or pd.isna(yoc):
-                    continue
-                
-                # Try exact match first
+                if not player_name or pd.isna(yoc): continue
                 mlb_id = name_to_mlbid.get(player_name)
                 if mlb_id:
                     lookup[(int(mlb_id), year)] = {
                         'years_control': int(yoc),
                         'service_time': float(svc) if pd.notna(svc) else 0.0
                     }
-        
-        except Exception as e:
-            logger.debug(f"Could not load Cot's {year}: {e}")
-    
-    logger.info(f"Loaded Cot's data: {len(lookup)} (player-year) entries")
+        except: pass
     return lookup
-
 
 def _lookup_value(
     mlb_id: int,
-    ev_year: int,
-    value_map: dict[tuple[int, int], dict],
+    ev_date: pd.Timestamp,
+    value_map: dict[int, pd.DataFrame],
     cots_lookup: dict[tuple[int, int], dict] | None = None,
 ) -> dict | None:
-    """Find the best value entry for *mlb_id* near *ev_year*.
-    
-    Priority:
-    1. Exact year in value_map (surplus snapshots)
-    2. Next year in value_map (off-season signings)
-    3. Previous year in value_map
-    
-    Then, if available, enhance years_control with Cot's data for exact year.
-    """
-    entry = None
-    
-    # Try to find a value entry (required for transaction to be included)
-    if (mlb_id, ev_year) in value_map:
-        entry = value_map[(mlb_id, ev_year)]
-    elif (mlb_id, ev_year + 1) in value_map:
-        entry = value_map[(mlb_id, ev_year + 1)]
-    elif (mlb_id, ev_year - 1) in value_map:
-        entry = value_map[(mlb_id, ev_year - 1)]
-    
-    if entry is None:
-        return None
-    
-    # Enhance years_control with Cot's data if available for exact year
-    if cots_lookup and (mlb_id, ev_year) in cots_lookup:
-        cots_entry = cots_lookup[(mlb_id, ev_year)]
-        # Override years_control from Cot's if Cot's has it (higher priority)
-        if 'years_control' in cots_entry:
-            entry = entry.copy()
+    if mlb_id not in value_map: return None
+    df = value_map[mlb_id]
+    prior = df[(df["_dt"] <= ev_date) & (df["value_type"] != "prospect")]
+    if prior.empty:
+        prior_p = df[df["_dt"] <= ev_date]
+        prior = prior_p if not prior_p.empty else df
+    row = prior.iloc[-1] if not prior.empty else df.iloc[0]
+    yr = ev_date.year
+    entry = {
+        "value": row["value"],
+        "years_control": row.get("years_control"),
+        "projected_war": row.get("projected_war"),
+        "projected_salary": row.get("projected_salary"),
+        "war_per_year": row.get("war_per_year"),
+        "_dt": row["_dt"]
+    }
+    if cots_lookup and (mlb_id, yr) in cots_lookup:
+        cots_entry = cots_lookup[(mlb_id, yr)]
+        if pd.isna(entry.get('years_control')) or entry.get('years_control') == 0:
             entry['years_control'] = cots_entry['years_control']
-    
     return entry
 
 
@@ -908,24 +906,26 @@ def build_transaction_entries(
                 proj_sal = pd.NA
                 war_yr   = pd.NA
             elif ev_type == "extension":
-                # Mid-season extensions: the current year's surplus may
-                # not yet reflect the new contract.  Compare current and
-                # next year surplus and use whichever has more years of
-                # control (i.e. the post-extension snapshot).
-                curr = value_map.get((mlb_id, lookup_year))
-                nxt  = value_map.get((mlb_id, ev_year + 1))
-                if curr and nxt:
-                    _cy = curr.get("years_control")
-                    _ny = nxt.get("years_control")
-                    curr_yrs = 0 if _cy is None or pd.isna(_cy) else float(_cy)
-                    nxt_yrs  = 0 if _ny is None or pd.isna(_ny) else float(_ny)
-                    entry = nxt if nxt_yrs > curr_yrs else curr
-                elif nxt:
-                    entry = nxt
-                elif curr:
-                    entry = curr
-                else:
-                    entry = _lookup_value(mlb_id, lookup_year, value_map, cots_lookup)
+                # For extensions, we want to look forward to the NEXT surplus snapshot
+                # to pick up the updated contract.
+                entry = None
+                if mlb_id in value_map:
+                    df = value_map[mlb_id]
+                    post = df[(df["_dt"] > ev_date) & (df["value_type"] != "prospect")]
+                    if not post.empty:
+                        r = post.iloc[0]
+                        yr = ev_date.year
+                        entry = {
+                            "value": r["value"],
+                            "years_control": r.get("years_control"),
+                            "projected_war": r.get("projected_war"),
+                            "projected_salary": r.get("projected_salary"),
+                            "war_per_year": r.get("war_per_year"),
+                            "_dt": r["_dt"]
+                        }
+                if entry is None:
+                    entry = _lookup_value(mlb_id, ev_date, value_map, cots_lookup)
+                
                 if entry is None:
                     continue
                 value    = entry["value"]
@@ -935,7 +935,7 @@ def build_transaction_entries(
                 proj_sal = entry.get("projected_salary")
                 war_yr   = entry.get("war_per_year")
             else:
-                entry = _lookup_value(mlb_id, lookup_year, value_map, cots_lookup)
+                entry = _lookup_value(mlb_id, ev_date, value_map, cots_lookup)
                 if entry is None:
                     # No snapshot data at all — skip this transaction
                     continue

@@ -66,7 +66,9 @@ const powScale = (v: number, exp: number): number =>
 
 /** Derive the best exponent for a given value array.
  *  Ratio = min(abs) / max(abs).  High ratio → clustered → linear.
- *  Low ratio → wide spread → compress. */
+ *  Low ratio → wide spread → compress (less aggressive than before).
+ *  New mapping: ratio=1 → exp=1 (linear), ratio→0 → exp≈0.55
+ *  This provides better visual discrimination in ranges like $50M–$300M. */
 const deriveExponent = (values: number[]): number => {
   const absVals = values.map((v) => Math.abs(v)).filter((v) => v > 0);
   if (absVals.length < 2) return 1; // linear if only one point
@@ -74,8 +76,9 @@ const deriveExponent = (values: number[]): number => {
   const hi = Math.max(...absVals);
   if (hi === 0) return 1;
   const ratio = lo / hi; // 0..1  (1 = all same magnitude)
-  // Map ratio → exponent:  ratio=1 → exp=1 (linear), ratio→0 → exp≈0.35
-  return 0.35 + 0.65 * ratio;
+  // Map ratio → exponent: ratio=1 → exp=1 (linear), ratio→0 → exp≈0.55
+  // Less aggressive compression for better small-value visibility
+  return 0.55 + 0.45 * ratio;
 };
 
 // ─── Chart Dimensions ───────────────────────────────────────
@@ -255,20 +258,53 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   const sYRange = sYMax - sYMin || 1;
   const y = (val: number) => MARGIN.top + (1 - (powScale(val, yExp) - sYMin) / sYRange) * plotH;
 
-  // ── Smooth curve helpers (Catmull-Rom → cubic bezier) ─────────────────
+  // ── Smooth curve helpers (Monotone cubic spline to prevent overshoot) ──
   const smoothPath = (pts: { x: number; y: number }[]): string => {
     if (pts.length < 2) return '';
     if (pts.length === 2) return `M${pts[0].x},${pts[0].y}L${pts[1].x},${pts[1].y}`;
+    
+    // Compute monotone cubic spline slopes (avoids overshoot at discontinuities)
+    const n = pts.length;
+    const slopes: number[] = new Array(n);
+    
+    // First, compute secant slopes for each segment
+    const secants: number[] = new Array(n - 1);
+    for (let i = 0; i < n - 1; i++) {
+      secants[i] = (pts[i + 1].y - pts[i].y) / (pts[i + 1].x - pts[i].x);
+    }
+    
+    // Compute slopes at each point using monotone spline (monotone decreasing)
+    slopes[0] = secants[0];
+    for (let i = 1; i < n - 1; i++) {
+      const s0 = secants[i - 1];
+      const s1 = secants[i];
+      // If secants have different signs or one is zero, slope is zero (flat at inflection)
+      if (s0 * s1 <= 0) {
+        slopes[i] = 0;
+      } else {
+        // Harmonic mean weighted by distances
+        const w0 = 2 * (pts[i].x - pts[i - 1].x);
+        const w1 = 2 * (pts[i + 1].x - pts[i].x);
+        slopes[i] = (w0 + w1) / (w0 / s0 + w1 / s1);
+      }
+    }
+    slopes[n - 1] = secants[n - 2];
+    
+    // Build cubic bezier path with monotone slopes
     let d = `M${pts[0].x},${pts[0].y}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[Math.max(i - 1, 0)];
+    for (let i = 0; i < n - 1; i++) {
       const p1 = pts[i];
       const p2 = pts[i + 1];
-      const p3 = pts[Math.min(i + 2, pts.length - 1)];
-      const cp1x = p1.x + (p2.x - p0.x) / 6;
-      const cp1y = p1.y + (p2.y - p0.y) / 6;
-      const cp2x = p2.x - (p3.x - p1.x) / 6;
-      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      const m1 = slopes[i];
+      const m2 = slopes[i + 1];
+      const dx = p2.x - p1.x;
+      
+      // Cubic bezier control points derived from slopes
+      const cp1x = p1.x + dx / 3;
+      const cp1y = p1.y + (m1 * dx) / 3;
+      const cp2x = p2.x - dx / 3;
+      const cp2y = p2.y - (m2 * dx) / 3;
+      
       d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
     }
     return d;
