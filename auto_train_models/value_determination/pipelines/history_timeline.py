@@ -207,7 +207,9 @@ def build_prospect_timeline(
             "mlb_id": mid,
             "IDfg": idfg if idfg is not None else pd.NA,
             "name": name,
-            "date": f"{year}-01-15",
+            # Prospect snapshots are anchored to the prior season's end so the
+            # FV step-up lines up with the value level that season reaches.
+            "date": f"{year - 1}-10-01",
             "year": year,
             "value": round(value),
             "value_type": "prospect",
@@ -309,7 +311,83 @@ def build_mlb_timeline(
 
     rows: list[dict] = []
 
-    def _process_surplus_df(sdf: pd.DataFrame, snap_year: int, date_str: str, year_value: int) -> None:
+    def _build_projection_overrides(sdf: pd.DataFrame) -> dict[int, tuple[float, float]]:
+        """Build mlb_id → (projected_war, war_per_year) lookup from a surplus snapshot."""
+        overrides: dict[int, tuple[float, float]] = {}
+        has_trade_value = "trade_value" in sdf.columns
+
+        for _, pr in sdf.iterrows():
+            mlb_id = None
+            mlbam = pr.get("mlbam_id")
+            if pd.notna(mlbam):
+                try:
+                    mlb_id = int(mlbam)
+                except (TypeError, ValueError):
+                    mlb_id = None
+            if mlb_id is None and pd.notna(pr.get("IDfg")):
+                try:
+                    mlb_id = idfg_to_mlb.get(int(pr["IDfg"]))
+                except (TypeError, ValueError):
+                    mlb_id = None
+            if mlb_id is None:
+                continue
+
+            if has_trade_value:
+                total_war = pr.get("total_future_WAR", 0) or 0
+                yrs_ctrl = pr.get("years_of_control", 0) or 0
+                war_per_yr = pr.get("war_per_year", np.nan)
+                if pd.isna(war_per_yr):
+                    war_per_yr = (total_war / yrs_ctrl) if yrs_ctrl > 0 else 0.0
+            else:
+                war_cols = [c for c in sdf.columns if re.match(r"^WAR_\d{4}$", c)]
+                total_war = sum(float(pr.get(c, 0) or 0) for c in war_cols if pd.notna(pr.get(c)))
+                yrs_ctrl = sum(1 for c in war_cols if pd.notna(pr.get(c)))
+                war_per_yr = (total_war / yrs_ctrl) if yrs_ctrl > 0 else 0.0
+
+            if pd.notna(total_war):
+                overrides[mlb_id] = (float(total_war), float(war_per_yr))
+
+        return overrides
+
+    def _build_projection_overrides_from_player_values(target_year: int) -> dict[int, tuple[float, float]]:
+        """Build mlb_id → (projected_war, war_per_year) from player_values for a given year."""
+        overrides: dict[int, tuple[float, float]] = {}
+        if player_values is None or player_values.empty or "Year" not in player_values.columns:
+            return overrides
+
+        year_rows = player_values[
+            (player_values["Year"] == target_year)
+            & player_values["mlb_id"].notna()
+        ]
+        if year_rows.empty:
+            return overrides
+
+        for _, row in year_rows.iterrows():
+            try:
+                mlb_id = int(row["mlb_id"])
+            except (TypeError, ValueError):
+                continue
+
+            fut_war = row.get("total_future_war", np.nan)
+            if pd.isna(fut_war):
+                fut_war = row.get("total_future_WAR", np.nan)
+            yrs = row.get("years_control", np.nan)
+            wpy = row.get("war_per_year", np.nan)
+            if pd.isna(wpy) and pd.notna(fut_war) and pd.notna(yrs) and float(yrs) > 0:
+                wpy = float(fut_war) / float(yrs)
+
+            if pd.notna(fut_war):
+                overrides[mlb_id] = (float(fut_war), float(wpy) if pd.notna(wpy) else np.nan)
+
+        return overrides
+
+    def _process_surplus_df(
+        sdf: pd.DataFrame,
+        snap_year: int,
+        date_str: str,
+        year_value: int,
+        projection_overrides: dict[int, tuple[float, float]] | None = None,
+    ) -> None:
         has_trade_value = "trade_value" in sdf.columns
         for _, pr in sdf.iterrows():
             mlb_id = None
@@ -367,6 +445,9 @@ def build_mlb_timeline(
 
             war_per_yr = total_war / yrs_ctrl if yrs_ctrl > 0 else 0.0
 
+            if projection_overrides and mlb_id in projection_overrides:
+                total_war, war_per_yr = projection_overrides[mlb_id]
+
             label = (
                 f"{int(yrs_ctrl)}yr control, {total_war:.1f} WAR"
                 if yrs_ctrl > 0
@@ -397,13 +478,16 @@ def build_mlb_timeline(
             snap_year,
         )
 
+    # EOY rows use end-of-season value/control from explicit EOY files.
+    # Note: surplus_YYYY_eoy.csv represents the end of the (YYYY - 1) season
+    # because it uses cutoff_year = (YYYY - 1).
     for snap_year in sorted(surplus_eoy_by_year):
         eoy_year = snap_year - 1
         if eoy_year < Config.History.CUTOFF_START:
             continue
         _process_surplus_df(
             surplus_eoy_by_year[snap_year],
-            snap_year,
+            eoy_year,
             f"{eoy_year}-10-01",
             eoy_year,
         )
@@ -465,7 +549,7 @@ def build_mlb_timeline(
     if not result.empty:
         result = (
             result.sort_values("value", ascending=False)
-            .drop_duplicates(["mlb_id", "year"], keep="first")
+            .drop_duplicates(["mlb_id", "date"], keep="first")
         )
     logger.info(
         f"Built {len(result)} MLB timeline entries for "
@@ -558,7 +642,10 @@ def _reclassify_pre_arb(txn: pd.DataFrame, name_to_mlbid: dict[str, int], cots_l
 
         # Determine year
         try:
-            yr = pd.Timestamp(ev_date).year
+            ts = pd.Timestamp(ev_date)
+            yr = ts.year
+            if ts.month >= 10:
+                yr += 1
         except Exception:
             continue
             
@@ -688,9 +775,11 @@ def _build_value_lookup(
 ) -> dict[int, pd.DataFrame]:
     if value_timeline is None or value_timeline.empty:
         return {}
+    # Keep both prospect entries (always) and mlb_surplus entries (always)
+    # Don't filter out prospects — they're needed for drafted transaction lookups
     valid = value_timeline[
-        (value_timeline["value_type"] != "prospect") | 
-        pd.notna(value_timeline["years_control"])
+        (value_timeline["value_type"] == "prospect") |
+        (value_timeline["value_type"] == "mlb_surplus")
     ].copy()
     valid["_dt"] = pd.to_datetime(valid["date"], errors="coerce")
     valid = valid.dropna(subset=["_dt"]).sort_values("_dt")
@@ -755,6 +844,51 @@ def _lookup_value(
         if pd.isna(entry.get('years_control')) or entry.get('years_control') == 0:
             entry['years_control'] = cots_entry['years_control']
     return entry
+
+
+def _lookup_prospect_value(
+    mlb_id: int,
+    ev_date: pd.Timestamp,
+    value_map: dict[int, pd.DataFrame],
+) -> tuple[dict | None, bool]:
+    """For drafted/initial-signing transactions, prefer prospect values.
+    
+    Returns (entry_dict, is_prospect_flag).
+    is_prospect_flag is True if the value came from a prospect row.
+    """
+    if mlb_id not in value_map: return None, False
+    df = value_map[mlb_id]
+    
+    # First, look for prospect values
+    prior_prospect = df[(df["_dt"] <= ev_date) & (df["value_type"] == "prospect")]
+    if not prior_prospect.empty:
+        row = prior_prospect.iloc[-1]
+        return {
+            "value": row["value"],
+            "years_control": row.get("years_control"),
+            "projected_war": row.get("projected_war"),
+            "projected_salary": row.get("projected_salary"),
+            "war_per_year": row.get("war_per_year"),
+            "_dt": row["_dt"]
+        }, True  # is_prospect = True
+    
+    # Fall back to mlb_surplus if no prospect
+    prior_mlb = df[(df["_dt"] <= ev_date) & (df["value_type"] != "prospect")]
+    if prior_mlb.empty:
+        prior_mlb = df[df["_dt"] <= ev_date]
+    
+    if prior_mlb.empty:
+        return None, False
+    
+    row = prior_mlb.iloc[-1]
+    return {
+        "value": row["value"],
+        "years_control": row.get("years_control"),
+        "projected_war": row.get("projected_war"),
+        "projected_salary": row.get("projected_salary"),
+        "war_per_year": row.get("war_per_year"),
+        "_dt": row["_dt"]
+    }, False  # is_prospect = False
 
 
 def build_transaction_entries(
@@ -905,9 +1039,9 @@ def build_transaction_entries(
                 proj_war = pd.NA
                 proj_sal = pd.NA
                 war_yr   = pd.NA
-            elif ev_type == "extension":
-                # For extensions, we want to look forward to the NEXT surplus snapshot
-                # to pick up the updated contract.
+            elif ev_type in ("extension", "fa_signing", "signing"):
+                # For extensions and major FA deals, look forward to the NEXT surplus snapshot
+                # so the value jump occurs ON the transaction date.
                 entry = None
                 if mlb_id in value_map:
                     df = value_map[mlb_id]
@@ -930,6 +1064,18 @@ def build_transaction_entries(
                     continue
                 value    = entry["value"]
                 vtype    = "mlb_surplus"
+                yrs_ctrl = entry.get("years_control")
+                proj_war = entry.get("projected_war")
+                proj_sal = entry.get("projected_salary")
+                war_yr   = entry.get("war_per_year")
+            elif ev_type in ("drafted", "initial_signing"):
+                # For drafted/signed prospects, prefer prospect values
+                result = _lookup_prospect_value(mlb_id, ev_date, value_map)
+                if result is None or result[0] is None:
+                    continue
+                entry, is_prospect = result
+                value    = entry["value"]
+                vtype    = "prospect" if is_prospect else "mlb_surplus"
                 yrs_ctrl = entry.get("years_control")
                 proj_war = entry.get("projected_war")
                 proj_sal = entry.get("projected_salary")
@@ -970,7 +1116,7 @@ def build_transaction_entries(
                 "year": ev_year,
                 "value": round(value),
                 "value_type": vtype,
-                "transaction_type": ev_type,
+                "transaction_type": "fa_signing" if ev_type == "signing" else ev_type,
                 "label": str(label),
                 "years_control": yrs_ctrl,
                 "projected_war": proj_war,
@@ -1066,9 +1212,10 @@ def _interpolate_monthly(combined: pd.DataFrame) -> pd.DataFrame:
             val_a = row_a["value"]
             val_b = row_b["value"]
 
-            # If the destination is a transaction, don't interpolate toward it.
-            # Hold flat at val_a — the transaction creates a jump at dt_b.
+            # If the destination is a transaction, don't interpolate toward it
+            # unless it is elected free agency, which should taper to zero.
             b_is_txn = _is_transaction(row_b)
+            b_is_free_agent_exit = str(row_b.get("transaction_type", "")) == "elected_fa"
 
             total_season = _season_days(dt_a, dt_b)
 
@@ -1077,9 +1224,13 @@ def _interpolate_monthly(combined: pd.DataFrame) -> pd.DataFrame:
             current = pd.Timestamp(current.year, current.month, 1)
 
             while current < dt_b:
-                if b_is_txn:
-                    # Hold flat — we can't predict the transaction
+                if b_is_txn and not b_is_free_agent_exit:
+                    # Hold flat — we can't predict the transaction.
                     frac = 0.0
+                elif b_is_free_agent_exit:
+                    # Free agency should decay smoothly from the last controlled
+                    # anchor to zero at the FA event.
+                    frac = min(((current - dt_a).days / total_days), 1.0)
                 elif total_season > 0:
                     elapsed = _season_days(dt_a, current)
                     frac = min(elapsed / total_season, 1.0)
@@ -1089,13 +1240,30 @@ def _interpolate_monthly(combined: pd.DataFrame) -> pd.DataFrame:
                     frac = 0.0
 
                 interp_val = val_a + frac * (val_b - val_a)
+                # Only the trade value is interpolated. Metadata fields (years_control,
+                # projected_war, projected_salary, war_per_year, label) stay constant
+                # from the source anchor (row_a) throughout the interpolation period.
+                # However, if both anchors have projecting WAR, we can interpolate it smoothly.
+                # If only one has it, we maintain the source block (row_a) strictly 
+                # so future projections don't magically bleed backwards.
+                
+                a_war_ok = pd.notna(row_a.get("projected_war"))
+                b_war_ok = pd.notna(row_b.get("projected_war"))
+                if a_war_ok and b_war_ok:
+                    interp_proj_war = float(row_a["projected_war"]) + frac * (float(row_b["projected_war"]) - float(row_a["projected_war"]))
+                elif a_war_ok:
+                    interp_proj_war = float(row_a["projected_war"])
+                else:
+                    interp_proj_war = pd.NA
 
-                def _lerp(field, _frac=frac):
-                    a = row_a.get(field)
-                    b = row_b.get(field)
-                    if pd.notna(a) and pd.notna(b):
-                        return round(float(a) + _frac * (float(b) - float(a)), 2)
-                    return a if pd.notna(a) else b
+                a_wpy_ok = pd.notna(row_a.get("war_per_year"))
+                b_wpy_ok = pd.notna(row_b.get("war_per_year"))
+                if a_wpy_ok and b_wpy_ok:
+                    interp_war_per_year = float(row_a["war_per_year"]) + frac * (float(row_b["war_per_year"]) - float(row_a["war_per_year"]))
+                elif a_wpy_ok:
+                    interp_war_per_year = float(row_a["war_per_year"])
+                else:
+                    interp_war_per_year = pd.NA
 
                 interpolated_rows.append({
                     "mlb_id": mlb_id,
@@ -1106,11 +1274,11 @@ def _interpolate_monthly(combined: pd.DataFrame) -> pd.DataFrame:
                     "value": round(interp_val),
                     "value_type": "mlb_surplus",
                     "transaction_type": pd.NA,
-                    "label": "",
-                    "years_control": _lerp("years_control"),
-                    "projected_war": _lerp("projected_war"),
-                    "projected_salary": _lerp("projected_salary"),
-                    "war_per_year": _lerp("war_per_year"),
+                    "label": row_a.get("label", ""),
+                    "years_control": row_a.get("years_control"),
+                    "projected_war": round(interp_proj_war, 1) if pd.notna(interp_proj_war) else pd.NA,
+                    "projected_salary": row_a.get("projected_salary"),
+                    "war_per_year": round(interp_war_per_year, 2) if pd.notna(interp_war_per_year) else pd.NA,
                 })
 
                 current += pd.DateOffset(months=1)
@@ -1169,13 +1337,12 @@ def generate_timeline() -> pd.DataFrame:
     prospect_tl = build_prospect_timeline(pv)
     mlb_tl      = build_mlb_timeline(pv)
 
-    # Combine prospect + MLB (both are annual snapshots with different dates)
+    # Combine prospect + MLB.
     pre_combined = pd.concat([prospect_tl, mlb_tl], ignore_index=True)
 
-    # Within the snapshots: if a player has both prospect and surplus for the
-    # same year, keep both (they have different dates: Jan vs Mar).
-    # Dedup only exact duplicates on (mlb_id, date).
-    _TYPE_PRI = {"mlb_surplus": 0, "prospect": 1}
+    # If prospect and surplus land on the same date, keep the prospect row so
+    # the FV label remains attached to the value anchor.
+    _TYPE_PRI = {"prospect": 0, "mlb_surplus": 1}
     pre_combined["_p"] = pre_combined["value_type"].map(_TYPE_PRI).fillna(2)
     pre_combined = (
         pre_combined.sort_values("_p")
@@ -1227,10 +1394,20 @@ def generate_timeline() -> pd.DataFrame:
         combined = combined.drop(columns=["_dt"])
 
     # ── Monthly interpolation of annual snapshots ─────────────────────────
+    # Hide QO/elected FA labels before interpolation so they don't bleed into intermediate months
+    if not combined.empty:
+        qo_mask = combined["transaction_type"] == "elected_fa"
+        combined.loc[qo_mask, "label"] = pd.NA
+
     # Annual snapshots jump from one year to the next.  Insert monthly
     # interpolated points between consecutive annual snapshots so the
     # chart shows smooth transitions instead of abrupt jumps.
     combined = _interpolate_monthly(combined)
+
+    # Now that interpolation is done to 0, remove the elected_fa marker so it doesn't render a dot
+    if not combined.empty:
+        qo_mask_post = combined["transaction_type"] == "elected_fa"
+        combined.loc[qo_mask_post, "transaction_type"] = pd.NA
 
     # ── Enhance labels with FV for prospect years ─────────────────────────
     # If a player was a prospect in a given year, prepend their FV grade

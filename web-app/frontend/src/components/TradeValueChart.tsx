@@ -27,7 +27,6 @@ const txnLabel = (t: string | null): string => {
     fa_signing: 'FA Signing',
     traded: 'Traded',
     extension: 'Extension',
-    elected_fa: 'Free Agent',
     released: 'Released',
     dfa: 'DFA',
     claimed: 'Claimed',
@@ -92,9 +91,8 @@ const HOVER_RADIUS = 7;
 const DOT_COLOR: Record<string, string> = {
   prospect: '#a78bfa',      // violet-400
   mlb_surplus: '#d97706',   // amber-600 (brand)
-  free_agent: '#e11d48',    // rose-600
 };
-const DEFAULT_DOT_COLOR = '#6b7280'; // gray-500
+const DEFAULT_DOT_COLOR = '#d97706'; // default to mlb_surplus now
 
 // ─── Component ──────────────────────────────────────────────
 interface Props {

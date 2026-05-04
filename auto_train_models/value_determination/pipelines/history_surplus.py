@@ -934,7 +934,7 @@ def compute_surplus_for_snapshot(
     salary_timeline = _override_salary_with_luxury_tax(salary_timeline)
 
     # ── Override years of control using Spotrac opt-outs ─────────────────
-    salary_timeline = _override_years_of_control(salary_timeline, snapshot_year)
+    salary_timeline = _override_years_of_control(salary_timeline, cots_year)
 
     # ── Add mlbam_id for prospect matching ───────────────────────────────
     xw = _build_mlbam_crosswalk()
