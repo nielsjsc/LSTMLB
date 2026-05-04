@@ -103,12 +103,12 @@ interface Props {
 }
 
 // Transaction types worth annotating on the chart
-const IMPORTANT_TXN = new Set(['TR', 'SFA', 'FA', 'EXT', 'OPT', 'DFA']);
+const IMPORTANT_TXN = new Set(['TR', 'SFA', 'EXT', 'OPT', 'DFA']);
 
 // Short label for transaction type annotation on the chart
 const txnShortLabel = (t: string): string => {
   const map: Record<string, string> = {
-    TR: 'Trade', SFA: 'FA Signing', FA: 'FA',
+    TR: 'Trade', SFA: 'FA Signing',
     EXT: 'Extension', OPT: 'Option', DFA: 'DFA',
   };
   return map[t] ?? t;
