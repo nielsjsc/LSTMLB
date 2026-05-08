@@ -148,11 +148,13 @@ def normalize_contract_status(df: pd.DataFrame) -> pd.DataFrame:
             'BURIED', 'BUYOUT', 'BONUS', 'VOIDED', 'SIGNING BONUS'
         ]
         if any(indicator in status for indicator in contract_indicators):
-            # If they have a payroll, they're signed
+            # Spotrac's contract rows already encode the contract state.
+            # Do not reinterpret an explicit Active / Reserve / Deferred row as
+            # Pre-Arb or arbitration status just because the player's service
+            # time is still low; that service-time-based fallback is meant for
+            # rows with missing or ambiguous status only.
             if pd.notna(row['Payroll']):
                 return 'Signed'
-            # Under team control but no payroll (e.g. league-minimum pre-arb players).
-            # Use years_of_service to determine the correct contract status.
             yos = row.get('Years_of_Service')
             if pd.notna(yos):
                 try:
@@ -166,9 +168,13 @@ def normalize_contract_status(df: pd.DataFrame) -> pd.DataFrame:
                     elif yos_float < 6:
                         return 'Arb-3'
                     else:
-                        return 'Signed'  # 6+ years service → FA-eligible but Active means signed
+                        return 'Signed'
                 except (ValueError, TypeError):
                     pass
+            # If payroll and service time are unavailable, keep it unresolved so
+            # generate_contract_timeline() can infer from surrounding rows.
+            if pd.notna(row['Payroll']):
+                return 'Signed'
             # No payroll AND no usable service time → could be a Spotrac placeholder
             # row beyond the actual contract (e.g. Active + NaN payroll for years
             # after the last option year).  Return None so that
@@ -254,8 +260,13 @@ def generate_contract_timeline(df: pd.DataFrame) -> pd.DataFrame:
                     player_name = player_rows['Name'].iloc[0] if 'Name' in player_rows.columns else player_rows.get('Player Name', pd.Series(['?'])).iloc[0]
                     logger.debug(f"Potential Super Two candidate: {player_name} (end-of-season YoS={end_yos:.3f})")
         
-        # Find the last row with a valid (non-None) status
+        # Find the last row with a valid status. Prefer the last non-FA status,
+        # because Spotrac-style timelines often include an explicit Free Agent
+        # marker year that should terminate the control window rather than
+        # define it.
         valid_status_mask = player_rows['Normalized_Status'].notna()
+        non_fa_mask = valid_status_mask & (player_rows['Normalized_Status'] != 'Free Agent')
+
         if not valid_status_mask.any():
             # All statuses are None — no salary/contract data matched.
             # If the player is on an active roster (has Team), they are under
@@ -306,7 +317,10 @@ def generate_contract_timeline(df: pd.DataFrame) -> pd.DataFrame:
                 player_rows['Normalized_Status'] = 'Free Agent'
             return player_rows
         
-        last_valid_idx = player_rows[valid_status_mask].index[-1]
+        if non_fa_mask.any():
+            last_valid_idx = player_rows[non_fa_mask].index[-1]
+        else:
+            last_valid_idx = player_rows[valid_status_mask].index[-1]
         latest_status = player_rows.loc[last_valid_idx, 'Normalized_Status']
         latest_year = player_rows.loc[last_valid_idx, 'Year']
         

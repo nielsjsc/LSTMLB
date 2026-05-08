@@ -243,16 +243,12 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
                                   prospect_file,
                                   current_year: int | None = None) -> pd.DataFrame:
     """
-    Blend prospect-grade value with performance-based trade value using
-    a stabilisation-based confidence score.
+    Apply prospect-grade trade-value floor while preserving projection values.
 
     For every player:
-        1. Compute ``projection_confidence`` from career MLB games vs
-           ``TradeConfidence.STABILIZATION_GAMES`` thresholds.
-        2. Store the performance-based trade value as ``raw_trade_value``.
-        3. Apply confidence as a multiplier: ``trade_value *= confidence``.
-           Low-sample players are regressed toward zero, reflecting the
-           market's reluctance to pay full price for unproven projections.
+        1. Preserve projection-based trade value as final ``trade_value``.
+        2. Store ``raw_trade_value`` for compatibility (equal to ``trade_value``).
+        3. Keep ``projection_confidence`` at 1.0 (no post-projection discount).
 
     For recent prospects (FV grade available, ranked within the recency window):
         4. Compute a prospect-grade dollar value from FV + rank.
@@ -262,8 +258,7 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
     Players without prospect data or with full confidence are untouched.
 
     Config reference:
-        ``Config.TradeConfidence`` — thresholds, floor, FV prior WAR, recency.
-        ``Config.Prospects``       — FV_BASE_VALUES, rank adjustments.
+        ``Config.Prospects`` — FV_BASE_VALUES, rank adjustments.
     """
     if current_year is None:
         current_year = CURRENT_YEAR
@@ -333,49 +328,12 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
     else:
         career_games = pd.DataFrame(columns=["IDfg"])
 
-    # ── Compute confidence for ALL players ───────────────────────────────
-    result_df["projection_confidence"] = 1.0   # default: fully confident
+    # ── No post-projection confidence discount ──────────────────────────
+    # Projections are treated as source of truth for trade value. Keep
+    # compatibility columns for downstream consumers.
+    result_df["projection_confidence"] = 1.0
     result_df["raw_trade_value"] = result_df["trade_value"]
-
-    for pid in result_df.loc[result_df["trade_value"].notna(), "IDfg"].unique():
-        pmask = (result_df["IDfg"] == pid) & (result_df["Year"] >= current_year)
-        if not pmask.any():
-            continue
-
-        pos = result_df.loc[pmask, "position_group"].iloc[0]
-        pos_type = "sp" if pos == "SP" else ("rp" if pos == "RP" else "batter")
-
-        if pid in career_games["IDfg"].values:
-            cg = career_games[career_games["IDfg"] == pid].iloc[0]
-            gs = cg.get("GS", 0) or 0
-            g_pit = cg.get("G_pit", 0) or 0
-            if pos_type == "sp":
-                games = gs
-            elif pos_type == "rp":
-                games = g_pit - gs if gs < 50 else gs
-                if gs >= 50:
-                    pos_type = "sp"
-            else:
-                games = cg.get("G_bat", 0) or 0
-        else:
-            games = 0
-
-        conf = Config.TradeConfidence.calculate_confidence(games, pos_type)
-        result_df.loc[pmask, "projection_confidence"] = round(conf, 3)
-
-        # ── Apply confidence as a universal discount ─────────────────
-        # Unproven players have their trade value regressed toward zero.
-        # This fixes overvaluation of low-sample players (e.g. Ryan Bliss
-        # getting $90M from defensive WAR in 50 career games).
-        if conf < 1.0:
-            current_tv = result_df.loc[pmask, "trade_value"].iloc[0]
-            if pd.notna(current_tv):
-                result_df.loc[pmask, "trade_value"] = current_tv * conf
-
-    logger.info(
-        f"Confidence discounting: "
-        f"{(result_df['projection_confidence'] < 1.0).sum()} player-rows discounted"
-    )
+    logger.info("Confidence discounting disabled: using projection trade_value directly")
 
     # ── Prospect-grade trade-value floor ─────────────────────────────────
     # MiLB regression (Step 2.25) handles stat-level blending, but a
@@ -497,7 +455,7 @@ def add_trade_ranking_metrics(df: pd.DataFrame, current_year: int | None = None)
 
         fa_year = p["probable_fa_year"].iloc[0]
         if pd.isna(fa_year):
-            fa_year = p["FA_Year"].iloc[0]
+            fa_year = p["FA_Year"].iloc[0] if "FA_Year" in p.columns else np.nan
 
         control = p[(p["Year"] >= current_year) & (p["Year"] < fa_year)]
         future = p[p["Year"] >= current_year]

@@ -178,17 +178,6 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
     [filtered],
   );
 
-  // Detect in-season year: the year with ≥ 3 data points (weekly/daily data)
-  const inSeasonYear = useMemo(() => {
-    const counts: Record<number, number> = {};
-    sorted.forEach((d) => { counts[d.year] = (counts[d.year] || 0) + 1; });
-    let best = 0, bestCount = 0;
-    for (const [yr, c] of Object.entries(counts)) {
-      if (c > bestCount) { bestCount = c; best = Number(yr); }
-    }
-    return bestCount >= 3 ? best : null;
-  }, [sorted]);
-
   // Keyboard navigation when a card is pinned
   useEffect(() => {
     if (pinnedIdx == null) return;
@@ -369,6 +358,8 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   const canNext = activeIdx != null && activeIdx < sorted.length - 1;
   const goPrev = () => { if (canPrev) { setPinnedIdx(activeIdx! - 1); } };
   const goNext = () => { if (canNext) { setPinnedIdx(activeIdx! + 1); } };
+  const hoveredYearsControl = hovered?.yearsControl != null ? Math.round(hovered.yearsControl) : null;
+  const hoveredOptOutYear = hovered != null && hoveredYearsControl != null ? hovered.year + hoveredYearsControl : null;
 
   return (
     <div ref={containerRef} className="w-full relative">
@@ -666,7 +657,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
 
             {/* ── Visual years of control bar ── */}
             {hovered.yearsControl != null && hovered.yearsControl > 0 && (() => {
-              const yrs = Math.round(hovered.yearsControl!);
+              const yrs = hoveredYearsControl ?? Math.round(hovered.yearsControl!);
               const baseYear = hovered.year;
               const cells = Array.from({ length: yrs }, (_, i) => baseYear + i);
               return (
@@ -692,6 +683,18 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
                       </div>
                     ))}
                   </div>
+                  {hoveredOptOutYear != null && (
+                    <div className="grid grid-cols-2 gap-1.5 mt-2">
+                      <div className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1">
+                        <div className="text-[9px] uppercase tracking-wide text-gray-400">Opt-out</div>
+                        <div className="text-[11px] font-semibold text-gray-700">Would opt out</div>
+                      </div>
+                      <div className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1">
+                        <div className="text-[9px] uppercase tracking-wide text-gray-400">Opt-out year</div>
+                        <div className="text-[11px] font-semibold text-gray-700 tabular-nums">{hoveredOptOutYear}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
