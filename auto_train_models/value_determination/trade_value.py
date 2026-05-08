@@ -478,6 +478,17 @@ def add_trade_ranking_metrics(df: pd.DataFrame, current_year: int | None = None)
     if current_year is None:
         current_year = CURRENT_YEAR
 
+    # Fetch team games played to compute fractional remaining control
+    try:
+        import sys
+        import os
+        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+        from value_determination.pipelines.ros import fetch_team_games_played, _team_remaining_fraction
+        games_map = fetch_team_games_played(current_year)
+    except Exception as e:
+        logger.warning(f"Could not load team games map for fractional control: {e}")
+        games_map = {}
+
     result = df.copy()
     rows = []
 
@@ -492,16 +503,30 @@ def add_trade_ranking_metrics(df: pd.DataFrame, current_year: int | None = None)
         future = p[p["Year"] >= current_year]
         past = p[p["Year"] < current_year]
         n = len(control)
+        
+        # Calculate fractional control (n represents full years; replace 1 with remainder)
+        if n > 0 and current_year == CURRENT_YEAR:
+            current_team = p.loc[p["Year"] == current_year, "Team"]
+            team_abbrev = current_team.iloc[0] if len(current_team) > 0 else None
+            frac = 1.0
+            if pd.notna(team_abbrev):
+                try:
+                    frac = _team_remaining_fraction(team_abbrev, games_map)
+                except Exception:
+                    pass
+            n_fractional = max(0, n - 1) + frac
+        else:
+            n_fractional = float(n)
 
         rows.append({
             "IDfg": pid,
             "contract_war": round(control["WAR"].sum(), 1),
             "contract_base_value": round(control["Base_Value"].sum(), 1),
-            "avg_war": round(control["WAR"].mean(), 2) if n else 0,
+            "avg_war": round(control["WAR"].sum() / n_fractional, 2) if n_fractional > 0 else 0,
             "total_contract": round(control["contract_value"].sum(), 1),
-            "avg_contract": round(control["contract_value"].mean(), 2) if n else 0,
+            "avg_contract": round(control["contract_value"].sum() / n_fractional, 2) if n_fractional > 0 else 0,
             "total_surplus": round(control["surplus_value"].sum(), 1),
-            "years_control": n,
+            "years_control": round(n_fractional, 2),
             "control_through": fa_year - 1 if pd.notna(fa_year) else None,
             "total_future_war": round(control.loc[control["WAR"] > 0, "WAR"].sum(), 1),
             "total_future_value": round(future["Base_Value"].sum(), 1),

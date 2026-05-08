@@ -44,6 +44,7 @@ PROSPECT_FILE   = Config.Paths.PROSPECT_FILE
 CROSSWALK_FILE  = Config.Paths.CROSSWALK_FILE
 PLAYER_VALUES_FILE = Config.Paths.PLAYER_VALUES_FILE
 SPOTRAC_TRANSACTIONS_FILE = Config.Paths.SPOTRAC_TRANSACTIONS_FILE
+SNAPSHOT_DIR    = Config.Paths.OUTPUT_DIR / "snapshots"
 
 from value_determination.pipelines._history_war import war_to_dollars
 
@@ -288,6 +289,7 @@ def _load_surplus_files() -> tuple[dict[int, pd.DataFrame], dict[int, pd.DataFra
 
 def build_mlb_timeline(
     player_values: pd.DataFrame | None,
+    current_anchor_date: str | None = None,
 ) -> pd.DataFrame:
     """
     Build MLB trade-value entries using the pre-computed trade_value from
@@ -449,7 +451,7 @@ def build_mlb_timeline(
                 total_war, war_per_yr = projection_overrides[mlb_id]
 
             label = (
-                f"{int(yrs_ctrl)}yr control, {total_war:.1f} WAR"
+                f"{round(yrs_ctrl)}yr control, {total_war:.1f} WAR"
                 if yrs_ctrl > 0
                 else f"{total_war:.1f} WAR projected"
             )
@@ -524,7 +526,7 @@ def build_mlb_timeline(
             war_per_yr = fut_war / yrs if yrs > 0 else 0.0
 
             label = (
-                f"{int(yrs)}yr control, {fut_war:.1f} WAR"
+                f"{round(yrs)}yr control, {fut_war:.1f} WAR"
                 if yrs > 0
                 else f"{fut_war:.1f} WAR projected"
             )
@@ -533,7 +535,7 @@ def build_mlb_timeline(
                 "mlb_id": mlb_id,
                 "IDfg": idfg,
                 "name": name,
-                "date": f"{CURRENT_YEAR}-03-01",
+                "date": current_anchor_date or f"{CURRENT_YEAR}-03-01",
                 "year": CURRENT_YEAR,
                 "value": round(tv),
                 "value_type": "mlb_surplus",
@@ -827,9 +829,12 @@ def _lookup_value(
     df = value_map[mlb_id]
     prior = df[(df["_dt"] <= ev_date) & (df["value_type"] != "prospect")]
     if prior.empty:
-        prior_p = df[df["_dt"] <= ev_date]
-        prior = prior_p if not prior_p.empty else df
-    row = prior.iloc[-1] if not prior.empty else df.iloc[0]
+        prior = df[df["_dt"] <= ev_date]
+
+    if prior.empty:
+        return None
+
+    row = prior.iloc[-1]
     yr = ev_date.year
     entry = {
         "value": row["value"],
@@ -878,6 +883,18 @@ def _lookup_prospect_value(
         prior_mlb = df[df["_dt"] <= ev_date]
     
     if prior_mlb.empty:
+        # Backtrack to the first known prospect value if they have no prior value
+        first_pros = df[df["value_type"] == "prospect"]
+        if not first_pros.empty:
+            row = first_pros.iloc[0]
+            return {
+                "value": row["value"],
+                "years_control": row.get("years_control"),
+                "projected_war": row.get("projected_war"),
+                "projected_salary": row.get("projected_salary"),
+                "war_per_year": row.get("war_per_year"),
+                "_dt": row["_dt"]
+            }, True
         return None, False
     
     row = prior_mlb.iloc[-1]
@@ -1046,6 +1063,18 @@ def build_transaction_entries(
                 if mlb_id in value_map:
                     df = value_map[mlb_id]
                     post = df[(df["_dt"] > ev_date) & (df["value_type"] != "prospect")]
+                    if not post.empty:
+                        current_years = pd.to_numeric(
+                            df.loc[df["_dt"] <= ev_date, "years_control"],
+                            errors="coerce",
+                        ).dropna()
+                        if not current_years.empty:
+                            current_years = float(current_years.iloc[-1])
+                            advanced = post[
+                                pd.to_numeric(post["years_control"], errors="coerce").fillna(-1) > current_years
+                            ]
+                            if not advanced.empty:
+                                post = advanced
                     if not post.empty:
                         r = post.iloc[0]
                         yr = ev_date.year
@@ -1322,20 +1351,45 @@ def generate_timeline() -> pd.DataFrame:
     logger.info("Historical Values — Timeline Generator")
     logger.info("=" * 60)
 
-    # Load player_values for crosswalks / current-year overlay
+    # Load player_values for crosswalks / current-year overlay.
+    # Prefer the earliest snapshot saved for the current season so the
+    # opening-day anchor uses a snapshot file, not a later live recomputation.
     pv: pd.DataFrame | None = None
+    current_anchor_pv: pd.DataFrame | None = None
+    current_anchor_date = f"{CURRENT_YEAR}-03-01"
     if PLAYER_VALUES_FILE.exists():
         pv = pd.read_csv(PLAYER_VALUES_FILE, low_memory=False)
         logger.info(f"Loaded player_values_complete.csv: {len(pv)} rows")
+        current_anchor_pv = pv
     else:
         logger.warning(
             f"player_values_complete.csv not found at {PLAYER_VALUES_FILE}  — "
             "current-year overlay disabled"
         )
 
+    if SNAPSHOT_DIR.exists():
+        snapshot_candidates: list[tuple[pd.Timestamp, Path]] = []
+        for path in SNAPSHOT_DIR.glob(f"{CURRENT_YEAR}-*.csv"):
+            try:
+                snapshot_dt = pd.Timestamp(path.stem)
+            except Exception:
+                continue
+            snapshot_candidates.append((snapshot_dt, path))
+
+        if snapshot_candidates:
+            snapshot_dt, snapshot_path = sorted(snapshot_candidates, key=lambda item: item[0])[0]
+            try:
+                current_anchor_pv = pd.read_csv(snapshot_path, low_memory=False)
+                current_anchor_date = snapshot_dt.date().isoformat()
+                logger.info(
+                    f"Loaded current-year anchor snapshot: {snapshot_path.name} ({len(current_anchor_pv)} rows)"
+                )
+            except Exception as exc:
+                logger.warning(f"Could not load current-year anchor snapshot {snapshot_path}: {exc}")
+
     # ── Build the three sub-timelines ─────────────────────────────────────
-    prospect_tl = build_prospect_timeline(pv)
-    mlb_tl      = build_mlb_timeline(pv)
+    prospect_tl = build_prospect_timeline(current_anchor_pv)
+    mlb_tl      = build_mlb_timeline(current_anchor_pv, current_anchor_date=current_anchor_date)
 
     # Combine prospect + MLB.
     pre_combined = pd.concat([prospect_tl, mlb_tl], ignore_index=True)

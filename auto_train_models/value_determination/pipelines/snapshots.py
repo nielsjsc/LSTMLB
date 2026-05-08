@@ -111,7 +111,7 @@ def _build_today_entries(pvc: pd.DataFrame, today: date) -> pd.DataFrame:
         war_per_yr = fut_war / yrs if yrs > 0 else 0.0
 
         label = (
-            f"{int(yrs)}yr control, {fut_war:.1f} WAR"
+            f"{round(yrs)}yr control, {fut_war:.1f} WAR"
             if yrs > 0
             else f"{fut_war:.1f} WAR projected"
         )

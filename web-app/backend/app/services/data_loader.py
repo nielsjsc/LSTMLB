@@ -208,7 +208,7 @@ PLAYER_COL_MAP = {
 }
 
 PLAYER_INT_COLS = {
-    "real_id", "mlb_id", "age", "year", "years_control", "fa_year",
+    "real_id", "mlb_id", "age", "year", "fa_year",
     "probable_fa_year", "earliest_fa_year", "control_through",
     "g_bat", "hr", "doubles", "triples", "r", "rbi", "sb", "cs",
     "g_pit", "gs",

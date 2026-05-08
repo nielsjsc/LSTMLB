@@ -190,7 +190,12 @@ def _estimate_service_time(idfg: int, as_of_season: int) -> float:
     app = _load_historical_appearances()
     if app.empty:
         return 0.0
-    return float(app.loc[(app["IDfg"] == idfg) & (app["Season"] <= as_of_season), "Season"].nunique())
+
+    # Historical appearance counts are only a coarse fallback when Cot's
+    # does not have a player yet.  Treat the first MLB season as partial
+    # service so debut-year players do not lose a control year early.
+    seasons = int(app.loc[(app["IDfg"] == idfg) & (app["Season"] <= as_of_season), "Season"].nunique())
+    return float(max(0, seasons - 1))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -438,6 +443,7 @@ def _load_spotrac_control_data() -> pd.DataFrame:
 
 
 _spotrac_status_cache: Optional[pd.DataFrame] = None
+_spotrac_txn_cache: Optional[pd.DataFrame] = None
 
 
 def _load_spotrac_statuses() -> pd.DataFrame:
@@ -484,6 +490,80 @@ def _load_spotrac_statuses() -> pd.DataFrame:
         subset=["_name_key", "year"], keep="first"
     )
     return _spotrac_status_cache
+
+
+def _load_spotrac_transactions() -> pd.DataFrame:
+    global _spotrac_txn_cache
+    if _spotrac_txn_cache is not None:
+        return _spotrac_txn_cache
+
+    if not Config.Paths.SPOTRAC_TRANSACTIONS_FILE.exists():
+        _spotrac_txn_cache = pd.DataFrame(columns=["_name_key", "date", "transaction_type", "years"])
+        return _spotrac_txn_cache
+
+    df = pd.read_csv(Config.Paths.SPOTRAC_TRANSACTIONS_FILE, parse_dates=["date"])
+    if df.empty:
+        _spotrac_txn_cache = pd.DataFrame(columns=["_name_key", "date", "transaction_type", "years"])
+        return _spotrac_txn_cache
+
+    df = df.copy()
+    df["_name_key"] = df["player_name"].apply(_name_key_fn)
+    df["transaction_type"] = df["transaction_type"].astype(str).str.lower().str.strip()
+    df["years"] = pd.to_numeric(df.get("years"), errors="coerce")
+    df["total_value"] = pd.to_numeric(df.get("total_value"), errors="coerce")
+    _spotrac_txn_cache = df[["_name_key", "date", "transaction_type", "years", "total_value", "description"]].copy()
+    return _spotrac_txn_cache
+
+
+def _apply_eoy_extension_overrides(cots: pd.DataFrame, snapshot_year: int) -> pd.DataFrame:
+    """Preserve in-season extension control at end-of-year snapshots.
+
+    Cot's EOY rows are built from the prior season's opening-day control and
+    then decremented by one year. That is correct for ordinary aging, but it
+    erases mid-season extensions that are already in force by the offseason.
+    For those cases, use Spotrac's transaction years to restore the extension
+    length for the end-of-season snapshot.
+    """
+    txns = _load_spotrac_transactions()
+    if txns.empty:
+        return cots
+
+    season_end = pd.Timestamp(snapshot_year - 1, 10, 1)
+    ext = txns[
+        (txns["transaction_type"] == "extension")
+        & txns["date"].notna()
+        & (txns["date"] <= season_end)
+    ].copy()
+    if ext.empty:
+        return cots
+
+    ext = ext.dropna(subset=["_name_key", "years"])
+    if ext.empty:
+        return cots
+
+    ext = (
+        ext.sort_values(["_name_key", "date"])
+        .groupby("_name_key", as_index=False)
+        .agg({"years": "max", "total_value": "max"})
+        .rename(columns={"years": "_extension_years", "total_value": "_extension_total_value"})
+    )
+
+    out = cots.copy()
+    out["_name_key"] = out["player"].apply(_name_key_fn)
+    out = out.merge(ext, on="_name_key", how="left")
+
+    override_mask = out["_extension_years"].notna() & (out["_extension_years"] > out["years_of_control"])
+    if override_mask.any():
+        out.loc[override_mask, "years_of_control"] = out.loc[override_mask, "_extension_years"]
+        extension_value = out.loc[override_mask, "_extension_total_value"].fillna(out.loc[override_mask, "total_future_salary"])
+        out.loc[override_mask, "total_future_salary"] = extension_value.combine(
+            out.loc[override_mask, "total_future_salary"],
+            func=lambda new, old: max(float(new) if pd.notna(new) else 0.0, float(old) if pd.notna(old) else 0.0),
+        )
+        out.loc[override_mask, "Status"] = "Signed"
+        out.loc[override_mask, "Normalized_Status"] = "Signed"
+
+    return out.drop(columns=["_extension_years", "_extension_total_value"], errors="ignore")
 
 
 def _override_years_of_control(
@@ -742,6 +822,7 @@ def compute_surplus_for_snapshot(
         cots["years_of_control"] = (cots["years_of_control"] - 1).clip(lower=0)
         cots["total_future_salary"] = (cots["total_future_salary"] - cots["salary"]).clip(lower=0)
         cots = cots[cots["years_of_control"] > 0].copy()
+        cots = _apply_eoy_extension_overrides(cots, snapshot_year)
 
     cots["_name_key"] = cots["player"].apply(_name_key_fn)
     cots = cots.sort_values("salary", ascending=False, na_position="last")
@@ -971,8 +1052,16 @@ def compute_surplus_for_snapshot(
     # Step 6: Calculate trade values (surplus over control years)
     with_trade = calculate_trade_values(with_options, current_year=snapshot_year)
 
-    # Step 7: Add trade ranking metrics
-    result = add_trade_ranking_metrics(with_trade, current_year=snapshot_year)
+    # Temporarily override CURRENT_YEAR so historical/EOY snapshots don't 
+    # erroneously apply the live fractional-season penalty from today's date.
+    import value_determination.trade_value as tv_module
+    orig_current_year = tv_module.CURRENT_YEAR
+    tv_module.CURRENT_YEAR = -1
+    try:
+        # Step 7: Add trade ranking metrics
+        result = add_trade_ranking_metrics(with_trade, current_year=snapshot_year)
+    finally:
+        tv_module.CURRENT_YEAR = orig_current_year
 
     # Remove synthetic game-count rows added in Step 4b
     if "_synthetic" in result.columns:
@@ -1081,7 +1170,7 @@ def _extract_player_summary(
             "player_type": player_type,
             "position_group": pos_group,
             "service_time": round(svc, 3) if pd.notna(svc) else np.nan,
-            "years_of_control": int(years_control) if pd.notna(years_control) else 0,
+            "years_of_control": round(years_control, 2) if pd.notna(years_control) else 0.0,
             "status": status,
             "salary_source": salary_source,
             "trade_value": round(trade_value) if pd.notna(trade_value) else np.nan,
