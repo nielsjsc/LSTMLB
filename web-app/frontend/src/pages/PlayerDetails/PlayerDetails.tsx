@@ -151,6 +151,7 @@ const ContractTimeline: React.FC<{
           const isControlled = yr < currentYear + yrsCtrl;
           const isFaProbable = yr === faProbable;
           const isFaEarliest = yr === faEarliest;
+          const isExpectedFA = faProbable && yr > faProbable;
           const proj = projections.find(p => p.year === yr);
           const status = proj?.status || '';
           return (
@@ -162,6 +163,8 @@ const ContractTimeline: React.FC<{
                     ? teamColor + (yr === currentYear ? 'FF' : '80')
                     : isFaProbable
                     ? '#f59e0b40'
+                    : isExpectedFA
+                    ? '#d1d5db'
                     : 'rgba(255,255,255,0.04)',
                   border: isFaEarliest ? '1px dashed #f59e0b' : isFaProbable ? '1px solid #f59e0b60' : '1px solid transparent',
                 }}
@@ -197,9 +200,15 @@ const ContractTimeline: React.FC<{
             <span className="text-[10px] text-gray-500">Probable FA</span>
           </div>
         )}
+        {faProbable && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#d1d5db' }} />
+            <span className="text-[10px] text-gray-500">Expected FA</span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-gray-50 border border-gray-200" />
-          <span className="text-[10px] text-gray-500">Free Agent</span>
+          <span className="text-[10px] text-gray-500">Uncontracted</span>
         </div>
       </div>
     </div>
