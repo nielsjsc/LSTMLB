@@ -124,8 +124,9 @@ const ContractTimeline: React.FC<{
   projections: Array<{ year: number; status: string }>;
 }> = ({ currentYear, faEarliest, faProbable, faLatest, yearsControl, teamColor, projections }) => {
   const yrsCtrl = yearsControl ?? 0;
+  const yrsCtrlFloor = Math.floor(yrsCtrl);
   const endYear = Math.max(
-    currentYear + yrsCtrl,
+    currentYear + yrsCtrlFloor,
     faLatest ?? currentYear,
     faProbable ?? currentYear,
     currentYear + 1
@@ -143,12 +144,12 @@ const ContractTimeline: React.FC<{
       <div className="flex justify-between items-baseline mb-2">
         <span className="text-xs text-gray-500 font-medium">Contract Control</span>
         <span className="text-xs text-gray-500">
-          {yrsCtrl > 0 ? `${yrsCtrl} yr${yrsCtrl > 1 ? 's' : ''} remaining` : 'Free Agent'}
+          {yrsCtrl > 0 ? `${yrsCtrlFloor} yr${yrsCtrlFloor > 1 ? 's' : ''} remaining` : 'Free Agent'}
         </span>
       </div>
       <div className="flex gap-1">
         {years.map((yr) => {
-          const isControlled = yr < currentYear + yrsCtrl;
+          const isControlled = yr < currentYear + yrsCtrlFloor;
           const isFaProbable = yr === faProbable;
           const isFaEarliest = yr === faEarliest;
           const proj = projections.find(p => p.year === yr);

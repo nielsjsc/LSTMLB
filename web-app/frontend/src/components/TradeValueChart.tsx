@@ -666,7 +666,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
 
             {/* ── Visual years of control bar ── */}
             {hovered.yearsControl != null && hovered.yearsControl > 0 && (() => {
-              const yrs = Math.round(hovered.yearsControl!);
+              const yrs = Math.floor(hovered.yearsControl!);
               const baseYear = hovered.year;
               const cells = Array.from({ length: yrs }, (_, i) => baseYear + i);
               return (
