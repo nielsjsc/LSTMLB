@@ -39,7 +39,7 @@ class Player(Base):
     avg_war = Column(Float)
     total_contract = Column(Float)
     avg_contract = Column(Float)
-    years_control = Column(Float)
+    years_control = Column(Integer)
     control_through = Column(Integer)
     total_future_war = Column(Float)
     total_future_value = Column(Float)

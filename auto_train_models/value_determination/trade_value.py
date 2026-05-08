@@ -526,7 +526,7 @@ def add_trade_ranking_metrics(df: pd.DataFrame, current_year: int | None = None)
             "total_contract": round(control["contract_value"].sum(), 1),
             "avg_contract": round(control["contract_value"].sum() / n_fractional, 2) if n_fractional > 0 else 0,
             "total_surplus": round(control["surplus_value"].sum(), 1),
-            "years_control": round(n_fractional, 2),
+            "years_control": n,
             "control_through": fa_year - 1 if pd.notna(fa_year) else None,
             "total_future_war": round(control.loc[control["WAR"] > 0, "WAR"].sum(), 1),
             "total_future_value": round(future["Base_Value"].sum(), 1),
