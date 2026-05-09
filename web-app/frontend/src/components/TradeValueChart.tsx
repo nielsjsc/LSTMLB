@@ -359,7 +359,7 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
   const goPrev = () => { if (canPrev) { setPinnedIdx(activeIdx! - 1); } };
   const goNext = () => { if (canNext) { setPinnedIdx(activeIdx! + 1); } };
   const hoveredYearsControl = hovered?.yearsControl != null ? Math.round(hovered.yearsControl) : null;
-  const hoveredOptOutYear = hovered != null && hoveredYearsControl != null ? hovered.year + hoveredYearsControl : null;
+  const hoveredOptOutYear = hovered?.optOutYear ?? null;
 
   return (
     <div ref={containerRef} className="w-full relative">

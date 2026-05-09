@@ -254,6 +254,38 @@ def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
                 f"{components_merged} component rows merged)"
             )
 
+        # Project Years_of_Service forward for future years with placeholder values
+        # Spotrac often has "--" or "-" for future years; this fills them by projecting
+        if 'Years_of_Service' in cleaned_df.columns and 'IDfg' in cleaned_df.columns:
+            for player_id in cleaned_df['IDfg'].unique():
+                player_mask = cleaned_df['IDfg'] == player_id
+                player_data = cleaned_df[player_mask].sort_values('Year')
+                
+                # Find first year with valid YoS (numeric value)
+                valid_yos = player_data[
+                    (player_data['Years_of_Service'].notna()) & 
+                    (player_data['Years_of_Service'].astype(str).str.strip().isin(['', '-', '--']) == False)
+                ]
+                
+                if len(valid_yos) > 0:
+                    first_valid_idx = valid_yos.index[0]
+                    base_year = cleaned_df.loc[first_valid_idx, 'Year']
+                    try:
+                        base_yos = float(valid_yos.iloc[0]['Years_of_Service'])
+                        
+                        # Project YoS forward for all rows
+                        for idx in player_data.index:
+                            year = cleaned_df.loc[idx, 'Year']
+                            yos_val = cleaned_df.loc[idx, 'Years_of_Service']
+                            
+                            # If YoS is placeholder or missing, project it
+                            is_placeholder = pd.isna(yos_val) or str(yos_val).strip() in ['', '-', '--']
+                            if is_placeholder:
+                                projected_yos = base_yos + (year - base_year)
+                                cleaned_df.loc[idx, 'Years_of_Service'] = projected_yos
+                    except (ValueError, TypeError):
+                        pass
+
         output_cols = ['Player Name', 'Year', 'Team', 'Payroll', 'Status', 'Years_of_Service']
         return cleaned_df[output_cols].copy()
 

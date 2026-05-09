@@ -850,6 +850,22 @@ async def get_trade_value_history(
     if not rows:
         return JSONResponse([])
 
+    # Determine fixed opt-out year from actual contract timeline rows.
+    # Use the earliest Opt-Out season so UI never infers it from years_control.
+    opt_out_year = None
+    if player.real_id is not None:
+        opt_out_year = (
+            db.query(Player.year)
+            .filter(
+                Player.real_id == player.real_id,
+                Player.projection_type == "ros",
+                Player.status == "Opt-Out",
+            )
+            .order_by(Player.year.asc())
+            .limit(1)
+            .scalar()
+        )
+
     result = [
         {
             "year": r.year,
@@ -859,6 +875,7 @@ async def get_trade_value_history(
             "transactionType": r.transaction_type,
             "label": r.label,
             "yearsControl": round(float(r.years_control), 1) if r.years_control is not None else None,
+            "optOutYear": int(opt_out_year) if opt_out_year is not None else None,
             "projectedWar": round(float(r.projected_war), 1) if r.projected_war is not None else None,
             "projectedSalary": round(float(r.projected_salary), 2) if r.projected_salary is not None else None,
             "warPerYear": round(float(r.war_per_year), 1) if r.war_per_year is not None else None,
@@ -882,6 +899,7 @@ async def get_trade_value_history(
             "transactionType": None,
             "label": label,
             "yearsControl": round(float(yrs), 1),
+            "optOutYear": int(opt_out_year) if opt_out_year is not None else None,
             "projectedWar": round(float(fw), 1),
             "projectedSalary": round(float(sal), 2),
             "warPerYear": round(float(wpy), 1),

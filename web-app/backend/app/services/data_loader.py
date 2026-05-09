@@ -1067,6 +1067,7 @@ class DataLoader:
                             ), axis=1
                         ),
                         "years_control": cur.get("years_control", 0),
+                        "status": cur.get("Status", None),
                         "projected_war": cur.get("total_future_war", 0),
                         "projected_salary": cur.get("total_contract", 0),
                         "war_per_year": cur.apply(

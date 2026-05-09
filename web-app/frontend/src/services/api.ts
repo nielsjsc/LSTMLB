@@ -804,6 +804,8 @@ export interface TradeValuePoint {
   transactionType: string | null;   // Spotrac txn type (traded, fa_signing, …)
   label: string;
   yearsControl: number | null;
+  optOutYear: number | null;
+  status: string | null;            // Contract status (Signed, Arb-1, Opt-Out, etc.)
   projectedWar: number | null;
   projectedSalary: number | null;
   warPerYear: number | null;
