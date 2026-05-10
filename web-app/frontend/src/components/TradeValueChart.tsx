@@ -687,10 +687,10 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
                     <div className="grid grid-cols-2 gap-1.5 mt-2">
                       <div className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1">
                         <div className="text-[9px] uppercase tracking-wide text-gray-400">Opt-out</div>
-                        <div className="text-[11px] font-semibold text-gray-700">Would opt out</div>
+                        <div className="text-[11px] font-semibold text-gray-700">Clause available</div>
                       </div>
                       <div className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1">
-                        <div className="text-[9px] uppercase tracking-wide text-gray-400">Opt-out year</div>
+                        <div className="text-[9px] uppercase tracking-wide text-gray-400">Clause year</div>
                         <div className="text-[11px] font-semibold text-gray-700 tabular-nums">{hoveredOptOutYear}</div>
                       </div>
                     </div>

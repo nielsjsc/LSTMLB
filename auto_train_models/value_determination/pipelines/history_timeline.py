@@ -1097,6 +1097,23 @@ def build_transaction_entries(
                 proj_war = entry.get("projected_war")
                 proj_sal = entry.get("projected_salary")
                 war_yr   = entry.get("war_per_year")
+
+                # If we pulled value metadata from a later snapshot (common for
+                # offseason transactions), years_control in that snapshot is
+                # measured from the snapshot season, not from the transaction
+                # season. Add back elapsed whole years so a Jan/Feb 2024 point
+                # doesn't inherit 2025's shorter control count.
+                entry_dt = entry.get("_dt")
+                if pd.notna(yrs_ctrl) and pd.notna(entry_dt):
+                    try:
+                        snap_year = pd.Timestamp(entry_dt).year
+                        year_delta = max(0, int(snap_year) - int(ev_year))
+                        if year_delta > 0:
+                            yrs_ctrl = float(yrs_ctrl) + float(year_delta)
+                            if pd.notna(proj_war):
+                                war_yr = float(proj_war) / max(float(yrs_ctrl), 1e-9)
+                    except Exception:
+                        pass
             elif ev_type in ("drafted", "initial_signing"):
                 # For drafted/signed prospects, prefer prospect values
                 result = _lookup_prospect_value(mlb_id, ev_date, value_map)

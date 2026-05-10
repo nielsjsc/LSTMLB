@@ -660,6 +660,71 @@ def prorate_current_year_war(df, war_proration, current_year=None):
     return df
 
 
+def prorate_current_year_salary(df, war_proration, current_year=None):
+    """Prorate current-year salary to reflect remaining season only.
+
+    Current-year contract_value should only include remaining salary owed,
+    not salary already paid. We scale it by the same remaining_fraction
+    used for WAR proration.
+
+    Formula::
+        new_contract_value = full_year_contract × remaining_fraction
+
+    Future years (Year > current_year) are untouched.
+
+    Args:
+        df: DataFrame with IDfg, Year, contract_value columns.
+        war_proration: Dict mapping IDfg → {remaining_fraction, ...}.
+        current_year: Season to prorate (default CURRENT_YEAR).
+
+    Returns:
+        DataFrame with prorated current-year contract_value.
+    """
+    if current_year is None:
+        current_year = CURRENT_YEAR
+
+    df = df.copy()
+    prorated = 0
+
+    # Use lowercase 'contract_value' to match value_calculator.py output
+    if 'contract_value' not in df.columns:
+        logger.warning("contract_value column not found; skipping salary proration")
+        return df
+
+    current_mask = df['Year'] == current_year
+    for idx in df.index[current_mask]:
+        raw_idfg = df.at[idx, 'IDfg']
+        try:
+            idfg = int(raw_idfg)
+        except (ValueError, TypeError):
+            continue
+
+        info = war_proration.get(idfg)
+        if info is None:
+            continue
+
+        # Get remaining fraction from war_proration
+        remaining_frac = info.get('remaining_fraction', 1.0)
+        if remaining_frac >= 1.0:
+            # Full season already played or remaining_fraction not set
+            continue
+
+        original_contract = df.at[idx, 'contract_value']
+        if pd.isna(original_contract) or original_contract == 0:
+            continue
+
+        # Prorate to remaining season
+        prorated_contract = original_contract * remaining_frac
+        df.at[idx, 'contract_value'] = prorated_contract
+        prorated += 1
+
+    logger.info(
+        f"Prorated {prorated} current-year contract_value entries "
+        f"to remaining season"
+    )
+    return df
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # Fielding blending
 # ─────────────────────────────────────────────────────────────────────────

@@ -427,6 +427,18 @@ def main():
             extended_timeline, player_predictions,
         )
         timeline_with_values = calculate_contract_value(timeline_with_war)
+
+        # ============================================================
+        # Step 6.5 (NEW): Prorate current-year salary
+        # ============================================================
+        # Must happen AFTER calculate_contract_value() so Contract_Value
+        # column exists, but BEFORE calculate_surplus_value() uses it
+        logger.info("\n[Step 6.5] Prorating current-year salary to remaining season...")
+        from value_determination.pipelines.ros import prorate_current_year_salary
+        timeline_with_values = prorate_current_year_salary(
+            timeline_with_values, war_proration, current_year=CURRENT_YEAR
+        )
+
         timeline_with_values = calculate_surplus_value(timeline_with_values)
 
         # ============================================================
