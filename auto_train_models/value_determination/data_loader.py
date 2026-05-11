@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Tuple
 
 # Import from central config
-from .config import Config, logger
+from .config import Config, logger, CURRENT_YEAR
 
 # Backward compatibility
 PIPELINE_DIR = Config.Paths.PIPELINE_DIR
@@ -103,6 +103,45 @@ def load_prediction_files(pipeline_dir: Path = None) -> Tuple[pd.DataFrame, pd.D
         missing_cols = core_batter_cols - set(batter_data.columns)
         if missing_cols:
             raise ValueError(f"Missing columns in batter_predictions.csv: {missing_cols}")
+        
+        # ── Merge statcast expected stats for current year ──────────────────────
+        # For the current year (2026), merge actual/expected statcast metrics from
+        # the _with_statcast batting file to include xBA, xwOBA, xSLG, etc.
+        current_year = CURRENT_YEAR  # Imported from config
+        current_year_data = batter_data[batter_data['Year'] == current_year].copy()
+        if not current_year_data.empty:
+            statcast_batting_file = (
+                HISTORIC_MLB_DIR / 'mlb_batting_data_1950_2025_with_statcast.csv'
+            )
+            if statcast_batting_file.exists():
+                try:
+                    # Load with_statcast file and filter to current year
+                    statcast_df = pd.read_csv(
+                        statcast_batting_file,
+                        usecols=['IDfg', 'Season', 'sc_est_ba', 'sc_est_slg', 
+                                'sc_est_woba', 'sc_ba', 'sc_slg', 'sc_woba'],
+                        low_memory=False
+                    )
+                    statcast_df = statcast_df[statcast_df['Season'] == current_year].copy()
+                    
+                    # Merge: keep all prediction rows, add statcast columns where available
+                    batter_data = batter_data.merge(
+                        statcast_df.rename(columns={'Season': 'Year'}),
+                        on=['IDfg', 'Year'],
+                        how='left'
+                    )
+                    
+                    statcast_rows_found = statcast_df[statcast_df['IDfg'].isin(
+                        current_year_data['IDfg']
+                    )].shape[0]
+                    logger.info(
+                        f"Merged {statcast_rows_found} current-year ({current_year}) "
+                        f"statcast rows (xBA, xwOBA, xSLG, etc.)"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Could not merge statcast data for current year: {e}"
+                    )
         
         # Add prediction_year (no filtering - keep all years in file)
         batter_data['prediction_year'] = batter_data['Year']

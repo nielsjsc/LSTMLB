@@ -73,6 +73,13 @@ class Player(Base):
     rbi = Column(Integer)
     sb = Column(Integer)
     cs = Column(Integer)
+    # Statcast expected stats (current-year only)
+    xba = Column(Float)
+    xslg = Column(Float)
+    xwoba = Column(Float)
+    sc_ba = Column(Float)
+    sc_slg = Column(Float)
+    sc_woba = Column(Float)
     
     # Pitching Stats
     g_pit = Column(Integer)

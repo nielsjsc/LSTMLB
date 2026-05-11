@@ -194,6 +194,9 @@ PLAYER_COL_MAP = {
     "Bat": "bat", "Off": "off", "BsR": "bsr", "Def": "def_value",
     "HR": "hr", "2B": "doubles", "3B": "triples",
     "R": "r", "RBI": "rbi", "SB": "sb", "CS": "cs",
+    # Statcast expected stats (current-year)
+    "sc_est_ba": "xba", "sc_est_slg": "xslg", "sc_est_woba": "xwoba",
+    "sc_ba": "sc_ba", "sc_slg": "sc_slg", "sc_woba": "sc_woba",
     # Pitching
     "G_pit": "g_pit", "GS": "gs", "IP": "ip", "WAR_pitcher": "war_pit",
     "ERA": "era", "FIP": "fip", "K%_pit": "k_pct_pit", "BB%_pit": "bb_pct_pit",

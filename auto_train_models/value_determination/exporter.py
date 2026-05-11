@@ -36,7 +36,9 @@ def export_value_data(df: pd.DataFrame, output_dir: Path, filename: str = None) 
     
     hitting_cols = [
         'BB%_bat', 'K%_bat', 'BB_bat', 'K_bat', 'G_bat', 'PA', 'AVG', 'OBP', 'SLG', 'OPS',
-        'wOBA', 'wRC+', 'Bat', 'BsR', 'Def', 'WAR_batter', 'HR', '2B', '3B', 'SB', 'CS', 'R', 'RBI'
+        'wOBA', 'wRC+', 'Bat', 'BsR', 'Def', 'WAR_batter', 'HR', '2B', '3B', 'SB', 'CS', 'R', 'RBI',
+        # Statcast expected stats (current-year only; merged from _with_statcast files)
+        'sc_est_ba', 'sc_est_slg', 'sc_est_woba', 'sc_ba', 'sc_slg', 'sc_woba'
     ]
 
     pitching_cols = [
