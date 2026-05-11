@@ -574,6 +574,7 @@ const PlayerDetails: React.FC = () => {
   const historicalHitting = useMemo(() => {
     const base = [...historicalHittingBase];
     const bat = player?.currentSeasonStats?.batting;
+    const hittingProjection = curProj?.hitting;
     if (bat && bat.g != null && bat.g > 0) {
       base.push({
         year: CURRENT_YEAR,
@@ -602,6 +603,9 @@ const PlayerDetails: React.FC = () => {
           rbi: bat.rbi ?? 0,
           sb: bat.sb ?? 0,
           cs: bat.cs ?? 0,
+          xba: hittingProjection?.xba,
+          xslg: hittingProjection?.xslg,
+          xwoba: hittingProjection?.xwoba,
         } as any,
       });
     }
@@ -611,6 +615,7 @@ const PlayerDetails: React.FC = () => {
   const historicalPitching = useMemo(() => {
     const base = [...historicalPitchingBase];
     const pit = player?.currentSeasonStats?.pitching;
+    const pitchingProjection = curProj?.pitching;
     if (pit && pit.g != null && pit.g > 0) {
       base.push({
         year: CURRENT_YEAR,
@@ -631,6 +636,7 @@ const PlayerDetails: React.FC = () => {
           fb_pct: pit.fb_pct ?? undefined,
           hr_fb: pit.hr_fb ?? undefined,
           hr_9: pit.hr_9 ?? undefined,
+          xera: pitchingProjection?.xera,
         } as any,
       });
     }

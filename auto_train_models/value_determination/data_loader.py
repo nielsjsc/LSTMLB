@@ -105,43 +105,91 @@ def load_prediction_files(pipeline_dir: Path = None) -> Tuple[pd.DataFrame, pd.D
             raise ValueError(f"Missing columns in batter_predictions.csv: {missing_cols}")
         
         # ── Merge statcast expected stats for current year ──────────────────────
-        # For the current year (2026), merge actual/expected statcast metrics from
-        # the _with_statcast batting file to include xBA, xwOBA, xSLG, etc.
-        current_year = CURRENT_YEAR  # Imported from config
+        # For the current year, load and merge statcast expected metrics (xBA, xwOBA, xSLG)
+        # from the statcast CSV files in data/statcast/
+        current_year = CURRENT_YEAR
         current_year_data = batter_data[batter_data['Year'] == current_year].copy()
         if not current_year_data.empty:
-            statcast_batting_file = (
-                HISTORIC_MLB_DIR / 'mlb_batting_data_1950_2025_with_statcast.csv'
-            )
-            if statcast_batting_file.exists():
+            statcast_data_dir = Config.Paths.ROOT_DIR / 'data' / 'statcast'
+            expected_file = statcast_data_dir / f'statcast_batter_expected_stats_{current_year}_{current_year}.csv'
+            
+            if expected_file.exists():
                 try:
-                    # Load with_statcast file and filter to current year
-                    statcast_df = pd.read_csv(
-                        statcast_batting_file,
-                        usecols=['IDfg', 'Season', 'sc_est_ba', 'sc_est_slg', 
-                                'sc_est_woba', 'sc_ba', 'sc_slg', 'sc_woba'],
-                        low_memory=False
-                    )
-                    statcast_df = statcast_df[statcast_df['Season'] == current_year].copy()
-                    
-                    # Merge: keep all prediction rows, add statcast columns where available
+                    # Load batter expected stats for current year
+                    statcast_expected = pd.read_csv(expected_file, low_memory=False)
+
+                    # Standardize year column name
+                    if 'year' in statcast_expected.columns:
+                        statcast_expected = statcast_expected.rename(columns={'year': 'Year'})
+
+                    # Normalize common column name variants so downstream code
+                    # can rely on either xBA/xSLG/xwOBA or sc_est_ba/sc_est_slg/sc_est_woba
+                    def _find_col(df, token):
+                        token = token.lower()
+                        for c in df.columns:
+                            if token == c.lower() or token in c.lower():
+                                return c
+                        return None
+
+                    # Map possible source names to unified sc_est_* names
+                    est_ba_col = _find_col(statcast_expected, 'est_ba')
+                    est_slg_col = _find_col(statcast_expected, 'est_slg')
+                    est_woba_col = _find_col(statcast_expected, 'est_woba')
+
+                    rename_map = {}
+                    if est_ba_col and est_ba_col not in ('sc_est_ba', 'xBA'):
+                        rename_map[est_ba_col] = 'sc_est_ba'
+                    if est_slg_col and est_slg_col not in ('sc_est_slg', 'xSLG'):
+                        rename_map[est_slg_col] = 'sc_est_slg'
+                    if est_woba_col and est_woba_col not in ('sc_est_woba', 'xwOBA'):
+                        rename_map[est_woba_col] = 'sc_est_woba'
+
+                    if rename_map:
+                        statcast_expected = statcast_expected.rename(columns=rename_map)
+
+                    # Create x-prefixed canonical columns if possible (xBA, xSLG, xwOBA)
+                    if 'sc_est_ba' in statcast_expected.columns and 'xBA' not in statcast_expected.columns:
+                        statcast_expected['xBA'] = statcast_expected['sc_est_ba']
+                    if 'sc_est_slg' in statcast_expected.columns and 'xSLG' not in statcast_expected.columns:
+                        statcast_expected['xSLG'] = statcast_expected['sc_est_slg']
+                    if 'sc_est_woba' in statcast_expected.columns and 'xwOBA' not in statcast_expected.columns:
+                        statcast_expected['xwOBA'] = statcast_expected['sc_est_woba']
+
+                    # Keep only ID + Year + any statcast-related columns
+                    cols_to_keep = ['IDfg', 'Year']
+                    for col in statcast_expected.columns:
+                        c_low = col.lower()
+                        if (c_low.startswith('x') or 'expected' in c_low or c_low.startswith('sc_est')
+                                or c_low.startswith('est_') or c_low.startswith('est') or 'est_' in c_low):
+                            cols_to_keep.append(col)
+
+                    statcast_expected = statcast_expected[
+                        [c for c in cols_to_keep if c in statcast_expected.columns]
+                    ]
+
+                    # Merge: left join to keep all predictions, add statcast where available
+                    before_merge = len(batter_data[batter_data['Year'] == current_year])
                     batter_data = batter_data.merge(
-                        statcast_df.rename(columns={'Season': 'Year'}),
+                        statcast_expected,
                         on=['IDfg', 'Year'],
                         how='left'
                     )
-                    
-                    statcast_rows_found = statcast_df[statcast_df['IDfg'].isin(
+
+                    matched = statcast_expected['IDfg'].isin(
                         current_year_data['IDfg']
-                    )].shape[0]
+                    ).sum()
                     logger.info(
-                        f"Merged {statcast_rows_found} current-year ({current_year}) "
-                        f"statcast rows (xBA, xwOBA, xSLG, etc.)"
+                        f"Merged {matched} current-year ({current_year}) "
+                        f"statcast expected stats (xBA, xwOBA, xSLG, etc.)"
                     )
                 except Exception as e:
                     logger.warning(
-                        f"Could not merge statcast data for current year: {e}"
+                        f"Could not merge statcast expected stats for current year: {e}"
                     )
+            else:
+                logger.debug(
+                    f"Statcast expected stats file not found: {expected_file.name}"
+                )
         
         # Add prediction_year (no filtering - keep all years in file)
         batter_data['prediction_year'] = batter_data['Year']
@@ -216,22 +264,32 @@ def merge_prediction_data(sp_df: pd.DataFrame,
 
 def load_historical_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Load historical MLB batting and pitching data.
+    Load historical MLB batting and pitching data with statcast columns.
+    
+    Prioritizes _with_statcast variants to preserve expected stats (xBA, xwOBA, xSLG, etc.)
+    for years 2016+ where statcast data is available.
     
     Returns:
         Tuple of (batting_history, pitching_history)
     """
-    batting_file = HISTORIC_MLB_DIR / 'mlb_batting_data_1950_2025.csv'
-    pitching_file = HISTORIC_MLB_DIR / 'mlb_pitching_data_1950_2025.csv'
+    # Try with_statcast variants first (have xBA, xwOBA, xSLG columns merged)
+    batting_file = HISTORIC_MLB_DIR / 'mlb_batting_data_1950_2025_with_statcast.csv'
+    pitching_file = HISTORIC_MLB_DIR / 'mlb_pitching_data_1950_2025_with_statcast.csv'
     
-    # Try the original filenames first, then alternatives
+    # Fall back to base files if with_statcast not available
+    if not batting_file.exists():
+        batting_file = HISTORIC_MLB_DIR / 'mlb_batting_data_1950_2025.csv'
+    if not pitching_file.exists():
+        pitching_file = HISTORIC_MLB_DIR / 'mlb_pitching_data_1950_2025.csv'
+    
+    # Final fallback to alternative names
     if not batting_file.exists():
         batting_file = HISTORIC_MLB_DIR / 'mlb_batting_data_2000_2024.csv'
     if not pitching_file.exists():
         pitching_file = HISTORIC_MLB_DIR / 'mlb_pitching_data_2000_2024.csv'
     
-    batting_history = pd.read_csv(batting_file)
-    pitching_history = pd.read_csv(pitching_file)
+    batting_history = pd.read_csv(batting_file, low_memory=False)
+    pitching_history = pd.read_csv(pitching_file, low_memory=False)
     
     # Compute HR% for pitching if not present (HR / TBF)
     if 'HR%' not in pitching_history.columns and 'HR' in pitching_history.columns and 'TBF' in pitching_history.columns:

@@ -138,6 +138,32 @@ def _coerce_int_cols(records: list[dict], int_cols: set[str]) -> None:
                     rec[col] = None
 
 
+def _collapse_duplicate_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Collapse duplicate column labels by taking the first non-null value.
+
+    Some CSV renames intentionally map multiple source columns to the same
+    canonical destination name (for example ``xBA`` and ``sc_est_ba`` both
+    becoming ``xba``).  That can leave duplicate column labels behind, and
+    ``df[col]`` then returns a DataFrame instead of a Series.
+    """
+    if not df.columns.duplicated().any():
+        return df
+
+    collapsed = pd.DataFrame(index=df.index)
+    for col in df.columns:
+        if col in collapsed.columns:
+            continue
+
+        cols = df.columns[df.columns == col]
+        if len(cols) == 1:
+            collapsed[col] = df[col]
+        else:
+            # Take the first non-null value across the duplicate variants.
+            collapsed[col] = df.loc[:, cols].bfill(axis=1).iloc[:, 0]
+
+    return collapsed
+
+
 class _Timer:
     """Context manager that logs elapsed wall-clock time."""
 
@@ -194,7 +220,9 @@ PLAYER_COL_MAP = {
     "Bat": "bat", "Off": "off", "BsR": "bsr", "Def": "def_value",
     "HR": "hr", "2B": "doubles", "3B": "triples",
     "R": "r", "RBI": "rbi", "SB": "sb", "CS": "cs",
-    # Statcast expected stats (current-year)
+    # Statcast expected stats (current-year only)
+    # Both naming conventions: xBA/xwOBA/xSLG (from statcast CSVs) and sc_est_ba/sc_est_woba/sc_est_slg (from with_statcast files)
+    "xBA": "xba", "xSLG": "xslg", "xwOBA": "xwoba",
     "sc_est_ba": "xba", "sc_est_slg": "xslg", "sc_est_woba": "xwoba",
     "sc_ba": "sc_ba", "sc_slg": "sc_slg", "sc_woba": "sc_woba",
     # Pitching
@@ -350,6 +378,10 @@ class DataLoader:
 
             # Rename CSV headers → DB column names
             df = df.rename(columns=PLAYER_COL_MAP)
+
+            # Some source columns intentionally map to the same canonical name.
+            # Collapse duplicates so later scalar operations work on Series.
+            df = _collapse_duplicate_columns(df)
 
             # Keep only columns that exist in the model
             model_cols = {c.key for c in Player.__table__.columns if c.key != "id"}

@@ -405,7 +405,10 @@ def integrate_historical_stats(timeline_df: pd.DataFrame,
     # via the drop_duplicates(keep='last') below.
     batter_cols = ['IDfg', 'Season', 'Name', 'Team', 'G', 'WAR', 'BB%', 'K%', 'AVG',
                    'OBP', 'SLG', 'OPS', 'wOBA', 'wRC+', 'Bat', 'BsR', 'Def', 'Age', 
-                   'HR', '2B', '3B', 'R', 'RBI', 'SB', 'CS']
+                   'HR', '2B', '3B', 'R', 'RBI', 'SB', 'CS',
+                   # Statcast expected stats (2016+, from with_statcast files)
+                   'xBA', 'xSLG', 'xwOBA', 'sc_est_ba', 'sc_est_slg', 'sc_est_woba',
+                   'sc_ba', 'sc_slg', 'sc_woba']
     
     # Filter to columns that exist
     available_batter_cols = [c for c in batter_cols if c in batting_history.columns]
