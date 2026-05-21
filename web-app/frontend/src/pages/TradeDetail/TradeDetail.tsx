@@ -55,11 +55,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
   });
 
   const actualYearClass = (war: number) =>
-    war > 0
-      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15'
-      : war < 0
-      ? 'bg-red-500/10 text-red-400 border border-red-500/15'
-      : 'bg-gray-100/60 text-gray-600';
+    'bg-gray-300/20 text-gray-800 border border-gray-400/30';
 
   return (
     <div className="py-3 border-b border-gray-100 last:border-b-0">
