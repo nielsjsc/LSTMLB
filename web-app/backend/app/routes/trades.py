@@ -552,18 +552,24 @@ def _attach_future_projections(trades: List[Dict[str, Any]]) -> None:
                     continue
                 # Only include projected years beyond the player's last actual year
                 actual_years = {yw["year"] for yw in player.get("yearly_war", [])}
+                
+                # Use control_through from trades.json (loaded from FA year data)
+                # If missing, don't show projections
+                control_through = player.get("control_through")
+                if not control_through:
+                    continue
+                
+                max_proj_year = int(control_through)
+                
                 future = [
                     yw for yw in proj["projected_yearly_war"]
                     if yw["year"] not in actual_years
-                    and (
-                        not proj.get("control_through")
-                        or yw["year"] <= int(proj["control_through"])
-                    )
+                    and yw["year"] <= max_proj_year
                 ]
                 if future:
                     player["projected_yearly_war"] = future
                     player["years_control"] = proj.get("years_control")
-                    player["control_through"] = proj.get("control_through")
+                    # control_through already set from trades.json, keep it
                     player["has_projection"] = True
                     attached += 1
 
