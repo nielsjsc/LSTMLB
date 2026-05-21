@@ -241,7 +241,8 @@ def generate_pitcher_predictions(
     output_file: str = None, 
     use_pretrained: bool = False,
     cutoff_year: int = None,
-    roster_ids: set = None
+    roster_ids: set = None,
+    data_file_path: str | None = None,
 ) -> Optional[pd.DataFrame]:
     """Generate pitcher predictions for SP and RP
     
@@ -272,8 +273,8 @@ def generate_pitcher_predictions(
         from core.marcel_projections import marcel_pitcher_projections
         logger.info("Using Marcel projections for pitchers")
         
-        data_file_path = resolve_data_path(sp_config_class.DATA_FILE)
-        raw_df = pd.read_csv(data_file_path)
+        resolved_data_file = Path(data_file_path) if data_file_path else resolve_data_path(sp_config_class.DATA_FILE)
+        raw_df = pd.read_csv(resolved_data_file)
         raw_df = calculate_rate_stats(raw_df)
         
         pitcher_names_path = DATA_DIR / 'pitcher_names.csv'
@@ -361,7 +362,8 @@ def generate_batter_predictions(
     output_file: str = None, 
     use_pretrained: bool = False,
     cutoff_year: int = None,
-    roster_ids: set = None
+    roster_ids: set = None,
+    data_file_path: str | None = None,
 ) -> Optional[pd.DataFrame]:
     """Generate batter predictions matching notebook functionality
     
@@ -388,12 +390,14 @@ def generate_batter_predictions(
         logger.info("Using Marcel projections for batters")
         
         # Load data (use statcast data for x-stats if available)
-        if hasattr(batter_config_class, 'FINETUNE_DATA_FILE'):
-            data_file_path = resolve_data_path(batter_config_class.FINETUNE_DATA_FILE)
+        if data_file_path is not None:
+            resolved_data_file = Path(data_file_path)
+        elif hasattr(batter_config_class, 'FINETUNE_DATA_FILE'):
+            resolved_data_file = resolve_data_path(batter_config_class.FINETUNE_DATA_FILE)
         else:
-            data_file_path = resolve_data_path(batter_config_class.DATA_FILE)
+            resolved_data_file = resolve_data_path(batter_config_class.DATA_FILE)
         
-        raw_df = pd.read_csv(data_file_path)
+        raw_df = pd.read_csv(resolved_data_file)
         raw_df = calculate_rate_stats(raw_df)
         player_names = generate_batter_names(raw_df)
         
@@ -962,6 +966,12 @@ Examples:
                             f'(default: {default_cutoff_year})')
     parser.add_argument('--use-pretrained', action='store_true',
                        help='Use pretrained model only (classical features) instead of finetuned model')
+    parser.add_argument('--use-ros-blending', action='store_true',
+                       help='Use ROS-blended history for Marcel prediction runs')
+    parser.add_argument('--batter-data-file', type=str, default=None,
+                       help='Override batter historical data file used for prediction generation')
+    parser.add_argument('--pitcher-data-file', type=str, default=None,
+                       help='Override pitcher historical data file used for prediction generation')
     parser.add_argument('--use-aging-enforcer', action='store_true',
                        help='Apply aging constraints to fielding predictions (prevents unrealistic late-career improvements)')
     parser.add_argument('--verbose', '-v', action='store_true',
@@ -983,6 +993,7 @@ Examples:
     logger.info(f"Cutoff year: {args.cutoff_year} (projections start from {args.cutoff_year + 1})")
     logger.info(f"Output directory: {output_dir}")
     logger.info(f"Using pretrained model: {args.use_pretrained}")
+    logger.info(f"Using ROS blending: {args.use_ros_blending}")
     logger.info(f"Using aging enforcer: {args.use_aging_enforcer}")
     
     # Load active roster IDs for recovery of missing players
@@ -997,7 +1008,8 @@ Examples:
                 output_file, 
                 use_pretrained=args.use_pretrained,
                 cutoff_year=args.cutoff_year,
-                roster_ids=roster_ids
+                roster_ids=roster_ids,
+                data_file_path=args.pitcher_data_file if args.use_ros_blending else None,
             )
             if result is None:
                 success = False
@@ -1008,7 +1020,8 @@ Examples:
                 output_file, 
                 use_pretrained=args.use_pretrained,
                 cutoff_year=args.cutoff_year,
-                roster_ids=roster_ids
+                roster_ids=roster_ids,
+                data_file_path=args.batter_data_file if args.use_ros_blending else None,
             )
             if result is None:
                 success = False

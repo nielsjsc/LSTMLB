@@ -131,11 +131,11 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
             </span>
           </div>
 
-          {/* Salary owed at time of trade */}
-          {player.contract_remaining != null && player.contract_remaining > 0 && (
+          {/* Salary earned with team */}
+          {player.salary_with_team != null && player.salary_with_team > 0 && (
             <div className="flex items-center gap-1.5 mt-1 text-[11px]">
-              <span className="text-gray-500">Salary Owed</span>
-              <span className="text-red-400/80 font-medium">{fmtSalary(player.contract_remaining)}</span>
+              <span className="text-gray-500">Salary with Team</span>
+              <span className="text-red-400/80 font-medium">{fmtSalary(player.salary_with_team)}</span>
             </div>
           )}
 

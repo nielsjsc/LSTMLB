@@ -12,12 +12,12 @@ comparison_tools/
 auto_train_models/milb_projections/
 /data/headshots/pixelated/
 # Models storage (large files)
-
+auto_train_models/daily_ros/
 
 # Virtual Environment
 venv/
 env/
-
+docs/
 # Environment files
 .env
 .env.local

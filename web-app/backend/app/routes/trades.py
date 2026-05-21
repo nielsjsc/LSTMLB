@@ -415,12 +415,13 @@ def _augment_with_historical_war(trades: List[Dict[str, Any]]) -> None:
     uses a limited crosswalk; the historical JSON has 12,999 MLBAM → IDfg
     mappings which covers most of them.
 
-    Also fixes departure_year and still_on_team which the offline pipeline
-    computes incorrectly for off-season trades.
+    IMPORTANT: This function ONLY fills missing data. It does NOT override
+    correctly calculated fields from the offline pipeline (trades.json).
 
     Modifies trades in-place.
     """
     from app.routes import historical as _hist_mod
+    from app.config import CURRENT_YEAR
 
     _hist_mod._load_historical()
     if not _hist_mod._mlbam_to_idfg or not _hist_mod._players:
@@ -428,8 +429,6 @@ def _augment_with_historical_war(trades: List[Dict[str, Any]]) -> None:
 
     mlbam_to_idfg = _hist_mod._mlbam_to_idfg
     players_db = _hist_mod._players
-
-    CURRENT_YEAR = 2025  # latest year with full historical data
 
     augmented = 0
     for trade in trades:
@@ -465,20 +464,13 @@ def _augment_with_historical_war(trades: List[Dict[str, Any]]) -> None:
                         war_by_year[yr] = war_by_year.get(yr, 0) + (season.get("war") or 0)
                         salary_by_year[yr] = salary_by_year.get(yr, 0) + int(season.get("salary") or 0)
 
-                # Always try to fix departure_year / still_on_team even if
-                # the player already had WAR data from the offline pipeline
+                # Check if player already has correct data from offline pipeline
                 has_existing_war = bool(player.get("yearly_war")) or abs(player.get("war_with_team", 0)) > 0.01
+                has_existing_seasons = (player.get("seasons_with_team", 0) or 0) > 0
 
                 if war_by_year:
-                    max_year = max(war_by_year.keys())
-                    still_on = max_year >= CURRENT_YEAR
-                    departure = None if still_on else max_year + 1
-
-                    # Update departure_year and still_on_team regardless
-                    player["still_on_team"] = still_on
-                    player["departure_year"] = departure
-
                     if not has_existing_war:
+                        # Only fill if data was missing
                         # Build yearly_war list sorted by year
                         yearly = sorted(
                             [{"year": yr, "war": round(w, 1)} for yr, w in war_by_year.items()],
@@ -503,9 +495,10 @@ def _augment_with_historical_war(trades: List[Dict[str, Any]]) -> None:
                         augmented += 1
                         sides_changed = True
                     else:
-                        # Even if WAR was already correct, check if side totals
-                        # need recalculation (departure fix can change display)
-                        sides_changed = True
+                        # Player has correct war_with_team from offline pipeline
+                        # Only need to check and fix still_on_team/departure_year if needed
+                        # NEVER override seasons_with_team if it's already set
+                        sides_changed = False
 
         if sides_changed:
             # Recalculate side totals
