@@ -88,11 +88,6 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
             {player.prospect_level}
           </span>
         )}
-        {player.still_on_team && !isPureProspect && (
-          <span className="text-[10px] px-1 py-px rounded bg-emerald-500/10 text-emerald-400/80 flex-shrink-0">
-            Active
-          </span>
-        )}
         {noData && (
           <span className="text-[10px] px-1.5 py-px rounded bg-white text-gray-400 italic flex-shrink-0">
             No Data
