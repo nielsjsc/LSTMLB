@@ -471,12 +471,14 @@ def _augment_with_historical_war(trades: List[Dict[str, Any]]) -> None:
                 if war_by_year:
                     if not has_existing_war:
                         # Only fill if data was missing
-                        # Build yearly_war list sorted by year
+                        # Build yearly_war list sorted by year with each year rounded to 1 decimal
                         yearly = sorted(
                             [{"year": yr, "war": round(w, 1)} for yr, w in war_by_year.items()],
                             key=lambda x: x["year"],
                         )
-                        total_war = round(sum(w for w in war_by_year.values()), 1)
+                        # Calculate total from rounded yearly values (not raw values)
+                        # This ensures war_with_team matches sum of yearly_war display
+                        total_war = round(sum(yw["war"] for yw in yearly), 1)
                         total_salary = sum(salary_by_year.values())
 
                         player["war_with_team"] = total_war

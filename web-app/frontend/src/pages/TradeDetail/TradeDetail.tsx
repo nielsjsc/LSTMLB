@@ -15,6 +15,8 @@ const fmtSalary = (n: number) => {
   return `$${n}`;
 };
 
+const fmtWar = (n: number) => Number(n ?? 0).toFixed(1);
+
 /**
  * Parse which team received "cash" in a trade.
  */
@@ -54,8 +56,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
     return true;
   });
 
-  const actualYearClass = (war: number) =>
-    'bg-gray-300/20 text-gray-800 border border-gray-400/30';
+  const actualYearClass = 'bg-gray-300/20 text-gray-800 border border-gray-400/30';
 
   return (
     <div className="py-3 border-b border-gray-100 last:border-b-0">
@@ -114,7 +115,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
           <div className="flex items-center gap-4 text-[11px] text-gray-500">
             <span>
               <span className="text-gray-500">WAR</span>{' '}
-              <span className="text-gray-800 font-medium">{player.war_with_team}</span>
+              <span className="text-gray-800 font-medium">{fmtWar(player.war_with_team)}</span>
             </span>
             <span>
               <span className="text-gray-500">Seasons</span>{' '}
@@ -137,7 +138,7 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
               {actualYears.map((yw) => (
                 <span
                   key={yw.year}
-                  className={`text-[10px] px-1.5 py-0.5 rounded font-mono tabular-nums ${actualYearClass(yw.war)}`}
+                  className={`text-[10px] px-1.5 py-0.5 rounded font-mono tabular-nums ${actualYearClass}`}
                 >
                   {yw.year}: {yw.war > 0 ? '+' : ''}{yw.war}
                 </span>
@@ -175,11 +176,9 @@ function PlayerCard({ player }: { player: TradePlayerDetail }) {
 
 function SidePanel({
   side,
-  isWinner,
   receivedCash,
 }: {
   side: TradeSideDetail;
-  isWinner: boolean;
   receivedCash: boolean;
 }) {
   return (
@@ -195,7 +194,7 @@ function SidePanel({
       <div className="flex items-center gap-5 mb-3 text-[11px]">
         <div>
           <span className="text-gray-500">Total WAR</span>
-          <div className="text-lg font-bold text-gray-900 leading-tight">{side.total_war}</div>
+          <div className="text-lg font-bold text-gray-900 leading-tight">{fmtWar(side.total_war)}</div>
         </div>
       </div>
 
@@ -324,7 +323,7 @@ export default function TradeDetail() {
           </div>
           <div className="text-right">
             <div className="text-[10px] text-gray-400 uppercase tracking-wider">Total WAR</div>
-            <div className="text-base font-bold text-gray-900 tabular-nums">{trade.total_trade_war}</div>
+            <div className="text-base font-bold text-gray-900 tabular-nums">{fmtWar(trade.total_trade_war)}</div>
           </div>
         </div>
       </div>
@@ -338,7 +337,6 @@ export default function TradeDetail() {
             )}
             <SidePanel
               side={side}
-              isWinner={side.team === trade.winner}
               receivedCash={cashReceiver === side.team}
             />
           </div>

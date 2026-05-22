@@ -11,6 +11,8 @@ const fmtDate = (d: string) => {
   return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+const fmtWar = (n: number | null | undefined) => (n == null ? '—' : Number(n).toFixed(1));
+
 const MLB_TEAMS = [
   'ARI','ATL','BAL','BOS','CHC','CHW','CIN','CLE','COL','DET',
   'HOU','KCR','LAA','LAD','MIA','MIL','MIN','NYM','NYY','OAK',
@@ -88,11 +90,11 @@ function TradeRow({ trade, onClick }: { trade: PastTradeSummary; onClick: () => 
         {/* WAR per side */}
         <td className="px-3 py-2.5 text-[12px] tabular-nums whitespace-nowrap text-right">
           <span className={sides[0] && sides[0].total_war >= (sides[1]?.total_war ?? 0) ? 'text-gray-800 font-medium' : 'text-gray-500'}>
-            {sides[0]?.total_war ?? '—'}
+            {fmtWar(sides[0]?.total_war)}
           </span>
           <span className="text-gray-400 mx-1">/</span>
           <span className={sides[1] && sides[1].total_war >= (sides[0]?.total_war ?? 0) ? 'text-gray-800 font-medium' : 'text-gray-500'}>
-            {sides[1]?.total_war ?? '—'}
+            {fmtWar(sides[1]?.total_war)}
           </span>
         </td>
       </tr>

@@ -17,6 +17,8 @@ const fmtMoney = (n: number) => {
   return `${sign}$${abs}`;
 };
 
+const fmtWar = (n: number) => Number(n ?? 0).toFixed(1);
+
 // ── Trade card (compact, for player page) ───────────────────────────────────
 
 function PlayerTradeCard({
@@ -109,7 +111,7 @@ function PlayerTradeCard({
                       {p.name}
                     </span>
                     {pWar > 0 && (
-                      <span className="text-gray-500">{pWar} WAR{isProjected ? ' (proj.)' : ''}</span>
+                      <span className="text-gray-500">{fmtWar(pWar)} WAR{isProjected ? ' (proj.)' : ''}</span>
                     )}
                   </div>
                 );
@@ -155,7 +157,7 @@ function PlayerTradeCard({
             {isProjected ? (
               <>
                 <span className="text-gray-500">Proj. WAR:</span>
-                <span className="text-gray-800 font-semibold">{playerData.projected_war ?? 0}</span>
+                <span className="text-gray-800 font-semibold">{fmtWar(playerData.projected_war ?? 0)}</span>
                 <span className="text-gray-500">|</span>
                 <span className="text-gray-500">Proj. Surplus:</span>
                 <span className={(playerData.projected_surplus ?? 0) >= 0 ? 'text-blue-400' : 'text-red-400'}>
@@ -165,7 +167,7 @@ function PlayerTradeCard({
             ) : (
               <>
                 <span className="text-gray-500">Your WAR:</span>
-                <span className="text-gray-800 font-semibold">{playerData.war_with_team}</span>
+                <span className="text-gray-800 font-semibold">{fmtWar(playerData.war_with_team)}</span>
                 <span className="text-gray-500">|</span>
                 <span className="text-gray-500">Salary:</span>
                 <span className="text-gray-800">{fmtMoney(playerData.salary_with_team)}</span>

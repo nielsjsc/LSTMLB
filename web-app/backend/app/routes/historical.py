@@ -129,41 +129,24 @@ def _load_historical():
     endpoint at runtime.
     """
     global _hist_data, _players, _mlbam_to_idfg, _name_index
+    # Historical JSON cache is deprecated. Do not load the large precomputed
+    # JSON file — it causes stale/duplicated projection data to leak into the
+    # augmentation pipeline. The ingestion pipeline should use the raw
+    # `data/historic_mlb/mlb_*_*.csv` files instead.
 
     if _hist_data is not None:
         return
 
-    if not _HIST_FILE.exists():
-        logger.warning(f"Historical players file not found: {_HIST_FILE}")
-        _hist_data = {}
-        return
+    logger.warning("_HIST_FILE deprecated — skipping load of historical_players.json and using raw CSVs instead")
 
-    t0 = time.time()
-    with open(_HIST_FILE, "r") as f:
-        _hist_data = json.load(f)
-
-    _players = _hist_data.get("players", {})
-    _mlbam_to_idfg = _hist_data.get("mlbam_to_idfg", {})
-
+    # Initialize empty in-memory structures so callers that expect these
+    # globals won't crash. Consumers should read per-season batting/pitching
+    # CSVs directly (data/historic_mlb/*.csv).
+    _hist_data = {}
+    _players = {}
+    _mlbam_to_idfg = {}
     _name_index.clear()
-    for idfg_str, p in _players.items():
-        _name_index.append({
-            "idfg": p["idfg"],
-            "mlbam": p.get("mlbam"),
-            "name": p["name"],
-            "name_lower": p["name"].lower(),
-            "teams": p.get("teams", []),
-            "first_year": p.get("first_year"),
-            "last_year": p.get("last_year"),
-            "career_war": p.get("career_war", 0),
-            "is_pitcher": p.get("is_pitcher", False),
-        })
-    _name_index.sort(key=lambda x: x["career_war"], reverse=True)
-
-    elapsed = time.time() - t0
-    logger.info(
-        f"Loaded historical players (for ingestion): {len(_players)} players ({elapsed:.1f}s)"
-    )
+    return
 
 
 # ═══════════════════════════════════════════════════════════════════════════
