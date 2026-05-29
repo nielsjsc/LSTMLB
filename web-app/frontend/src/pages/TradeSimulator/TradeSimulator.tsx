@@ -6,7 +6,7 @@ import {
   TradeAnalysis 
 } from '../../services/api';
 import { useTradeAssets } from '../../hooks/useApi';
-import { teamDivisions, sortTeamsByDivision } from '../../config/teams';
+import { teamDivisions } from '../../config/teams';
 import { getTeamColors } from '../../utils/teamColors';
 import TeamPlayerList from './components/PlayerSelector/TeamPlayerList';
 import ValueDisplay from './components/TradeBreakdown/ValueDisplay';
@@ -174,7 +174,7 @@ const TradeAnalyzer = () => {
           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2394a3b8'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '20px' }}
         >
           <option value="" className="bg-white text-gray-500">Select {label}...</option>
-          {sortTeamsByDivision(Object.keys(teamDivisions).filter(t => t !== otherTeam)).map((t) => (
+          {Object.keys(teamDivisions).filter(t => t !== otherTeam).sort().map((t) => (
             <option key={t} value={t} className="bg-white text-gray-800">
               {t.toUpperCase()} — {teamDivisions[t].name}
             </option>
