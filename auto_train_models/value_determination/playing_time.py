@@ -330,18 +330,23 @@ def _estimate_ip_ceiling(
             total_w = sum(weights)
             weights = [w / total_w for w in weights]
             ip_per_gs = sum(r * w for r, w in zip(rates, weights))
-            # Regress 5% toward league average (small-sample stabilisation)
-            ip_per_gs = ip_per_gs * 0.95 + LG_IP_PER_GS * 0.05
+            # Regress toward league average based on sample size (years of data).
+            # Young pitchers (1-2 seasons) get heavy regression; veterans get light.
+            num_seasons = len(rates)
+            if num_seasons == 1:
+                regression_to_league = 0.75  # 75% to LG, 25% to pitcher
+            elif num_seasons == 2:
+                regression_to_league = 0.40  # 40% to LG, 60% to pitcher
+            else:  # 3+ seasons
+                regression_to_league = 0.05  # 5% to LG, 95% to pitcher
+            ip_per_gs = ip_per_gs * (1.0 - regression_to_league) + LG_IP_PER_GS * regression_to_league
 
-        # Cap projected starts based on proven workload.
-        # A pitcher who has never made more than 16 MLB starts shouldn't
-        # be projected for 32.  Allow career_max_GS + STARTS_ESCALATION.
-        max_career_gs = int(pitcher["GS"].max()) if not pitcher.empty else 0
-        projected_starts = min(FULL_SEASON_STARTS_SP,
-                               max_career_gs + STARTS_ESCALATION)
+        # Healthy SP projection: 32 starts (full season)
+        # Injury discount applied separately in Step 2
+        projected_starts = FULL_SEASON_STARTS_SP  # 32
 
         ceiling = ip_per_gs * projected_starts
-        ceiling = float(np.clip(ceiling, 80.0, 220.0))
+        ceiling = float(np.clip(ceiling, DEFAULT_SP_CEILING, 220.0))
 
 
     else:  # RP
@@ -367,8 +372,16 @@ def _estimate_ip_ceiling(
             total_w = sum(weights)
             weights = [w / total_w for w in weights]
             ip_per_g = sum(r * w for r, w in zip(rates, weights))
-            # Regress 5% toward league average
-            ip_per_g = ip_per_g * 0.95 + LG_IP_PER_G_RP * 0.05
+            # Regress toward league average based on sample size (years of data).
+            # Young pitchers (1-2 seasons) get heavier regression.
+            num_seasons = len(rates)
+            if num_seasons == 1:
+                regression_to_league = 0.50  # 50% to LG for thin data
+            elif num_seasons == 2:
+                regression_to_league = 0.25  # 25% to LG
+            else:  # 3+
+                regression_to_league = 0.05  # 5% to LG
+            ip_per_g = ip_per_g * (1.0 - regression_to_league) + LG_IP_PER_G_RP * regression_to_league
 
         # RP IP/G declines with age (from analysis: 1.45@22 → 1.0@38)
         if age > 28:
@@ -376,7 +389,7 @@ def _estimate_ip_ceiling(
             ip_per_g *= age_adj
 
         ceiling = ip_per_g * FULL_SEASON_APPEARANCES_RP
-        ceiling = float(np.clip(ceiling, 25.0, 90.0))
+        ceiling = float(np.clip(ceiling, DEFAULT_RP_CEILING, 90.0))
 
     return ceiling
 

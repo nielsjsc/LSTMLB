@@ -27,6 +27,7 @@ from .config import Config, logger
 # Canonical name normalization — single source of truth
 from core.name_utils import (
     normalize_name,
+    strip_middle_initials,
     _SUFFIX_RE as _SUFFIXES,
 )
 
@@ -304,7 +305,10 @@ def create_player_reference(sp_df: pd.DataFrame,
         batter_df[['Name', 'IDfg', 'position_group', 'Year']]
     ])
     
-    player_ref['Name_Normalized'] = player_ref['Name'].apply(normalize_name)
+    # Normalize names, stripping both accents and middle initials for matching consistency
+    player_ref['Name_Normalized'] = player_ref['Name'].apply(
+        lambda x: strip_middle_initials(normalize_name(x))
+    )
     return player_ref
 
 
@@ -331,8 +335,10 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
     salary_df = salary_df.copy()
     player_ref = player_ref.copy()
     
-    # Normalize salary data names
-    salary_df['Name_Normalized'] = salary_df['Player Name'].apply(normalize_name)
+    # Normalize salary data names, stripping both accents and middle initials for matching consistency
+    salary_df['Name_Normalized'] = salary_df['Player Name'].apply(
+        lambda x: strip_middle_initials(normalize_name(x))
+    )
 
     # Fix Luis Garcia names - normalize team abbreviations
     # Two different players share this name: IDfg 23735 (HOU pitcher, now NYM) and Luis Garcia Jr. (WSH batter).
@@ -418,19 +424,27 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
                     fgid = int(float(fgid))
                 except (ValueError, TypeError):
                     continue
-                # Add mapped_name variant
+                # Add mapped_name variant with and without middle initials
                 mapped = row.get('mapped_name')
                 if pd.notna(mapped):
-                    roster_lookups[normalize_name(mapped)] = (fgid, str(mapped))
-                # Add player_name variant
+                    normalized_mapped = normalize_name(mapped)
+                    roster_lookups[normalized_mapped] = (fgid, str(mapped))
+                    roster_lookups[strip_middle_initials(normalized_mapped)] = (fgid, str(mapped))
+                # Add player_name variant with and without middle initials
                 pname = row.get('player_name')
                 if pd.notna(pname):
-                    roster_lookups[normalize_name(pname)] = (fgid, str(pname))
-                # Add suffix-stripped variants of both
+                    normalized_pname = normalize_name(pname)
+                    roster_lookups[normalized_pname] = (fgid, str(pname))
+                    roster_lookups[strip_middle_initials(normalized_pname)] = (fgid, str(pname))
+                # Add suffix-stripped variants of both (these also get middle initials stripped)
                 if pd.notna(mapped):
-                    roster_lookups[normalize_name_no_suffix(mapped)] = (fgid, str(mapped))
+                    normalized_no_suffix = normalize_name_no_suffix(mapped)
+                    roster_lookups[normalized_no_suffix] = (fgid, str(mapped))
+                    roster_lookups[strip_middle_initials(normalized_no_suffix)] = (fgid, str(mapped))
                 if pd.notna(pname):
-                    roster_lookups[normalize_name_no_suffix(pname)] = (fgid, str(pname))
+                    normalized_no_suffix = normalize_name_no_suffix(pname)
+                    roster_lookups[normalized_no_suffix] = (fgid, str(pname))
+                    roster_lookups[strip_middle_initials(normalized_no_suffix)] = (fgid, str(pname))
             
             # Also build a prediction lookup: IDfg -> (position_group, Name)
             pred_lookup = player_ref[['IDfg', 'position_group', 'Name']].drop_duplicates('IDfg')
@@ -442,9 +456,14 @@ def merge_salary_with_ids(salary_df: pd.DataFrame,
             
             for idx in merged_df[still_missing].index:
                 name_norm = merged_df.loc[idx, 'Name_Normalized']
-                # Try exact roster match first, then suffix-stripped match
+                # Try increasingly aggressive matching: exact, suffix-stripped, suffix-stripped + no-suffix
                 fgid_match = None
-                for try_name in [name_norm, _SUFFIXES.sub('', name_norm).strip() if name_norm else None]:
+                for try_name in [
+                    name_norm,
+                    strip_middle_initials(name_norm) if name_norm else None,
+                    _SUFFIXES.sub('', name_norm).strip() if name_norm else None,
+                    strip_middle_initials(_SUFFIXES.sub('', name_norm).strip()) if name_norm else None,
+                ]:
                     if try_name and try_name in roster_lookups:
                         fgid_match = roster_lookups[try_name]
                         break

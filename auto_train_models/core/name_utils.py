@@ -125,6 +125,30 @@ def normalize_name(name: str) -> str:
     return s
 
 
+def strip_middle_initials(name: str) -> str:
+    """Remove middle initials from a normalized name.
+
+    Single letters between names are considered middle initials and are removed.
+    This handles cases where salary data has "JOHN SMITH" but predictions have
+    "JOHN A SMITH" from FanGraphs.
+
+    Args
+    ----
+    name : str
+        Normalized name (typically output of ``normalize_name``), e.g. ``"JOHN A SMITH"``
+
+    Returns
+    -------
+    str  Name without middle initials, e.g. ``"JOHN SMITH"``
+    """
+    if pd.isna(name):
+        return name
+    # Remove single letters (middle initials) that are surrounded by spaces
+    # e.g., "JOSE A FERRER" → "JOSE FERRER"
+    parts = str(name).split()
+    return " ".join(p for p in parts if len(p) > 1)
+
+
 def name_key(name: str) -> str:
     """Aggressive name key for cross-source matching.
 
