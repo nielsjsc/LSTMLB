@@ -37,7 +37,7 @@ const TradeValues = () => {
             <select
               value={team || ''}
               onChange={(e) => setTeam(e.target.value || undefined)}
-              className="bg-white border border-gray-200 rounded px-3 py-2 text-gray-600 focus:ring-2 focus:ring-brand-500/25 focus:border-brand-300"
+              className="bg-white border border-gray-200 rounded px-3 py-2.5 text-sm text-gray-600 focus:ring-2 focus:ring-brand-500/25 focus:border-brand-300 min-h-10"
             >
               <option value="" className="bg-white">All Teams</option>
               {teams.map(t => (

@@ -62,7 +62,7 @@ const ProjectionsPage = () => {
             <select 
               value={year} 
               onChange={(e) => setYear(Number(e.target.value))}
-              className="bg-white border border-gray-200 rounded px-3 py-2 text-gray-600 focus:ring-2 focus:ring-brand-500/25 focus:border-brand-300"
+              className="bg-white border border-gray-200 rounded px-3 py-2.5 text-sm text-gray-600 focus:ring-2 focus:ring-brand-500/25 focus:border-brand-300 min-h-10"
             >
               {years.map(year => (
                 <option key={year} value={year} className="bg-white">{year}</option>
@@ -77,7 +77,7 @@ const ProjectionsPage = () => {
                 setSortBy('war_bat');  // Set default sort for hitters
                 setSortDirection('desc');
               }}
-              className={`px-3 py-2 rounded text-sm font-medium ${
+              className={`px-3 py-2.5 min-h-10 min-w-10 rounded text-sm font-medium ${
                 playerType === 'hitter'
                   ? 'bg-brand-500 text-white'
                   : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
@@ -92,7 +92,7 @@ const ProjectionsPage = () => {
                 setSortBy('war_pit');  // Set default sort for pitchers
                 setSortDirection('desc');
               }}
-              className={`px-3 py-2 rounded text-sm font-medium ${
+              className={`px-3 py-2.5 min-h-10 min-w-10 rounded text-sm font-medium ${
                 playerType === 'pitcher'
                   ? 'bg-brand-500 text-white'
                   : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
@@ -106,7 +106,7 @@ const ProjectionsPage = () => {
               <div className="flex space-x-2">
                 <button
                   onClick={() => setProjectionType('ros')}
-                  className={`px-3 py-2 rounded text-sm font-medium ${
+                  className={`px-3 py-2.5 min-h-10 min-w-10 rounded text-sm font-medium ${
                     projectionType === 'ros'
                       ? 'bg-brand-500 text-white'
                       : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
@@ -116,7 +116,7 @@ const ProjectionsPage = () => {
                 </button>
                 <button
                   onClick={() => setProjectionType('preseason')}
-                  className={`px-3 py-2 rounded text-sm font-medium ${
+                  className={`px-3 py-2.5 min-h-10 min-w-10 rounded text-sm font-medium ${
                     projectionType === 'preseason'
                       ? 'bg-brand-500 text-white'
                       : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
@@ -125,12 +125,12 @@ const ProjectionsPage = () => {
                   Preseason
                 </button>
               </div>
-            )}
+            )}}
   
             <select
               value={team || ''}
               onChange={(e) => setTeam(e.target.value || undefined)}
-              className="bg-white border border-gray-200 rounded px-3 py-2 text-gray-600 focus:ring-2 focus:ring-brand-500/25 focus:border-brand-300"
+              className="bg-white border border-gray-200 rounded px-3 py-2.5 text-sm text-gray-600 focus:ring-2 focus:ring-brand-500/25 focus:border-brand-300 min-h-10"
             >
               <option value="" className="bg-white">All Teams</option>
               {teams.map(team => (
@@ -141,7 +141,7 @@ const ProjectionsPage = () => {
             <select
               value={position || ''}
               onChange={(e) => setPosition(e.target.value || undefined)}
-              className="bg-white border border-gray-200 rounded px-3 py-2 text-gray-600 focus:ring-2 focus:ring-brand-500/25 focus:border-brand-300"
+              className="bg-white border border-gray-200 rounded px-3 py-2.5 text-sm text-gray-600 focus:ring-2 focus:ring-brand-500/25 focus:border-brand-300 min-h-10"
             >
               <option value="" className="bg-white">All Positions</option>
               {(playerType === 'hitter' ? hitterPositions : pitcherPositions).map(pos => (

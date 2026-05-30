@@ -151,7 +151,7 @@ const TradeAnalyzer = () => {
             </div>
             <button
               onClick={() => handleTeamRemove(team)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 opacity-0 group-hover:opacity-100"
+              className="min-h-10 min-w-10 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
               title="Remove team"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -167,7 +167,7 @@ const TradeAnalyzer = () => {
       <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-1">
         <select
           onChange={(e) => handleTeamAdd(e.target.value)}
-          className="w-full bg-transparent rounded-lg px-4 py-4 text-gray-500 text-sm font-medium
+          className="w-full bg-transparent rounded-lg px-4 py-3 text-gray-500 text-sm font-medium min-h-10
             focus:ring-2 focus:ring-brand-500/30 focus:border-brand-200 transition-all duration-200 cursor-pointer
             appearance-none"
           value=""
@@ -224,7 +224,7 @@ const TradeAnalyzer = () => {
             )}
 
             {/* Team Selection Row */}
-            <div className="grid md:grid-cols-[1fr,auto,1fr] gap-4 items-center mb-8">
+            <div className="grid md:grid-cols-[1fr,auto,1fr] gap-4 items-stretch md:items-center mb-8">
               <TeamSelector side="A" team={trade.teamA} otherTeam={trade.teamB} />
               
               {/* VS Divider */}
