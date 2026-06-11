@@ -201,5 +201,6 @@ const TradeValuesTable: React.FC<TradeValuesTableProps> = ({
       </div>
     </div>
   );
+};
 
 export default TradeValuesTable;
