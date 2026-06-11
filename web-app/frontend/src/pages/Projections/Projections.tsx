@@ -125,7 +125,7 @@ const ProjectionsPage = () => {
                   Preseason
                 </button>
               </div>
-            )}}
+            )}
   
             <select
               value={team || ''}
