@@ -2,29 +2,56 @@
 ROS (Rest-of-Season) Projection Blending
 =========================================
 
-Moved from ``daily_ros/ros_projections.py`` to
-``value_determination/pipelines/ros.py``.
+Blends pre-season Marcel projections with actual current-season performance
+using Marcel-consistent weighting on *base components* (not derived stats).
 
-Blends pre-season predictions with actual current-season performance
-using Bayesian shrinkage on *base components* (not derived stats).
+Blending Philosophy
+-------------------
+Pre-season Marcel projects Year N using a 3/4/5-weighted average of years
+N-3, N-2, N-1 (total weight = 12).  Once the current season begins, the
+partial year N sample should earn weight proportional to its completeness
+within that same 12-unit Marcel framework:
 
-Architecture:
-    Batters  — blend 8 base components (K%, BB%, HBP%, ISO, BABIP, HR/FB,
-               GB%, LD%), then recompose AVG/SLG/OBP/wOBA/wRC+ via
-               ``stat_composition.compose_from_df``.
-    Pitchers — blend 8 base components (K%, BB%, HBP%, BABIP, HR/FB, GB%,
-               FB%, LD%), then reconstruct FIP/ERA/SIERA/K-rates.
-    Fielding — blend preseason sc_total_runs/150 with actual Fld runs.
-    Baserunning — blend preseason BsR projections with actual BsR.
+    current_season_weight = 5 × (actual_volume / full_season_volume)
+    historical_weight     = 12 − current_season_weight
 
-Park factors:
-    Actual stats contain park effects; preseason predictions are park-neutral.
-    Before blending, we neutralize actual rate stats so both sides are
-    park-neutral.  Park factors are reapplied downstream in WAR calculation.
+    blend_w   = current_season_weight / 12        # 0 → 5/12 over the season
+    prior_w   = historical_weight     / 12        # 12/12 → 7/12 over the season
 
-Data source:
-    Uses ``_with_statcast`` CSV variants for richer data (xwOBA, sprint speed,
-    barrel rate, Statcast fielding/baserunning columns).
+    blended = blend_w × actual + prior_w × preseason_projection
+
+This preserves the 5:4:3 ratio among the three prior seasons (they are all
+embedded in the preseason projection and shrink together as current-season
+data accumulates).  At a full season of PA/IP the current year earns exactly
+the Marcel weight-5 slot.  At the start of the season it contributes nothing
+and the preseason projection is used unchanged.
+
+Key consequence: by September, the blend is roughly 40% current season /
+60% prior three seasons — not 60% current season as the old Bayesian
+shrinkage formula produced.
+
+Architecture
+------------
+Batters  — blend 8 base components (K%, BB%, HBP%, ISO, BABIP, HR/FB,
+           GB%, LD%), then recompose AVG/SLG/OBP/wOBA/wRC+ via
+           ``stat_composition.compose_from_df``.
+Pitchers — blend 8 base components (K%, BB%, HBP%, BABIP, HR/FB, GB%,
+           FB%, LD%), then reconstruct FIP/ERA/SIERA/K-rates.
+Fielding — blend preseason sc_total_runs/150 with actual Fld runs using
+           Marcel regression-consistent weighting.
+Baserunning — blend preseason BsR with actual BsR using Marcel regression-
+           consistent weighting.
+
+Park factors
+------------
+Actual stats contain park effects; preseason predictions are park-neutral.
+Before blending, actual rate stats are neutralized so both sides are in the
+same space.  Park factors are reapplied downstream in WAR calculation.
+
+Data source
+-----------
+Uses ``_with_statcast`` CSV variants for richer data (xwOBA, sprint speed,
+barrel rate, Statcast fielding/baserunning columns).
 """
 
 import pandas as pd
@@ -47,42 +74,73 @@ from core.marcel_projections import (
     BATTER_MULTIVARIATE_EQUATIONS,
     PITCHER_SP_MULTIVARIATE_EQUATIONS,
     PITCHER_RP_MULTIVARIATE_EQUATIONS,
+    SEASON_WEIGHTS,           # [5, 4, 3]
+    FIELDING_REGRESSION_INNINGS,
+    BASERUNNING_REGRESSION_GAMES,
 )
 from configs.batter_config import BatterConfig
 from configs.pitcher_sp_config import PitcherSPConfig
 
 # =============================================================================
-# Shrinkage parameters
+# Marcel weighting constants
 # =============================================================================
-BATTER_PRIOR_PA = 400    # PA for pre-season prior to equal actual weight
-PITCHER_PRIOR_IP = 80    # IP for pre-season prior to equal actual weight
 
-# Fielding/baserunning priors (in games — ~half season for equal weight)
-FIELDING_PRIOR_G = 80
-BASERUNNING_PRIOR_PA = 400
+# Total Marcel weight across all three prior seasons (5 + 4 + 3)
+MARCEL_TOTAL_WEIGHT = float(sum(SEASON_WEIGHTS))   # 12.0
 
-# Full-season baselines (for remaining-fraction calculation)
-FULL_SEASON_PA = 650
-FULL_SEASON_SP_IP = Config.WAR.DEFAULT_SP_IP   # 180
-FULL_SEASON_RP_IP = Config.WAR.DEFAULT_RP_IP   # 70
+# The weight a *full* current season earns in the Marcel framework.
+# A complete season becomes the new Y-1 and gets weight 5.
+MARCEL_CURRENT_FULL_WEIGHT = float(SEASON_WEIGHTS[0])   # 5.0
+
+# Full-season volume baselines (denominators for current-season weight)
+FULL_SEASON_PA    = 650
+FULL_SEASON_SP_IP = Config.WAR.DEFAULT_SP_IP    # 180
+FULL_SEASON_RP_IP = Config.WAR.DEFAULT_RP_IP    # 70
+
+# Minimum volume before we blend at all (too noisy below these thresholds)
+MIN_BATTER_PA  = 30     # ~10 games
+MIN_PITCHER_IP = 10     # ~3 starts / ~8 relief appearances
+MIN_FIELDING_G = 10
+MIN_BASERUNNING_PA = 30
+
 TOTAL_SEASON_GAMES = 162
 
 MLB_API_BASE = 'https://statsapi.mlb.com/api/v1'
 
 
+def _marcel_blend_weight(actual_volume: float, full_season_volume: float) -> float:
+    """Return the Marcel-consistent blend weight for the current season.
+
+    Scales linearly from 0 (no data) to MARCEL_CURRENT_FULL_WEIGHT / MARCEL_TOTAL_WEIGHT
+    (full season), keeping the prior-seasons share at the complementary fraction.
+
+    Args:
+        actual_volume:      Current season PA, IP, or games accumulated so far.
+        full_season_volume: Full-season baseline (650 PA, 180 IP, etc.)
+
+    Returns:
+        w in [0, MARCEL_CURRENT_FULL_WEIGHT / MARCEL_TOTAL_WEIGHT]
+        Blend formula: blended = w * actual + (1 - w) * preseason_projection
+    """
+    season_fraction = np.clip(actual_volume / full_season_volume, 0.0, 1.0)
+    current_weight  = MARCEL_CURRENT_FULL_WEIGHT * season_fraction
+    return current_weight / MARCEL_TOTAL_WEIGHT
+
+
 # =============================================================================
-# Team games played (for ROS remaining-fraction)
+# Team games played  (for ROS remaining-fraction)
 # =============================================================================
 
 def fetch_team_games_played(season: int = None) -> dict:
-    """Fetch games played per team from MLB Stats API standings.
+    """Fetch games played per team from the MLB Stats API standings endpoint.
 
-    Uses the team_info.csv from the roster scraper to map MLB team IDs
-    to the abbreviations used throughout the pipeline.
+    Uses team_info.csv from the roster scraper to map MLB team IDs to the
+    FanGraphs-style abbreviations used throughout the pipeline.
 
     Returns:
         Dict mapping team abbreviation (e.g. 'NYY') → games_played (int).
-        Returns empty dict on failure (callers fall back to PA/IP-based).
+        Returns empty dict on failure; callers fall back to PA/IP-based
+        remaining-fraction.
     """
     if season is None:
         season = CURRENT_YEAR
@@ -96,39 +154,36 @@ def fetch_team_games_played(season: int = None) -> dict:
         resp.raise_for_status()
         data = resp.json()
 
-        # team_id → games_played
         id_to_gp = {}
         for rec in data.get('records', []):
             for t in rec.get('teamRecords', []):
                 tid = t.get('team', {}).get('id')
-                gp = t.get('gamesPlayed', 0)
+                gp  = t.get('gamesPlayed', 0)
                 if tid is not None:
                     id_to_gp[tid] = gp
 
-        # Map team_id → abbreviation via team_info.csv
         team_info_path = Config.Paths.DATA_DIR / 'active_roster' / 'team_info.csv'
         if not team_info_path.exists():
             logger.warning(f"team_info.csv not found at {team_info_path}")
             return {}
 
-        team_info = pd.read_csv(team_info_path)
+        team_info  = pd.read_csv(team_info_path)
         abbrev_map = dict(zip(team_info['team_id'], team_info['abbreviation']))
 
-        # Also build full-name → abbreviation for FanGraphs-style team codes
         result = {}
         for tid, gp in id_to_gp.items():
             abbrev = abbrev_map.get(tid)
             if abbrev:
                 result[abbrev] = gp
 
-        # Add common FanGraphs abbreviation aliases
+        # FanGraphs ↔ MLB Stats API abbreviation aliases
         fg_aliases = {
             'CWS': 'CHW', 'CHW': 'CWS',
-            'AZ': 'ARI', 'ARI': 'AZ',
-            'SDP': 'SD', 'SD': 'SDP',
-            'SFG': 'SF', 'SF': 'SFG',
-            'TBR': 'TB', 'TB': 'TBR',
-            'KCR': 'KC', 'KC': 'KCR',
+            'AZ':  'ARI', 'ARI': 'AZ',
+            'SDP': 'SD',  'SD':  'SDP',
+            'SFG': 'SF',  'SF':  'SFG',
+            'TBR': 'TB',  'TB':  'TBR',
+            'KCR': 'KC',  'KC':  'KCR',
             'WSN': 'WSH', 'WSH': 'WSN',
         }
         for existing, alias in fg_aliases.items():
@@ -137,23 +192,35 @@ def fetch_team_games_played(season: int = None) -> dict:
 
         logger.info(
             f"Fetched team games played for {len(result)} teams "
-            f"(season={season}, range={min(result.values())}-{max(result.values())} GP)"
+            f"(season={season}, range={min(result.values())}–{max(result.values())} GP)"
         )
         return result
 
     except Exception as e:
-        logger.warning(f"Failed to fetch team games played: {e} — will fall back to PA/IP-based remaining")
+        logger.warning(
+            f"Failed to fetch team games played: {e} — "
+            "will fall back to PA/IP-based remaining"
+        )
         return {}
 
-# =============================================================================
-# Stats that get park-neutralized before blending
-# =============================================================================
-# Batter components affected by park: ISO, BABIP (excluded by park_factors),
-# plus derived rate stats.  K%, BB%, HBP%, HR/FB, GB%, LD% are pitcher/batter
-# matchup dependent, not park-dependent, so they stay un-adjusted.
-BATTER_PARK_ADJUSTABLE = ['ISO']  # BABIP excluded by park_factors module
-PITCHER_PARK_ADJUSTABLE = []       # pitcher rates are all sequencing/skill — not park-adjusted
 
+def _team_remaining_fraction(team_abbrev: str, team_games_map: dict) -> float:
+    """Return the fraction of the season remaining for a team.
+
+    Returns (162 − games_played) / 162.  Falls back to 1.0 if the team
+    is not in the map.
+    """
+    if not team_games_map or not team_abbrev:
+        return 1.0
+    gp = team_games_map.get(team_abbrev)
+    if gp is None:
+        return 1.0
+    return max(0.0, (TOTAL_SEASON_GAMES - gp) / TOTAL_SEASON_GAMES)
+
+
+# =============================================================================
+# Helpers
+# =============================================================================
 
 def _safe_float(value):
     """Convert a value to float, handling percentage strings and NaN."""
@@ -175,76 +242,60 @@ def _overlay_current_year_rows(
     blended_current_year_df: pd.DataFrame,
     current_year: int,
 ) -> pd.DataFrame:
-    """Overlay ROS-blended current-year rows onto a historical data frame."""
+    """Overlay ROS-blended current-year rows onto a historical data frame.
+
+    Used by build_ros_blended_history_snapshots to replace the current-year
+    rows in the historical CSV with the blended versions so that the next
+    Marcel pass treats them as the most recent season.
+    """
     if raw_df.empty or blended_current_year_df.empty:
         return raw_df.copy()
 
-    result = raw_df.copy()
-    if 'Season' not in result.columns and 'Year' in result.columns:
-        result['Season'] = result['Year']
-    if 'Year' not in result.columns and 'Season' in result.columns:
-        result['Year'] = result['Season']
-
+    result  = raw_df.copy()
     overlay = blended_current_year_df.copy()
-    if 'Season' not in overlay.columns and 'Year' in overlay.columns:
-        overlay['Season'] = overlay['Year']
-    if 'Year' not in overlay.columns and 'Season' in overlay.columns:
-        overlay['Year'] = overlay['Season']
 
-    # Coerce any array-like or non-scalar cells in the overlay to scalar values
-    # (e.g., numpy arrays produced by upstream recomposition). Take the mean
-    # of numeric arrays as a sensible scalar fallback.
+    # Normalise Season / Year column names
+    for df_ in (result, overlay):
+        if 'Season' not in df_.columns and 'Year' in df_.columns:
+            df_['Season'] = df_['Year']
+        if 'Year' not in df_.columns and 'Season' in df_.columns:
+            df_['Year'] = df_['Season']
+
+    # Coerce any array-like or non-scalar cells in the overlay to scalars.
     def _coerce_to_scalar(x):
         if pd.isna(x):
             return x
         try:
             import numpy as _np
             if isinstance(x, (list, tuple, _np.ndarray)):
-                # Try numeric conversion first
                 try:
                     arr = _np.asarray(x, dtype=float)
-                    if arr.size == 0:
-                        return pd.NA
-                    return float(_np.nanmean(arr))
+                    return float(_np.nanmean(arr)) if arr.size else pd.NA
                 except Exception:
-                    # Non-numeric array (e.g., strings) — return first element as string
-                    try:
-                        return str(x[0])
-                    except Exception:
-                        return str(x)
+                    return str(x[0]) if len(x) else pd.NA
         except Exception:
             pass
         try:
-            # handle pyarrow arrays if present
             import pyarrow as _pa
             if isinstance(x, (_pa.Array, _pa.ChunkedArray)):
+                lst = x.to_pylist()
+                import numpy as _np
                 try:
-                    lst = x.to_pylist()
-                    import numpy as _np
-                    try:
-                        arr = _np.asarray(lst, dtype=float)
-                        if arr.size == 0:
-                            return pd.NA
-                        return float(_np.nanmean(arr))
-                    except Exception:
-                        return str(lst[0]) if lst else pd.NA
+                    arr = _np.asarray(lst, dtype=float)
+                    return float(_np.nanmean(arr)) if arr.size else pd.NA
                 except Exception:
-                    return str(x)
+                    return str(lst[0]) if lst else pd.NA
         except Exception:
             pass
         return x
 
-    try:
-        for _col in overlay.columns:
-            try:
-                overlay[_col] = overlay[_col].apply(_coerce_to_scalar)
-            except Exception:
-                # per-column best-effort; continue
-                continue
-    except Exception:
-        # overall best-effort: continue without coercion
-        pass
+    for _col in list(overlay.columns):
+        try:
+            overlay[_col] = overlay[_col].apply(_coerce_to_scalar)
+        except Exception:
+            pass
 
+    # Add any new columns the overlay introduces
     for col in overlay.columns:
         if col not in result.columns:
             result[col] = np.nan
@@ -253,23 +304,22 @@ def _overlay_current_year_rows(
     if 'IDfg' not in result.columns or key_col not in result.columns:
         return result
 
-    # Upcast integer columns to float to avoid LossySetitemError when overlay
-    # contains float or coerced-array values. This is a safe, best-effort
-    # conversion for the in-memory snapshot build.
-    int_cols = result.select_dtypes(include=['int64', 'Int64']).columns
-    for _c in int_cols:
+    # Upcast int columns to float to avoid LossySetitemError
+    for _c in result.select_dtypes(include=['int64', 'Int64']).columns:
         try:
             result[_c] = result[_c].astype(float)
         except Exception:
             pass
 
-    result = result.set_index(['IDfg', key_col])
+    result  = result.set_index(['IDfg', key_col])
     overlay = overlay.set_index(['IDfg', key_col])
     result.update(overlay)
-    result = result.reset_index()
+    return result.reset_index()
 
-    return result
 
+# =============================================================================
+# History snapshot builder
+# =============================================================================
 
 def build_ros_blended_history_snapshots(
     preseason_batter_df: pd.DataFrame,
@@ -279,23 +329,28 @@ def build_ros_blended_history_snapshots(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Build ROS-blended history snapshots for the next Marcel prediction pass.
 
-    The returned data frames are the historical source files with their
-    current-year rows replaced by ROS-blended rows. This lets the next
-    Marcel run treat the blended current season as its most recent season.
+    Replaces the current-year rows in the historical batter/pitcher CSVs with
+    Marcel-blended rows.  The blended row carries the player's *actual* PA/IP
+    so that the next Marcel run weights it by real sample size, not a phantom
+    full-season volume.
+
+    Returns:
+        (blended_batter_history, blended_pitcher_history)
     """
     if current_year is None:
         current_year = CURRENT_YEAR
 
-    batter_history_path = Path(Config.Paths.ROOT_DIR / 'auto_train_models' / BatterConfig.FINETUNE_DATA_FILE)
+    batter_history_path  = Path(Config.Paths.ROOT_DIR / 'auto_train_models' / BatterConfig.FINETUNE_DATA_FILE)
     pitcher_history_path = Path(Config.Paths.ROOT_DIR / 'auto_train_models' / PitcherSPConfig.DATA_FILE)
 
-    raw_batter_history = pd.read_csv(batter_history_path, low_memory=False)
+    raw_batter_history  = pd.read_csv(batter_history_path,  low_memory=False)
     raw_pitcher_history = pd.read_csv(pitcher_history_path, low_memory=False)
 
     actual_batting, actual_pitching, actual_year = load_current_season_actuals(current_year)
     if actual_year != current_year:
         logger.info(
-            f"ROS history snapshot: using {actual_year} actuals while building {current_year} overlays"
+            f"ROS history snapshot: using {actual_year} actuals "
+            f"while building {current_year} overlays"
         )
 
     team_games_map = fetch_team_games_played(season=current_year)
@@ -308,59 +363,86 @@ def build_ros_blended_history_snapshots(
     ))
 
     blended_batter_df, _ = blend_batter_projections(
-        preseason_batter_df, actual_batting, current_year=current_year,
-        team_games_map=team_games_map, player_team_map=player_team_map,
+        preseason_batter_df, actual_batting,
+        current_year=current_year,
+        team_games_map=team_games_map,
+        player_team_map=player_team_map,
     )
-    # Ensure SP/RP preseason frames are populated. Some pipelines write a
-    # combined `pitcher_predictions.csv` instead of separate `sp_`/`rp_` files.
-    if (preseason_sp_df is None or preseason_sp_df.empty) and (preseason_rp_df is None or preseason_rp_df.empty):
+
+    # Ensure SP/RP frames are populated (some pipelines write a combined CSV)
+    if (preseason_sp_df is None or preseason_sp_df.empty) and \
+       (preseason_rp_df is None or preseason_rp_df.empty):
         try:
-            combined_path = Path(Config.Paths.ROOT_DIR) / 'data' / 'generated' / 'pipeline' / 'preseason' / 'pitcher_predictions.csv'
+            combined_path = (
+                Path(Config.Paths.ROOT_DIR) / 'data' / 'generated' /
+                'pipeline' / 'preseason' / 'pitcher_predictions.csv'
+            )
             if combined_path.exists():
                 combined = pd.read_csv(combined_path, low_memory=False)
-                # Split by Role column if present
                 if 'Role' in combined.columns:
                     preseason_sp_df = combined[combined['Role'] == 'SP'].copy()
                     preseason_rp_df = combined[combined['Role'] == 'RP'].copy()
                 else:
-                    # If no Role column, attempt to split by 'Role' in index or default to empty
                     preseason_sp_df = pd.DataFrame(columns=combined.columns)
                     preseason_rp_df = pd.DataFrame(columns=combined.columns)
         except Exception:
             pass
 
-    # Some producers emit future-year predictions (Year==current_year+1+) instead
-    # of including a current-year row. For blending we need current-year rows
-    # so fallback to copying next-year rows into the current_year slot.
-    sp_for_blend = preseason_sp_df.copy() if preseason_sp_df is not None else pd.DataFrame()
-    rp_for_blend = preseason_rp_df.copy() if preseason_rp_df is not None else pd.DataFrame()
-
     def _use_next_year_if_missing(df):
         if df is None or df.empty:
             return df
-        if ('Year' in df.columns) and not (df['Year'] == current_year).any():
-            # try next year
-            next_year = current_year + 1
-            if (df['Year'] == next_year).any():
-                tmp = df[df['Year'] == next_year].copy()
+        if 'Year' in df.columns and not (df['Year'] == current_year).any():
+            ny = current_year + 1
+            if (df['Year'] == ny).any():
+                tmp = df[df['Year'] == ny].copy()
                 tmp['Year'] = current_year
                 return tmp
         return df
 
-    sp_for_blend = _use_next_year_if_missing(sp_for_blend)
-    rp_for_blend = _use_next_year_if_missing(rp_for_blend)
+    sp_for_blend = _use_next_year_if_missing(
+        preseason_sp_df.copy() if preseason_sp_df is not None else pd.DataFrame()
+    )
+    rp_for_blend = _use_next_year_if_missing(
+        preseason_rp_df.copy() if preseason_rp_df is not None else pd.DataFrame()
+    )
 
     blended_sp_df, blended_rp_df, _ = blend_pitcher_projections(
         sp_for_blend, rp_for_blend, actual_pitching,
-        current_year=current_year, team_games_map=team_games_map,
+        current_year=current_year,
+        team_games_map=team_games_map,
         player_team_map=player_team_map,
     )
 
     batter_overlay = blended_batter_df[blended_batter_df['Year'] == current_year].copy()
+
+    # The overlay rows must carry actual PA/IP (not 650/180) so that the next
+    # Marcel run weights them by real sample size when the snapshot is used as
+    # Y-1 history.  Stamp actual_pa onto each overlay batter row.
+    actual_pa_map = {
+        int(r['IDfg']): _safe_float(r.get('PA', 0)) or 0.0
+        for _, r in actual_batting.iterrows()
+        if pd.notna(r.get('IDfg'))
+    }
+    if 'PA' in batter_overlay.columns:
+        batter_overlay['PA'] = batter_overlay['IDfg'].map(
+            lambda idfg: actual_pa_map.get(int(idfg), 0.0)
+            if pd.notna(idfg) else 0.0
+        )
+
+    actual_ip_map = {
+        int(r['IDfg']): _safe_float(r.get('IP', 0)) or 0.0
+        for _, r in actual_pitching.iterrows()
+        if pd.notna(r.get('IDfg'))
+    }
     pitcher_overlay = pd.concat([
         blended_sp_df[blended_sp_df['Year'] == current_year].copy(),
         blended_rp_df[blended_rp_df['Year'] == current_year].copy(),
     ], ignore_index=True)
+    if 'IP' in pitcher_overlay.columns:
+        pitcher_overlay['IP'] = pitcher_overlay['IDfg'].map(
+            lambda idfg: actual_ip_map.get(int(idfg), 0.0)
+            if pd.notna(idfg) else 0.0
+        )
 
     return (
         _overlay_current_year_rows(raw_batter_history, batter_overlay, current_year),
@@ -368,11 +450,17 @@ def build_ros_blended_history_snapshots(
     )
 
 
-def _load_current_year_batter_xstats(current_year: int) -> pd.DataFrame:
-    """Load current-year batter x-stats from the Statcast expected file."""
-    statcast_data_dir = Config.Paths.ROOT_DIR / 'data' / 'statcast'
-    expected_file = statcast_data_dir / f'statcast_batter_expected_stats_{current_year}_{current_year}.csv'
+# =============================================================================
+# Current-season data loaders
+# =============================================================================
 
+def _load_current_year_batter_xstats(current_year: int) -> pd.DataFrame:
+    """Load current-year batter x-stats from the Statcast expected-stats file."""
+    statcast_data_dir = Config.Paths.ROOT_DIR / 'data' / 'statcast'
+    expected_file = (
+        statcast_data_dir /
+        f'statcast_batter_expected_stats_{current_year}_{current_year}.csv'
+    )
     if not expected_file.exists():
         return pd.DataFrame()
 
@@ -383,14 +471,13 @@ def _load_current_year_batter_xstats(current_year: int) -> pd.DataFrame:
     if 'Year' not in statcast_expected.columns:
         statcast_expected['Year'] = current_year
 
-    # If the Statcast file doesn't include FanGraphs IDs, try to map
-    # from MLBAM/player_id -> FanGraphs ID using the generated crosswalk.
+    # Map MLBAM IDs → FanGraphs IDs if IDfg is absent
     if 'IDfg' not in statcast_expected.columns:
-        mlb_id_col = None
-        for candidate in ('player_id', 'mlbam_id', 'playerid'):
-            if candidate in statcast_expected.columns:
-                mlb_id_col = candidate
-                break
+        mlb_id_col = next(
+            (c for c in ('player_id', 'mlbam_id', 'playerid')
+             if c in statcast_expected.columns),
+            None,
+        )
         if mlb_id_col is not None:
             statcast_expected[mlb_id_col] = pd.to_numeric(
                 statcast_expected[mlb_id_col], errors='coerce'
@@ -399,64 +486,55 @@ def _load_current_year_batter_xstats(current_year: int) -> pd.DataFrame:
                 crosswalk_path = Config.Paths.CROSSWALK_FILE
                 if crosswalk_path.exists():
                     cross = pd.read_csv(crosswalk_path, low_memory=False)
-                    # Find likely mlbam and fg columns in the crosswalk
-                    mlbam_col = None
-                    fg_col = None
-                    for c in cross.columns:
-                        lc = c.lower()
-                        if lc in ('mlbam_id', 'player_id', 'mlbamid'):
-                            mlbam_col = c
-                        if lc in ('fg_id', 'fgid', 'fg_id'):
-                            fg_col = c
+                    mlbam_col = next(
+                        (c for c in cross.columns
+                         if c.lower() in ('mlbam_id', 'player_id', 'mlbamid')),
+                        None,
+                    )
+                    fg_col = next(
+                        (c for c in cross.columns
+                         if c.lower() in ('fg_id', 'fgid')),
+                        None,
+                    )
                     if mlbam_col and fg_col:
                         cross[mlbam_col] = pd.to_numeric(cross[mlbam_col], errors='coerce')
-                        cross[fg_col] = pd.to_numeric(cross[fg_col], errors='coerce')
+                        cross[fg_col]    = pd.to_numeric(cross[fg_col],    errors='coerce')
                         cross = cross.dropna(subset=[mlbam_col, fg_col])
-                        mapping = dict(zip(cross[mlbam_col].astype(int), cross[fg_col].astype(int)))
+                        mapping = dict(zip(
+                            cross[mlbam_col].astype(int),
+                            cross[fg_col].astype(int),
+                        ))
                         statcast_expected['IDfg'] = statcast_expected[mlb_id_col].map(mapping)
             except Exception:
-                # Best-effort mapping only; continue gracefully if anything fails
                 pass
 
     def _find_col(df, token):
         token = token.lower()
-        for c in df.columns:
-            if token == c.lower() or token in c.lower():
-                return c
-        return None
-
-    est_ba_col = _find_col(statcast_expected, 'est_ba')
-    est_slg_col = _find_col(statcast_expected, 'est_slg')
-    est_woba_col = _find_col(statcast_expected, 'est_woba')
+        return next(
+            (c for c in df.columns if token == c.lower() or token in c.lower()),
+            None,
+        )
 
     rename_map = {}
-    if est_ba_col and est_ba_col not in ('sc_est_ba', 'xBA'):
-        rename_map[est_ba_col] = 'sc_est_ba'
-    if est_slg_col and est_slg_col not in ('sc_est_slg', 'xSLG'):
-        rename_map[est_slg_col] = 'sc_est_slg'
-    if est_woba_col and est_woba_col not in ('sc_est_woba', 'xwOBA'):
-        rename_map[est_woba_col] = 'sc_est_woba'
-
+    for internal, token in [('sc_est_ba', 'est_ba'), ('sc_est_slg', 'est_slg'), ('sc_est_woba', 'est_woba')]:
+        col = _find_col(statcast_expected, token)
+        if col and col not in (internal, 'xBA', 'xSLG', 'xwOBA'):
+            rename_map[col] = internal
     if rename_map:
         statcast_expected = statcast_expected.rename(columns=rename_map)
 
-    if 'sc_est_ba' in statcast_expected.columns and 'xBA' not in statcast_expected.columns:
-        statcast_expected['xBA'] = statcast_expected['sc_est_ba']
-    if 'sc_est_slg' in statcast_expected.columns and 'xSLG' not in statcast_expected.columns:
-        statcast_expected['xSLG'] = statcast_expected['sc_est_slg']
-    if 'sc_est_woba' in statcast_expected.columns and 'xwOBA' not in statcast_expected.columns:
-        statcast_expected['xwOBA'] = statcast_expected['sc_est_woba']
+    for sc_col, x_col in [('sc_est_ba', 'xBA'), ('sc_est_slg', 'xSLG'), ('sc_est_woba', 'xwOBA')]:
+        if sc_col in statcast_expected.columns and x_col not in statcast_expected.columns:
+            statcast_expected[x_col] = statcast_expected[sc_col]
 
-    cols_to_keep = ['IDfg', 'Year']
+    keep = ['IDfg', 'Year']
     for col in statcast_expected.columns:
-        c_low = col.lower()
-        if (
-            c_low.startswith('x') or 'expected' in c_low or c_low.startswith('sc_est')
-            or c_low.startswith('est_') or c_low.startswith('est') or 'est_' in c_low
-        ):
-            cols_to_keep.append(col)
+        cl = col.lower()
+        if (cl.startswith('x') or 'expected' in cl or cl.startswith('sc_est')
+                or cl.startswith('est_') or 'est_' in cl):
+            keep.append(col)
 
-    statcast_expected = statcast_expected[[c for c in cols_to_keep if c in statcast_expected.columns]]
+    statcast_expected = statcast_expected[[c for c in keep if c in statcast_expected.columns]]
     statcast_expected['IDfg'] = pd.to_numeric(statcast_expected['IDfg'], errors='coerce')
     statcast_expected = statcast_expected.dropna(subset=['IDfg'])
     statcast_expected['IDfg'] = statcast_expected['IDfg'].astype(int)
@@ -466,11 +544,8 @@ def _load_current_year_batter_xstats(current_year: int) -> pd.DataFrame:
 def load_current_season_actuals(current_year=None):
     """Load actual batting and pitching stats for the current season.
 
-    Uses the ``_with_statcast`` CSV variants for richer data (Statcast
-    fielding, baserunning, xwOBA, sprint speed).
-
-    Reads from the historic CSV files (which Phase 1 merge keeps updated).
-    Falls back to ``current_year - 1`` if the target year has no data yet.
+    Prefers current-season per-year files; falls back to the full historic
+    CSV.  Falls back to current_year − 1 if no current-year data exists yet.
 
     Returns:
         Tuple (batting_df, pitching_df, actual_year)
@@ -478,11 +553,10 @@ def load_current_season_actuals(current_year=None):
     if current_year is None:
         current_year = CURRENT_YEAR
 
-    hist_dir = Config.Paths.HISTORIC_MLB_DIR
+    hist_dir          = Config.Paths.HISTORIC_MLB_DIR
     current_season_dir = Config.Paths.DATA_DIR / 'current_season'
 
     def _read_actual_source(filename: str) -> pd.DataFrame:
-        """Prefer current-season files, then fall back to historic files."""
         if 'batting' in filename:
             current_name = f"mlb_batting_data_{current_year}_{current_year}.csv"
         elif 'pitching' in filename:
@@ -491,18 +565,16 @@ def load_current_season_actuals(current_year=None):
             current_name = f"mlb_fielding_data_{current_year}_{current_year}.csv"
         else:
             current_name = filename
-
         current_path = current_season_dir / current_name
         if current_path.exists():
             return pd.read_csv(current_path, low_memory=False)
         return pd.read_csv(hist_dir / filename, low_memory=False)
 
-    batting = _read_actual_source('mlb_batting_data_1950_2025_with_statcast.csv')
+    batting  = _read_actual_source('mlb_batting_data_1950_2025_with_statcast.csv')
     pitching = _read_actual_source('mlb_pitching_data_1950_2025_with_statcast.csv')
 
-    # Find current-season rows; fall back to prior year if absent
-    actual_year = current_year
-    bat_current = batting[batting['Season'] == current_year]
+    actual_year  = current_year
+    bat_current  = batting[batting['Season'] == current_year]
     if bat_current.empty:
         actual_year = current_year - 1
         bat_current = batting[batting['Season'] == actual_year]
@@ -513,7 +585,6 @@ def load_current_season_actuals(current_year=None):
 
     pit_current = pitching[pitching['Season'] == actual_year]
 
-    # Ensure IDfg is numeric for matching
     bat_current = bat_current.copy()
     pit_current = pit_current.copy()
     bat_current['IDfg'] = pd.to_numeric(bat_current['IDfg'], errors='coerce')
@@ -524,11 +595,11 @@ def load_current_season_actuals(current_year=None):
     if not xstats.empty:
         bat_current = bat_current.merge(xstats, on=['IDfg', 'Year'], how='left')
 
-    # Derive HBP% from counting stats (CSV has HBP as count, not rate)
+    # Derive HBP% from counting stats
     for df_actual, pa_col in [(bat_current, 'PA'), (pit_current, 'TBF')]:
         if 'HBP' in df_actual.columns and pa_col in df_actual.columns:
-            pa_vals = pd.to_numeric(df_actual[pa_col], errors='coerce').fillna(0)
-            hbp_vals = pd.to_numeric(df_actual['HBP'], errors='coerce').fillna(0)
+            pa_vals  = pd.to_numeric(df_actual[pa_col], errors='coerce').fillna(0)
+            hbp_vals = pd.to_numeric(df_actual['HBP'],  errors='coerce').fillna(0)
             df_actual['HBP%'] = np.where(pa_vals > 0, hbp_vals / pa_vals, 0.0)
 
     logger.info(
@@ -538,44 +609,98 @@ def load_current_season_actuals(current_year=None):
     return bat_current, pit_current, actual_year
 
 
-# ─────────────────────────────────────────────────────────────────────────
+# =============================================================================
 # Batter blending
-# ─────────────────────────────────────────────────────────────────────────
+# =============================================================================
 
-def _team_remaining_fraction(team_abbrev, team_games_map):
-    """Compute remaining fraction of the season based on team games played.
+# Auxiliary features used by the Phase 2b multivariate equations.
+# These stabilize faster than the base components so we trust the current
+# season more aggressively for them.  The multiplier scales the blend weight
+# upward for high-stabilization features and downward for noisy ones.
+_BATTER_AUX_WEIGHT_MULTIPLIERS = {
+    # Highly sticky — stabilize in ~50–100 PA; use current season more
+    'Contact%':  2.0,
+    'O-Swing%':  2.0,
+    'Z-Contact%': 2.0,
+    'O-Contact%': 2.0,
+    'Swing%':    2.0,
+    'Pull%':     1.5,
+    'Oppo%':     1.5,
+    'F-Strike%': 1.5,
+    # Moderate stabilization
+    'Hard%':     1.2,
+    'HardHit%':  1.2,
+    'Barrel%':   1.2,
+    'IFFB%':     1.0,
+    'FB%':       1.0,
+    # Noisy — stabilize slowly; stay conservative
+    'sc_ev50':   0.8,
+    'EV':        0.8,
+    'Spd':       0.8,
+    'xSLG':      0.8,
+    'OBP':       0.8,
+}
 
-    Returns (162 - games_played) / 162.  If team not found, returns 1.0
-    (full season — conservative fallback).
-    """
-    if not team_games_map or not team_abbrev:
-        return 1.0
-    gp = team_games_map.get(team_abbrev)
-    if gp is None:
-        return 1.0
-    return max(0.0, (TOTAL_SEASON_GAMES - gp) / TOTAL_SEASON_GAMES)
+# Pre-compute the set of batter aux features once at import time
+_BATTER_AUX_FEATURES: set = {
+    feat
+    for eq in BATTER_MULTIVARIATE_EQUATIONS.values()
+    for feat in eq
+    if not feat.startswith('_') and feat not in BATTER_BASE_COMPONENTS
+}
+
+# Pitcher aux features (same idea, computed once)
+_PITCHER_AUX_FEATURES: set = {
+    feat
+    for eq_dict in (
+        PITCHER_SP_MULTIVARIATE_EQUATIONS,
+        PITCHER_RP_MULTIVARIATE_EQUATIONS,
+    )
+    for eq in eq_dict.values()
+    for feat in eq
+    if not feat.startswith('_') and feat not in PITCHER_MARCEL_RATE_STATS
+}
+
+_PITCHER_DERIVED_STATS = frozenset({
+    'ERA', 'FIP', 'SIERA', 'K/9', 'BB/9', 'HR/9', 'WHIP',
+    'G', 'GS', 'IP', 'TBF', 'H', 'R', 'ER', 'BB', 'K', 'HR',
+    'HBP', 'WP', 'BK', 'W', 'L', 'SV', 'BS', 'Pit', 'Str', 'CStr%',
+})
 
 
-def blend_batter_projections(preseason_df, actual_batting, current_year=None,
-                             team_games_map=None, player_team_map=None):
+def blend_batter_projections(
+    preseason_df,
+    actual_batting,
+    current_year=None,
+    team_games_map=None,
+    player_team_map=None,
+):
     """Blend current-year batter base components with pre-season projections.
 
-    Blends the 8 Marcel base components (K%, BB%, HBP%, ISO, BABIP, HR/FB,
-    GB%, LD%) using Bayesian shrinkage, then recomposes derived stats
-    (AVG, SLG, OBP, wOBA, wRC+, HR, 2B, 3B) via ``compose_from_df``.
+    Uses Marcel-consistent weighting: the current partial season earns weight
+    proportional to its share of a full season within the Marcel 5+4+3
+    framework.  The preseason projection (which already embeds the three prior
+    seasons at 5:4:3) receives the complementary weight, so the historical
+    signal is preserved throughout the season.
 
-    Also blends fielding (Fld) and baserunning (BsR) values when available
-    in the actuals data.
+    Blends:
+      - 8 base components (K%, BB%, HBP%, ISO, BABIP, HR/FB, GB%, LD%)
+      - Auxiliary Phase 2b features (Contact%, Hard%, sc_ev50, etc.) with
+        per-feature stabilization multipliers
+      - ISO is park-neutralized before blending
 
-    Park factors:
-        Actual ISO is park-neutralized before blending (preseason predictions
-        are already park-neutral).  BABIP is excluded from park adjustment
-        per ``park_factors.EXCLUDED_STATS``.
+    After blending, derived stats (AVG, OBP, SLG, wOBA, wRC+, HR, 2B, 3B)
+    are recomposed from the blended components via compose_from_df.
+    xwOBA/xBA/xSLG override composed values when available.
 
-    Only rows for ``current_year`` are modified; future years are untouched.
+    Only rows for current_year are modified; future years are untouched.
 
     Args:
-        team_games_map: Dict mapping team abbreviation → games played this season.
+        preseason_df:    Marcel preseason projection DataFrame (Year == current_year rows
+                         are the blend target).
+        actual_batting:  Current-season FanGraphs batting DataFrame.
+        current_year:    Season to blend (default CURRENT_YEAR).
+        team_games_map:  Dict mapping team abbreviation → games played this season.
         player_team_map: Dict mapping IDfg → team abbreviation.
 
     Returns:
@@ -586,131 +711,141 @@ def blend_batter_projections(preseason_df, actual_batting, current_year=None,
 
     use_team_remaining = bool(team_games_map and player_team_map)
 
-    df = preseason_df.copy()
+    df            = preseason_df.copy()
     war_proration = {}
 
-    # Index actual data by IDfg
-    actual_lookup = {}
-    for _, row in actual_batting.iterrows():
-        idfg = row['IDfg']
-        if pd.notna(idfg):
-            actual_lookup[int(idfg)] = row
+    actual_lookup = {
+        int(row['IDfg']): row
+        for _, row in actual_batting.iterrows()
+        if pd.notna(row['IDfg'])
+    }
 
-    blended_count = 0
-    current_mask = df['Year'] == current_year
-    # Track which current-year rows were blended for batch recomposition
+    blended_count   = 0
     blended_indices = []
+    current_mask    = df['Year'] == current_year
 
     for idx in df.index[current_mask]:
         pred_row = df.loc[idx]
-        idfg = int(pred_row['IDfg'])
-        actual = actual_lookup.get(idfg)
+        idfg     = int(pred_row['IDfg'])
+        actual   = actual_lookup.get(idfg)
 
-        # Compute remaining fraction from team games
+        # Remaining-season fraction for WAR / playing-time proration
         if use_team_remaining:
-            team = player_team_map.get(idfg)
+            team           = player_team_map.get(idfg)
             remaining_frac = _team_remaining_fraction(team, team_games_map)
         else:
             remaining_frac = 1.0
 
         if actual is None:
-            war_proration[idfg] = {'actual_war': 0.0, 'remaining_fraction': remaining_frac}
+            war_proration[idfg] = {
+                'actual_war': 0.0,
+                'remaining_fraction': remaining_frac,
+            }
             continue
 
-        xba = _safe_float(actual.get('xBA'))
-        xslg = _safe_float(actual.get('xSLG'))
-        xwoba = _safe_float(actual.get('xwOBA'))
+        # Stash x-stats on the row (overrides composed values after blending)
+        for x_col in ('xBA', 'xSLG', 'xwOBA'):
+            val = _safe_float(actual.get(x_col))
+            if val is not None:
+                df.at[idx, x_col] = val
 
-        if xba is not None:
-            df.at[idx, 'xBA'] = xba
-        if xslg is not None:
-            df.at[idx, 'xSLG'] = xslg
-        if xwoba is not None:
-            df.at[idx, 'xwOBA'] = xwoba
-
-        actual_pa = _safe_float(actual.get('PA', 0)) or 0.0
+        actual_pa  = _safe_float(actual.get('PA', 0)) or 0.0
         actual_war = _safe_float(actual.get('WAR', 0)) or 0.0
 
-        if actual_pa < 10:
-            war_proration[idfg] = {'actual_war': 0.0, 'remaining_fraction': remaining_frac}
+        if actual_pa < MIN_BATTER_PA:
+            war_proration[idfg] = {
+                'actual_war': 0.0,
+                'remaining_fraction': remaining_frac,
+            }
             continue
 
-        # Get player's team for park neutralization
+        # ── Marcel-consistent blend weight ───────────────────────────────
+        w = _marcel_blend_weight(actual_pa, FULL_SEASON_PA)
+        # w == 0 at season start, w == 5/12 ≈ 0.417 at full season
+
         player_team = (player_team_map or {}).get(idfg) or actual.get('Team', '')
-        pf = get_park_factor(player_team)
+        pf          = get_park_factor(player_team)
 
-        # Bayesian shrinkage weight
-        w = actual_pa / (actual_pa + BATTER_PRIOR_PA)
-        # Blend each base component
+        # ── Blend 8 base components ──────────────────────────────────────
         for stat in BATTER_BASE_COMPONENTS:
-            if stat in actual.index and stat in df.columns:
-                act_val = _safe_float(actual[stat])
-                pre_val = _safe_float(pred_row[stat])
-                if act_val is not None and pre_val is not None:
-                    # Park-neutralize actual ISO before blending
-                    if stat == 'ISO' and pf != 1.0:
-                        act_val = act_val / pf
-                    df.at[idx, stat] = w * act_val + (1 - w) * pre_val
+            if stat not in actual.index or stat not in df.columns:
+                continue
+            act_val = _safe_float(actual[stat])
+            pre_val = _safe_float(pred_row[stat])
+            if act_val is None or pre_val is None:
+                continue
+            # Park-neutralize actual ISO (preseason projections are park-neutral)
+            if stat == 'ISO' and pf != 1.0:
+                act_val = act_val / pf
+            df.at[idx, stat] = w * act_val + (1.0 - w) * pre_val
 
-        # Blend auxiliary multivariate features (Contact%, O-Contact%, Hard%, sc_ev50, etc.)
-        # so that the Phase 2b equations have blended current-year inputs.
-        try:
-            aux_feats = set()
-            for eq in BATTER_MULTIVARIATE_EQUATIONS.values():
-                for feat in eq:
-                    if not feat.startswith('_') and feat not in BATTER_BASE_COMPONENTS:
-                        aux_feats.add(feat)
-        except Exception:
-            aux_feats = set()
+        # ── Normalize batter batted-ball rates ───────────────────────────
+        # GB% + LD% are both directly blended; FB% is derived in composition,
+        # but we validate the sum here so compose_from_df gets clean inputs.
+        gb = _safe_float(df.at[idx, 'GB%']) or 0.0
+        ld = _safe_float(df.at[idx, 'LD%']) or 0.0
+        if (gb + ld) >= 1.0:
+            # Clamp to ensure at least a minimal FB% for the composition
+            total = gb + ld
+            df.at[idx, 'GB%'] = gb / total * 0.90
+            df.at[idx, 'LD%'] = ld / total * 0.90
 
-        for feat in aux_feats:
-            if feat in actual.index and feat in df.columns:
-                act_val = _safe_float(actual[feat])
-                pre_val = _safe_float(pred_row.get(feat))
-                if act_val is not None and pre_val is not None:
-                    # No park adjustment by default for aux features
-                    df.at[idx, feat] = w * act_val + (1 - w) * pre_val
+        # ── Blend auxiliary Phase 2b features ───────────────────────────
+        for feat in _BATTER_AUX_FEATURES:
+            if feat not in actual.index or feat not in df.columns:
+                continue
+            act_val = _safe_float(actual[feat])
+            pre_val = _safe_float(pred_row.get(feat))
+            if act_val is None or pre_val is None:
+                continue
+            multiplier = _BATTER_AUX_WEIGHT_MULTIPLIERS.get(feat, 1.0)
+            w_feat     = min(w * multiplier, MARCEL_CURRENT_FULL_WEIGHT / MARCEL_TOTAL_WEIGHT)
+            df.at[idx, feat] = w_feat * act_val + (1.0 - w_feat) * pre_val
 
         blended_indices.append(idx)
 
-        # Fall back to PA-based remaining if team data unavailable
         if not use_team_remaining:
             remaining_frac = max(0.0, 1.0 - actual_pa / FULL_SEASON_PA)
 
         war_proration[idfg] = {
-            'actual_war': actual_war,
+            'actual_war':        actual_war,
             'remaining_fraction': remaining_frac,
         }
         blended_count += 1
 
-    # ── Recompose derived stats from blended components ──────────────────
+    # ── Recompose derived stats from blended base components ─────────────
     if blended_indices:
         current_rows = df.loc[blended_indices].copy()
-        # Ensure HBP% column exists (it's a base component but may need deriving)
+
+        # Ensure HBP% exists for composition
         if 'HBP%' not in current_rows.columns and 'HBP' in current_rows.columns:
-            pa_vals = pd.to_numeric(current_rows.get('PA', 650), errors='coerce').fillna(650)
-            current_rows['HBP%'] = pd.to_numeric(current_rows['HBP'], errors='coerce').fillna(0) / pa_vals
+            pa_vals = pd.to_numeric(
+                current_rows.get('PA', FULL_SEASON_PA), errors='coerce'
+            ).fillna(FULL_SEASON_PA)
+            current_rows['HBP%'] = (
+                pd.to_numeric(current_rows['HBP'], errors='coerce').fillna(0) / pa_vals
+            )
 
         recomposed = compose_from_df(current_rows)
 
+        # Apply x-stat overrides on top of recomposed values
         for idx in current_rows.index:
-            row = current_rows.loc[idx]
-            xba = _safe_float(row.get('xBA'))
-            xslg = _safe_float(row.get('xSLG'))
+            row = df.loc[idx]     # read from main df (has the stashed x-stats)
+            xba   = _safe_float(row.get('xBA'))
+            xslg  = _safe_float(row.get('xSLG'))
             xwoba = _safe_float(row.get('xwOBA'))
 
             if xba is not None:
                 recomposed.at[idx, 'AVG'] = xba
                 recomposed.at[idx, 'xBA'] = xba
             if xslg is not None:
-                recomposed.at[idx, 'SLG'] = xslg
+                recomposed.at[idx, 'SLG']  = xslg
                 recomposed.at[idx, 'xSLG'] = xslg
             if xwoba is not None:
-                recomposed.at[idx, 'wOBA'] = xwoba
+                recomposed.at[idx, 'wOBA']  = xwoba
                 recomposed.at[idx, 'xwOBA'] = xwoba
-                recomposed.at[idx, 'wRC+'] = compose_wrc_plus(xwoba)
+                recomposed.at[idx, 'wRC+']  = compose_wrc_plus(xwoba)
 
-        # Overwrite derived stats in the main DataFrame
         derived_cols = ['AVG', 'SLG', 'OBP', 'wOBA', 'wRC+', 'FB%',
                         'HR', '2B', '3B', '1B', 'H']
         for col in derived_cols:
@@ -723,30 +858,45 @@ def blend_batter_projections(preseason_df, actual_batting, current_year=None,
 
     logger.info(
         f"Blended {blended_count} current-year batter projections "
-        f"(8 base components → recompose, prior_PA={BATTER_PRIOR_PA})"
+        f"(Marcel-weighted 8 base components → recompose; "
+        f"min_PA={MIN_BATTER_PA})"
     )
     return df, war_proration
 
 
-# ─────────────────────────────────────────────────────────────────────────
+# =============================================================================
 # Pitcher blending
-# ─────────────────────────────────────────────────────────────────────────
+# =============================================================================
 
-def blend_pitcher_projections(preseason_sp, preseason_rp, actual_pitching,
-                              current_year=None, team_games_map=None,
-                              player_team_map=None):
+def blend_pitcher_projections(
+    preseason_sp,
+    preseason_rp,
+    actual_pitching,
+    current_year=None,
+    team_games_map=None,
+    player_team_map=None,
+):
     """Blend current-year pitcher base components with pre-season projections.
 
-    Blends the 8 pitcher Marcel base components (K%, BB%, HBP%, BABIP,
-    HR/FB, GB%, FB%, LD%) using Bayesian shrinkage, then reconstructs
-    derived stats (FIP, ERA, SIERA, K/9, BB/9, HR/9) from components.
+    Uses Marcel-consistent weighting with the same philosophy as batter
+    blending: the current partial IP earns weight proportional to its share
+    of a full SP/RP season, capped at the Marcel weight-5 slot.
+
+    Blends 8 base components (K%, BB%, HBP%, BABIP, HR/FB, GB%, FB%, LD%).
+    After blending, reconstructs FIP, ERA, SIERA, K/9, BB/9, HR/9 from
+    the blended components.  ERA-FIP gap is read from the preseason row and
+    preserved (not blended directly).
 
     Args:
-        team_games_map: Dict mapping team abbreviation → games played this season.
+        preseason_sp:    SP preseason projection DataFrame.
+        preseason_rp:    RP preseason projection DataFrame.
+        actual_pitching: Current-season FanGraphs pitching DataFrame.
+        current_year:    Season to blend (default CURRENT_YEAR).
+        team_games_map:  Dict mapping team abbreviation → games played.
         player_team_map: Dict mapping IDfg → team abbreviation.
 
     Returns:
-        Tuple (blended_sp, blended_rp, war_proration_info)
+        Tuple (blended_sp_df, blended_rp_df, war_proration_info)
     """
     if current_year is None:
         current_year = CURRENT_YEAR
@@ -757,8 +907,7 @@ def blend_pitcher_projections(preseason_sp, preseason_rp, actual_pitching,
     rp_df = preseason_rp.copy()
     war_proration = {}
 
-    # If preseason frames only contain next-year predictions (e.g., Year==current_year+1),
-    # copy those into Year==current_year so blending can operate on current-year rows.
+    # Copy next-year rows into current_year slot if needed
     def _map_next_year(df):
         if df is None or df.empty:
             return df
@@ -773,87 +922,80 @@ def blend_pitcher_projections(preseason_sp, preseason_rp, actual_pitching,
     sp_df = _map_next_year(sp_df)
     rp_df = _map_next_year(rp_df)
 
-    # Index actual data by IDfg
-    actual_lookup = {}
-    for _, row in actual_pitching.iterrows():
-        idfg = row['IDfg']
-        if pd.notna(idfg):
-            actual_lookup[int(idfg)] = row
+    actual_lookup = {
+        int(row['IDfg']): row
+        for _, row in actual_pitching.iterrows()
+        if pd.notna(row['IDfg'])
+    }
 
     blended_count = 0
+
     for df, role, full_ip in [
         (sp_df, 'SP', FULL_SEASON_SP_IP),
         (rp_df, 'RP', FULL_SEASON_RP_IP),
     ]:
-        current_mask = df['Year'] == current_year
+        current_mask    = df['Year'] == current_year
         blended_indices = []
 
         for idx in df.index[current_mask]:
             pred_row = df.loc[idx]
-            idfg = int(pred_row['IDfg'])
-            actual = actual_lookup.get(idfg)
+            idfg     = int(pred_row['IDfg'])
+            actual   = actual_lookup.get(idfg)
 
-            # Compute remaining fraction from team games
             if use_team_remaining:
-                team = player_team_map.get(idfg)
+                team           = player_team_map.get(idfg)
                 remaining_frac = _team_remaining_fraction(team, team_games_map)
             else:
                 remaining_frac = 1.0
 
             if actual is None:
                 war_proration[idfg] = {
-                    'actual_war': 0.0, 'remaining_fraction': remaining_frac,
+                    'actual_war': 0.0,
+                    'remaining_fraction': remaining_frac,
                 }
                 continue
 
-            actual_ip = _safe_float(actual.get('IP', 0)) or 0.0
+            actual_ip  = _safe_float(actual.get('IP', 0)) or 0.0
             actual_war = _safe_float(actual.get('WAR', 0)) or 0.0
 
-            if actual_ip < 5:
+            if actual_ip < MIN_PITCHER_IP:
                 war_proration[idfg] = {
-                    'actual_war': 0.0, 'remaining_fraction': remaining_frac,
+                    'actual_war': 0.0,
+                    'remaining_fraction': remaining_frac,
                 }
                 continue
 
-            w = actual_ip / (actual_ip + PITCHER_PRIOR_IP)
+            # ── Marcel-consistent blend weight ───────────────────────────
+            w = _marcel_blend_weight(actual_ip, full_ip)
 
-            # Blend each base component
+            # ── Blend 8 base components ──────────────────────────────────
             for stat in PITCHER_MARCEL_RATE_STATS:
-                if stat in actual.index and stat in df.columns:
-                    act_val = _safe_float(actual[stat])
-                    pre_val = _safe_float(pred_row[stat])
-                    if act_val is not None and pre_val is not None:
-                        df.at[idx, stat] = w * act_val + (1 - w) * pre_val
+                if stat not in actual.index or stat not in df.columns:
+                    continue
+                act_val = _safe_float(actual[stat])
+                pre_val = _safe_float(pred_row[stat])
+                if act_val is None or pre_val is None:
+                    continue
+                df.at[idx, stat] = w * act_val + (1.0 - w) * pre_val
 
-            # Blend auxiliary pitcher multivariate features (Contact%, Z-Contact%, O-Contact%, etc.)
-            try:
-                p_aux = set()
-                for eq in (PITCHER_SP_MULTIVARIATE_EQUATIONS.values()):
-                    for feat in eq:
-                        if not feat.startswith('_') and feat not in PITCHER_MARCEL_RATE_STATS:
-                            p_aux.add(feat)
-                for eq in (PITCHER_RP_MULTIVARIATE_EQUATIONS.values()):
-                    for feat in eq:
-                        if not feat.startswith('_') and feat not in PITCHER_MARCEL_RATE_STATS:
-                            p_aux.add(feat)
-            except Exception:
-                p_aux = set()
-
+            # ── Blend auxiliary Phase 2b features ───────────────────────
+            p_aux = _PITCHER_AUX_FEATURES - _PITCHER_DERIVED_STATS
             for feat in p_aux:
-                if feat in actual.index and feat in df.columns:
-                    act_val = _safe_float(actual[feat])
-                    pre_val = _safe_float(pred_row.get(feat))
-                    if act_val is not None and pre_val is not None:
-                        df.at[idx, feat] = w * act_val + (1 - w) * pre_val
+                if feat not in actual.index or feat not in df.columns:
+                    continue
+                act_val = _safe_float(actual[feat])
+                pre_val = _safe_float(pred_row.get(feat))
+                if act_val is None or pre_val is None:
+                    continue
+                df.at[idx, feat] = w * act_val + (1.0 - w) * pre_val
 
             blended_indices.append(idx)
 
-            # Fall back to IP-based remaining if team data unavailable
             if not use_team_remaining:
                 remaining_frac = max(0.0, 1.0 - actual_ip / full_ip)
 
             war_proration[idfg] = {
-                'actual_war': actual_war,
+                'actual_war':        actual_war,
                 'remaining_fraction': remaining_frac,
             }
             blended_count += 1
@@ -862,16 +1004,17 @@ def blend_pitcher_projections(preseason_sp, preseason_rp, actual_pitching,
         if blended_indices:
             for idx in blended_indices:
                 row = df.loc[idx]
-                k_pct   = _safe_float(row.get('K%', 0.22)) or 0.22
-                bb_pct  = _safe_float(row.get('BB%', 0.08)) or 0.08
-                hbp_pct = _safe_float(row.get('HBP%', 0.01)) or 0.01
-                babip   = _safe_float(row.get('BABIP', 0.29)) or 0.29
-                hr_fb   = _safe_float(row.get('HR/FB', 0.11)) or 0.11
-                gb_pct  = _safe_float(row.get('GB%', 0.43)) or 0.43
-                fb_pct  = _safe_float(row.get('FB%', 0.35)) or 0.35
-                ld_pct  = _safe_float(row.get('LD%', 0.22)) or 0.22
 
-                # Normalize batted ball rates
+                k_pct   = _safe_float(row.get('K%',    0.22)) or 0.22
+                bb_pct  = _safe_float(row.get('BB%',   0.08)) or 0.08
+                hbp_pct = _safe_float(row.get('HBP%',  0.01)) or 0.01
+                babip   = _safe_float(row.get('BABIP',  0.29)) or 0.29
+                hr_fb   = _safe_float(row.get('HR/FB',  0.11)) or 0.11
+                gb_pct  = _safe_float(row.get('GB%',    0.43)) or 0.43
+                fb_pct  = _safe_float(row.get('FB%',    0.35)) or 0.35
+                ld_pct  = _safe_float(row.get('LD%',    0.22)) or 0.22
+
+                # Normalize batted-ball rates to sum to 1.0
                 bb_total = gb_pct + fb_pct + ld_pct
                 if bb_total > 0 and abs(bb_total - 1.0) > 0.01:
                     gb_pct /= bb_total
@@ -881,75 +1024,72 @@ def blend_pitcher_projections(preseason_sp, preseason_rp, actual_pitching,
                     df.at[idx, 'FB%'] = fb_pct
                     df.at[idx, 'LD%'] = ld_pct
 
-                bip_rate = max(1.0 - k_pct - bb_pct - hbp_pct, 0.20)
-                hr_pct = hr_fb * fb_pct * bip_rate
+                bip_rate  = max(1.0 - k_pct - bb_pct - hbp_pct, 0.20)
+                hr_pct    = hr_fb * fb_pct * bip_rate
                 bf_per_ip = _derive_bf_per_ip(k_pct, bb_pct, hbp_pct, hr_pct, babip)
 
-                # FIP
                 fip = _reconstruct_fip(k_pct, bb_pct, hbp_pct, hr_fb, fb_pct, bf_per_ip)
                 df.at[idx, 'FIP'] = fip
 
-                # ERA = FIP + career ERA-FIP gap (already in preseason row)
+                # Preserve the preseason ERA-FIP gap (pitcher-specific tendency)
                 pre_era = _safe_float(row.get('ERA'))
                 pre_fip = _safe_float(row.get('FIP'))
-                if pre_era is not None and pre_fip is not None:
-                    era_fip_gap = pre_era - pre_fip
-                else:
-                    era_fip_gap = 0.0
-                df.at[idx, 'ERA'] = np.clip(fip + era_fip_gap, 0.5, 10.0)
+                era_fip_gap = (pre_era - pre_fip) if (pre_era is not None and pre_fip is not None) else 0.0
+                df.at[idx, 'ERA'] = float(np.clip(fip + era_fip_gap, 0.5, 10.0))
 
-                # SIERA
                 df.at[idx, 'SIERA'] = _reconstruct_siera(k_pct, bb_pct, gb_pct)
-
-                # K/9, BB/9, HR/9
-                df.at[idx, 'K/9'] = np.clip(k_pct * bf_per_ip * 9.0 / 3.0, 0.0, 20.0)
-                df.at[idx, 'BB/9'] = np.clip(bb_pct * bf_per_ip * 9.0 / 3.0, 0.0, 10.0)
-                df.at[idx, 'HR/9'] = np.clip(hr_pct * bf_per_ip * 9.0 / 3.0, 0.0, 5.0)
+                df.at[idx, 'K/9']   = float(np.clip(k_pct   * bf_per_ip * 9.0 / 3.0, 0.0, 20.0))
+                df.at[idx, 'BB/9']  = float(np.clip(bb_pct  * bf_per_ip * 9.0 / 3.0, 0.0, 10.0))
+                df.at[idx, 'HR/9']  = float(np.clip(hr_pct  * bf_per_ip * 9.0 / 3.0, 0.0,  5.0))
 
     logger.info(
         f"Blended {blended_count} current-year pitcher projections "
-        f"(8 base components → reconstruct FIP/ERA/SIERA, prior_IP={PITCHER_PRIOR_IP})"
+        f"(Marcel-weighted 8 base components → reconstruct FIP/ERA/SIERA; "
+        f"min_IP={MIN_PITCHER_IP})"
     )
     return sp_df, rp_df, war_proration
 
 
-# ─────────────────────────────────────────────────────────────────────────
+# =============================================================================
 # Playing-time reduction to remaining season
-# ─────────────────────────────────────────────────────────────────────────
+# =============================================================================
 
-# Counting stats that scale with playing time (batters)
+# Counting stats that scale with playing time
 BATTER_COUNTING_COLS = [
     'PA', 'G', 'HR', '2B', '3B', '1B', 'H', 'AB', 'K',
     'BB_count', 'HBP_count', 'RBI', 'R', 'HBP', 'BB',
     'SB', 'CS', 'SF',
 ]
-# Counting stats that scale with playing time (pitchers)
 PITCHER_COUNTING_COLS = [
     'IP', 'GS', 'G', 'W', 'L', 'SO', 'H', 'HR',
     'BB', 'HBP', 'ER', 'R', 'TBF',
 ]
 
 
-def reduce_to_remaining_season(df, war_proration, current_year=None,
-                               player_type='batter'):
-    """Scale current-year playing time and counting stats to remaining season.
+def reduce_to_remaining_season(
+    df,
+    war_proration,
+    current_year=None,
+    player_type='batter',
+):
+    """Scale current-year counting stats to the remaining season.
 
-    If a batter was projected for 150 G / 650 PA and the team has played 10
-    games, the projection is reduced to ~140 G / ~610 PA and all counting
-    stats are scaled proportionally.  Rate stats are untouched.
+    Multiplies all counting stats for the current year by remaining_fraction
+    so the projection represents what the player is expected to accumulate
+    from today through the end of the season, not the full year.
 
-    For pitchers, IP / GS / G and counting stats are reduced the same way.
+    Rate stats (AVG, ERA, K%, etc.) are left untouched — they represent
+    expected performance level, not volume.
 
-    Sets ``playing_time_reduced=True`` in each player's war_proration entry
-    so that :func:`prorate_current_year_war` uses direct addition
-    (``actual + projected_ROS``) instead of re-multiplying by
-    ``remaining_fraction``.
+    Sets playing_time_reduced=True in each player's war_proration entry so
+    that prorate_current_year_war uses direct addition (actual + projected_ROS)
+    rather than re-multiplying by remaining_fraction.
 
     Args:
-        df: Prediction DataFrame (must have IDfg, Year columns).
+        df:            Prediction DataFrame (must have IDfg, Year columns).
         war_proration: Dict mapping IDfg → {actual_war, remaining_fraction}.
-        current_year: Season to reduce.
-        player_type: ``'batter'`` or ``'pitcher'``.
+        current_year:  Season to reduce.
+        player_type:   'batter' or 'pitcher'.
 
     Returns:
         DataFrame with reduced current-year counting stats.
@@ -957,13 +1097,13 @@ def reduce_to_remaining_season(df, war_proration, current_year=None,
     if current_year is None:
         current_year = CURRENT_YEAR
 
-    counting_cols = (BATTER_COUNTING_COLS if player_type == 'batter'
-                     else PITCHER_COUNTING_COLS)
+    counting_cols = (
+        BATTER_COUNTING_COLS if player_type == 'batter' else PITCHER_COUNTING_COLS
+    )
 
-    df = df.copy()
+    df      = df.copy()
     reduced = 0
 
-    # Ensure counting columns are float so fractional values can be stored
     for col in counting_cols:
         if col in df.columns:
             df[col] = df[col].astype(float)
@@ -981,7 +1121,7 @@ def reduce_to_remaining_season(df, war_proration, current_year=None,
 
         remaining = info['remaining_fraction']
         if remaining >= 1.0:
-            continue  # full season — nothing to reduce
+            continue
 
         for col in counting_cols:
             if col in df.columns:
@@ -999,30 +1139,29 @@ def reduce_to_remaining_season(df, war_proration, current_year=None,
     return df
 
 
-# ─────────────────────────────────────────────────────────────────────────
-# Partial-season WAR proration
-# ─────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# WAR and salary proration
+# =============================================================================
 
 def prorate_current_year_war(df, war_proration, current_year=None):
     """Replace current-year WAR with ROS projected WAR.
 
-    If playing time was already reduced to remaining season via
-    :func:`reduce_to_remaining_season`, the projected WAR is already
-    ROS-scale and we simply use it::
+    If playing time was already reduced via reduce_to_remaining_season, the
+    projected WAR is already ROS-scale and is used directly::
 
         new_WAR = projected_ros_war
 
-    Otherwise (full-season projection), the old formula applies::
+    Otherwise (full-season projection)::
 
         new_WAR = projected_full_war × remaining_fraction
 
     Future years (Year > current_year) are untouched.
 
     Args:
-        df: DataFrame with IDfg, Year, WAR columns (post WAR calculation).
+        df:            DataFrame with IDfg, Year, WAR columns.
         war_proration: Dict mapping IDfg → {actual_war, remaining_fraction,
-            playing_time_reduced (optional)}.
-        current_year: Season to prorate (default CURRENT_YEAR).
+                       playing_time_reduced (optional)}.
+        current_year:  Season to prorate (default CURRENT_YEAR).
 
     Returns:
         DataFrame with prorated current-year WAR.
@@ -1030,14 +1169,13 @@ def prorate_current_year_war(df, war_proration, current_year=None):
     if current_year is None:
         current_year = CURRENT_YEAR
 
-    df = df.copy()
+    df       = df.copy()
     prorated = 0
 
     current_mask = df['Year'] == current_year
     for idx in df.index[current_mask]:
-        raw_idfg = df.at[idx, 'IDfg']
         try:
-            idfg = int(raw_idfg)
+            idfg = int(df.at[idx, 'IDfg'])
         except (ValueError, TypeError):
             continue
 
@@ -1048,10 +1186,8 @@ def prorate_current_year_war(df, war_proration, current_year=None):
         projected_war = df.at[idx, 'WAR']
 
         if info.get('playing_time_reduced', False):
-            # Playing time already reduced → projected WAR is ROS-scale
             prorated_war = projected_war
         else:
-            # Full-season projection → scale down
             prorated_war = projected_war * info['remaining_fraction']
 
         df.at[idx, 'WAR'] = prorated_war
@@ -1065,21 +1201,17 @@ def prorate_current_year_war(df, war_proration, current_year=None):
 
 
 def prorate_current_year_salary(df, war_proration, current_year=None):
-    """Prorate current-year salary to reflect remaining season only.
-
-    Current-year contract_value should only include remaining salary owed,
-    not salary already paid. We scale it by the same remaining_fraction
-    used for WAR proration.
+    """Prorate current-year contract_value to reflect only remaining salary.
 
     Formula::
         new_contract_value = full_year_contract × remaining_fraction
 
-    Future years (Year > current_year) are untouched.
+    Future years are untouched.
 
     Args:
-        df: DataFrame with IDfg, Year, contract_value columns.
+        df:            DataFrame with IDfg, Year, contract_value columns.
         war_proration: Dict mapping IDfg → {remaining_fraction, ...}.
-        current_year: Season to prorate (default CURRENT_YEAR).
+        current_year:  Season to prorate (default CURRENT_YEAR).
 
     Returns:
         DataFrame with prorated current-year contract_value.
@@ -1087,19 +1219,17 @@ def prorate_current_year_salary(df, war_proration, current_year=None):
     if current_year is None:
         current_year = CURRENT_YEAR
 
-    df = df.copy()
+    df       = df.copy()
     prorated = 0
 
-    # Use lowercase 'contract_value' to match value_calculator.py output
     if 'contract_value' not in df.columns:
         logger.warning("contract_value column not found; skipping salary proration")
         return df
 
     current_mask = df['Year'] == current_year
     for idx in df.index[current_mask]:
-        raw_idfg = df.at[idx, 'IDfg']
         try:
-            idfg = int(raw_idfg)
+            idfg = int(df.at[idx, 'IDfg'])
         except (ValueError, TypeError):
             continue
 
@@ -1107,19 +1237,15 @@ def prorate_current_year_salary(df, war_proration, current_year=None):
         if info is None:
             continue
 
-        # Get remaining fraction from war_proration
         remaining_frac = info.get('remaining_fraction', 1.0)
         if remaining_frac >= 1.0:
-            # Full season already played or remaining_fraction not set
             continue
 
         original_contract = df.at[idx, 'contract_value']
         if pd.isna(original_contract) or original_contract == 0:
             continue
 
-        # Prorate to remaining season
-        prorated_contract = original_contract * remaining_frac
-        df.at[idx, 'contract_value'] = prorated_contract
+        df.at[idx, 'contract_value'] = original_contract * remaining_frac
         prorated += 1
 
     logger.info(
@@ -1129,146 +1255,166 @@ def prorate_current_year_salary(df, war_proration, current_year=None):
     return df
 
 
-# ─────────────────────────────────────────────────────────────────────────
+# =============================================================================
 # Fielding blending
-# ─────────────────────────────────────────────────────────────────────────
+# =============================================================================
 
 def blend_fielding_projections(fielding_df, actual_batting, current_year=None):
     """Blend preseason fielding projections with actual Fld runs from FanGraphs.
 
-    The FanGraphs batting CSV includes a ``Fld`` column (total fielding runs)
-    which serves as the current-season actual.  We blend this with the
-    preseason ``sc_total_runs/150`` projection using games-based shrinkage.
+    Uses Marcel-consistent weighting calibrated to fielding's stabilization
+    properties.  Fielding is very noisy — the Marcel engine itself uses
+    550–1100 innings of regression (vs ~400 PA for batting).  The blend
+    weight is scaled to respect that: a full season of fielding (~1350 innings
+    for a regular) earns the Marcel weight-5 slot, so early-season data has
+    very little influence.
 
-    The fielding_df (per-150 rates) is converted to seasonal runs for blending,
-    then normalized back.
+    The FanGraphs batting CSV ``Fld`` column (total fielding runs for the
+    season) is converted to a per-150-game rate before blending with the
+    preseason per-150 projection.
 
     Args:
-        fielding_df: Preseason fielding prediction DataFrame with
-            columns IDfg, Year, sc_total_runs/150, and other sc_* runs.
+        fielding_df:    Preseason fielding prediction DataFrame with columns
+                        IDfg, Year, sc_total_runs/150.
         actual_batting: Current-season FanGraphs batting DataFrame
-            (must include IDfg, G, Fld columns).
-        current_year: Season to blend (default CURRENT_YEAR).
+                        (must include IDfg, G, Fld).
+        current_year:   Season to blend (default CURRENT_YEAR).
 
     Returns:
-        Updated fielding_df with blended current-year values.
+        Updated fielding_df with blended current-year sc_total_runs/150 values.
     """
     if current_year is None:
         current_year = CURRENT_YEAR
 
-    df = fielding_df.copy()
+    df           = fielding_df.copy()
     current_mask = df['Year'] == current_year
     if not current_mask.any():
         return df
 
-    # Build actual lookup: IDfg → (Fld_runs, games_played)
+    # Fielding stabilization: ~1350 innings for a full-time player.
+    # We use the outfield regression constant (550 inn) as the reference
+    # denominator so that a full-season outfielder earns roughly the Marcel
+    # weight-5 slot — the most conservative group.  Infield and catcher are
+    # even noisier (up to 1100 inn regression) so this is a reasonable middle.
+    # In practice, the weight grows slowly: at 500 inn (~81 games) w ≈ 0.16.
+    FULL_SEASON_FIELDING_INN = 1350.0
+
     actual_lookup = {}
     for _, row in actual_batting.iterrows():
-        idfg = row.get('IDfg')
+        idfg  = row.get('IDfg')
         if pd.isna(idfg):
             continue
-        fld = _safe_float(row.get('Fld'))
+        fld   = _safe_float(row.get('Fld'))
         games = _safe_float(row.get('G', 0)) or 0.0
-        if fld is not None and games >= 5:
+        if fld is not None and games >= MIN_FIELDING_G:
             actual_lookup[int(idfg)] = (fld, games)
 
     blended_count = 0
     for idx in df.index[current_mask]:
-        idfg = int(df.at[idx, 'IDfg'])
+        idfg        = int(df.at[idx, 'IDfg'])
         actual_data = actual_lookup.get(idfg)
         if actual_data is None:
             continue
 
         actual_fld, games = actual_data
-
-        # Convert actual Fld (seasonal runs in G games) to per-150 rate
-        if games > 0:
-            actual_per_150 = actual_fld * (150.0 / games)
-        else:
+        if games <= 0:
             continue
 
-        pre_per_150 = _safe_float(df.at[idx, 'sc_total_runs/150']) or 0.0
+        # Approximate innings from games (regular ≈ ~8.5 inn/game in the field)
+        approx_inn = games * 8.5
 
-        # Bayesian shrinkage: w = G / (G + FIELDING_PRIOR_G)
-        w = games / (games + FIELDING_PRIOR_G)
-        blended_per_150 = w * actual_per_150 + (1 - w) * pre_per_150
+        # Marcel-consistent weight for fielding
+        w = _marcel_blend_weight(approx_inn, FULL_SEASON_FIELDING_INN)
 
-        df.at[idx, 'sc_total_runs/150'] = blended_per_150
+        # Convert actual Fld (seasonal total in 'games' games) → per-150 rate
+        actual_per_150 = actual_fld * (150.0 / games)
+        pre_per_150    = _safe_float(df.at[idx, 'sc_total_runs/150']) or 0.0
+
+        df.at[idx, 'sc_total_runs/150'] = w * actual_per_150 + (1.0 - w) * pre_per_150
         blended_count += 1
 
     logger.info(
         f"Blended {blended_count} current-year fielding projections "
-        f"(Fld per-150 via Bayesian shrinkage, prior_G={FIELDING_PRIOR_G})"
+        f"(Marcel-weighted Fld per-150; min_G={MIN_FIELDING_G})"
     )
     return df
 
 
-# ─────────────────────────────────────────────────────────────────────────
+# =============================================================================
 # Baserunning blending
-# ─────────────────────────────────────────────────────────────────────────
+# =============================================================================
 
 def blend_baserunning_projections(baserunning_df, actual_batting, current_year=None):
     """Blend preseason baserunning projections with actual BsR from FanGraphs.
 
-    The FanGraphs batting CSV includes a ``BsR`` column (baserunning runs)
-    which serves as the current-season actual.  We blend this with the
-    preseason ``sc_baserunning_runner_runs_tot_rate`` projection.
+    Uses Marcel-consistent weighting calibrated to baserunning's stabilization
+    properties.  Marcel regresses baserunning toward 0 with ~100 games of
+    regression (BASERUNNING_REGRESSION_GAMES), meaning a full season (~150 G)
+    earns roughly the weight-5 slot.  The blend weight respects this: at
+    50 games w ≈ 0.22, at 100 games w ≈ 0.31, at 150 games w ≈ 0.38.
+
+    The FanGraphs batting CSV ``BsR`` column (seasonal baserunning runs) is
+    converted to a per-650-PA rate before blending.
 
     Args:
-        baserunning_df: Preseason baserunning prediction DataFrame with
-            columns IDfg, Year, sc_baserunning_runner_runs_tot_rate.
+        baserunning_df: Preseason baserunning prediction DataFrame with columns
+                        IDfg, Year, sc_baserunning_runner_runs_tot_rate.
         actual_batting: Current-season FanGraphs batting DataFrame
-            (must include IDfg, PA, BsR columns).
-        current_year: Season to blend (default CURRENT_YEAR).
+                        (must include IDfg, PA, BsR).
+        current_year:   Season to blend (default CURRENT_YEAR).
 
     Returns:
-        Updated baserunning_df with blended current-year values.
+        Updated baserunning_df with blended current-year rate values.
     """
     if current_year is None:
         current_year = CURRENT_YEAR
 
-    df = baserunning_df.copy()
+    df           = baserunning_df.copy()
     current_mask = df['Year'] == current_year
     if not current_mask.any():
         return df
 
-    # Build actual lookup: IDfg → (BsR_runs, PA)
+    # Full-season baserunning volume (PA equivalent of ~150 games)
+    # Marcel baserunning regression = 100 games; full season ≈ 150 games.
+    # We use 150 G * (650 PA / 162 G) ≈ 600 PA as the full-season PA target,
+    # which aligns with FULL_SEASON_PA and keeps the math consistent.
+    FULL_SEASON_BR_PA = float(FULL_SEASON_PA)   # 650
+
     actual_lookup = {}
     for _, row in actual_batting.iterrows():
         idfg = row.get('IDfg')
         if pd.isna(idfg):
             continue
         bsr = _safe_float(row.get('BsR'))
-        pa = _safe_float(row.get('PA', 0)) or 0.0
-        if bsr is not None and pa >= 10:
+        pa  = _safe_float(row.get('PA', 0)) or 0.0
+        if bsr is not None and pa >= MIN_BASERUNNING_PA:
             actual_lookup[int(idfg)] = (bsr, pa)
 
     blended_count = 0
     for idx in df.index[current_mask]:
-        idfg = int(df.at[idx, 'IDfg'])
+        idfg        = int(df.at[idx, 'IDfg'])
         actual_data = actual_lookup.get(idfg)
         if actual_data is None:
             continue
 
         actual_bsr, pa = actual_data
-
-        # Convert actual BsR (seasonal runs in PA) to per-650 rate
-        if pa > 0:
-            actual_rate = actual_bsr * (FULL_SEASON_PA / pa)
-        else:
+        if pa <= 0:
             continue
 
-        pre_rate = _safe_float(df.at[idx, 'sc_baserunning_runner_runs_tot_rate']) or 0.0
+        # Marcel-consistent weight for baserunning
+        w = _marcel_blend_weight(pa, FULL_SEASON_BR_PA)
 
-        # Bayesian shrinkage: w = PA / (PA + BASERUNNING_PRIOR_PA)
-        w = pa / (pa + BASERUNNING_PRIOR_PA)
-        blended_rate = w * actual_rate + (1 - w) * pre_rate
+        # Convert actual BsR (seasonal total in 'pa' PA) → per-650 rate
+        actual_rate = actual_bsr * (FULL_SEASON_PA / pa)
+        pre_rate    = _safe_float(df.at[idx, 'sc_baserunning_runner_runs_tot_rate']) or 0.0
 
-        df.at[idx, 'sc_baserunning_runner_runs_tot_rate'] = blended_rate
+        df.at[idx, 'sc_baserunning_runner_runs_tot_rate'] = (
+            w * actual_rate + (1.0 - w) * pre_rate
+        )
         blended_count += 1
 
     logger.info(
         f"Blended {blended_count} current-year baserunning projections "
-        f"(BsR per-650 via Bayesian shrinkage, prior_PA={BASERUNNING_PRIOR_PA})"
+        f"(Marcel-weighted BsR per-650; min_PA={MIN_BASERUNNING_PA})"
     )
     return df
