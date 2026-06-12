@@ -5,7 +5,7 @@ from math import isnan
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc, func
+from sqlalchemy import desc, asc, func, or_
 from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel
 import logging
@@ -161,6 +161,9 @@ async def get_all_prospects(
 def get_trade_value_rankings(
     db: Session = Depends(get_db),
     team: Optional[str] = None,
+    position: Optional[str] = None,
+    age_operator: Optional[str] = None,
+    age_value: Optional[int] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     sort_by: str = Query(
@@ -183,6 +186,33 @@ def get_trade_value_rankings(
             else:
                 query = query.filter(func.upper(Player.team) == team.upper())
         
+        # Add position filter if specified
+        if position:
+            if position == 'OF':
+                query = query.filter(or_(
+                    Player.position.in_(['LF', 'CF', 'RF']),
+                    Player.position.like('%/LF%'),
+                    Player.position.like('%/CF%'),
+                    Player.position.like('%/RF%'),
+                    Player.position.like('LF/%'),
+                    Player.position.like('CF/%'),
+                    Player.position.like('RF/%')
+                ))
+            else:
+                query = query.filter(or_(
+                    Player.position == position,  # Exact match
+                    Player.position.like(f'{position}/%'),  # Position at start
+                    Player.position.like(f'%/{position}')  # Position at end
+                ))
+        
+        # Add age filter if specified
+        if age_value is not None and age_operator:
+            if age_operator == '>=':
+                query = query.filter(Player.age >= age_value)
+            elif age_operator == '<=':
+                query = query.filter(Player.age <= age_value)
+            elif age_operator == '=':
+                query = query.filter(Player.age == age_value)
         
         sort_column = getattr(Player, sort_by)
         query = query.order_by(desc(sort_column) if sort_direction == "desc" else asc(sort_column))
