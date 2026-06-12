@@ -54,7 +54,7 @@ const ProjectionsPage = () => {
   return (
     <div className="min-h-screen bg-\[#F5F3EE\]">
       <div className="max-w-7xl mx-auto py-6 px-4">
-        <h1 className="text-2xl font-bold mb-5 text-gray-900 tracking-tight font-display">Player Projections</h1>
+        <h1 className="text-lg font-bold mb-4 text-gray-900 tracking-tight font-display">Player Projections</h1>
         
         {/* Controls Section */}
         <div className="border-b border-gray-200 pb-4 mb-6">
@@ -169,7 +169,7 @@ const ProjectionsPage = () => {
   
         {data && (
           <div>
-            <div className="text-sm text-gray-500 mb-3">
+            <div className="text-xs text-gray-500 mb-2">
               Found {data.total_count} players
             </div>
             <div className="border-t border-gray-200">
