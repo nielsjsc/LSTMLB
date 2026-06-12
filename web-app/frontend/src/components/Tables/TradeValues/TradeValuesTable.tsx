@@ -137,7 +137,7 @@ const TradeValuesTable: React.FC<TradeValuesTableProps> = ({
                 <th
                   key={header.key}
                   onClick={() => onSort(header.key)}
-                  className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-900 hover:bg-gray-100 select-none transition-colors"
+                  className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-900 hover:bg-gray-100 select-none transition-colors"
                 >
                   <div className="flex items-center gap-1">
                     <span>{header.label}</span>
@@ -153,7 +153,7 @@ const TradeValuesTable: React.FC<TradeValuesTableProps> = ({
             {formattedData.map((row, i) => (
               <tr key={i} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? 'bg-transparent' : 'bg-gray-50/50'}`}>
                 {desktopHeaders.map((header) => (
-                  <td key={header.key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                  <td key={header.key} className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-600">
                     {formatCell(header.key, row[header.key], row)}
                   </td>
                 ))}
