@@ -761,6 +761,9 @@ export interface TradeValueRankingsResponse {
 export const getTradeValueRankings = async (
   params: {
     team?: string;
+    position?: string;
+    ageOperator?: '>=' | '<=' | '=';
+    ageValue?: number;
     page?: number;
     pageSize?: number;
     sortBy?: string;
@@ -769,6 +772,9 @@ export const getTradeValueRankings = async (
 ): Promise<TradeValueRankingsResponse> => {
   const {
     team,
+    position,
+    ageOperator,
+    ageValue,
     page = 1,
     pageSize = 50,
     sortBy = 'trade_value',
@@ -780,7 +786,9 @@ export const getTradeValueRankings = async (
     page_size: pageSize.toString(),
     sort_by: sortBy,
     sort_direction: sortDirection,
-    ...(team && { team })
+    ...(team && { team }),
+    ...(position && { position }),
+    ...(ageValue !== undefined && ageOperator && { age_operator: ageOperator, age_value: ageValue.toString() })
   });
 
   const url = `${API_BASE}/trades/trade-val-rank?${queryParams}`;

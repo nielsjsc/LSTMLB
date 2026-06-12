@@ -82,6 +82,9 @@ export function useProspects(params: {
 
 export function useTradeValues(params: {
   team?: string;
+  position?: string;
+  ageOperator?: '>=' | '<=' | '=';
+  ageValue?: number;
   page?: number;
   pageSize?: number;
   sortBy?: string;
@@ -92,6 +95,9 @@ export function useTradeValues(params: {
     queryFn: () =>
       getTradeValueRankings({
         team: params.team,
+        position: params.position,
+        ageOperator: params.ageOperator,
+        ageValue: params.ageValue,
         page: params.page ?? 1,
         pageSize: params.pageSize ?? 50,
         sortBy: params.sortBy ?? 'trade_value',
