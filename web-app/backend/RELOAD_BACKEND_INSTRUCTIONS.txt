@@ -6,5 +6,6 @@ INSTRUCTIONS FOR RELOADING LOCAL HOST AND NGROK:
 4. (in new cmd) launch ngrok: ngrok http 8000
 5. get new ngrok url (should look like: https://8304133ee795.ngrok-free.app)
    and replace all instances of old url in codebase
-6. push changes to github
-7. verify on netlify that the build succeeded
+6. replace vite api url on netlify with new ngrok: https://app.netlify.com/projects/longball-analytics/configuration/env#VITE_ENV
+7. push changes to github
+8. verify on netlify that the build succeeded
