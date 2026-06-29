@@ -295,10 +295,15 @@ def _overlay_current_year_rows(
         except Exception:
             pass
 
-    # Add any new columns the overlay introduces
+    # Add any new columns the overlay introduces.
+    # Preserve object/string dtype for new columns so overlay updates do not
+    # fail when the overlay contains string values such as Role.
     for col in overlay.columns:
         if col not in result.columns:
-            result[col] = np.nan
+            if pd.api.types.is_string_dtype(overlay[col]) or overlay[col].dtype == object:
+                result[col] = pd.Series([pd.NA] * len(result), dtype='object')
+            else:
+                result[col] = np.nan
 
     key_col = 'Season' if 'Season' in result.columns else 'Year'
     if 'IDfg' not in result.columns or key_col not in result.columns:
