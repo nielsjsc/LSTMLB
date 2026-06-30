@@ -1,16 +1,11 @@
 import React, { useState } from 'react'
-import { FaGithub, FaChevronDown } from 'react-icons/fa'
+import { FaGithub } from 'react-icons/fa'
 
-const CollapsibleSection = ({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) => (
-  <details className="mb-6 group border border-gray-200 rounded-lg bg-white overflow-hidden shadow-sm" open={defaultOpen}>
-    <summary className="cursor-pointer px-6 py-4 font-bold text-gray-900 font-display flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition-colors list-none [&::-webkit-details-marker]:hidden">
-      <span className="text-lg">{title}</span>
-      <FaChevronDown className="h-4 w-4 text-gray-500 group-open:rotate-180 transition-transform duration-200" />
-    </summary>
-    <div className="p-6 space-y-4 text-[15px] text-gray-600 leading-relaxed border-t border-gray-200">
-      {children}
-    </div>
-  </details>
+const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <section className="mb-14">
+    <h2 className="text-xl font-bold text-gray-900 font-display tracking-tight mb-4 pb-2 border-b border-gray-200">{title}</h2>
+    <div className="space-y-4 text-[15px] text-gray-600 leading-relaxed">{children}</div>
+  </section>
 )
 
 type FeedbackStatus = 'idle' | 'submitting' | 'success' | 'error'
@@ -30,7 +25,9 @@ const FeedbackForm = () => {
     setErrorMsg('')
 
     try {
-      const res = await fetch('https://formspree.io/f/mbdezljq', {
+      // Replace YOUR_FORM_ID below with your Formspree form ID
+      // Sign up at formspree.io, create a form, and paste the ID here
+      const res = await fetch('https://formspree.io/f/YOUR_FORM_ID', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ name, email, category, message }),
@@ -56,7 +53,7 @@ const FeedbackForm = () => {
   if (status === 'success') {
     return (
       <div className="rounded-lg border border-green-200 bg-green-50 p-6 text-center">
-        <p className="text-green-800 font-medium text-sm">Thanks for the feedback. It is genuinely appreciated.</p>
+        <p className="text-green-800 font-medium text-sm">Thanks for the feedback — it's genuinely appreciated.</p>
         <button
           onClick={() => setStatus('idle')}
           className="mt-3 text-xs text-green-700 underline underline-offset-2 hover:text-green-900"
@@ -116,7 +113,7 @@ const FeedbackForm = () => {
           value={message}
           onChange={e => setMessage(e.target.value)}
           rows={5}
-          placeholder="What is on your mind? Specific players you think are misvalued, methodology questions, or bug reports. Anything goes."
+          placeholder="What's on your mind? Specific players you think are over/undervalued, methodology questions, things that seem off — anything goes."
           className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus:ring-0 resize-none"
         />
       </div>
@@ -143,10 +140,10 @@ const About = () => {
         <div className="max-w-3xl mx-auto px-6 py-12">
 
           {/* Header */}
-          <div className="mb-10 text-center">
+          <div className="mb-14">
             <h1 className="font-display text-4xl font-extrabold text-gray-900 tracking-tight mb-3">About LongBall</h1>
             <p className="text-lg text-gray-500 mb-6">
-              An open-source MLB player projection system forecasting performance 15 years into the future, featuring quantified trade value, contract analysis, and surplus value modeling.
+              An open-source platform for quantifying MLB trade value through long-term player projections, contract analysis, and surplus value modeling.
             </p>
             <a
               href="https://github.com/nielsjsc/LSTMLB"
@@ -159,109 +156,138 @@ const About = () => {
             </a>
           </div>
 
-          <CollapsibleSection title="Share Feedback" defaultOpen>
-            <p className="text-[15px] text-gray-500 mb-4">
-              Found something off? Have a methodology question or feature idea? Your feedback helps improve the system.
+          {/* Motivation */}
+          <Section title="Motivation">
+            <p>
+              Trade value is one of the most discussed yet least quantified concepts in baseball. Every deadline deal prompts debate about who "won" a trade, but there is no publicly available, systematic framework for assigning dollar values to players on the trade market. This project attempts to build one.
+            </p>
+            <p>
+              Computing trade value requires two things: projected future on-field production (WAR) and projected future salary obligations. The difference between the two — surplus value — captures how much value a team receives above what it pays. But surplus alone does not fully explain trade behavior. A player with 3 projected WAR and $5M in surplus is not equivalent to a player with 1 projected WAR and the same surplus. Scarcity, roster concentration, and certainty all matter. This project models that distinction.
+            </p>
+          </Section>
+
+          {/* Projection Models */}
+          <Section title="Projection Models">
+            <p>
+              Player projections are generated by a hybrid system that pairs a bidirectional LSTM neural network for hitting with Marcel-style statistical models for pitching, defense, and baserunning. Each method was chosen based on where it performs best: the LSTM excels at learning nonlinear sequential patterns in high-signal batting data, while Marcel's weighted-average approach is more reliable for noisier, lower-signal metrics where deep learning tends to overfit.
+            </p>
+
+            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mt-6 mb-2">Hitting (LSTM)</h3>
+            <p>
+              The batter model uses a two-stage transfer learning approach. Stage one pre-trains on classical features (BB%, K%, AVG, OBP, SLG, wOBA, and per-150 counting stats) using data back to 1950. Stage two fine-tunes on the Statcast era (2015+), expanding the feature set to include expected stats (xwOBA, xBA, xSLG) and batted-ball metrics (EV50, sweet-spot rate). LSTM layers are frozen during fine-tuning so only the output projection adapts to the new features, preserving the temporal patterns learned from 75 years of data.
+            </p>
+            <p>
+              Rather than predicting absolute stat lines, the model predicts year-over-year deltas from the player's last observed season. This prevents the autoregressive loop from regressing every player toward league average over long horizons. Counting stats (HR, 2B, 3B, RBI, R) are derived from the model's predicted wOBA scaled by each player's career counting-stat profile, preserving individual power and speed signatures.
+            </p>
+
+            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mt-6 mb-2">Pitching (Marcel)</h3>
+            <p>
+              Pitching projections use a Marcel-style weighted average rather than an LSTM. The Marcel method takes up to three recent seasons of rate statistics, weights them 5/4/3 by recency (further scaled by sample size), and regresses toward league average. Year-over-year projections are then generated by applying empirically-derived aging curves.
+            </p>
+            <p>
+              After computing the Marcel base, a set of multivariate equations nudge rate stats (K%, BB%, HR/FB, BABIP) based on more predictive peripheral indicators — including Stuff+, Location+, and Pitching+ for pitchers with Statcast data. ERA and FIP are reconstructed from component rates rather than predicted directly, producing internally consistent projections. ERA is derived from reconstructed FIP plus a James-Stein shrunk career ERA-FIP gap. Separate equations are applied for starters and relievers.
+            </p>
+
+            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mt-6 mb-2">Defense and Baserunning (Marcel)</h3>
+            <p>
+              Defensive and baserunning projections also use the Marcel framework. Defensive stats are modeled using Statcast fielding run values (total runs, range runs, arm runs, and double-play runs for infielders; framing, throwing, and blocking runs for catchers). Each stat has its own regression amount calibrated from empirical year-to-year stabilization analysis — for example, infield arm runs are so noisy (year-to-year r ≈ −0.16) that projections carry very low reliability weight, while catcher blocking runs stabilize much faster.
+            </p>
+            <p>
+              After regression, a reliability multiplier is applied based on out-of-sample grid search across 2016–2025 Statcast data, further shrinking projections that carry weak predictive signal. Aging curves then apply position-specific decline rates, with minimum decline floors enforced for older players to correct for small-sample artifacts in the empirical curves.
+            </p>
+          </Section>
+
+          {/* Data Pipeline */}
+          <Section title="Data Pipeline">
+            <p>
+              All statistics are normalized to rate form before model input. Batting stats are converted to per-150 games, pitcher stats to per-batter-faced, and defensive stats to per-1350 innings. This allows the models to learn performance level independent of playing time, which is projected separately.
+            </p>
+            <p>
+              A reliability regression module applies James-Stein shrinkage to small samples before prediction. Each stat has a research-based stabilization point (e.g., K% stabilizes at 60 PA, wOBA at 200 PA, BABIP at 1200 batters faced). Players below these thresholds are regressed toward a recency-weighted career prior blended with the league average. Park factors, sourced from FanGraphs five-year averages, neutralize stats on input and re-apply them when calculating WAR.
+            </p>
+            <p>
+              Empirical aging curves are derived from within-player year-over-year deltas using the paired difference method, with a correction for survivorship bias — the tendency for poor performers to exit the dataset at higher rates, which causes raw age curves to understate true decline.
+            </p>
+          </Section>
+
+          {/* WAR Calculation */}
+          <Section title="WAR Calculation">
+            <p>
+              Position player WAR is computed from batting runs (using FanGraphs wOBA weights and park-adjusted wRC+), baserunning runs, defensive runs, and positional adjustments, divided by a runs-per-win conversion factor. Pitcher WAR uses FIP-based methodology with a dynamic runs-per-win denominator — an ace who pitches deep into games suppresses the overall run environment, making each run saved more valuable in terms of wins.
+            </p>
+            <p>
+              Players are projected at 150 games for position players (135 for catchers), 32 starts for starting pitchers, and 65 innings for relievers. While injuries and playing time are significant components of player value, they are difficult to predict reliably and are not currently modeled.
+            </p>
+          </Section>
+
+          {/* Trade Value */}
+          <Section title="From WAR to Trade Value">
+            <p>
+              WAR is converted to dollars using a convex power-law model: <span className="font-mono text-sm text-gray-700">$8.59M × WAR<sup>1.18</sup></span>, with 4% annual inflation from a 2025 base. The exponent greater than one captures the superlinear pricing of high-WAR players — a five-win player commands substantially more on the trade market than five one-win players. The parameters were calibrated by minimizing median absolute trade imbalance across 744 MLB trades from 2014 to 2024.
+            </p>
+            <p>
+              Trade value is then the sum of projected WAR dollar values over a player's remaining team-control years, minus projected salary obligations. Pre-arbitration players are valued at $720K per year. Arbitration salaries are estimated as a percentage of market value (15% for Arb-1, 25% for Arb-2, 40% for Arb-3). Contract options (player, team, vesting, and opt-outs) are evaluated and incorporated into the timeline.
+            </p>
+          </Section>
+
+          {/* Prospect Valuations */}
+          <Section title="Prospect Valuations">
+            <p>
+              Prospects without significant MLB track records are valued using FanGraphs FV grades and consensus ranking data. Base values range from $1M (30 FV) to $120M (70 FV), with a top-100 ranking multiplier that scales from 1.5x at rank 1 down to 1.0x at rank 100. As prospects accumulate MLB playing time, their valuation transitions linearly from the FV-based estimate to the projection-based estimate over the first 300 games (batters), 45 starts (SP), or 65 appearances (RP).
+            </p>
+            <p>
+              A separate MiLB projection model uses minor league rate statistics with level-adjusted priors (accounting for the empirical translation rates between levels) to estimate future MLB performance for players still in the minor league system.
+            </p>
+          </Section>
+
+          {/* Bayesian Model */}
+          <Section title="Bayesian Aging Model">
+            <p>
+              An independent Bayesian hierarchical model, implemented in NumPyro, provides a second opinion on aging trajectories. It estimates population-level aging curve parameters (peak age, decline rate) and player-specific deviations using a three-level hierarchy. PA-weighting in the likelihood ensures that a 600-PA season constrains a player's talent estimate far more tightly than a 100-PA season, without arbitrary cutoffs.
+            </p>
+            <p>
+              The model is fit in two stages: population aging parameters are learned from 1950–2020 data to avoid leakage, then current player projections use only 2021–2025 data with the learned curve as a prior.
+            </p>
+          </Section>
+
+          {/* Limitations */}
+          <Section title="Limitations">
+            <p>
+              Long-range player projections are inherently uncertain. No model can predict injuries, role changes, mechanical adjustments, or the dozens of other factors that alter a career trajectory. The projections presented here represent a statistical expectation conditional on continued health and opportunity — they are not predictions of what will happen, but estimates of baseline expected value.
+            </p>
+            <p>
+              Playing time is assumed rather than predicted. The WAR-to-dollar model, while calibrated on real trades, reflects average market behavior and cannot capture the idiosyncratic preferences of individual front offices. Prospect valuations rely on consensus scouting grades that update annually and can shift substantially between seasons.
+            </p>
+            <p>
+              Pitching projections in particular should be treated with caution. The Marcel methodology is more stable than the earlier LSTM approach, but pitching metrics remain noisier than hitting, and small-sample pitchers are aggressively regressed toward league average. Long-range pitcher values in the trade simulator will reflect this conservatism.
+            </p>
+          </Section>
+
+          {/* Tech Stack */}
+          <section className="mb-14">
+            <h2 className="text-xl font-bold text-gray-900 font-display tracking-tight mb-4 pb-2 border-b border-gray-200">Technical Stack</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-2 text-[15px] text-gray-600">
+              <div><span className="text-gray-400">Models</span> <span className="ml-2">PyTorch, NumPyro</span></div>
+              <div><span className="text-gray-400">Backend</span> <span className="ml-2">FastAPI, SQLAlchemy</span></div>
+              <div><span className="text-gray-400">Frontend</span> <span className="ml-2">React, TypeScript</span></div>
+              <div><span className="text-gray-400">Data</span> <span className="ml-2">Statcast, FanGraphs, Spotrac</span></div>
+              <div><span className="text-gray-400">Database</span> <span className="ml-2">SQLite</span></div>
+              <div><span className="text-gray-400">Styling</span> <span className="ml-2">Tailwind CSS</span></div>
+            </div>
+          </section>
+
+          {/* Feedback */}
+          <section className="mb-14">
+            <h2 className="text-xl font-bold text-gray-900 font-display tracking-tight mb-2 pb-2 border-b border-gray-200">Feedback</h2>
+            <p className="text-[15px] text-gray-500 mb-6">
+              Spotted a projection that seems way off? Have a methodology question, bug report, or feature idea? I'd love to hear it.
             </p>
             <FeedbackForm />
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Data Acquisition Pipeline">
-            <p>LongBall ingests and normalizes data from authoritative sources to power all downstream projections.</p>
-            <ul className="list-disc pl-5 space-y-2 mt-2">
-              <li><strong>FanGraphs:</strong> Supplies core batting, pitching, and fielding rate statistics.</li>
-              <li><strong>Statcast (Baseball Savant):</strong> Provides batted-ball and pitch-level metrics from 2016 onward.</li>
-              <li><strong>MLB Stats API:</strong> Feeds rosters, game activity, and positional information.</li>
-              <li><strong>Spotrac & Cot's Baseball:</strong> Delivers current contract details and historical salary data.</li>
-              <li><strong>Prospect Data:</strong> Combines FanGraphs Future Value (FV) grades and MLB.com consensus rankings.</li>
-              <li><strong>Identity Resolution:</strong> Unifies player identities across all platforms using crosswalk tables and fuzzy-matching.</li>
-            </ul>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="The Marcel Projection System">
-            <p>We utilize the Marcel methodology to avoid overfitting on small samples. The process follows five strict steps:</p>
-            <ul className="list-disc pl-5 space-y-2 mt-2">
-              <li><strong>Step 1: Weighted Baseline.</strong> Weights a player's recent seasons at a 5/4/3 ratio.</li>
-              <li><strong>Step 2: Reliability Shrinkage.</strong> Uses James-Stein Bayesian regression to pull observed stats toward the league average based on sample size.</li>
-              <li><strong>Step 3: Multivariate Adjustment.</strong> Blends the baseline with a static equation derived from underlying physical Statcast metrics (like velocity and Stuff+).</li>
-              <li><strong>Step 4: Component Validation.</strong> Mathematically reconstructs counting stats from rates to guarantee internal consistency.</li>
-              <li><strong>Step 5: Empirical Aging Curves.</strong> Applies historically fitted aging curves to model physical decline while accounting for survivorship bias.</li>
-            </ul>
-            <p className="mt-3"><strong>Note:</strong> All statistics are neutralized for park factors prior to projection and adjusted for upcoming team ballparks afterward.</p>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Wins Above Replacement (WAR)">
-            <p>WAR connects our projections to financial value using the FanGraphs formula with role-specific adjustments.</p>
-            <ul className="list-disc pl-5 space-y-2 mt-2">
-              <li><strong>Batter WAR:</strong> Sums Weighted Runs Above Average (wRAA), Baserunning (BsR), Fielding, and Positional Adjustments. Projected at a flat 150 games (135 for catchers).</li>
-              <li><strong>Pitcher WAR:</strong> Calculated using FIP and a Dynamic Runs Per Win (RPW) metric. Elite pitchers actively suppress the run environment, increasing the value of the runs they save.</li>
-              <li><strong>Defense & Baserunning:</strong> Relies on park-adjusted Statcast fielding run values and baserunning metrics.</li>
-            </ul>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Trade Value Determination">
-            <p>Trade value quantifies a player's worth on the market by calculating their surplus value (Production Value minus Contract Cost).</p>
-            <ul className="list-disc pl-5 space-y-2 mt-2">
-              <li><strong>WAR-to-Dollar Conversion:</strong> Utilizes a convex power-law model. Elite players command a superlinear premium. Values are inflated by 4% annually.</li>
-              <li><strong>Contract Costs:</strong> Pre-arbitration is set to $720K. Arbitration is estimated at 15%, 25%, and 40% of production value. Free agents use actual Spotrac contract data.</li>
-              <li><strong>Option Evaluation:</strong> The system automatically exercises player opt-outs if mathematical surplus dictates it, and declines team options yielding negative surplus.</li>
-              <li><strong>Surplus Aggregation:</strong> Sums total value over the contract period without Net Present Value (NPV) discounting.</li>
-            </ul>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Prospect Valuations & MiLB Translation">
-            <p>Prospects rely on scouting grades and translated minor league statistics before transitioning to standard projections.</p>
-            <ul className="list-disc pl-5 space-y-2 mt-2">
-              <li><strong>FV-Based Valuation:</strong> FanGraphs Future Value grades (20 to 80 scale) are converted to base dollar amounts, enhanced by a Top 100 ranking multiplier.</li>
-              <li><strong>MiLB Translation:</strong> AAA translates at roughly 0.7x to MLB, and Single-A at 0.35x.</li>
-              <li><strong>MLB Transition:</strong> Valuations smoothly transition from FV-based to projection-based over a player's first 300 games (batters) or 45 starts (pitchers).</li>
-            </ul>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Daily Pipeline & Rest-of-Season Blending">
-            <p>An automated pipeline orchestrates the workflow every day at 6 AM.</p>
-            <ul className="list-disc pl-5 space-y-2 mt-2">
-              <li><strong>Automated Ingestion:</strong> Scrapes rosters, live stats, and new financial transactions.</li>
-              <li><strong>ROS Blending:</strong> During the active season, preseason Marcel projections act as a Bayesian prior. Live in-season stats are regressed against this prior based on accumulated playing time.</li>
-              <li><strong>Deployment:</strong> Validates outputs and seamlessly swaps the database into the production environment.</li>
-            </ul>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Limitations & Caveats">
-            <p>Our model is built on strict statistical expectations, which comes with inherent limitations.</p>
-            <ul className="list-disc pl-5 space-y-2 mt-2">
-              <li><strong>Uncertainty:</strong> Forecasting 15 years ahead is highly volatile. The numbers are baselines for valuation, not guaranteed predictions.</li>
-              <li><strong>Playing Time:</strong> Health, injuries, and role changes are not explicitly modeled.</li>
-              <li><strong>Mechanics:</strong> Mid-career mechanical adjustments or pitch mix shifts cannot be predicted.</li>
-              <li><strong>Market Nuance:</strong> Individual front offices may value players differently than our historical average model suggests.</li>
-              <li><strong>NPV:</strong> We do not discount future dollars. This may slightly overvalue long-term assets compared to teams with strict short-term cash flow constraints.</li>
-            </ul>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Technical Stack">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Data & Backend</h3>
-                <p className="text-sm">Python 3.14, pandas, pybaseball, FastAPI, SQLAlchemy 2.0, PostgreSQL, Alembic</p>
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Frontend</h3>
-                <p className="text-sm">React 18, TypeScript 5.3, Vite, TailwindCSS, TanStack Query, React Router</p>
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Machine Learning</h3>
-                <p className="text-sm">PyTorch, NumPyro, scikit-learn</p>
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Infrastructure</h3>
-                <p className="text-sm">Netlify, Render, GitHub Actions, Docker</p>
-              </div>
-            </div>
-          </CollapsibleSection>
+          </section>
 
           {/* Footer */}
-          <div className="text-sm text-gray-400 pt-6 mt-8 border-t border-gray-200 text-center">
-            All models, projections, and data pipelines are open source under the MIT license. Contributions and feedback are welcome on GitHub. For detailed technical documentation, visit the <a href="https://github.com/nielsjsc/LSTMLB/tree/main/docs" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 transition-colors">docs folder</a> in the repository.
+          <div className="text-sm text-gray-400 pt-6 border-t border-gray-200">
+            All models and data pipelines are open source under the MIT license. Contributions and feedback are welcome on GitHub.
           </div>
 
         </div>
