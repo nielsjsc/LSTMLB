@@ -82,11 +82,8 @@ RAILWAY_URL = os.getenv("RAILWAY_URL", "")
 # CORS configuration
 origins = [
     FRONTEND_URL,
-    "https://longball-production.up.railway.app",
-    "https://longballhq.xyz",
-    "https://longball-api.onrender.com",  # Render URL
+    "https://baseballvalues.com",
     "https://longball-analytics.netlify.app",  # Add your Netlify URL
-    "https://longball-b2w263412-niels-christoffersens-projects.vercel.app",  # Optional: Keep Vercel URL
     "https://*.ngrok-free.app",  # Allow any ngrok subdomain
 ]
 
