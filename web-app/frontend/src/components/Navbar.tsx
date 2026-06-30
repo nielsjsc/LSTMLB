@@ -23,7 +23,7 @@ const Navbar = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-1.5 shrink-0 group">
             <span className="font-display text-xl font-extrabold tracking-tight text-white group-hover:opacity-80 transition-opacity">
-              LONG<span className="text-brand-400">BALL</span>
+              BASEBALL<span className="text-brand-400">VALUES</span>
             </span>
           </Link>
 

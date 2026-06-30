@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { FaGithub } from 'react-icons/fa'
 import { getTradeValueRankings, getPastTrades, type TradeValueRankings, type PastTradeSummary } from '../../services/api'
 
 const fmtDollar = (v: number) => {
@@ -17,10 +16,25 @@ const fmtDate = (d: string) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// Lightweight skeleton row used while data is loading
+const SkeletonRow = ({ withBadge = false }: { withBadge?: boolean }) => (
+  <div className="flex items-center gap-4 px-4 py-3">
+    <div className="h-3 w-5 bg-gray-200 rounded shrink-0" />
+    <div className="h-3 flex-1 bg-gray-200 rounded" />
+    {withBadge && <div className="h-3 w-16 bg-gray-200 rounded shrink-0 hidden sm:block" />}
+    <div className="h-3 w-14 bg-gray-200 rounded shrink-0" />
+  </div>
+)
+
 const Home = () => {
   const [topPlayers, setTopPlayers] = useState<TradeValueRankings[]>([])
   const [recentTrades, setRecentTrades] = useState<PastTradeSummary[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    document.title = 'BaseballValues | MLB Trade Value Rankings & Analytics'
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -35,7 +49,7 @@ const Home = () => {
           setRecentTrades(tradeRes.trades)
         }
       } catch {
-        // Non-critical — page degrades gracefully to empty tables
+        if (!cancelled) setError(true)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -45,23 +59,25 @@ const Home = () => {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[#F5F3EE]">
-      <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className="min-h-screen bg-[#F5F3EE] flex flex-col">
+      <div className="max-w-6xl mx-auto px-4 py-10 flex-1 w-full">
         {/* Hero */}
         <div className="text-center mb-10">
-          <h1 className="font-display text-5xl font-extrabold mb-2 bg-clip-text text-transparent bg-gradient-brand tracking-tight">
-            LONGBALL
+          <h1 className="font-display text-5xl font-extrabold mb-3 bg-clip-text text-transparent bg-gradient-brand tracking-tight">
+            BASEBALLVALUES
           </h1>
-          <p className="text-lg text-gray-500 mb-4">Open Source Baseball Analytics</p>
-          <a
-            href="https://github.com/nielsjsc/LSTMLB"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-gray-900 hover:bg-gray-800 transition-colors text-white text-sm"
+          <p className="text-lg text-gray-700 max-w-xl mx-auto mb-1.5">
+            Know what every player is really worth.
+          </p>
+          <p className="text-sm text-gray-500 max-w-xl mx-auto mb-5">
+            Trade values, career projections, and prospect rankings built on machine-learning models — updated daily.
+          </p>
+          <Link
+            to="/tradevalues"
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-gray-900 hover:bg-gray-800 transition-colors text-white text-sm font-medium"
           >
-            <FaGithub className="h-4 w-4" />
-            <span>GitHub</span>
-          </a>
+            Explore Trade Values
+          </Link>
         </div>
 
         {/* Data Grid */}
@@ -73,7 +89,11 @@ const Home = () => {
               <Link to="/tradevalues" className="text-xs text-accent-blue hover:underline font-medium">View All &rarr;</Link>
             </div>
             {loading ? (
-              <div className="px-4 py-8 text-center text-gray-400 text-sm">Loading...</div>
+              <div className="animate-pulse divide-y divide-gray-50">
+                {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} withBadge />)}
+              </div>
+            ) : error ? (
+              <div className="px-4 py-8 text-center text-gray-400 text-sm">Unable to load rankings right now. Please try again shortly.</div>
             ) : topPlayers.length === 0 ? (
               <div className="px-4 py-8 text-center text-gray-400 text-sm">No data available</div>
             ) : (
@@ -140,7 +160,11 @@ const Home = () => {
             <Link to="/trades" className="text-xs text-accent-blue hover:underline font-medium">View All &rarr;</Link>
           </div>
           {loading ? (
-            <div className="px-4 py-8 text-center text-gray-400 text-sm">Loading...</div>
+            <div className="animate-pulse divide-y divide-gray-50">
+              {Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
+            </div>
+          ) : error ? (
+            <div className="px-4 py-8 text-center text-gray-400 text-sm">Unable to load recent trades right now. Please try again shortly.</div>
           ) : recentTrades.length === 0 ? (
             <div className="px-4 py-8 text-center text-gray-400 text-sm">No trades available</div>
           ) : (
@@ -171,6 +195,22 @@ const Home = () => {
           )}
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-200 mt-4">
+        <div className="max-w-6xl mx-auto px-4 py-6 text-center text-xs text-gray-400">
+          <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-1 mb-2">
+            <Link to="/about" className="hover:text-gray-600 transition-colors">Methodology</Link>
+            <span className="text-gray-300">&middot;</span>
+            <Link to="/privacy" className="hover:text-gray-600 transition-colors">Privacy</Link>
+            <span className="text-gray-300">&middot;</span>
+            <Link to="/terms" className="hover:text-gray-600 transition-colors">Terms</Link>
+            <span className="text-gray-300">&middot;</span>
+            <a href="mailto:contact@baseballvalues.com" className="hover:text-gray-600 transition-colors">Contact</a>
+          </div>
+          <p>&copy; {new Date().getFullYear()} BaseballValues. Trade values are independent model estimates, not official MLB or club figures.</p>
+        </div>
+      </footer>
     </div>
   )
 }

@@ -128,7 +128,7 @@ const PlayerSearch = () => {
           onChange={(e) => handleSearch(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search players..."
-          className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs bg-white/[0.06] border border-white/[0.08] text-white placeholder-navy-300 
+          className="w-full pl-8 pr-3 py-2 sm:py-1.5 rounded-lg text-base sm:text-xs bg-white/[0.06] border border-white/[0.08] text-white placeholder-navy-300 
                      focus:outline-none focus:ring-2 focus:ring-brand-500/25 focus:border-brand-500/25 focus:bg-white/[0.08]
                      transition-all"
         />
