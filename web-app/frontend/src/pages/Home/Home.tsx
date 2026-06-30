@@ -63,14 +63,14 @@ const Home = () => {
       <div className="max-w-6xl mx-auto px-4 py-10 flex-1 w-full">
         {/* Hero */}
         <div className="text-center mb-10">
-          <h1 className="font-display text-5xl font-extrabold mb-3 bg-clip-text text-transparent bg-gradient-brand tracking-tight">
-            BASEBALLVALUES
+          <h1 className="font-display text-5xl font-extrabold mb-3 tracking-tight text-gray-900">
+            BASEBALL <span className="text-brand-500">VALUES</span>
           </h1>
           <p className="text-lg text-gray-700 max-w-xl mx-auto mb-1.5">
-            Know what every player is really worth.
+            What is a good contract?
           </p>
           <p className="text-sm text-gray-500 max-w-xl mx-auto mb-5">
-            Trade values, career projections, and prospect rankings built on machine-learning models — updated daily.
+            Trade values and career projections updated daily.
           </p>
           <Link
             to="/tradevalues"
@@ -135,7 +135,7 @@ const Home = () => {
             <div className="grid grid-cols-2 gap-3">
               <Link to="/projections" className="bg-white rounded-lg border border-gray-200 shadow-card p-4 hover:shadow-card-hover hover:border-gray-300 transition-all group">
                 <div className="text-sm font-bold text-gray-900 font-display mb-1">Projections</div>
-                <div className="text-xs text-gray-500">ML-powered career forecasts</div>
+                <div className="text-xs text-gray-500">career forecasts</div>
               </Link>
               <Link to="/tradesimulator" className="bg-white rounded-lg border border-gray-200 shadow-card p-4 hover:shadow-card-hover hover:border-gray-300 transition-all group">
                 <div className="text-sm font-bold text-gray-900 font-display mb-1">Trade Sim</div>
