@@ -39,6 +39,25 @@ def _load_aging_curves() -> dict:
             _cached_curves = json.load(f)
     return _cached_curves
 
+def _safe_resolve_player_name(player_id: int, player_names: pd.DataFrame, raw_df: pd.DataFrame | None = None) -> str:
+    """Resolve name with fallback to raw_df to avoid Unknown for debutants."""
+    try:
+        if player_names is not None and not player_names.empty and 'IDfg' in player_names.columns:
+            m = player_names[player_names['IDfg'] == player_id]
+            if not m.empty and 'Name' in m.columns and pd.notna(m.iloc[0]['Name']):
+                return str(m.iloc[0]['Name'])
+    except Exception:
+        pass
+    try:
+        if raw_df is not None and not raw_df.empty and 'IDfg' in raw_df.columns and 'Name' in raw_df.columns:
+            m2 = raw_df[raw_df['IDfg'] == player_id]
+            if not m2.empty and pd.notna(m2.iloc[0]['Name']):
+                return str(m2.iloc[0]['Name'])
+    except Exception:
+        pass
+    return f"Unknown ({player_id})"
+
+
 
 def _get_smoothed_aging_delta(
     raw_deltas: Dict[str, float],
@@ -526,9 +545,8 @@ def marcel_fielding_projections(
             if player_hist.empty:
                 continue
 
-            # Get player name
-            name_match = player_names[player_names['IDfg'] == player_id]
-            player_name = name_match['Name'].iloc[0] if not name_match.empty else f"Unknown ({player_id})"
+            # FIXED: resolve name with raw_df fallback to avoid Unknown for debutants
+            player_name = _safe_resolve_player_name(player_id, player_names, raw_df if 'raw_df' in locals() else (group_df if 'group_df' in locals() else None))
 
             # Get last known age
             player_hist = player_hist.sort_values('Season')
@@ -685,9 +703,9 @@ def marcel_baserunning_projections(
         if player_hist.empty:
             continue
 
-        # Player name
-        name_match = player_names[player_names['IDfg'] == player_id]
-        player_name = name_match['Name'].iloc[0] if not name_match.empty else f"Unknown ({player_id})"
+        # FIXED: resolve name with fallback
+        _raw_for_name = raw_df if 'raw_df' in locals() else None
+        player_name = _safe_resolve_player_name(player_id, player_names, _raw_for_name)
 
         player_hist = player_hist.sort_values('Season')
         last_age = player_hist['Age'].iloc[-1]
@@ -1123,9 +1141,9 @@ def marcel_batter_projections(
         if player_hist.empty:
             continue
 
-        # Player name
-        name_match = player_names[player_names['IDfg'] == player_id]
-        player_name = name_match['Name'].iloc[0] if not name_match.empty else f"Unknown ({player_id})"
+        # FIXED: resolve name with fallback
+        _raw_for_name = raw_df if 'raw_df' in locals() else None
+        player_name = _safe_resolve_player_name(player_id, player_names, _raw_for_name)
 
         player_hist = player_hist.sort_values('Season')
         last_age = player_hist['Age'].iloc[-1]
@@ -1761,9 +1779,9 @@ def marcel_pitcher_projections(
         if player_hist.empty:
             continue
 
-        # Player name
-        name_match = player_names[player_names['IDfg'] == player_id]
-        player_name = name_match['Name'].iloc[0] if not name_match.empty else f"Unknown ({player_id})"
+        # FIXED: resolve name with fallback
+        _raw_for_name = raw_df if 'raw_df' in locals() else None
+        player_name = _safe_resolve_player_name(player_id, player_names, _raw_for_name)
 
         player_hist = player_hist.sort_values('Season')
         last_age = player_hist['Age'].iloc[-1]
@@ -1906,3 +1924,4 @@ def marcel_pitcher_projections(
     logger.info(f"Marcel pitching: generated {len(result_df)} projections for "
                 f"{result_df['Name'].nunique()} pitchers")
     return result_df
+

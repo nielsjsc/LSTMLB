@@ -557,10 +557,18 @@ def integrate_player_statistics(value_data: pd.DataFrame,
     # Split data
     historical_data = value_data[value_data['Year'] < CURRENT_YEAR].copy()
     prediction_data = value_data[value_data['Year'] >= CURRENT_YEAR].copy()
-    
+
+    # Keep the source salary separate from the calculated contract value.
+    # ``contract_value`` may be prorated for daily ROS output or estimated for
+    # arbitration years; ``Spotrac_Salary`` is the raw annual salary that came
+    # from the salary table.
+    if 'Payroll' in prediction_data.columns:
+        prediction_data['Spotrac_Salary'] = prediction_data['Payroll']
+
     # Clean prediction data - keep only essential columns
     essential_cols = ['Name', 'IDfg', 'position_group', 'Year', 'Team',
-                     'Payroll', 'Status', 'Normalized_Status', 'WAR', 'Base_Value',
+                     'Payroll', 'Spotrac_Salary', 'Years_of_Service',
+                     'Status', 'Normalized_Status', 'WAR', 'Base_Value',
                      'contract_value', 'surplus_value']
     available_essential = [c for c in essential_cols if c in prediction_data.columns]
     prediction_data = prediction_data[available_essential].copy()

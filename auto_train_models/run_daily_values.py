@@ -40,7 +40,7 @@ from value_determination.data_loader import (
     load_prediction_files, merge_prediction_data, load_historical_data,
 )
 from value_determination.salary_processor import (
-    clean_salary_data, merge_salary_with_ids,
+    clean_salary_data, merge_salary_with_ids, complete_years_of_service,
 )
 from value_determination.contract_processor import (
     normalize_contract_status, check_none_statuses,
@@ -83,8 +83,52 @@ from value_determination.pipelines.ros import (
     reduce_to_remaining_season,
     prorate_current_year_war,
     fetch_team_games_played,
+    derive_missing_batter_baselines,
+    derive_missing_pitcher_baselines,
+    derive_missing_fielding_baseline,
+    _team_remaining_fraction,
 )
 from value_determination.pipelines.snapshots import save_daily_trade_value_snapshot
+
+
+def _backfill_proration_for_derived_rows(
+    new_rows, proration_dict, team_games_map, player_team_map,
+):
+    """Add war_proration entries for mid-season call-ups / signings.
+
+    derive_missing_batter_baselines() / derive_missing_pitcher_baselines()
+    add CURRENT_YEAR rows for players who had no preseason projection —
+    but that happens *after* blend_batter_projections()/blend_pitcher_
+    projections() already built the war_proration dict, so these players
+    are never seen by that loop and get no entry.
+
+    Without an entry, reduce_to_remaining_season() skips them entirely
+    (it does `if info is None: continue`), so their counting stats
+    (including G) are left at the full-season value baked into the
+    derived baseline instead of being scaled down to the games remaining.
+
+    This backfills a team-based remaining_fraction for exactly the IDs
+    that are missing, so they get reduced like everyone else.
+    """
+    if new_rows.empty:
+        return
+
+    use_team_remaining = bool(team_games_map and player_team_map)
+
+    for idfg in new_rows['IDfg'].dropna().astype(int):
+        if idfg in proration_dict:
+            continue  # already has an entry — don't clobber it
+
+        if use_team_remaining:
+            team = player_team_map.get(idfg)
+            remaining_frac = _team_remaining_fraction(team, team_games_map)
+        else:
+            remaining_frac = 1.0
+
+        proration_dict[idfg] = {
+            'actual_war': 0.0,
+            'remaining_fraction': remaining_frac,
+        }
 
 
 def main():
@@ -108,6 +152,22 @@ def main():
         # ============================================================
         logger.info("\n[Step 1.5] Loading current-season actuals and blending ROS projections...")
         actual_batting, actual_pitching, actual_year = load_current_season_actuals()
+
+        # --- PATCH: load actual fielding for call-up Pos resolution ---
+        try:
+            # Use already-imported Config and Path (don't re-import to avoid UnboundLocalError)
+            current_season_dir = Config.Paths.DATA_DIR / 'current_season'
+            fld_path = current_season_dir / f"mlb_fielding_data_{CURRENT_YEAR}_{CURRENT_YEAR}.csv"
+            if fld_path.exists():
+                actual_fielding = pd.read_csv(fld_path, low_memory=False)
+            else:
+                hist_dir = Config.Paths.HISTORIC_MLB_DIR
+                hf = pd.read_csv(hist_dir / 'mlb_fielding_data_1950_2025_with_statcast.csv', low_memory=False, usecols=lambda c: c in ('IDfg','Season','Pos','Inn','InnOuts'))
+                actual_fielding = hf[hf['Season']==CURRENT_YEAR].copy() if 'Season' in hf.columns else pd.DataFrame()
+        except Exception as _e:
+            actual_fielding = pd.DataFrame()
+            logger.warning(f"Could not load actual_fielding for patch: {_e}")
+
 
         # Fetch team games played for team-based remaining fraction
         team_games_map = fetch_team_games_played(season=CURRENT_YEAR)
@@ -136,7 +196,87 @@ def main():
         baserunning_data = blend_baserunning_projections(
             baserunning_data, actual_batting, current_year=CURRENT_YEAR,
         )
+        # ============================================================
+        # Step 1.6 (NEW): Derive current-year baselines for players
+        # with no preseason projection — mid-season call-ups / signings.
+        #
+        # These players have no CURRENT_YEAR row (Round 1 predates their
+        # debut) but DO have a (CURRENT_YEAR + 1) row (Round 2 already
+        # projected them forward using their real debut-season stats).
+        # We recover the current-year talent estimate by reversing the
+        # one year of aging Marcel applied to build that next-year row,
+        # using the same aging curves — so the result is methodologically
+        # identical to every other player's preseason row.
+        # ============================================================
+        logger.info("\n[Step 1.6] Deriving baselines for players with no preseason row...")
+ 
+        new_batter_rows = derive_missing_batter_baselines(batter_data, CURRENT_YEAR, actual_batting=actual_batting)
+        if not new_batter_rows.empty:
+            batter_data = pd.concat([batter_data, new_batter_rows], ignore_index=True)
+            _backfill_proration_for_derived_rows(
+                new_batter_rows, batter_proration, team_games_map, player_team_map,
+            )
 
+        # blend_fielding_projections() (Step 1.5) only blends actuals into
+        # fielding_data rows that already exist for CURRENT_YEAR — it can't
+        # create a row for a player who has none. A mid-season call-up
+        # (Round 1 predates their debut) has ZERO fielding_data rows for
+        # any year, so calculate_defensive_value() finds nothing for them
+        # at every year it's asked about, weighted_fld is permanently 0.0,
+        # and Def collapses onto the positional adjustment alone — the
+        # same flat number on every projection row. Derive a real
+        # current-year baseline for them now that batter_data (with
+        # call-ups concatenated above) tells us the full current-year
+        # batter ID set.
+        current_year_batter_ids = batter_data.loc[
+            batter_data['Year'] == CURRENT_YEAR, 'IDfg'
+        ].dropna().astype(int)
+        new_fielding_rows = derive_missing_fielding_baseline(
+            fielding_data, current_year_batter_ids, actual_batting,
+            current_year=CURRENT_YEAR,
+            actual_fielding=actual_fielding,
+        )
+        if not new_fielding_rows.empty:
+            fielding_data = pd.concat(
+                [fielding_data, new_fielding_rows], ignore_index=True,
+            )
+ 
+        new_sp_rows = derive_missing_pitcher_baselines(sp_data, CURRENT_YEAR, 'SP', actual_pitching=actual_pitching)
+        if not new_sp_rows.empty:
+            sp_data = pd.concat([sp_data, new_sp_rows], ignore_index=True)
+            _backfill_proration_for_derived_rows(
+                new_sp_rows, pitcher_proration, team_games_map, player_team_map,
+            )
+ 
+        new_rp_rows = derive_missing_pitcher_baselines(rp_data, CURRENT_YEAR, 'RP', actual_pitching=actual_pitching)
+        if not new_rp_rows.empty:
+            rp_data = pd.concat([rp_data, new_rp_rows], ignore_index=True)
+            _backfill_proration_for_derived_rows(
+                new_rp_rows, pitcher_proration, team_games_map, player_team_map,
+            )
+ 
+        # Rebuild the combined dict now that call-up/signing entries have
+        # been backfilled into batter_proration / pitcher_proration above —
+        # war_proration was first assembled in Step 1.5, before any of
+        # these IDs existed.
+        war_proration = {**batter_proration, **pitcher_proration}
+ 
+        n_derived = (
+            len(new_batter_rows) + len(new_sp_rows) + len(new_rp_rows)
+            + len(new_fielding_rows)
+        )
+        if n_derived:
+            logger.info(f"  Derived {n_derived} current-year baseline rows total "
+                        f"({len(new_batter_rows)} batters, {len(new_sp_rows)} SP, "
+                        f"{len(new_rp_rows)} RP, {len(new_fielding_rows)} fielding)")
+        else:
+            logger.info("  No players needed a derived baseline")
+ 
+        # Residual gap: a player missing from BOTH CURRENT_YEAR and
+        # CURRENT_YEAR+1 (e.g. debuted with too few PA/IP to clear Round 2's
+        # own inclusion threshold yet) still won't get a row this run. This
+        # is expected to be rare and self-resolving — they'll be picked up
+        # automatically once they clear that threshold on a later day.
         # ============================================================
         # Step 2: Calculate Pitcher WAR
         # ============================================================
@@ -368,44 +508,12 @@ def main():
             )
             batting_history, pitching_history = None, None
 
-        players_with_any_yos = set(
-            salary_data_with_id
-            .loc[salary_data_with_id['Years_of_Service'].notna(), 'IDfg']
-            .dropna().unique()
+        salary_data_with_id = complete_years_of_service(
+            salary_data_with_id,
+            batting_history=batting_history,
+            pitching_history=pitching_history,
+            current_year=CURRENT_YEAR,
         )
-        all_player_ids = set(
-            salary_data_with_id['IDfg'].dropna().unique()
-        )
-        players_missing_all_yos = all_player_ids - players_with_any_yos
-
-        yos_filled = 0
-        for pid in players_missing_all_yos:
-            bat_seasons = 0
-            pit_seasons = 0
-            if batting_history is not None:
-                bat_seasons = int(
-                    batting_history[
-                        batting_history['IDfg'] == pid
-                    ]['Season'].nunique()
-                )
-            if pitching_history is not None:
-                pit_seasons = int(
-                    pitching_history[
-                        pitching_history['IDfg'] == pid
-                    ]['Season'].nunique()
-                )
-            estimated_yos = max(bat_seasons, pit_seasons)
-            if estimated_yos > 0:
-                salary_data_with_id.loc[
-                    salary_data_with_id['IDfg'] == pid,
-                    'Years_of_Service',
-                ] = float(estimated_yos)
-                yos_filled += 1
-        if yos_filled:
-            logger.info(
-                f"Filled Years_of_Service from historical data "
-                f"for {yos_filled} players"
-            )
 
         # ============================================================
         # Step 6: Contracts & Timeline
@@ -512,3 +620,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -55,7 +55,7 @@ from value_determination.data_loader import (
     load_prediction_files, merge_prediction_data, load_historical_data
 )
 from value_determination.salary_processor import (
-    clean_salary_data, merge_salary_with_ids
+    clean_salary_data, merge_salary_with_ids, complete_years_of_service
 )
 from value_determination.contract_processor import (
     normalize_contract_status, check_none_statuses,
@@ -569,32 +569,12 @@ def main(pipeline_dir=None, output_filename=None):
             batting_history, pitching_history = None, None
 
         # Find players where ALL rows have NaN YoS (no Spotrac data at all)
-        players_with_any_yos = set(
-            salary_data_with_id
-            .loc[salary_data_with_id['Years_of_Service'].notna(), 'IDfg']
-            .dropna().unique()
+        salary_data_with_id = complete_years_of_service(
+            salary_data_with_id,
+            batting_history=batting_history,
+            pitching_history=pitching_history,
+            current_year=CURRENT_YEAR,
         )
-        all_player_ids = set(
-            salary_data_with_id['IDfg'].dropna().unique()
-        )
-        players_missing_all_yos = all_player_ids - players_with_any_yos
-
-        yos_filled = 0
-        for pid in players_missing_all_yos:
-            bat_seasons = 0
-            pit_seasons = 0
-            if batting_history is not None:
-                bat_seasons = int(batting_history[batting_history['IDfg'] == pid]['Season'].nunique())
-            if pitching_history is not None:
-                pit_seasons = int(pitching_history[pitching_history['IDfg'] == pid]['Season'].nunique())
-            estimated_yos = max(bat_seasons, pit_seasons)
-            if estimated_yos > 0:
-                salary_data_with_id.loc[
-                    salary_data_with_id['IDfg'] == pid, 'Years_of_Service'
-                ] = float(estimated_yos)
-                yos_filled += 1
-        if yos_filled:
-            logger.info(f"Filled Years_of_Service from historical data for {yos_filled} players")
 
         # ============================================================
         # Step 6: Normalize Contract Status & Generate Timeline

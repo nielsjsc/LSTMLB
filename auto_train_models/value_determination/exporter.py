@@ -25,7 +25,8 @@ def export_value_data(df: pd.DataFrame, output_dir: Path, filename: str = None) 
     
     # Define column groups
     base_cols = [
-        'Player Name', 'Team', 'Status', 'Position', 'Age', 'WAR',
+        'Player Name', 'Team', 'Status', 'Years_of_Service', 'Spotrac_Salary',
+        'Position', 'Age', 'WAR',
         'Base_Value', 'Contract_Value', 'Surplus_Value', 'IDfg', 'mlb_id', 'Year', 'FA_Year',
         'Probable_FA_Year', 'Earliest_FA_Year', 'trade_value', 'raw_trade_value',
         'projection_confidence', 'contract_war', 'avg_war',

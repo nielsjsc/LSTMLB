@@ -70,6 +70,8 @@ from core.marcel_projections import (
     _reconstruct_siera,
     _derive_bf_per_ip,
     _FIP_CONSTANT,
+    _load_aging_curves,
+    _get_smoothed_aging_delta,
     _ERA_FIP_STAB_TBF,
     BATTER_MULTIVARIATE_EQUATIONS,
     PITCHER_SP_MULTIVARIATE_EQUATIONS,
@@ -79,6 +81,27 @@ from core.marcel_projections import (
     BASERUNNING_REGRESSION_GAMES,
 )
 from configs.batter_config import BatterConfig
+
+# --- PATCH: helpers for call-up fixes ---
+POS_TO_GROUP = {
+    'LF':'outfield','CF':'outfield','RF':'outfield',
+    '1B':'infield','2B':'infield','3B':'infield','SS':'infield',
+    'C':'catcher','DH':'infield','OF':'outfield','UT':'infield'
+}
+def _resolve_name_from_actuals(idfg, actual_df=None, fallback="Unknown"):
+    if actual_df is None or actual_df.empty or 'IDfg' not in actual_df.columns:
+        return None
+    try:
+        m = actual_df[actual_df['IDfg'].astype(int)==int(idfg)]
+        if not m.empty:
+            # try Name, player_name, etc
+            for col in ('Name','PlayerName','player_name'):
+                if col in m.columns and pd.notna(m.iloc[0].get(col)):
+                    return str(m.iloc[0][col])
+    except Exception:
+        pass
+    return None
+
 from configs.pitcher_sp_config import PitcherSPConfig
 
 # =============================================================================
@@ -1071,6 +1094,228 @@ PITCHER_COUNTING_COLS = [
 ]
 
 
+# =============================================================================
+# Next-year de-aging
+# =============================================================================
+# marcel_batter_projections() / marcel_pitcher_projections() build the
+# (cutoff_year + 1) row as:
+#
+#     next_year_row[stat] = year1_base[stat] + aging_delta(stat, age_next_year)
+#
+# where year1_base IS the current-year talent-level estimate, before that
+# one year of aging gets added. For a mid-season call-up, Round 1 (preseason)
+# never ran for them — they didn't exist in the league yet — so they have no
+# current-year row. But Round 2 (updated, cutoff = current_year) DOES compute
+# their next-year row once they've debuted, using their real current-year
+# stats as history. Reversing that one aging step recovers year1_base
+# directly, using the same aging curves Marcel used to build it in the first
+# place. The result is methodologically identical to every other player's
+# preseason row — just computed a year late.
+#
+# This deliberately does NOT touch players who are also missing from the
+# next-year projection (e.g. someone with only a handful of PA who hasn't
+# cleared Round 2's own inclusion threshold yet). Those are rare and
+# self-resolving: once they clear the threshold on a later day's run, this
+# picks them up automatically.
+# =============================================================================
+ 
+_AGING_CURVES_CACHE = None
+ 
+ 
+def _aging_curves():
+    global _AGING_CURVES_CACHE
+    if _AGING_CURVES_CACHE is None:
+        _AGING_CURVES_CACHE = _load_aging_curves()
+    return _AGING_CURVES_CACHE
+ 
+ 
+def derive_missing_batter_baselines(
+    batter_data: pd.DataFrame,
+    current_year: int,
+    actual_batting: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Build current-year batter baseline rows from each player's own
+    (current_year + 1) Marcel row, for players who have a next-year
+    projection but no current-year one.
+ 
+    Returns a DataFrame of new rows (possibly empty), same columns as
+    batter_data, ready to pd.concat onto it BEFORE blend_batter_projections()
+    runs.
+    """
+    next_year = current_year + 1
+    empty = batter_data.iloc[0:0].copy()
+ 
+    if 'Year' not in batter_data.columns or 'IDfg' not in batter_data.columns:
+        return empty
+ 
+    cur_ids = set(
+        batter_data.loc[batter_data['Year'] == current_year, 'IDfg']
+        .dropna().astype(int)
+    )
+    next_df = batter_data[batter_data['Year'] == next_year].copy()
+    if next_df.empty:
+        return empty
+ 
+    next_df['IDfg'] = next_df['IDfg'].astype(int)
+    missing = next_df[~next_df['IDfg'].isin(cur_ids)].copy()
+    if missing.empty:
+        return empty
+ 
+    curves = _aging_curves().get('batting', {})
+ 
+    new_rows = []
+    for _, row in missing.iterrows():
+        row = row.copy()
+        age = _safe_float(row.get('Age'))
+ 
+        for stat in BATTER_BASE_COMPONENTS:
+            val = _safe_float(row.get(stat))
+            if val is None:
+                continue
+            stat_curves = curves.get(stat, {})
+            delta = (
+                _get_smoothed_aging_delta(stat_curves, int(age))
+                if age is not None else 0.0
+            )
+            row[stat] = val - delta
+ 
+        row['Year'] = current_year
+        if 'prediction_year' in row.index:
+            row['prediction_year'] = current_year
+        if age is not None:
+            row['Age'] = age - 1
+ 
+        new_rows.append(row)
+ 
+    new_df = pd.DataFrame(new_rows).reset_index(drop=True)
+ 
+    # Renormalize batted-ball rates the same way Marcel does before composing
+    if 'GB%' in new_df.columns and 'LD%' in new_df.columns:
+        gb = pd.to_numeric(new_df['GB%'], errors='coerce').fillna(0.0)
+        ld = pd.to_numeric(new_df['LD%'], errors='coerce').fillna(0.0)
+        over = (gb + ld) >= 1.0
+        if over.any():
+            total = (gb + ld).clip(lower=1e-9)
+            new_df.loc[over, 'GB%'] = (gb / total * 0.90)[over]
+            new_df.loc[over, 'LD%'] = (ld / total * 0.90)[over]
+ 
+    recomposed = compose_from_df(new_df)
+    for col in ['AVG', 'SLG', 'OBP', 'wOBA', 'wRC+', 'FB%', 'HR', '2B', '3B', '1B', 'H']:
+        if col in recomposed.columns:
+            new_df[col] = recomposed[col].values
+ 
+    logger.info(
+        f"derive_missing_batter_baselines: derived {len(new_df)} current-year "
+        f"({current_year}) baselines from next-year ({next_year}) Marcel "
+        f"projections"
+    )
+    return new_df
+ 
+ 
+def derive_missing_pitcher_baselines(
+    pitcher_df: pd.DataFrame,
+    current_year: int,
+    role: str,
+    actual_pitching: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Same idea as derive_missing_batter_baselines(), for pitchers.
+ 
+    Args:
+        pitcher_df: sp_data or rp_data, pre-filtered to one role — call
+                    once per role, mirroring how blend_pitcher_projections()
+                    handles SP/RP separately.
+        role:       'SP' or 'RP', used only for logging.
+    """
+    next_year = current_year + 1
+    empty = pitcher_df.iloc[0:0].copy()
+ 
+    if 'Year' not in pitcher_df.columns or 'IDfg' not in pitcher_df.columns:
+        return empty
+ 
+    cur_ids = set(
+        pitcher_df.loc[pitcher_df['Year'] == current_year, 'IDfg']
+        .dropna().astype(int)
+    )
+    next_df = pitcher_df[pitcher_df['Year'] == next_year].copy()
+    if next_df.empty:
+        return empty
+ 
+    next_df['IDfg'] = next_df['IDfg'].astype(int)
+    missing = next_df[~next_df['IDfg'].isin(cur_ids)].copy()
+    if missing.empty:
+        return empty
+ 
+    curves = _aging_curves().get('pitching', {})
+ 
+    new_rows = []
+    for _, row in missing.iterrows():
+        row = row.copy()
+        age = _safe_float(row.get('Age'))
+ 
+        # Capture this pitcher's own ERA-FIP gap before we touch ERA/FIP —
+        # Marcel treats it as a fixed career tendency, not age-dependent,
+        # and it's already baked into the next-year row.
+        pre_era = _safe_float(row.get('ERA'))
+        pre_fip = _safe_float(row.get('FIP'))
+        era_fip_gap = (pre_era - pre_fip) if (pre_era is not None and pre_fip is not None) else 0.0
+ 
+        for stat in PITCHER_MARCEL_RATE_STATS:
+            val = _safe_float(row.get(stat))
+            if val is None:
+                continue
+            stat_curves = curves.get(stat, {})
+            delta = (
+                _get_smoothed_aging_delta(stat_curves, int(age))
+                if age is not None else 0.0
+            )
+            row[stat] = val - delta
+ 
+        row['Year'] = current_year
+        if 'prediction_year' in row.index:
+            row['prediction_year'] = current_year
+        if age is not None:
+            row['Age'] = age - 1
+ 
+        # Reconstruct FIP/ERA/SIERA/K9/BB9/HR9 — same formulas
+        # blend_pitcher_projections() uses after blending.
+        k_pct   = _safe_float(row.get('K%',    0.22)) or 0.22
+        bb_pct  = _safe_float(row.get('BB%',   0.08)) or 0.08
+        hbp_pct = _safe_float(row.get('HBP%',  0.01)) or 0.01
+        babip   = _safe_float(row.get('BABIP', 0.29)) or 0.29
+        hr_fb   = _safe_float(row.get('HR/FB', 0.11)) or 0.11
+        gb_pct  = _safe_float(row.get('GB%',   0.43)) or 0.43
+        fb_pct  = _safe_float(row.get('FB%',   0.35)) or 0.35
+        ld_pct  = _safe_float(row.get('LD%',   0.22)) or 0.22
+ 
+        bb_total = gb_pct + fb_pct + ld_pct
+        if bb_total > 0 and abs(bb_total - 1.0) > 0.01:
+            gb_pct /= bb_total
+            fb_pct /= bb_total
+            ld_pct /= bb_total
+            row['GB%'], row['FB%'], row['LD%'] = gb_pct, fb_pct, ld_pct
+ 
+        bip_rate  = max(1.0 - k_pct - bb_pct - hbp_pct, 0.20)
+        hr_pct    = hr_fb * fb_pct * bip_rate
+        bf_per_ip = _derive_bf_per_ip(k_pct, bb_pct, hbp_pct, hr_pct, babip)
+ 
+        fip = _reconstruct_fip(k_pct, bb_pct, hbp_pct, hr_fb, fb_pct, bf_per_ip)
+        row['FIP']   = fip
+        row['ERA']   = float(np.clip(fip + era_fip_gap, 0.5, 10.0))
+        row['SIERA'] = _reconstruct_siera(k_pct, bb_pct, gb_pct)
+        row['K/9']   = float(np.clip(k_pct  * bf_per_ip * 9.0 / 3.0, 0.0, 20.0))
+        row['BB/9']  = float(np.clip(bb_pct * bf_per_ip * 9.0 / 3.0, 0.0, 10.0))
+        row['HR/9']  = float(np.clip(hr_pct * bf_per_ip * 9.0 / 3.0, 0.0,  5.0))
+ 
+        new_rows.append(row)
+ 
+    new_df = pd.DataFrame(new_rows).reset_index(drop=True)
+    logger.info(
+        f"derive_missing_pitcher_baselines: derived {len(new_df)} current-year "
+        f"({current_year}) {role} baselines from next-year ({next_year}) "
+        f"Marcel projections"
+    )
+    return new_df
+
 def reduce_to_remaining_season(
     df,
     war_proration,
@@ -1346,6 +1591,200 @@ def blend_fielding_projections(fielding_df, actual_batting, current_year=None):
 
 
 # =============================================================================
+# Fielding baseline derivation (mid-season call-ups / signings)
+# =============================================================================
+# blend_fielding_projections() above only ever *blends* actuals into rows
+# that already exist for current_year — it has no way to create a row for
+# a player who has none. Batters and pitchers get a current-year row
+# derived from their (current_year + 1) Marcel projection via
+# derive_missing_batter_baselines() / derive_missing_pitcher_baselines(),
+# but fielding_data never got the same treatment. A mid-season call-up
+# (Round 1 predates their debut) ends up with ZERO fielding_data rows for
+# ANY year, so calculate_defensive_value()'s
+#     player_fielding = fielding_data[(IDfg == id) & (Year == year)]
+# is empty for every year, weighted_fld is permanently 0.0, and Def
+# collapses onto the (also-frozen) positional adjustment alone — the same
+# dead number on every projection row, with no aging curve to move it.
+#
+# Unlike the batter/pitcher case, there's no fielding aging curve to
+# reverse. But we don't need one: a call-up's real current-season
+# defensive performance (already confirmed live-updated in the actuals
+# data) is a better current-year estimate than a model guess would be
+# anyway. So this seeds the current-year row directly from actual
+# sc_total_runs/150 when available, and only falls back to carrying the
+# (current_year + 1) rate forward unchanged if they haven't yet cleared
+# MIN_FIELDING_G games in the field.
+# =============================================================================
+
+
+def derive_missing_fielding_baseline(
+    fielding_df: pd.DataFrame,
+    current_year_ids,
+    actual_batting: pd.DataFrame,
+    current_year: int = None,
+    actual_fielding: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Build current-year fielding baseline rows for players with no
+    preseason fielding row for current_year.
+
+    FIXED: now also handles players who have *no* fielding projection at all
+    (no current_year AND no next_year row) by creating a row directly from
+    actual Fld/G. This covers rookies who didn't clear MIN_POSITION_INNINGS=50
+    for any single position.
+    """
+    if current_year is None:
+        current_year = CURRENT_YEAR
+
+    empty = fielding_df.iloc[0:0].copy()
+    if 'Year' not in fielding_df.columns or 'IDfg' not in fielding_df.columns:
+        return empty
+
+    next_year = current_year + 1
+    id_set    = {int(i) for i in current_year_ids if pd.notna(i)}
+
+    cur_ids = set(
+        fielding_df.loc[fielding_df['Year'] == current_year, 'IDfg']
+        .dropna().astype(int)
+    )
+    # All IDs that ever appear in fielding file (any year)
+    all_fielding_ids = set(fielding_df['IDfg'].dropna().astype(int).unique())
+
+    next_df = fielding_df[fielding_df['Year'] == next_year].copy()
+    if not next_df.empty:
+        next_df['IDfg'] = next_df['IDfg'].astype(int)
+        missing = next_df[
+            next_df['IDfg'].isin(id_set) & ~next_df['IDfg'].isin(cur_ids)
+        ].copy()
+    else:
+        missing = empty.copy()
+
+    # Real current-season defensive rate, keyed by IDfg
+    actual_lookup = {}
+    name_lookup = {}
+    age_lookup = {}
+    for _, row in actual_batting.iterrows():
+        idfg = row.get('IDfg')
+        if pd.isna(idfg):
+            continue
+        idfg = int(idfg)
+        fld   = _safe_float(row.get('Fld'))
+        games = _safe_float(row.get('G', 0)) or 0.0
+        if fld is not None and games >= MIN_FIELDING_G:
+            actual_lookup[idfg] = fld * (150.0 / games)
+        # store name/age for fallback row creation
+        if pd.notna(row.get('Name')):
+            name_lookup[idfg] = str(row.get('Name'))
+        if pd.notna(row.get('Age')):
+            age_lookup[idfg] = _safe_float(row.get('Age'))
+
+    # Pos lookup from actual_fielding if provided (most innings position)
+    pos_lookup = {}
+    group_lookup = {}
+    if actual_fielding is not None and not actual_fielding.empty and 'IDfg' in actual_fielding.columns:
+        try:
+            af = actual_fielding.copy()
+            af['IDfg'] = pd.to_numeric(af['IDfg'], errors='coerce')
+            af = af.dropna(subset=['IDfg'])
+            af['IDfg'] = af['IDfg'].astype(int)
+            # Expect columns Pos, Inn or INN
+            inn_col = next((c for c in ('Inn','INN','InnOuts') if c in af.columns), None)
+            pos_col = 'Pos' if 'Pos' in af.columns else None
+            if pos_col and inn_col:
+                for pid, sub in af.groupby('IDfg'):
+                    if pid not in id_set:
+                        continue
+                    # pick pos with max innings
+                    sub = sub.sort_values(inn_col, ascending=False)
+                    primary = sub.iloc[0][pos_col]
+                    pos_lookup[pid] = str(primary)
+                    group_lookup[pid] = POS_TO_GROUP.get(str(primary), 'infield')
+            elif pos_col:
+                for pid, sub in af.groupby('IDfg'):
+                    pos_lookup[pid] = str(sub.iloc[0][pos_col])
+                    group_lookup[pid] = POS_TO_GROUP.get(str(sub.iloc[0][pos_col]), 'infield')
+        except Exception:
+            pass
+
+    new_rows = []
+    derived_from_actual = 0
+    handled_ids = set()
+
+    for _, row in missing.iterrows():
+        row  = row.copy()
+        idfg = int(row['IDfg'])
+        handled_ids.add(idfg)
+
+        if idfg in actual_lookup:
+            row['sc_total_runs/150'] = actual_lookup[idfg]
+            derived_from_actual += 1
+
+        # FIX name if Unknown
+        if str(row.get('Name','')).lower().startswith('unknown') and idfg in name_lookup:
+            row['Name'] = name_lookup[idfg]
+        if pd.isna(row.get('Age')) and idfg in age_lookup:
+            row['Age'] = age_lookup[idfg]
+
+        # FIX Pos if we have better info from actual fielding
+        if idfg in pos_lookup:
+            row['Pos'] = pos_lookup[idfg]
+            row['Position_Group'] = group_lookup.get(idfg, row.get('Position_Group','infield'))
+
+        row['Year'] = current_year
+        if 'prediction_year' in row.index:
+            row['prediction_year'] = current_year
+
+        # FIX: store as dict to keep list homogeneous (Series + dict mix breaks pd.DataFrame)
+        new_rows.append(row.to_dict() if hasattr(row, 'to_dict') else dict(row))
+
+    # --- NEW: truly missing players (no fielding row in ANY year) ---
+    truly_missing_ids = id_set - all_fielding_ids - handled_ids
+    # also include those who have no current year row but next_df was empty
+    truly_missing_ids = {i for i in truly_missing_ids if i in actual_lookup}
+
+    for idfg in truly_missing_ids:
+        # build minimal row from empty template
+        base_row = {}
+        # copy dtypes from empty if possible
+        for col in fielding_df.columns:
+            base_row[col] = pd.NA
+
+        base_row['IDfg'] = idfg
+        base_row['Year'] = current_year
+        base_row['sc_total_runs/150'] = actual_lookup.get(idfg, 0.0)
+        base_row['Name'] = name_lookup.get(idfg, f"Unknown ({idfg})")
+        base_row['Age'] = age_lookup.get(idfg, 26)
+
+        pos = pos_lookup.get(idfg, 'LF')
+        base_row['Pos'] = pos
+        base_row['Position_Group'] = group_lookup.get(idfg, POS_TO_GROUP.get(pos, 'outfield'))
+
+        # fill other stat cols with 0 so they don't break downstream
+        for c in ('sc_range_runs/150','sc_arm_runs/150','sc_dp_runs/150',
+                  'sc_framing_runs/150','sc_throwing_runs/150','sc_blocking_runs/150'):
+            if c in fielding_df.columns:
+                base_row[c] = 0.0
+
+        new_rows.append(base_row)
+        derived_from_actual += 1
+
+    if not new_rows:
+        return empty
+
+    new_df = pd.DataFrame(new_rows).reset_index(drop=True)
+    # Ensure IDfg int
+    if 'IDfg' in new_df.columns:
+        new_df['IDfg'] = pd.to_numeric(new_df['IDfg'], errors='coerce').astype('Int64')
+
+    logger.info(
+        f"derive_missing_fielding_baseline: derived {len(new_df)} current-year "
+        f"({current_year}) fielding baselines ({derived_from_actual} from actual "
+        f"defensive stats, {len(new_df) - derived_from_actual} carried forward "
+        f"from next-year projection; min_G={MIN_FIELDING_G}; truly_missing={len(truly_missing_ids)})"
+    )
+    return new_df
+
+
+# =============================================================================
 # Baserunning blending
 # =============================================================================
 
@@ -1423,3 +1862,4 @@ def blend_baserunning_projections(baserunning_df, actual_batting, current_year=N
         f"(Marcel-weighted BsR per-650; min_PA={MIN_BASERUNNING_PA})"
     )
     return df
+

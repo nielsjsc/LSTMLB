@@ -22,7 +22,7 @@ import pandas as pd
 import numpy as np
 from typing import Tuple
 
-from .config import Config, logger
+from .config import Config, CURRENT_YEAR, logger
 
 # Canonical name normalization — single source of truth
 from core.name_utils import (
@@ -38,6 +38,124 @@ def normalize_name_no_suffix(name: str) -> str:
     if pd.isna(normalized):
         return normalized
     return _SUFFIXES.sub('', normalized).strip()
+
+
+def complete_years_of_service(
+    df: pd.DataFrame,
+    batting_history: pd.DataFrame | None = None,
+    pitching_history: pd.DataFrame | None = None,
+    current_year: int = CURRENT_YEAR,
+) -> pd.DataFrame:
+    """Complete player-level service time after salary/prediction merging.
+
+    Spotrac uses ``-`` for players without a displayed service-time value.
+    Those placeholders are intentionally parsed as missing in
+    :func:`clean_salary_data`; this helper resolves them only after all salary
+    and prediction rows are present:
+
+    1. Preserve valid Spotrac values and project them to missing years.
+    2. If Spotrac has no valid value, estimate service from historical MLB
+       seasons, anchored at ``current_year``.
+    3. If there is no MLB history, assign zero service at the current year,
+       mark that season partial, and begin full-year increments afterward.
+
+    This keeps true rookies at 0 without turning veterans with missing Spotrac
+    values into rookies.
+    """
+    result = df.copy()
+
+    if 'Years_of_Service' not in result.columns:
+        result['Years_of_Service'] = np.nan
+    result['Years_of_Service'] = pd.to_numeric(
+        result['Years_of_Service'], errors='coerce'
+    )
+    if 'Partial_Current_Year' not in result.columns:
+        result['Partial_Current_Year'] = False
+    result['Partial_Current_Year'] = result['Partial_Current_Year'].fillna(False).astype(bool)
+
+    if 'IDfg' not in result.columns or 'Year' not in result.columns:
+        return result
+
+    def _player_key(value):
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return value
+
+    historical_yos = {}
+    for history in (batting_history, pitching_history):
+        if history is None or not {'IDfg', 'Season'}.issubset(history.columns):
+            continue
+        history_ids = pd.to_numeric(history['IDfg'], errors='coerce')
+        history_seasons = pd.to_numeric(history['Season'], errors='coerce')
+        history_frame = pd.DataFrame({
+            'IDfg': history_ids,
+            'Season': history_seasons,
+        }).dropna()
+        # The current season is already represented by the current-year
+        # salary/prediction row. Counting it here makes a debuting player look
+        # like he entered the season with one year of service.
+        history_frame = history_frame[history_frame['Season'] < current_year]
+        counts = history_frame.groupby('IDfg')['Season'].nunique()
+        for player_id, seasons in counts.items():
+            key = _player_key(player_id)
+            historical_yos[key] = max(historical_yos.get(key, 0), int(seasons))
+
+    projected_from_spotrac = 0
+    estimated_from_history = 0
+    assigned_rookie_zero = 0
+
+    for player_id, group_indices in result.groupby('IDfg', dropna=True).groups.items():
+        group = result.loc[group_indices].sort_values('Year')
+        valid = group.dropna(subset=['Years_of_Service', 'Year'])
+
+        if not valid.empty:
+            # Preserve every valid Spotrac value. Use the earliest valid value
+            # only to fill prediction-only rows added by the outer merge.
+            anchor = valid.iloc[0]
+            anchor_year = float(anchor['Year'])
+            anchor_yos = float(anchor['Years_of_Service'])
+            missing_indices = group.index[group['Years_of_Service'].isna()]
+            if len(missing_indices):
+                projected = (
+                    pd.to_numeric(result.loc[missing_indices, 'Year'], errors='coerce')
+                    - anchor_year + anchor_yos
+                ).clip(lower=0)
+                result.loc[missing_indices, 'Years_of_Service'] = projected
+                projected_from_spotrac += len(missing_indices)
+            continue
+
+        estimated_yos = historical_yos.get(_player_key(player_id), 0)
+        years = pd.to_numeric(group['Year'], errors='coerce')
+        is_current_year_rookie = estimated_yos == 0
+        if is_current_year_rookie:
+            # No pre-current-season MLB service means the current season is a
+            # debut/partial season for control-time purposes. We deliberately
+            # do not fabricate exact service days without a roster-date source.
+            result.loc[
+                group.index[result.loc[group.index, 'Year'].eq(current_year)],
+                'Partial_Current_Year',
+            ] = True
+            future_years = (years - current_year - 1).clip(lower=0)
+        else:
+            future_years = (years - current_year).clip(lower=0)
+        result.loc[group.index, 'Years_of_Service'] = (
+            estimated_yos + future_years
+        ).clip(lower=0)
+        if estimated_yos:
+            estimated_from_history += 1
+        else:
+            assigned_rookie_zero += 1
+
+    if projected_from_spotrac or estimated_from_history or assigned_rookie_zero:
+        logger.info(
+            "Completed Years_of_Service: projected=%d, historical=%d, rookies_at_zero=%d",
+            projected_from_spotrac,
+            estimated_from_history,
+            assigned_rookie_zero,
+        )
+
+    return result
 
 
 def clean_salary_data(df: pd.DataFrame) -> pd.DataFrame:
