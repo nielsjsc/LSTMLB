@@ -388,9 +388,15 @@ def main():
             axis=1,
         )
 
-        logger.info("Building position profiles from historical fielding data...")
+        logger.info("Building position profiles from historical and actual fielding data...")
         hist_fielding = load_fielding_history()
+        if 'actual_fielding' in locals() and not actual_fielding.empty:
+            hist_fielding = pd.concat([hist_fielding, actual_fielding], ignore_index=True)
+
         hist_batting = load_batting_for_games()
+        if 'actual_batting' in locals() and not actual_batting.empty:
+            hist_batting = pd.concat([hist_batting, actual_batting], ignore_index=True)
+
         batter_ids = batter_data['IDfg'].unique().tolist()
         position_profiles = build_position_profiles(
             hist_fielding, hist_batting, batter_ids,

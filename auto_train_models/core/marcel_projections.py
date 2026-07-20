@@ -825,6 +825,13 @@ BATTER_BOUNDS = {
     'LD%':   (0.12,  0.28),
 }
 
+# PA threshold for full multivariate blend weight.  Below this, the R²-based
+# multivariate weight is scaled down linearly so that small-sample seasons
+# (e.g. 70-PA rookie debuts) don't override Marcel's properly-regressed
+# estimate.  At 400 PA the multivariate equation gets its full R² weight;
+# at 70 PA only 17.5% of R² is applied.
+MV_BLEND_STABILIZATION_PA = 400
+
 # ---------------------------------------------------------------------------
 # Multivariate regression equations (Phase 2b exhaustive brute-force search)
 #
@@ -961,6 +968,7 @@ def _compute_marcel_weighted_average_toward_league(
 def _apply_multivariate_equations(
     recent_features: Dict[str, float],
     marcel_base: Dict[str, float],
+    recent_pa: float = 650.0,
 ) -> Dict[str, float]:
     """
     Apply Phase 2b multivariate regression equations to produce Year 1 projection.
@@ -970,19 +978,27 @@ def _apply_multivariate_equations(
       - multivariate: intercept + Σ(coef × feature) from the player's most
         recent season
 
-    The blend is weighted by each equation's R²: higher R² → more weight to
-    the multivariate estimate, lower R² → fall back to Marcel base.
+    The blend is weighted by each equation's R², scaled by the sample size
+    of the most recent season (recent_pa).  This prevents small-sample
+    seasons from overriding Marcel's properly-regressed estimate.
 
-    Blend formula:  projected = r2 × multivariate + (1 − r2) × marcel_base
+    Blend formula:
+        pa_reliability = min(1, recent_pa / MV_BLEND_STABILIZATION_PA)
+        effective_r2   = r2 × pa_reliability
+        projected      = effective_r2 × multivariate + (1 − effective_r2) × marcel_base
 
-    This preserves Marcel's stability for noisy targets (HBP% R²=0.10 → 90%
-    Marcel) while leveraging strong multivariate signal for sticky targets
-    (K% R²=0.66 → 66% multivariate).
+    At full PA (≥400), behavior is identical to the original R²-only blend.
+    At 70 PA, a K% equation with R²=0.66 gets only 0.66×0.175 = 0.115
+    effective weight instead of the full 0.66.
     """
+    # Scale R² blend weight by sample size of the most recent season
+    pa_reliability = min(1.0, max(0.0, recent_pa) / MV_BLEND_STABILIZATION_PA)
+
     result = {}
     for component, equation in BATTER_MULTIVARIATE_EQUATIONS.items():
         intercept = equation['_intercept']
         r2 = equation['_r2']
+        effective_r2 = r2 * pa_reliability
 
         # Compute multivariate prediction from most recent season features
         mv_pred = intercept
@@ -995,9 +1011,9 @@ def _apply_multivariate_equations(
                 val = marcel_base.get(feat, _AUX_FEATURE_LEAGUE_AVG.get(feat, 0.0))
             mv_pred += coef * val
 
-        # Blend: r2-weighted mix of multivariate and Marcel base
+        # Blend: effective-r2-weighted mix of multivariate and Marcel base
         mb = marcel_base.get(component, BATTER_LEAGUE_AVG.get(component, 0.0))
-        result[component] = r2 * mv_pred + (1.0 - r2) * mb
+        result[component] = effective_r2 * mv_pred + (1.0 - effective_r2) * mb
 
         # Clip to physical bounds
         if component in BATTER_BOUNDS:
@@ -1189,7 +1205,8 @@ def marcel_batter_projections(
         )
 
         # Apply multivariate equations → Year 1 base
-        year1_base = _apply_multivariate_equations(recent_features, marcel_base)
+        recent_pa = float(most_recent.get('PA', 650))
+        year1_base = _apply_multivariate_equations(recent_features, marcel_base, recent_pa=recent_pa)
 
         # Build career profile (for triple_share and RBI/R rates)
         career_profile = _build_batter_career_profile(hist_for_marcel)

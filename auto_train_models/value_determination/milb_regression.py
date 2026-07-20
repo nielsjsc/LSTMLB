@@ -748,32 +748,55 @@ def apply_milb_regression(batter_data: pd.DataFrame, current_year: int) -> pd.Da
     player_milb_pa = {}   # pid → total qualifying MiLB PA
     fv_adjusted_count = 0
     for pid in candidates:
+        mle = None
+        milb_total_pa = 0
+        is_baseline = False
+
         if pid in milb_by_player.groups:
             player_milb = milb_by_player.get_group(pid)
             mle, milb_total_pa = _compute_player_mle(player_milb, current_year)
-            if mle:
-                # Calibration correction (Analysis 8)
-                mle = _calibrate_mle(mle)
-                # Apply batting tool grade adjustment if available
-                if pid in prospect_grades:
-                    grades = prospect_grades[pid]
-                    mle = _apply_grade_adjustment(mle, grades)
-                    fv_adjusted_count += 1
-                # Stagnation penalty for AAAA-type players
-                stag_penalty = _compute_stagnation_penalty(player_milb)
-                if stag_penalty > 0:
-                    base_woba = mle.get('wOBA', 0)
-                    if base_woba > 0:
-                        mult = max(0.85, (base_woba - stag_penalty) / base_woba)
-                        for stat in ('AVG', 'OBP', 'SLG', 'wOBA'):
-                            if stat in mle:
-                                mle[stat] *= mult
-                        logger.debug(
-                            f"  IDfg={pid}: stagnation penalty {stag_penalty:.3f} wOBA "
-                            f"(mult={mult:.3f})"
-                        )
-                player_mles[pid] = mle
-                player_milb_pa[pid] = milb_total_pa
+
+        if not mle:
+            # Missing MiLB data (e.g. skipped minors or ID missing from crosswalk).
+            # Fabricate a baseline MLE so they still get regressed appropriately
+            # instead of keeping 100% of their volatile MLB sample.
+            mle = {
+                'K%': 0.240,
+                'BB%': 0.080,
+                'AVG': 0.240,
+                'OBP': 0.310,
+                'SLG': 0.400,
+                'wOBA': GRADE_BASELINE_WOBA,
+            }
+            milb_total_pa = MLE_BLEND_PA
+            is_baseline = True
+        else:
+            # Calibration correction (Analysis 8) for real MLEs
+            mle = _calibrate_mle(mle)
+
+        # Apply batting tool grade adjustment if available (works on baselines too)
+        if pid in prospect_grades:
+            grades = prospect_grades[pid]
+            mle = _apply_grade_adjustment(mle, grades)
+            fv_adjusted_count += 1
+
+        # Stagnation penalty for AAAA-type players (real MLEs only)
+        if not is_baseline:
+            stag_penalty = _compute_stagnation_penalty(player_milb)
+            if stag_penalty > 0:
+                base_woba = mle.get('wOBA', 0)
+                if base_woba > 0:
+                    mult = max(0.85, (base_woba - stag_penalty) / base_woba)
+                    for stat in ('AVG', 'OBP', 'SLG', 'wOBA'):
+                        if stat in mle:
+                            mle[stat] *= mult
+                    logger.debug(
+                        f"  IDfg={pid}: stagnation penalty {stag_penalty:.3f} wOBA "
+                        f"(mult={mult:.3f})"
+                    )
+
+        player_mles[pid] = mle
+        player_milb_pa[pid] = milb_total_pa
 
     if fv_adjusted_count > 0:
         logger.info(f"Applied batting grade adjustments to {fv_adjusted_count} / "
