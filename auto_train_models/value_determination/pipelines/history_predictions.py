@@ -2,11 +2,8 @@
 Historical Values — Prediction Engine
 =======================================
 
-Generates LSTM predictions for all four model types (batter, pitcher,
-fielding, baserunning) at each cutoff year.  Calls the same core
-prediction functions the production pipeline uses, but always with
-pretrained (classical-feature) models for batters/pitchers and the
-historical UZR/DRS/BsR configs for fielding/baserunning.
+Generates Marcel predictions for all four model types (batter, pitcher,
+fielding, baserunning) at each cutoff year.
 
 Output per cutoff year::
 
@@ -18,10 +15,10 @@ Output per cutoff year::
 
 Usage (standalone):
     cd auto_train_models
-    python -m historical_values.predictions --start 2013 --end 2025
+    python -m value_determination.pipelines.history_predictions --start 2013 --end 2025
 
 Usage (from pipeline):
-    from historical_values.predictions import generate_all_predictions
+    from value_determination.pipelines.history_predictions import generate_all_predictions
     generate_all_predictions(start=2013, end=2025)
 """
 
@@ -32,13 +29,10 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
 import pandas as pd
-import torch
-import joblib
 
 # ── Path setup ────────────────────────────────────────────────────────────────
-_AUTO_TRAIN_DIR = Path(__file__).resolve().parents[2]   # auto_train_models/
+_AUTO_TRAIN_DIR = Path(__file__).resolve().parents[3]   # auto_train_models/
 _ROOT_DIR       = _AUTO_TRAIN_DIR.parent                # LSTMLB/
 _DATA_DIR       = _ROOT_DIR / "data"
 
@@ -49,13 +43,7 @@ from value_determination.config import Config, logger, CURRENT_YEAR
 PROJECTIONS_DIR = Config.Paths.PROJECTIONS_DIR
 
 # Core prediction functions
-from core.data_processing import DataConfig, calculate_rate_stats
-from core.prediction import (
-    load_model_from_checkpoint,
-    predict_all_batters,
-    generate_batter_names,
-)
-from core.pitcher_prediction import predict_all_pitchers
+from core.data_processing import calculate_rate_stats, generate_batter_names, generate_pitcher_names
 from core.marcel_projections import (
     marcel_fielding_projections,
     marcel_baserunning_projections,
@@ -66,10 +54,6 @@ from core.position_profiles import build_position_profiles, load_batting_for_gam
 
 # Model configs
 from models.model_registry import ModelFactory
-
-# ── Device ────────────────────────────────────────────────────────────────────
-_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 def _resolve_data_path(config_data_file: str) -> Path:
     """Resolve a config's relative DATA_FILE path to an absolute Path."""
@@ -103,24 +87,10 @@ def _generate_batter_predictions(
     cutoff_year: int,
     out_dir: Path,
 ) -> Optional[pd.DataFrame]:
-    """Generate batter predictions using the configured method (LSTM or Marcel)."""
-
-    config = ModelFactory.get_config("batter")
-    prediction_method = getattr(config, "PREDICTION_METHOD", "lstm").lower()
-
-    if prediction_method == "marcel":
-        return _generate_batter_predictions_marcel(cutoff_year, out_dir, config)
-    else:
-        return _generate_batter_predictions_lstm(cutoff_year, out_dir, config)
-
-
-def _generate_batter_predictions_marcel(
-    cutoff_year: int,
-    out_dir: Path,
-    config,
-) -> Optional[pd.DataFrame]:
     """Generate batter predictions using Marcel projections."""
 
+    config = ModelFactory.get_config("batter")
+    
     # Use statcast data for x-stats when available
     if hasattr(config, "FINETUNE_DATA_FILE"):
         data_path = _resolve_data_path(config.FINETUNE_DATA_FILE)
@@ -152,58 +122,6 @@ def _generate_batter_predictions_marcel(
     return predictions
 
 
-def _generate_batter_predictions_lstm(
-    cutoff_year: int,
-    out_dir: Path,
-    config,
-) -> Optional[pd.DataFrame]:
-    """Generate batter predictions using the pretrained (classical) LSTM model."""
-    data_path = _resolve_data_path(config.DATA_FILE)
-
-    raw_df = pd.read_csv(data_path)
-    raw_df = calculate_rate_stats(raw_df)
-    player_names = generate_batter_names(raw_df)
-
-    # Always use pretrained model for historical consistency
-    data_config = config.get_data_config()
-    if hasattr(config, "PRETRAIN_CHECKPOINT_FILE"):
-        ckpt = _AUTO_TRAIN_DIR / config.CHECKPOINT_DIR / config.PRETRAIN_CHECKPOINT_FILE
-    else:
-        ckpt = _AUTO_TRAIN_DIR / config.CHECKPOINT_DIR / config.CHECKPOINT_FILE
-    scaler_path = _AUTO_TRAIN_DIR / config.SCALER_FILE
-
-    if not ckpt.exists():
-        logger.error(f"Batter checkpoint not found: {ckpt}")
-        return None
-
-    model = load_model_from_checkpoint(str(ckpt), data_config, _device)
-    scaler = joblib.load(scaler_path)
-
-    predictions = predict_all_batters(
-        raw_df=raw_df,
-        player_names=player_names,
-        model=model,
-        scaler=scaler,
-        input_features=config.INPUT_FEATURES,
-        seq_length=data_config.seq_length,
-        future_years=Config.History.PROJECTION_HORIZON,
-        cutoff_year=cutoff_year,
-        min_pa_current=getattr(config, "MIN_PA_CURRENT", 100),
-    )
-
-    if predictions is None:
-        logger.error(f"  batter cutoff={cutoff_year}: predict_all_batters returned None")
-        return None
-
-    out_path = out_dir / "batter_predictions.csv"
-    predictions.to_csv(out_path, index=False)
-    logger.info(
-        f"  batter cutoff={cutoff_year}: {len(predictions)} rows, "
-        f"{predictions['Name'].nunique()} players → {out_path.name}"
-    )
-    return predictions
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # PITCHER PREDICTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -212,40 +130,15 @@ def _generate_pitcher_predictions(
     cutoff_year: int,
     out_dir: Path,
 ) -> Optional[pd.DataFrame]:
-    """Generate pitcher predictions using the configured method (LSTM or Marcel)."""
+    """Generate pitcher predictions using Marcel projections."""
 
     sp_config = ModelFactory.get_config("pitcher_sp")
-    rp_config = ModelFactory.get_config("pitcher_rp")
-
-    # If either SP or RP is set to marcel, use Marcel for both (consistency)
-    prediction_method = getattr(sp_config, "PREDICTION_METHOD", "lstm").lower()
-    if prediction_method != "marcel":
-        prediction_method = getattr(rp_config, "PREDICTION_METHOD", "lstm").lower()
-
-    if prediction_method == "marcel":
-        return _generate_pitcher_predictions_marcel(cutoff_year, out_dir, sp_config)
-    else:
-        return _generate_pitcher_predictions_lstm(cutoff_year, out_dir, sp_config, rp_config)
-
-
-def _generate_pitcher_predictions_marcel(
-    cutoff_year: int,
-    out_dir: Path,
-    sp_config,
-) -> Optional[pd.DataFrame]:
-    """Generate pitcher predictions using Marcel projections."""
 
     data_path = _resolve_data_path(sp_config.DATA_FILE)
     raw_df = pd.read_csv(data_path)
     raw_df = calculate_rate_stats(raw_df)
 
-    pitcher_names_path = _DATA_DIR / "pitcher_names.csv"
-    if pitcher_names_path.exists():
-        player_names = pd.read_csv(pitcher_names_path)
-    else:
-        player_names = pd.DataFrame(
-            raw_df[["Name", "IDfg"]].drop_duplicates()
-        ).sort_values("Name")
+    player_names = generate_pitcher_names(raw_df)
 
     predictions = marcel_pitcher_projections(
         raw_df=raw_df,
@@ -267,83 +160,8 @@ def _generate_pitcher_predictions_marcel(
     return predictions
 
 
-def _generate_pitcher_predictions_lstm(
-    cutoff_year: int,
-    out_dir: Path,
-    sp_config,
-    rp_config,
-) -> Optional[pd.DataFrame]:
-    """Generate pitcher predictions using pretrained SP + RP LSTM models."""
-    data_path = _resolve_data_path(sp_config.DATA_FILE)
-
-    raw_df = pd.read_csv(data_path)
-    raw_df = calculate_rate_stats(raw_df)
-
-    # Player names
-    pitcher_names_path = _DATA_DIR / "pitcher_names.csv"
-    if pitcher_names_path.exists():
-        player_names = pd.read_csv(pitcher_names_path)
-    else:
-        player_names = pd.DataFrame(
-            raw_df[["Name", "IDfg"]].drop_duplicates()
-        ).sort_values("Name")
-
-    # Always use pretrained for both SP and RP
-    sp_data_config = sp_config.get_data_config(mode="pretrain")
-    sp_ckpt = _AUTO_TRAIN_DIR / sp_config.CHECKPOINT_DIR / sp_config.PRETRAIN_CHECKPOINT_FILE
-    sp_scaler_path = _AUTO_TRAIN_DIR / sp_config.PRETRAIN_SCALER_FILE
-
-    rp_data_config = rp_config.get_data_config(mode="pretrain")
-    rp_ckpt = _AUTO_TRAIN_DIR / rp_config.CHECKPOINT_DIR / rp_config.PRETRAIN_CHECKPOINT_FILE
-    rp_scaler_path = _AUTO_TRAIN_DIR / rp_config.PRETRAIN_SCALER_FILE
-
-    unified = getattr(sp_config, "UNIFIED_PITCHER_MODEL", False)
-
-    for path, label in [(sp_ckpt, "SP"), (rp_ckpt, "RP")]:
-        if not path.exists() and not (unified and label == "RP"):
-            logger.error(f"Pitcher {label} checkpoint not found: {path}")
-            return None
-
-    sp_model = load_model_from_checkpoint(str(sp_ckpt), sp_data_config, _device)
-    sp_scaler = joblib.load(sp_scaler_path)
-
-    if unified:
-        rp_model, rp_scaler = sp_model, sp_scaler
-    else:
-        rp_model = load_model_from_checkpoint(str(rp_ckpt), rp_data_config, _device)
-        rp_scaler = joblib.load(rp_scaler_path)
-
-    predictions = predict_all_pitchers(
-        raw_df=raw_df,
-        player_names=player_names,
-        sp_model=sp_model,
-        rp_model=rp_model,
-        sp_scaler=sp_scaler,
-        rp_scaler=rp_scaler,
-        sp_input_features=sp_data_config.input_features,
-        rp_input_features=rp_data_config.input_features,
-        seq_length=sp_data_config.seq_length,
-        future_years=Config.History.PROJECTION_HORIZON,
-        cutoff_year=cutoff_year,
-        sp_config=sp_config,
-        rp_config=rp_config,
-    )
-
-    if predictions is None:
-        logger.error(f"  pitcher cutoff={cutoff_year}: predict_all_pitchers returned None")
-        return None
-
-    out_path = out_dir / "pitcher_predictions.csv"
-    predictions.to_csv(out_path, index=False)
-    logger.info(
-        f"  pitcher cutoff={cutoff_year}: {len(predictions)} rows, "
-        f"{predictions['Name'].nunique()} players → {out_path.name}"
-    )
-    return predictions
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
-# FIELDING PREDICTIONS  (Marcel projections — matches production pipeline)
+# FIELDING PREDICTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _generate_fielding_predictions(
@@ -412,7 +230,7 @@ def _generate_fielding_predictions(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# BASERUNNING PREDICTIONS  (Marcel projections — matches production pipeline)
+# BASERUNNING PREDICTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _generate_baserunning_predictions(

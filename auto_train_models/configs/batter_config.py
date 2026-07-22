@@ -33,57 +33,16 @@ class BatterConfig:
     """
     
     # Data configuration
-    DATA_FILE = '../data/historic_mlb/mlb_batting_data_1950_2025.csv'
+    DATA_FILE = '../data/historic_mlb/mlb_batting_data_1950_2025_with_statcast.csv'
     
-    # Checkpoint and scaler files (mode-specific)
-    SCALER_FILE = 'data/batter_pretrain_scaler.pkl'  
-    FINETUNE_SCALER_FILE = 'data/batter_finetune_scaler.pkl'  # Finetune scaler
-    PRETRAIN_SCALER_FILE = 'data/batter_pretrain_scaler.pkl'  # For loading during finetune
-    
-    CHECKPOINT_DIR = './checkpoints'
-    CHECKPOINT_FILE = 'batter_model.pth'  # Legacy/default checkpoint
-    PRETRAIN_CHECKPOINT_FILE = 'batter_pretrained.pth'  # Pre-training saves here
-    FINETUNE_CHECKPOINT_FILE = 'batter_finetuned.pth'  # Fine-tuning saves here
     
     OUTPUT_FILE = '../data/generated/pipeline/batter_predictions.csv'
     
-    # Prediction method: 'lstm' (default) or 'marcel' (weighted avg + aging curves)
-    PREDICTION_METHOD = 'marcel'
-    
-    # Batter-specific configuration
-    SEQ_LEN = 3
+
     MIN_PA = 50  # Minimum PA per season for training sequences
     MIN_PA_CURRENT = 70  # Minimum PA in current year to generate predictions
     
-    # ============================================================================
-    # SCALER CONFIGURATION
-    # ============================================================================
-    # Controls how features are scaled before the LSTM sees them.
-    #
-    # USE_HYBRID_SCALER = True  (recommended)
-    #   Rate stats  (BB%, K%, AVG, OBP, SLG, wOBA, Age) → MinMaxScaler[-1, 1]
-    #   Counting stats (HR, 2B, 3B, RBI, R, HBP)        → StandardScaler (z-score)
-    #   This prevents the right-skewed counting-stat distributions from being
-    #   compressed into a narrow band near 0 in MinMax space, which causes the
-    #   LSTM to over-regress elite power numbers toward the population mean.
-    #
-    # USE_HYBRID_SCALER = False
-    #   All features use MinMaxScaler[-1, 1] (legacy behaviour).
-    #
-    # LOG_TRANSFORM_COUNTING_STATS = True  (recommended with hybrid scaler)
-    #   Apply log1p to counting stats *before* StandardScaler, and expm1 on
-    #   inverse.  Compresses the heavy right tail (e.g. 50 HR/150 → log(51)=3.93
-    #   vs mean log(12)=2.48) so the Gaussian assumption of StandardScaler holds
-    #   better.  No-op when USE_HYBRID_SCALER = False.
-    #
-    # IMPORTANT: HybridScaler is INCOMPATIBLE with tanh-bounded outputs.
-    # The LSTM uses tanh(x)*1.7079, capping output at ~±1.71.  With StandardScaler,
-    # elite HR hitters (30+ HR/150) require z > 1.2, deep in tanh saturation where
-    # gradients vanish.  This causes the model to under-predict counting stats for
-    # above-average hitters.  MinMaxScaler keeps all counting values in the linear
-    # zone of tanh (e.g. 30 HR → -0.2, 50 HR → +0.33).
-    USE_HYBRID_SCALER = False
-    LOG_TRANSFORM_COUNTING_STATS = True
+
 
     # ============================================================================
     # CALCULATE COMPONENTS FROM WOBA  (value_determination pipeline)
@@ -119,26 +78,7 @@ class BatterConfig:
     COMPONENTS_FROM_WOBA_PA_WEIGHT = 1500       # ~2.5 full seasons for full trust
     COMPONENTS_FROM_WOBA_RECENT_SEASONS = 3     # seasons for career average
 
-    # ============================================================================
-    # RELIABILITY REGRESSION
-    # ============================================================================
-    # Bayesian shrinkage of rate stats toward a career/league-average prior,
-    # weighted by sample size (PA for batters).  The two toggles are independent:
-    #
-    #   TRAINING   — applied to the historical DataFrame before the LSTM sees it,
-    #                so the model trains on true-talent estimates rather than noisy
-    #                small-sample seasons.
-    #   PREDICTION — applied to each player's historical sequence just before
-    #                building the input window, so padding and per-season weights
-    #                reflect regressed (less noisy) values at inference time.
-    #
-    # NOTE (2026-04): Both disabled. The component-based Marcel architecture
-    # uses multivariate regression equations (Phase 2b) that already account
-    # for signal strength via R²-weighted blending with Marcel base.  The
-    # Marcel base itself regresses toward league mean.  Layering reliability
-    # regression on top would double-regress.
-    ENABLE_RELIABILITY_REGRESSION_TRAINING   = False
-    ENABLE_RELIABILITY_REGRESSION_PREDICTION = False
+
      # ============================================================================
     # PREDICTION CONFIGURATION
     # ============================================================================
@@ -364,95 +304,6 @@ class BatterConfig:
     #
     
     
-    # ============================================================================
-    # PRE-TRAINING CONFIGURATION (1950-2024, Classical only)
-    # ============================================================================
-    # OPTIMIZED: Start season validated by hyperparameter tuning (1950 > 2000)
-    
-    PRETRAIN_DATA_FILE = '../data/historic_mlb/mlb_batting_data_1950_2025.csv'
-    PRETRAIN_SCALER_FILE = 'data/batter_pretrain_scaler.pkl'
-    PRETRAIN_CHECKPOINT_FILE = 'batter_pretrained.pth'
-    PRETRAIN_START_SEASON = 1950  # Validated optimal (more historical data)
-    PRETRAIN_MIN_PA = MIN_PA        # Validated optimal
-    
-    # ============================================================================
-    # FINE-TUNING CONFIGURATION (2015+, Classical + Statcast)
-    # ============================================================================
-    
-    FINETUNE_DATA_FILE = '../data/historic_mlb/mlb_batting_data_1950_2025_with_statcast.csv'  # Use statcast-joined data
-    FINETUNE_SCALER_FILE = 'data/batter_finetune_scaler.pkl'
-    FINETUNE_CHECKPOINT_FILE = 'batter_finetuned.pth'
-    FINETUNE_START_SEASON = 2015  # Statcast era begins
-    FINETUNE_MIN_PA = MIN_PA
-    FINETUNE_LEARNING_RATE = 1e-3  # 10x smaller than pre-training
-    FREEZE_LSTM = True  # Freeze LSTM layers during fine-tuning
-    
-    # Model architecture (direct attributes for factory compatibility)
-    # These are the ACTUAL values the model will use after removing hardcoded modifications
-    HIDDEN_SIZE = 128  # Actual internal LSTM hidden size
-    NUM_LAYERS = 2   # Actual number of LSTM layers
-    NUM_HEADS = 2   # Actual number of attention heads
-    BIDIRECTIONAL = False
-    DROPOUT = 0.1   # Validated optimal dropout rate
-    
-    # Training parameters
-    BATCH_SIZE = 128
-    LEARNING_RATE = 1e-3
-    WEIGHT_DECAY = 1e-5
-    GRADIENT_CLIP = 1.0
-    NUM_EPOCHS = 100
-    EARLY_STOPPING_PATIENCE = 15
-    
-    # Stability settings - prevent NaN issues
-    WARMUP_EPOCHS = 5  # Skip warmup - causes tiny LR (4e-5) that leads to NaN
-    MIXED_PRECISION = True  # Disable AMP - can cause numerical instability with warmup
-    
-    # ============================================================================
-    # DOMAIN CONSTRAINT CONFIGURATION
-    # ============================================================================
-    # These weights control how strongly domain knowledge is enforced.
-    # See core/constraint_config.py for presets and tuning guide.
-    # 
-    # Higher weights = more biologically plausible projections but potentially
-    # higher MSE. Lower weights = better MSE but possible unrealistic projections.
-    #
-    # RECOMMENDED: Start with 'medium' constraints and adjust based on validation.
-    
 
-    # Data preprocessing config
-    @staticmethod
-    def get_data_config(mode='pretrain'):
-        """
-        Get data config for pre-training or fine-tuning
-        
-        OPTIMIZED PARAMETERS (validated by hyperparameter tuning on 96 configs):
-        - seq_length=5: Optimal history window (5 > 6 years, R²=0.6585)
-        - start_season=1950: Maximum historical data improves generalization
-        - min_pa=75: Balanced threshold for data quality vs quantity
-        
-        Args:
-            mode: 'pretrain' or 'finetune'
-        """
-        if mode == 'finetune':
-            return DataConfig(
-                input_features=BatterConfig.FINETUNE_FEATURES,  # 28 features (13 classical + 15 Statcast)
-                output_features=BatterConfig.FINETUNE_FEATURES,  # 28 features - predict Statcast too for sliding window
-                seq_length=BatterConfig.SEQ_LEN, 
-                start_season=BatterConfig.FINETUNE_START_SEASON,
-                min_pa=BatterConfig.FINETUNE_MIN_PA,
-                train_ratio=0.75,
-                valid_ratio=0.249,
-                random_seed=42
-            )
-        else:  # pretrain
-            return DataConfig(
-                input_features=BatterConfig.CLASSICAL_FEATURES,
-                seq_length=BatterConfig.SEQ_LEN,  # VALIDATED: Optimal sequence length
-                start_season=BatterConfig.PRETRAIN_START_SEASON,  # VALIDATED: 1950 optimal
-                min_pa=BatterConfig.PRETRAIN_MIN_PA,  # VALIDATED: 75 optimal
-                train_ratio=0.75,
-                valid_ratio=0.249,
-                random_seed=42
-            )
     
 

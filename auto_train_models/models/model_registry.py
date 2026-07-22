@@ -1,6 +1,5 @@
 # Model registry and factory
 
-from core.model_architecture import ImprovedLSTM
 from core.data_processing import DataConfig
 from configs.baserunning_config import BaserunningConfig
 from configs.defense_infield_config import DefenseInfieldConfig
@@ -59,14 +58,7 @@ class ModelFactory:
         if model_type not in cls.CONFIGS:
             raise ValueError(f"Unknown model type: {model_type}. Available: {list(cls.CONFIGS.keys())}")
         
-        config = cls.CONFIGS[model_type]
-        # Handle both class-based configs (defense) and module-based configs (pitcher, batter)
-        if hasattr(config, 'DATA_CONFIG'):
-            # Module-based config
-            return config
-        else:
-            # Class-based config
-            return config
+        return cls.CONFIGS[model_type]
     
     @classmethod
     def get_data_file(cls, model_type: str):
@@ -84,35 +76,3 @@ class ModelFactory:
             return [group_name]  # Single model
         else:
             raise ValueError(f"Unknown model group: {group_name}")
-    
-    @classmethod
-    def create_model(cls, model_type: str, input_size: int, output_size: int, device):
-        """Create model instance for given type"""
-        config = cls.get_config(model_type)
-        
-        # Handle both config types
-        if hasattr(config, 'HIDDEN_SIZE'):
-            # Simple constant-based config (pitcher, batter) or class-based config (defense)
-            model = ImprovedLSTM(
-                input_size=input_size,
-                hidden_size=config.HIDDEN_SIZE,
-                num_layers=config.NUM_LAYERS,
-                output_size=output_size,
-                dropout=config.DROPOUT,
-                bidirectional=config.BIDIRECTIONAL,
-                num_heads=config.NUM_HEADS
-            ).to(device)
-        else:
-            # Module-based config (deprecated path)
-            model_config = config.MODEL_CONFIG
-            model = ImprovedLSTM(
-                input_size=input_size,
-                hidden_size=model_config['hidden_size'],
-                num_layers=model_config['num_layers'],
-                output_size=output_size,
-                dropout=model_config['dropout'],
-                bidirectional=model_config['bidirectional'],
-                num_heads=model_config['num_heads']
-            ).to(device)
-        
-        return model

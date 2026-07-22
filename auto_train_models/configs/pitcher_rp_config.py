@@ -33,14 +33,8 @@ from core.data_processing import DataConfig
 class PitcherRPConfig:
     """Configuration for relief pitcher model with transfer learning support"""
     
-    # Prediction method: 'lstm' (default) or 'marcel' (weighted avg + aging curves)
-    PREDICTION_METHOD = 'marcel'
-    
     # Data configuration
     DATA_FILE = '../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv'
-    SCALER_FILE = 'data/pitcher_rp_scaler.pkl'
-    CHECKPOINT_DIR = './checkpoints'
-    CHECKPOINT_FILE = 'rp/pitcher_model.pth'
     OUTPUT_FILE = '../data/generated/pipeline/pitcher_rp_predictions.csv'
     
     # Role-specific configuration
@@ -48,20 +42,7 @@ class PitcherRPConfig:
     GS_RATE_THRESHOLD = 0.8
     MIN_IP_CURRENT = 15  # Minimum IP in current year to generate predictions
     
-    # ============================================================================
-    # RELIABILITY REGRESSION
-    # ============================================================================
-    # Bayesian shrinkage of rate stats toward a career/league-average prior,
-    # weighted by sample size (BF for pitchers).  The two toggles are independent:
-    #
-    #   TRAINING   — applied to the historical DataFrame before the LSTM sees it.
-    #   PREDICTION — applied to each player's historical sequence at inference time.
-    #
-    # NOTE (2026-04): Both disabled. The component-based Marcel architecture
-    # uses multivariate regression equations (Phase 2b) with R²-weighted
-    # blending that already accounts for signal strength per component.
-    ENABLE_RELIABILITY_REGRESSION_TRAINING   = False
-    ENABLE_RELIABILITY_REGRESSION_PREDICTION = False
+
     
     # ============================================================================
     # POST-PREDICTION RECONSTRUCTION & CONSTRAINT TOGGLES
@@ -220,124 +201,6 @@ class PitcherRPConfig:
     # Legacy compatibility - use classical features by default
     INPUT_FEATURES = CLASSICAL_FEATURES + PITCHFX_FEATURES
     
-    # ============================================================================
-    # PRE-TRAINING CONFIGURATION (1950-2024, Classical only)
-    # ============================================================================
-    SEQ_LENGTH = 3  # season sequences for pre-training
-    PRETRAIN_DATA_FILE = '../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv'
-    PRETRAIN_SCALER_FILE = 'data/pitcher_rp_pretrain_scaler.pkl'
-    PRETRAIN_CHECKPOINT_FILE = 'rp/pitcher_rp_pretrained.pth'
-    PRETRAIN_START_SEASON = 1950  # Maximum historical data for classical features
-    PRETRAIN_MIN_IP = 25          # Low threshold for relievers
-    
-    # ============================================================================
-    # FINE-TUNING CONFIGURATION (2020+, Full feature set with Stuff+)
-    # ============================================================================
-    # Note: Stuff+/Location+/Pitching+ only available 2020+
-    #
-    # LAYER FREEZING: Same rationale as SP config
-    # Limited data requires freezing LSTM + attention
-    
-    FINETUNE_DATA_FILE = '../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv'
-    FINETUNE_SCALER_FILE = 'data/pitcher_rp_finetune_scaler.pkl'
-    FINETUNE_CHECKPOINT_FILE = 'rp/pitcher_rp_finetuned.pth'
-    FINETUNE_START_SEASON = 2020  # Stuff+ era begins
-    FINETUNE_MIN_IP = 10          # Keep low for relievers
-    FINETUNE_LEARNING_RATE = 5e-6  # Very small - only adapting projections
-    
-    # Layer freezing configuration
-    FREEZE_LSTM = True             # Always freeze LSTM (learned from 75 years)
-    FREEZE_ATTENTION = True        # Freeze attention too (limited data)
-    
-    # Model architecture (smaller than SP - less data, more variance)
-    HIDDEN_SIZE = 128
-    NUM_LAYERS = 1
-    NUM_HEADS = 2
-    BIDIRECTIONAL = True
-    DROPOUT = 0.3
-    GRADIENT_CLIP = 1.0
-    
-    # Training parameters
-    BATCH_SIZE = 64
-    LEARNING_RATE = 1e-04
-    WEIGHT_DECAY = 1e-5
-    NUM_EPOCHS = 50
-    EARLY_STOPPING_PATIENCE = 15
-    
-    # ============================================================================
-    # DOMAIN CONSTRAINT CONFIGURATION
-    # ============================================================================
-    # Relief pitchers have even more volatile stats than starters.
-    # Constraints are adjusted accordingly.
-    
-    # ============================================================================
-    # SCALER ALIGNMENT
-    # ============================================================================
-    # Features in each group share the same MinMax range so that equal raw
-    # values (e.g. FIP=4.00 and ERA=4.00) map to the *same* scaled value.
-    # Without this, ERA's wider outlier range creates a permanent phantom gap
-    # in normalised space — the model sees "FIP ≠ ERA" even when they're equal.
-    LINKED_SCALE_GROUPS = [
-        ['FIP', 'ERA', 'xFIP', 'SIERA'],
-    ]
-    
-    # Percentile clipping removes extreme outliers before fitting the scaler.
-    # Relievers are even noisier (low IP), so clipping is especially important.
-    # HBP% clipping prevents tiny-sample outliers from dominating scaler.
-    STAT_CLIP_PERCENTILES = {
-        'FIP':   (0.5, 99.5),
-        'ERA':   (0.5, 99.5),
-        'xFIP':  (0.5, 99.5),
-        'SIERA': (0.5, 99.5),
-        'HBP%':  (0.5, 99.5),
-        'HR/FB': (0.5, 99.5),   # Small rate with extreme outliers from low-FB stints
-        'BABIP': (0.5, 99.5),  # Narrow range with occasional outliers from low-IP stints
-    }
-    
-    CONSTRAINT_STRENGTH = 'medium'
-    
-    DOMAIN_CONSTRAINTS = {
-        'mse_weight': 1.0,
-        'aging_weight': 0.18,        # Same as SP
-        'smoothness_weight': 0.06,   # Less smoothness (RP very volatile)
-        'bounds_hard_weight': 0.50,
-        'bounds_soft_weight': 0.05,
-        'peak_weight': 0.05,
-    }
-    
-    # Data preprocessing config
-    @staticmethod
-    def get_data_config(mode='pretrain'):
-        """
-        Get data config for pre-training or fine-tuning
-        
-        Args:
-            mode: 'pretrain' or 'finetune'
-        """
-        if mode == 'finetune':
-            return DataConfig(
-                input_features=PitcherRPConfig.FINETUNE_FEATURES,
-                output_features=PitcherRPConfig.FINETUNE_FEATURES,
-                seq_length=4,
-                start_season=PitcherRPConfig.FINETUNE_START_SEASON,
-                min_pa=PitcherRPConfig.FINETUNE_MIN_IP,
-                train_ratio=0.75,
-                valid_ratio=0.24,
-                random_seed=42,
-                linked_scale_groups=PitcherRPConfig.LINKED_SCALE_GROUPS,
-                stat_clip_percentiles=PitcherRPConfig.STAT_CLIP_PERCENTILES,
-            )
-        else:  # pretrain
-            return DataConfig(
-                input_features=PitcherRPConfig.INPUT_FEATURES,
-                seq_length=PitcherRPConfig.SEQ_LENGTH,
-                start_season=PitcherRPConfig.PRETRAIN_START_SEASON,
-                min_pa=PitcherRPConfig.PRETRAIN_MIN_IP,
-                train_ratio=0.8,
-                valid_ratio=0.19,
-                random_seed=42,
-                linked_scale_groups=PitcherRPConfig.LINKED_SCALE_GROUPS,
-                stat_clip_percentiles=PitcherRPConfig.STAT_CLIP_PERCENTILES,
-            )
+
     
 

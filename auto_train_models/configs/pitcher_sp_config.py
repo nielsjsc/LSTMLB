@@ -35,33 +35,8 @@ from core.data_processing import DataConfig
 class PitcherSPConfig:
     """Configuration for starting pitcher model with transfer learning support"""
     
-    # ============================================================================
-    # UNIFIED PITCHER MODEL
-    # ============================================================================
-    # When True, train a single model on ALL pitcher data (SP + RP combined)
-    # and predict for every pitcher regardless of role.  The role column is still
-    # set based on GS rate so downstream value determination can apply
-    # role-specific playing-time and WAR calculations.
-    #
-    # Training: `python scripts/train_models.py --model pitcher_sp --pretrain`
-    #   → uses ALL pitching data (no GS-rate filter)
-    #   → checkpoint saved to PRETRAIN_CHECKPOINT_FILE as usual
-    #
-    # Prediction: `python scripts/predict_models.py --model-type pitcher --use-pretrained`
-    #   → loads only the SP model/scaler (RP model ignored)
-    #   → runs every pitcher through the single model
-    #
-    # Set to False to revert to separate SP/RP models.
-    UNIFIED_PITCHER_MODEL = False
-    
-    # Prediction method: 'lstm' (default) or 'marcel' (weighted avg + aging curves)
-    PREDICTION_METHOD = 'marcel'
-    
     # Data configuration
     DATA_FILE = '../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv'
-    SCALER_FILE = 'data/pitcher_sp_scaler.pkl'
-    CHECKPOINT_DIR = './checkpoints'
-    CHECKPOINT_FILE = 'sp/pitcher_model.pth'
     OUTPUT_FILE = '../data/generated/pipeline/pitcher_sp_predictions.csv'
     
     # Role-specific configuration
@@ -69,20 +44,7 @@ class PitcherSPConfig:
     GS_RATE_THRESHOLD = 0.8
     MIN_IP_CURRENT = 25  # Minimum IP in current year to generate predictions
     
-    # ============================================================================
-    # RELIABILITY REGRESSION
-    # ============================================================================
-    # Bayesian shrinkage of rate stats toward a career/league-average prior,
-    # weighted by sample size (BF for pitchers).  The two toggles are independent:
-    #
-    #   TRAINING   — applied to the historical DataFrame before the LSTM sees it.
-    #   PREDICTION — applied to each player's historical sequence at inference time.
-    #
-    # NOTE (2026-04): Both disabled. The component-based Marcel architecture
-    # uses multivariate regression equations (Phase 2b) with R²-weighted
-    # blending that already accounts for signal strength per component.
-    ENABLE_RELIABILITY_REGRESSION_TRAINING   = False
-    ENABLE_RELIABILITY_REGRESSION_PREDICTION = False
+
     
     # ============================================================================
     # POST-PREDICTION RECONSTRUCTION & CONSTRAINT TOGGLES
@@ -290,152 +252,6 @@ class PitcherSPConfig:
     # Legacy compatibility - use classical features by default
     INPUT_FEATURES = CLASSICAL_FEATURES + PITCHFX_FEATURES
     
-    # ============================================================================
-    # PRE-TRAINING CONFIGURATION (1950-2024, Classical only)
-    # ============================================================================
-    SEQ_LENGTH = 3  # season sequences for pre-training
-    PRETRAIN_DATA_FILE = '../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv'
-    PRETRAIN_SCALER_FILE = 'data/pitcher_sp_pretrain_scaler.pkl'
-    PRETRAIN_CHECKPOINT_FILE = 'sp/pitcher_sp_pretrained.pth'
-    PRETRAIN_START_SEASON = 1950  # Maximum historical data for classical features
-    PRETRAIN_MIN_IP = 120          # Quality threshold (lowered from 40 for UNIFIED_PITCHER_MODEL to include RP seasons)
-    
-    # ============================================================================
-    # FINE-TUNING CONFIGURATION (2020+, Full feature set with Stuff+)
-    # ============================================================================
-    # Note: Stuff+/Location+/Pitching+ only available 2020+
-    #
-    # LAYER FREEZING STRATEGY:
-    # ========================
-    # Problem: Only ~360 training sequences vs 5.3M trainable parameters
-    # Solution: Aggressive layer freezing
-    #
-    # Option 1: FREEZE_LSTM=True, FREEZE_ATTENTION=False (current)
-    #   - Trainable: input_proj + attention + output_proj = ~5.3M params
-    #   - Ratio: 1:14,700 (very underfitting)
-    #
-    # Option 2: FREEZE_LSTM=True, FREEZE_ATTENTION=True (recommended)
-    #   - Trainable: input_proj + output_proj only = ~1.08M params
-    #   - Ratio: 1:3,000 (still low but more reasonable)
-    #
-    # The LSTM layers learned temporal patterns from 75 years of pitcher data.
-    # For fine-tuning with limited Statcast data, we should preserve those
-    # patterns and only adapt the input/output mappings.
-    
-    FINETUNE_DATA_FILE = '../data/historic_mlb/mlb_pitching_data_1950_2025_with_statcast.csv'
-    FINETUNE_SCALER_FILE = 'data/pitcher_sp_finetune_scaler.pkl'
-    FINETUNE_CHECKPOINT_FILE = 'sp/pitcher_sp_finetuned.pth'
-    FINETUNE_START_SEASON = 2020  # Stuff+ era begins
-    FINETUNE_MIN_IP = 20          # Lower threshold (less data available)
-    # Finetune hyperparameters - TUNED via nested search on Pretrain Trial 25
-    # Architecture inherited from pretrain: 512h/3L/2heads
-    # Only LR, batch size, and freeze strategy optimized during finetune
-    FINETUNE_LEARNING_RATE = 1.00e-04  # Best: 1.00e-04 (10x higher than pretrain)
-    FINETUNE_BATCH_SIZE = 32           # Best: 32
-    FINETUNE_FREEZE_LSTM = False       # Best: False (train all layers, not frozen)
-    
-    # Layer freezing configuration (for non-finetune modes)
-    FREEZE_LSTM = True             # Default: freeze LSTM
-    FREEZE_ATTENTION = True        # Default: freeze attention
-    # Note: Nested search found freeze=False optimal for finetune
-    
-    # Model architecture - TUNED via backtest hyperparameter search (100 trials)
-    # Trial #24: 37.90% skill score across 2023-2025 holdout years
-    # This configuration directly optimizes for out-of-sample predictive performance
-    HIDDEN_SIZE = 128                # Best: 512
-    NUM_LAYERS = 1                 # Best: 2 (backtest-optimized)
-    NUM_HEADS = 2                 # Best: 4 (backtest-optimized)
-    BIDIRECTIONAL = False
-    DROPOUT = 0.3          # Best: 0.253 (backtest-optimized)
-    GRADIENT_CLIP = 1.0
-    
-    # Training parameters - TUNED via backtest hyperparameter search (100 trials)
-    # Trial #24: Achieves 37.90% average skill score (vs naive baseline)
-    # Per-year: 24.87% (2023), 48.08% (2024), 40.76% (2025)
-    BATCH_SIZE = 64        # Best: 32 (backtest-optimized)
-    LEARNING_RATE = 1e-04      # Best: 4.19e-05 (backtest-optimized)
-    WEIGHT_DECAY = 1.1527987128232402e-06        # Best: 3.70e-05 (backtest-optimized)
-    NUM_EPOCHS = 50
-    EARLY_STOPPING_PATIENCE = 10
-    
-    # ============================================================================
-    # DOMAIN CONSTRAINT CONFIGURATION
-    # ============================================================================
-    # Pitchers decline faster than hitters and have earlier peaks.
-    # These constraints are calibrated for pitcher-specific aging patterns.
-    
-    # ============================================================================
-    # SCALER ALIGNMENT
-    # ============================================================================
-    # Features in each group share the same MinMax range so that equal raw
-    # values (e.g. FIP=4.00 and ERA=4.00) map to the *same* scaled value.
-    # Without this, ERA's wider outlier range (max=11.27 vs FIP max=8.62)
-    # creates a permanent phantom gap in normalised space — the model sees
-    # "FIP ≠ ERA" even when they are identical in reality.
-    LINKED_SCALE_GROUPS = [
-        ['FIP', 'ERA', 'xFIP', 'SIERA'],
-    ]
-    
-    # Percentile clipping removes extreme outliers before fitting the scaler.
-    # A 40-IP pitcher with an 11.0 ERA compresses the 2.5-5.5 range (where
-    # 95 % of starters live) into a tiny fraction of [-1, 1].  Clipping at
-    # p0.5/p99.5 expands model resolution in the range that matters.
-    # HBP% is a small rate (~0.008-0.01) with occasional extreme outliers
-    # from low-IP stints — clipping keeps scaler resolution.
-    STAT_CLIP_PERCENTILES = {
-        'FIP':   (0.5, 99.5),
-        'ERA':   (0.5, 99.5),
-        'xFIP':  (0.5, 99.5),
-        'SIERA': (0.5, 99.5),
-        'HBP%':  (0.5, 99.5),
-        'HR/FB': (0.5, 99.5),   # Small rate with extreme outliers from low-FB stints
-        'BABIP': (0.5, 99.5),  # Narrow range with occasional outliers from low-IP stints
-    }
-    
-    CONSTRAINT_STRENGTH = 'medium'
-    
-    DOMAIN_CONSTRAINTS = {
-        'mse_weight': 1.0,
-        'aging_weight': 0.18,        # Stronger aging (pitchers decline faster)
-        'smoothness_weight': 0.08,   # Less smoothness (pitcher stats more volatile)
-        'bounds_hard_weight': 0.50,
-        'bounds_soft_weight': 0.05,
-        'peak_weight': 0.05,
-    }
-    
-    # Data preprocessing config
-    @staticmethod
-    def get_data_config(mode='pretrain'):
-        """
-        Get data config for pre-training or fine-tuning
-        
-        Args:
-            mode: 'pretrain' or 'finetune'
-        """
-        if mode == 'finetune':
-            return DataConfig(
-                input_features=PitcherSPConfig.FINETUNE_FEATURES,
-                output_features=PitcherSPConfig.FINETUNE_FEATURES,
-                seq_length=PitcherSPConfig.SEQ_LENGTH,
-                start_season=PitcherSPConfig.FINETUNE_START_SEASON,
-                min_pa=PitcherSPConfig.FINETUNE_MIN_IP,
-                train_ratio=0.75,
-                valid_ratio=0.24,
-                random_seed=42,
-                linked_scale_groups=PitcherSPConfig.LINKED_SCALE_GROUPS,
-                stat_clip_percentiles=PitcherSPConfig.STAT_CLIP_PERCENTILES,
-            )
-        else:  # pretrain
-            return DataConfig(
-                input_features=PitcherSPConfig.INPUT_FEATURES,
-                seq_length=PitcherSPConfig.SEQ_LENGTH,
-                start_season=PitcherSPConfig.PRETRAIN_START_SEASON,
-                min_pa=PitcherSPConfig.PRETRAIN_MIN_IP,
-                train_ratio=0.8,
-                valid_ratio=0.19,
-                random_seed=42,
-                linked_scale_groups=PitcherSPConfig.LINKED_SCALE_GROUPS,
-                stat_clip_percentiles=PitcherSPConfig.STAT_CLIP_PERCENTILES,
-            )
+
     
 
