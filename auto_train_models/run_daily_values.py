@@ -61,6 +61,7 @@ from value_determination.calculate_war import (
 )
 from value_determination.playing_time import estimate_playing_time
 from value_determination.milb_regression import apply_milb_regression
+from value_determination.pitcher_milb_regression import apply_pitcher_milb_regression
 from core.position_profiles import (
     build_position_profiles, load_fielding_history, load_batting_for_games,
     get_display_position,
@@ -94,22 +95,7 @@ from value_determination.pipelines.snapshots import save_daily_trade_value_snaps
 def _backfill_proration_for_derived_rows(
     new_rows, proration_dict, team_games_map, player_team_map,
 ):
-    """Add war_proration entries for mid-season call-ups / signings.
-
-    derive_missing_batter_baselines() / derive_missing_pitcher_baselines()
-    add CURRENT_YEAR rows for players who had no preseason projection —
-    but that happens *after* blend_batter_projections()/blend_pitcher_
-    projections() already built the war_proration dict, so these players
-    are never seen by that loop and get no entry.
-
-    Without an entry, reduce_to_remaining_season() skips them entirely
-    (it does `if info is None: continue`), so their counting stats
-    (including G) are left at the full-season value baked into the
-    derived baseline instead of being scaled down to the games remaining.
-
-    This backfills a team-based remaining_fraction for exactly the IDs
-    that are missing, so they get reduced like everyone else.
-    """
+    """Add war_proration entries for mid-season call-ups / signings."""
     if new_rows.empty:
         return
 
@@ -148,14 +134,12 @@ def main():
         validate_input_data(sp_data, rp_data, batter_data, salary_data)
 
         # ============================================================
-        # Step 1.5 (NEW): Load actuals & blend ROS projections
+        # Step 1.5: Load actuals & blend ROS projections
         # ============================================================
         logger.info("\n[Step 1.5] Loading current-season actuals and blending ROS projections...")
         actual_batting, actual_pitching, actual_year = load_current_season_actuals()
 
-        # --- PATCH: load actual fielding for call-up Pos resolution ---
         try:
-            # Use already-imported Config and Path (don't re-import to avoid UnboundLocalError)
             current_season_dir = Config.Paths.DATA_DIR / 'current_season'
             fld_path = current_season_dir / f"mlb_fielding_data_{CURRENT_YEAR}_{CURRENT_YEAR}.csv"
             if fld_path.exists():
@@ -167,7 +151,6 @@ def main():
         except Exception as _e:
             actual_fielding = pd.DataFrame()
             logger.warning(f"Could not load actual_fielding for patch: {_e}")
-
 
         # Fetch team games played for team-based remaining fraction
         team_games_map = fetch_team_games_played(season=CURRENT_YEAR)
@@ -196,17 +179,9 @@ def main():
         baserunning_data = blend_baserunning_projections(
             baserunning_data, actual_batting, current_year=CURRENT_YEAR,
         )
+
         # ============================================================
-        # Step 1.6 (NEW): Derive current-year baselines for players
-        # with no preseason projection — mid-season call-ups / signings.
-        #
-        # These players have no CURRENT_YEAR row (Round 1 predates their
-        # debut) but DO have a (CURRENT_YEAR + 1) row (Round 2 already
-        # projected them forward using their real debut-season stats).
-        # We recover the current-year talent estimate by reversing the
-        # one year of aging Marcel applied to build that next-year row,
-        # using the same aging curves — so the result is methodologically
-        # identical to every other player's preseason row.
+        # Step 1.6: Derive current-year baselines for players with no preseason row
         # ============================================================
         logger.info("\n[Step 1.6] Deriving baselines for players with no preseason row...")
  
@@ -217,17 +192,6 @@ def main():
                 new_batter_rows, batter_proration, team_games_map, player_team_map,
             )
 
-        # blend_fielding_projections() (Step 1.5) only blends actuals into
-        # fielding_data rows that already exist for CURRENT_YEAR — it can't
-        # create a row for a player who has none. A mid-season call-up
-        # (Round 1 predates their debut) has ZERO fielding_data rows for
-        # any year, so calculate_defensive_value() finds nothing for them
-        # at every year it's asked about, weighted_fld is permanently 0.0,
-        # and Def collapses onto the positional adjustment alone — the
-        # same flat number on every projection row. Derive a real
-        # current-year baseline for them now that batter_data (with
-        # call-ups concatenated above) tells us the full current-year
-        # batter ID set.
         current_year_batter_ids = batter_data.loc[
             batter_data['Year'] == CURRENT_YEAR, 'IDfg'
         ].dropna().astype(int)
@@ -255,10 +219,6 @@ def main():
                 new_rp_rows, pitcher_proration, team_games_map, player_team_map,
             )
  
-        # Rebuild the combined dict now that call-up/signing entries have
-        # been backfilled into batter_proration / pitcher_proration above —
-        # war_proration was first assembled in Step 1.5, before any of
-        # these IDs existed.
         war_proration = {**batter_proration, **pitcher_proration}
  
         n_derived = (
@@ -271,12 +231,7 @@ def main():
                         f"{len(new_rp_rows)} RP, {len(new_fielding_rows)} fielding)")
         else:
             logger.info("  No players needed a derived baseline")
- 
-        # Residual gap: a player missing from BOTH CURRENT_YEAR and
-        # CURRENT_YEAR+1 (e.g. debuted with too few PA/IP to clear Round 2's
-        # own inclusion threshold yet) still won't get a row this run. This
-        # is expected to be rare and self-resolving — they'll be picked up
-        # automatically once they clear that threshold on a later day.
+
         # ============================================================
         # Step 2: Calculate Pitcher WAR
         # ============================================================
@@ -289,7 +244,6 @@ def main():
             org_data[['IDfg', 'Team']], on='IDfg', how='left',
         )
 
-        # Apply park factors to park-neutral predictions
         from value_determination.calculate_war import (
             _apply_park_factors_to_pitcher_predictions,
         )
@@ -318,18 +272,69 @@ def main():
             rp_data, pitcher_proration, player_type='pitcher',
         )
 
-        # Calculate WAR for SP and RP
+        # ============================================================
+        # Step 2.25: MiLB Regression for Low-Sample Batters & Pitchers
+        # ============================================================
+        # NOTE: this now runs BEFORE the pitcher WAR calculation below (it used
+        # to run after). apply_pitcher_milb_regression blends/rewrites K%, BB%,
+        # GB%, HR/FB, BABIP and reconstructs FIP/ERA from them for any pitcher
+        # below the stabilization thresholds (STABILIZATION_TBF) -- which is a
+        # large share of the pool, since e.g. BABIP alone doesn't stabilize until
+        # 2000 career TBF. Calculating WAR from FIP first and regressing FIP
+        # afterward meant WAR was stale for exactly the pitchers this regression
+        # exists to help.
+        logger.info("\n[Step 2.25/10] Applying MiLB regression to batter predictions...")
+        batter_data = apply_milb_regression(batter_data, CURRENT_YEAR)
+
+        logger.info("\n[Step 2.25/10] Applying MiLB regression to pitcher predictions...")
+
+        # Load historical datasets
+        milb_path = Config.Paths.DATA_DIR / 'MiLB' / 'MILB_pitchers.csv'
+        if not milb_path.exists():
+            # Fallback for alternative file naming conventions
+            milb_path = Config.Paths.DATA_DIR / 'MiLB' / 'MiLB_Pitchers.csv'
+
+        milb_history = pd.read_csv(milb_path, low_memory=False)
+        mlb_history = pd.read_csv(Config.Paths.HISTORIC_MLB_DIR / 'mlb_pitching_data_1950_2025.csv', low_memory=False)
+
+        # Case-insensitive column normalizer to ensure 'IDfg' exists. Numeric-coerced
+        # (matching milb_regression.py's hitter loader) so 'sa######'-style MiLB-only
+        # IDs (no numeric IDfg assigned yet) don't survive as strings and silently
+        # fail every downstream `== idfg` comparison against numeric IDfg values.
+        id_cols = [c for c in milb_history.columns if c.lower() in ['playerid', 'player_id', 'idfg']]
+        if id_cols:
+            primary_id_col = id_cols[0]
+            milb_history['PlayerID'] = milb_history[primary_id_col]
+            milb_history['IDfg'] = pd.to_numeric(milb_history[primary_id_col], errors='coerce')
+            n_unmatched = milb_history['IDfg'].isna().sum()
+            if n_unmatched:
+                logger.info(f"{n_unmatched}/{len(milb_history)} MiLB pitcher rows have no "
+                            f"numeric IDfg (not yet on the MLB ID registry) and won't match here")
+            milb_history = milb_history.dropna(subset=['IDfg']).copy()
+            milb_history['IDfg'] = milb_history['IDfg'].astype(int)
+        else:
+            logger.error("❌ No player ID column found in MiLB_Pitchers.csv. Please re-run 'fangraphs_milb.py'.")
+
+        sp_data = apply_pitcher_milb_regression(
+            df_preds=sp_data, 
+            df_milb_history=milb_history, 
+            df_mlb_history=mlb_history, 
+            role='SP'
+        )
+        rp_data = apply_pitcher_milb_regression(
+            df_preds=rp_data, 
+            df_milb_history=milb_history, 
+            df_mlb_history=mlb_history, 
+            role='RP'
+        )
+
+        # Calculate WAR for SP and RP (after regression, so FIP-derived WAR
+        # reflects the MiLB-blended stat line, not the pre-regression one)
         sp_data = calculate_pitcher_war_for_dataframe(sp_data, org_data, role='SP')
         rp_data = calculate_pitcher_war_for_dataframe(rp_data, org_data, role='RP')
 
         logger.info(f"SP WAR: n={len(sp_data)}, avg={sp_data['WAR'].mean():.2f}")
         logger.info(f"RP WAR: n={len(rp_data)}, avg={rp_data['WAR'].mean():.2f}")
-
-        # ============================================================
-        # Step 2.25: MiLB Regression for Low-Sample Batters
-        # ============================================================
-        logger.info("\n[Step 2.25/10] Applying MiLB regression to batter predictions...")
-        batter_data = apply_milb_regression(batter_data, CURRENT_YEAR)
 
         # Filter pitchers who no longer bat (universal DH era)
         pitcher_idfgs = set(sp_data['IDfg'].unique()) | set(rp_data['IDfg'].unique())
@@ -453,12 +458,14 @@ def main():
 
         if 'BB%' in batter_data.columns and 'PA' in batter_data.columns:
             batter_data['BB_bat'] = (
-                batter_data['BB%'] * batter_data['PA']
-            ).round().astype(int)
+                pd.to_numeric(batter_data['BB%'], errors='coerce')
+                * pd.to_numeric(batter_data['PA'], errors='coerce')
+            ).round().fillna(0).astype(int)
         if 'K%' in batter_data.columns and 'PA' in batter_data.columns:
             batter_data['K_bat'] = (
-                batter_data['K%'] * batter_data['PA']
-            ).round().astype(int)
+                pd.to_numeric(batter_data['K%'], errors='coerce')
+                * pd.to_numeric(batter_data['PA'], errors='coerce')
+            ).round().fillna(0).astype(int)
 
         logger.info(
             f"Calculated WAR for {len(batter_data)} batters, "
@@ -466,7 +473,7 @@ def main():
         )
 
         # ============================================================
-        # Step 2.6 (NEW): Prorate current-year WAR
+        # Step 2.6: Prorate current-year WAR
         # ============================================================
         logger.info(
             "\n[Step 2.6] Prorating current-year WAR "
@@ -496,7 +503,6 @@ def main():
             salary_data_clean, sp_data, rp_data, batter_data,
         )
 
-        # Attach canonical team from roster
         salary_data_with_id = salary_data_with_id.drop(
             columns=['Team'], errors='ignore',
         )
@@ -505,7 +511,6 @@ def main():
             on='IDfg', how='left',
         )
 
-        # Fill missing Years_of_Service from historic data
         try:
             batting_history, pitching_history = load_historical_data()
         except Exception as e:
@@ -543,10 +548,8 @@ def main():
         timeline_with_values = calculate_contract_value(timeline_with_war)
 
         # ============================================================
-        # Step 6.5 (NEW): Prorate current-year salary
+        # Step 6.5: Prorate current-year salary
         # ============================================================
-        # Must happen AFTER calculate_contract_value() so Contract_Value
-        # column exists, but BEFORE calculate_surplus_value() uses it
         logger.info("\n[Step 6.5] Prorating current-year salary to remaining season...")
         from value_determination.pipelines.ros import prorate_current_year_salary
         timeline_with_values = prorate_current_year_salary(
@@ -597,7 +600,6 @@ def main():
         logger.info("\n[Step 10/10] Exporting value data...")
         export_value_data(export_data, OUTPUT_DIR)
 
-        # Export fielding projections for web database
         logger.info("Exporting fielding projections (per-position)...")
         _export_fielding_projections(
             fielding_data, position_profiles, org_data,
@@ -626,4 +628,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

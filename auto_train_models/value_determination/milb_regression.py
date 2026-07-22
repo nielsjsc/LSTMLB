@@ -109,11 +109,11 @@ MLE_LEVEL_FACTORS = {
 # performance.  Derived from same empirical data as AGE_ADJUSTMENT_WRC_PTS
 # but expressed in wOBA units for direct application.
 AGE_ADJUSTMENT_WOBA_PTS = {
-    'AAA': 0.005,
-    'AA':  0.008,
-    'A+':  0.008,
-    'A':   0.010,
-    'A-':  0.008,
+    'AAA': 0.002,
+    'AA':  0.004,
+    'A+':  0.004,
+    'A':   0.005,
+    'A-':  0.004,
 }
 
 # Age-appropriate benchmarks for each MiLB level.
@@ -167,7 +167,7 @@ MILB_SEASON_WEIGHTS = {0: 8, 1: 4, 2: 2, 3: 1, 4: 0.5}  # 0 = most recent
 # Reduced to 50 PA because per-level rate multipliers already preserve
 # player-specific signal — heavy regression double-counts the implicit
 # regression in the MLE translation step.
-REGRESSION_PA = 250
+REGRESSION_PA = 500
 LEAGUE_MEAN_WOBA = 0.290  # expected MLB wOBA for avg MiLB performer
 
 # Minimum PA at a level for it to count
@@ -219,7 +219,7 @@ GRADE_INTERCEPT = 0.1879
 GRADE_HIT_COEF = 0.00131     # wOBA per hit-tool point
 GRADE_POWER_COEF = 0.00098   # wOBA per power-tool point
 GRADE_BASELINE_WOBA = 0.303  # implied wOBA at 50-hit / 50-power
-GRADE_BLEND_WEIGHT = 0.35    # how much of the grade residual to apply
+GRADE_BLEND_WEIGHT = 0.20    # how much of the grade residual to apply
 
 # MiLB data path
 MILB_DATA_FILE = Config.Paths.DATA_DIR / 'MiLB' / 'MiLB_Hitters.csv'
@@ -245,10 +245,27 @@ def _load_milb_data() -> pd.DataFrame:
 
     milb = pd.read_csv(MILB_DATA_FILE, low_memory=False)
 
-    # Normalize PlayerId to int for matching with IDfg
-    milb['PlayerId'] = pd.to_numeric(milb['PlayerId'], errors='coerce')
-    milb = milb.dropna(subset=['PlayerId'])
-    milb['PlayerId'] = milb['PlayerId'].astype(int)
+    # Find the player-ID column case-insensitively — FanGraphs exports this
+    # as 'PlayerID' (capital ID), not 'PlayerId'.
+    id_cols = [c for c in milb.columns if c.lower() in ('playerid', 'player_id')]
+    if not id_cols:
+        logger.error(f"No player-ID column found in {MILB_DATA_FILE} "
+                     f"(columns: {list(milb.columns)})")
+        return pd.DataFrame()
+    id_col = id_cols[0]
+
+    # Normalize to int for matching with IDfg. This drops rows whose ID is
+    # non-numeric (FanGraphs' 'sa######' placeholder IDs for players who
+    # haven't been assigned a numeric IDfg yet) — those can't be matched to
+    # batter_data['IDfg'] by equality regardless, so they're excluded here
+    # unless/until they're run through an ID crosswalk.
+    milb['PlayerID'] = pd.to_numeric(milb[id_col], errors='coerce')
+    n_dropped = milb['PlayerID'].isna().sum()
+    if n_dropped:
+        logger.info(f"{n_dropped}/{len(milb)} MiLB rows have no numeric "
+                    f"IDfg-compatible ID and will be excluded from regression")
+    milb = milb.dropna(subset=['PlayerID'])
+    milb['PlayerID'] = milb['PlayerID'].astype(int)
 
     # Keep only relevant levels
     milb = milb[milb['Level'].isin(RELEVANT_LEVELS)].copy()
@@ -431,14 +448,16 @@ def _translate_to_mle(milb_row: pd.Series) -> dict:
     # Age adjustment: credit young-for-level, penalize old-for-level
     age_adj = _age_woba_adjustment(age, level)
 
-    translated_woba = milb_row['wOBA'] * woba_factor + age_adj
+    base_woba = milb_row['wOBA'] * woba_factor
+    translated_woba = base_woba + age_adj
+    woba_ratio = translated_woba / base_woba if base_woba > 0 else 1.0
 
     return {
         'K%':  min(milb_row['K%'] + k_adj, 0.45),
         'BB%': max(milb_row['BB%'] * bb_factor, 0.02),
-        'AVG': milb_row['AVG'] * avg_factor,
-        'OBP': milb_row['OBP'] * obp_factor,
-        'SLG': milb_row['SLG'] * slg_factor,
+        'AVG': milb_row['AVG'] * avg_factor * woba_ratio,
+        'OBP': milb_row['OBP'] * obp_factor * woba_ratio,
+        'SLG': milb_row['SLG'] * slg_factor * woba_ratio,
         'wOBA': max(translated_woba, 0.200),
     }
 
@@ -618,77 +637,61 @@ def _blend_predictions(
         # Reliability weight: how much to trust the MLB model
         mlb_weight = career_pa / (career_pa + effective_stab)
 
-        blended[stat] = mlb_weight * model_val + (1 - mlb_weight) * mle_val
+        blended_val = mlb_weight * model_val + (1 - mlb_weight) * mle_val
+        if pd.isna(blended_val):
+            blended_val = model_val
+        blended[stat] = blended_val
 
-    # ── Scale counting stats to match the new wOBA ──────────────────────
-    # The LSTM's counting stats were derived from the original wOBA inside
-    # the autoregressive loop.  After blending changes wOBA, the counting
-    # stats must be rescaled or they'll be inconsistent (e.g. 42 HR with
-    # a .313 wOBA).
-    old_woba = model_pred.get('wOBA', 0)
-    target_woba = blended.get('wOBA', old_woba)
-
-    if old_woba > 0 and target_woba > 0:
-        woba_ratio = target_woba / old_woba
-        for cstat in COUNTING_STATS:
-            if cstat in model_pred.index:
-                blended[cstat] = max(0.0, model_pred[cstat] * woba_ratio)
-
-    # ── Reconstruct OBP, SLG from adjusted components ──────────────────
-    # Build counting stats from the blended rate stats, then derive OBP
-    # and SLG for internal consistency.  wOBA is kept at the blended
-    # target and counting stats are rescaled to match it, since the LSTM's
-    # counting stat profile (HR/2B/3B distribution) can be unreliable for
-    # prospects with minimal MLB data.
+    # ── Derive counting stats algebraically from blended rate stats ──────
+    # We freeze the reliable blended rate stats (AVG, OBP, SLG, BB%, wOBA).
+    # Then we mathematically derive Total Hits (H) and Total Bases (TB).
+    # Finally, we distribute Extra Base Hits (2B, 3B, HR) according to the
+    # model's original predicted extra-base distribution so that they perfectly
+    # match the new blended SLG and wOBA.
     pa = 650.0
-    bb_pct = blended.get('BB%', model_pred.get('BB%', 0))
-    avg = blended.get('AVG', model_pred.get('AVG', 0))
-    bb = bb_pct * pa
-    hbp = blended.get('HBP', model_pred.get('HBP', pa * 0.01))
-    sf = pa * 0.007
-    ab = pa - bb - hbp - sf
+    bb_pct = blended.get('BB%', model_pred.get('BB%', 0.08))
+    avg = blended.get('AVG', model_pred.get('AVG', 0.240))
+    slg = blended.get('SLG', model_pred.get('SLG', 0.400))
+    target_woba = blended.get('wOBA', model_pred.get('wOBA', 0.310))
+
+    bb = pa * bb_pct
+    orig_pa = 650.0
+    
+    # Estimate HBP based on original proportion
+    hbp = model_pred.get('HBP', orig_pa * 0.01) * (pa / orig_pa)
+    sf = orig_pa * 0.007 * (pa / orig_pa)
+    
+    ab = max(1.0, pa - bb - hbp - sf)
     h = avg * ab
-    hr = blended.get('HR', model_pred.get('HR', 0))
-    doubles = blended.get('2B', model_pred.get('2B', 0))
-    triples = blended.get('3B', model_pred.get('3B', 0))
-    singles = max(0.0, h - doubles - triples - hr)
+    tb = slg * ab
+    
+    # Extra bases to distribute: TB - H = 2B + 2*3B + 3*HR
+    diff = tb - h
+    xb = max(0.0, diff) if not pd.isna(diff) else 0.0
+    
+    # Get original distribution of extra bases
+    orig_2b = model_pred.get('2B', 0)
+    orig_3b = model_pred.get('3B', 0)
+    orig_hr = model_pred.get('HR', 0)
+    orig_xb = orig_2b + 2 * orig_3b + 3 * orig_hr
+    
+    if orig_xb > 0:
+        xb_ratio = xb / orig_xb
+        blended['2B'] = orig_2b * xb_ratio
+        blended['3B'] = orig_3b * xb_ratio
+        blended['HR'] = orig_hr * xb_ratio
+    else:
+        # fallback distribution if model predicted 0 XB
+        blended['2B'] = xb * (2.0 / 5.0)
+        blended['3B'] = 0.0
+        blended['HR'] = xb * (1.0 / 3.0)
 
-    # OBP = (H + BB + HBP) / (AB + BB + HBP + SF)
-    obp_den = ab + bb + hbp + sf
-    if obp_den > 0:
-        blended['OBP'] = (h + bb + hbp) / obp_den
-
-    # SLG = total bases / AB
-    if ab > 0:
-        blended['SLG'] = (singles + 2 * doubles + 3 * triples + 4 * hr) / ab
-
-    # ── Anchor wOBA to the blended target, rescale counting stats ───────
-    # The reconstructed wOBA from counting stats may differ from the
-    # blended target because the model's HR/2B/3B profile doesn't match
-    # the MLE's implied talent level.  Preserve the blended wOBA and
-    # adjust counting stats proportionally so everything is consistent.
-    weights = _WOBA_WEIGHTS
-    woba_num = (weights['wBB'] * bb + weights['wHBP'] * hbp +
-                weights['w1B'] * singles + weights['w2B'] * doubles +
-                weights['w3B'] * triples + weights['wHR'] * hr)
-    reconstructed_woba = woba_num / pa if pa > 0 else 0
-
-    if reconstructed_woba > 0 and target_woba > 0:
-        # Scale counting stats so reconstructed wOBA equals the target
-        correction = target_woba / reconstructed_woba
-        for cstat in COUNTING_STATS:
-            if cstat in blended:
-                blended[cstat] = max(0.0, blended[cstat] * correction)
-
-        # Recompute SLG with corrected counting stats
-        hr_c = blended.get('HR', hr)
-        doubles_c = blended.get('2B', doubles)
-        triples_c = blended.get('3B', triples)
-        singles_c = max(0.0, h - doubles_c - triples_c - hr_c)
-        if ab > 0:
-            blended['SLG'] = (singles_c + 2 * doubles_c + 3 * triples_c + 4 * hr_c) / ab
-
-    blended['wOBA'] = target_woba
+    # Scale Run production stats by wOBA increase
+    orig_woba = max(0.001, model_pred.get('wOBA', 0.310))
+    r_ratio = target_woba / orig_woba
+    blended['R'] = model_pred.get('R', 0) * r_ratio
+    blended['RBI'] = model_pred.get('RBI', 0) * r_ratio
+    blended['HBP'] = hbp
 
     return blended
 
@@ -743,7 +746,7 @@ def apply_milb_regression(batter_data: pd.DataFrame, current_year: int) -> pd.Da
                 f"(career PA < {FULL_STABILIZATION_PA})")
 
     # Pre-compute MLEs for all candidates
-    milb_by_player = milb.groupby('PlayerId')
+    milb_by_player = milb.groupby('PlayerID')
     player_mles = {}      # pid → mle dict
     player_milb_pa = {}   # pid → total qualifying MiLB PA
     fv_adjusted_count = 0

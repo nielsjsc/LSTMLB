@@ -1736,10 +1736,10 @@ def derive_missing_fielding_baseline(
         # FIX: store as dict to keep list homogeneous (Series + dict mix breaks pd.DataFrame)
         new_rows.append(row.to_dict() if hasattr(row, 'to_dict') else dict(row))
 
-    # --- NEW: truly missing players (no fielding row in ANY year) ---
-    truly_missing_ids = id_set - all_fielding_ids - handled_ids
-    # also include those who have no current year row but next_df was empty
-    truly_missing_ids = {i for i in truly_missing_ids if i in actual_lookup}
+    # --- NEW: truly missing players (no fielding row for current or next year) ---
+    truly_missing_ids = id_set - cur_ids - handled_ids
+    # include all missing players, even if they have no actual fielding yet (e.g. new rookies)
+    # they will get a 0.0 baseline.
 
     for idfg in truly_missing_ids:
         # build minimal row from empty template
