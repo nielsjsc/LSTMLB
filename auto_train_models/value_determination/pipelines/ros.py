@@ -339,8 +339,21 @@ def _overlay_current_year_rows(
         except Exception:
             pass
 
-    result  = result.set_index(['IDfg', key_col])
-    overlay = overlay.set_index(['IDfg', key_col])
+    idx_cols = ['IDfg', key_col]
+    if 'Pos' in result.columns and 'Pos' in overlay.columns:
+        idx_cols.append('Pos')
+    elif 'Role' in result.columns and 'Role' in overlay.columns:
+        idx_cols.append('Role')
+
+    # Drop duplicates in overlay to be safe
+    overlay = overlay.drop_duplicates(subset=idx_cols, keep='last')
+
+    # If result still has duplicates in the index, drop them
+    if result.duplicated(subset=idx_cols).any():
+        result = result.drop_duplicates(subset=idx_cols, keep='last')
+
+    result  = result.set_index(idx_cols)
+    overlay = overlay.set_index(idx_cols)
     result.update(overlay)
     return result.reset_index()
 
@@ -353,8 +366,9 @@ def build_ros_blended_history_snapshots(
     preseason_batter_df: pd.DataFrame,
     preseason_sp_df: pd.DataFrame,
     preseason_rp_df: pd.DataFrame,
+    preseason_fielding_df: pd.DataFrame | None = None,
     current_year: int | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Build ROS-blended history snapshots for the next Marcel prediction pass.
 
     Replaces the current-year rows in the historical batter/pitcher CSVs with
@@ -363,12 +377,12 @@ def build_ros_blended_history_snapshots(
     full-season volume.
 
     Returns:
-        (blended_batter_history, blended_pitcher_history)
+        (blended_batter_history, blended_pitcher_history, blended_fielding_history)
     """
     if current_year is None:
         current_year = CURRENT_YEAR
 
-    batter_history_path  = Path(Config.Paths.ROOT_DIR / 'auto_train_models' / BatterConfig.FINETUNE_DATA_FILE)
+    batter_history_path  = Path(Config.Paths.ROOT_DIR / 'auto_train_models' / BatterConfig.DATA_FILE)
     pitcher_history_path = Path(Config.Paths.ROOT_DIR / 'auto_train_models' / PitcherSPConfig.DATA_FILE)
 
     raw_batter_history  = pd.read_csv(batter_history_path,  low_memory=False)
@@ -396,6 +410,40 @@ def build_ros_blended_history_snapshots(
         team_games_map=team_games_map,
         player_team_map=player_team_map,
     )
+
+    # ── Fielding blending ──────────────────────────────────────────────
+    blended_fielding_df = pd.DataFrame()
+    raw_fielding_history = pd.DataFrame()
+    if preseason_fielding_df is not None and not preseason_fielding_df.empty:
+        from configs.defense_infield_config import DefenseInfieldConfig
+        from core.data_processing import calculate_rate_stats as _calc_rate
+        fielding_history_path = Path(Config.Paths.ROOT_DIR / 'auto_train_models' / DefenseInfieldConfig.DATA_FILE)
+        raw_fielding_history = pd.read_csv(fielding_history_path, low_memory=False)
+
+        # Fill missing Statcast sub-metrics with 0.0 (league average) so
+        # rookies missing specific micro-metrics aren't dropped by Marcel.
+        for col in ['sc_range_runs', 'sc_arm_runs', 'sc_dp_runs',
+                     'sc_framing_runs', 'sc_throwing_runs', 'sc_blocking_runs']:
+            if col in raw_fielding_history.columns:
+                raw_fielding_history[col] = raw_fielding_history[col].fillna(0.0)
+
+        # Compute rate stats (sc_total_runs/150 etc.) so overlaid rows have
+        # the per-150 columns Marcel expects, not just raw totals.
+        raw_fielding_history = _calc_rate(raw_fielding_history)
+
+        # Blend existing preseason rows with actual performance
+        blended_fielding_df = blend_fielding_projections(
+            preseason_fielding_df, actual_batting, current_year=current_year
+        )
+        # Derive baselines for missing players (e.g. rookies)
+        current_year_ids = actual_batting['IDfg'].dropna().astype(int).unique()
+        missing_fielding_df = derive_missing_fielding_baseline(
+            preseason_fielding_df, current_year_ids, actual_batting, current_year
+        )
+        if not missing_fielding_df.empty:
+            blended_fielding_df = pd.concat(
+                [blended_fielding_df, missing_fielding_df], ignore_index=True
+            )
 
     # Ensure SP/RP frames are populated (some pipelines write a combined CSV)
     if (preseason_sp_df is None or preseason_sp_df.empty) and \
@@ -443,6 +491,17 @@ def build_ros_blended_history_snapshots(
 
     batter_overlay = blended_batter_df[blended_batter_df['Year'] == current_year].copy()
 
+    # ── Fielding overlay ───────────────────────────────────────────────
+    fielding_overlay = pd.DataFrame()
+    if not blended_fielding_df.empty:
+        fielding_overlay = blended_fielding_df[
+            blended_fielding_df['Year'] == current_year
+        ].copy()
+        # Raw history uses 'Season' not 'Year'; rename so
+        # _overlay_current_year_rows can match on the same column name.
+        if 'Year' in fielding_overlay.columns and 'Season' not in fielding_overlay.columns:
+            fielding_overlay = fielding_overlay.rename(columns={'Year': 'Season'})
+
     # The overlay rows must carry actual PA/IP (not 650/180) so that the next
     # Marcel run weights them by real sample size when the snapshot is used as
     # Y-1 history.  Stamp actual_pa onto each overlay batter row.
@@ -454,6 +513,18 @@ def build_ros_blended_history_snapshots(
     if 'PA' in batter_overlay.columns:
         batter_overlay['PA'] = batter_overlay['IDfg'].map(
             lambda idfg: actual_pa_map.get(int(idfg), 0.0)
+            if pd.notna(idfg) else 0.0
+        )
+
+    actual_g_map = {
+        int(r['IDfg']): _safe_float(r.get('G', 0)) or 0.0
+        for _, r in actual_batting.iterrows()
+        if pd.notna(r.get('IDfg'))
+    }
+    if not fielding_overlay.empty:
+        # Stamp actual Games so Marcel sees real sample size
+        fielding_overlay['G'] = fielding_overlay['IDfg'].map(
+            lambda idfg: actual_g_map.get(int(idfg), 0.0)
             if pd.notna(idfg) else 0.0
         )
 
@@ -475,6 +546,8 @@ def build_ros_blended_history_snapshots(
     return (
         _overlay_current_year_rows(raw_batter_history, batter_overlay, current_year),
         _overlay_current_year_rows(raw_pitcher_history, pitcher_overlay, current_year),
+        _overlay_current_year_rows(raw_fielding_history, fielding_overlay, current_year)
+            if not fielding_overlay.empty else pd.DataFrame(),
     )
 
 
