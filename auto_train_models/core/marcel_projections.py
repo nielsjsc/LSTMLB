@@ -176,6 +176,66 @@ FIELDING_AGING_FLOOR = {
 }
 
 
+# Maximum per-year aging growth for defensive stats (runs/150), applied to
+# ages BEFORE peak (~27). These are ceilings on the delta — if the empirical
+# (smoothed) delta is above this threshold, the cap is used instead.
+#
+# This mirrors FIELDING_AGING_FLOOR but for the opposite failure mode: the
+# delta-method aging curve is derived from very few paired player-seasons at
+# ages 20-24 (almost nobody gets meaningful defensive innings that young),
+# and the players who do and who stick around long enough to have a next
+# season are a survivorship-biased sample of good prospects who kept
+# improving and playing more. That selection effect gets baked into the
+# curve as an oversized "aging" delta. Left unbounded, it compounds across
+# every year of a multi-year projection (see marcel_fielding_projections),
+# producing unrealistic gains for players who debut very young — e.g. a
+# 20-year-old debutant with a mediocre small-sample FRV projecting to
+# near-Gold-Glove defense by their mid-20s.
+#
+# Values are calibrated to be modest relative to the decline-side floor:
+# real defensive development from a rookie-quality debut to peak shouldn't
+# plausibly sum to more than ~3-4 runs/150 total across the whole climb.
+FIELDING_AGING_GROWTH_CAP: Dict[str, Dict[int, float]] = {
+    'sc_total_runs/150': {
+        20: 1.00, 21: 0.90, 22: 0.80, 23: 0.70, 24: 0.60, 25: 0.45, 26: 0.30,
+    },
+    'sc_range_runs/150': {
+        20: 0.80, 21: 0.70, 22: 0.60, 23: 0.55, 24: 0.50, 25: 0.35, 26: 0.25,
+    },
+    'sc_arm_runs/150': {
+        20: 0.40, 21: 0.35, 22: 0.30, 23: 0.25, 24: 0.20, 25: 0.15, 26: 0.10,
+    },
+    'sc_dp_runs/150': {
+        20: 0.30, 21: 0.25, 22: 0.20, 23: 0.20, 24: 0.15, 25: 0.10, 26: 0.10,
+    },
+    'sc_framing_runs/150': {
+        20: 0.60, 21: 0.50, 22: 0.45, 23: 0.40, 24: 0.30, 25: 0.20, 26: 0.15,
+    },
+    'sc_throwing_runs/150': {
+        20: 0.30, 21: 0.25, 22: 0.20, 23: 0.20, 24: 0.15, 25: 0.10, 26: 0.10,
+    },
+    'sc_blocking_runs/150': {
+        20: 0.30, 21: 0.25, 22: 0.20, 23: 0.20, 24: 0.15, 25: 0.10, 26: 0.10,
+    },
+    # Traditional stat equivalents (reuse total curve caps)
+    'UZR/150': {
+        20: 1.00, 21: 0.90, 22: 0.80, 23: 0.70, 24: 0.60, 25: 0.45, 26: 0.30,
+    },
+    'RngR/150': {
+        20: 0.80, 21: 0.70, 22: 0.60, 23: 0.55, 24: 0.50, 25: 0.35, 26: 0.25,
+    },
+    'ARM/150': {
+        20: 0.40, 21: 0.35, 22: 0.30, 23: 0.25, 24: 0.20, 25: 0.15, 26: 0.10,
+    },
+    'DPR/150': {
+        20: 0.30, 21: 0.25, 22: 0.20, 23: 0.20, 24: 0.15, 25: 0.10, 26: 0.10,
+    },
+    'DRS/150': {
+        20: 1.00, 21: 0.90, 22: 0.80, 23: 0.70, 24: 0.60, 25: 0.45, 26: 0.30,
+    },
+}
+
+
 def _get_defensive_aging_delta(
     raw_deltas: Dict[str, float],
     age: int,
@@ -183,31 +243,39 @@ def _get_defensive_aging_delta(
     window: int = 3,
 ) -> float:
     """
-    Get an aging delta for a defensive stat with a minimum decline floor.
+    Get an aging delta for a defensive stat, bounded on both sides of peak.
 
-    Same smoothing logic as _get_smoothed_aging_delta, but enforces a minimum
-    per-year decline after peak ages using FIELDING_AGING_FLOOR.  If the
-    smoothed empirical delta is *above* (less negative than) the floor for
-    this age, the floor is used instead.
+    Same smoothing logic as _get_smoothed_aging_delta, but:
+      - enforces a MINIMUM per-year decline after peak ages using
+        FIELDING_AGING_FLOOR (if the smoothed empirical delta is above/
+        less-negative-than the floor, the floor is used instead).
+      - enforces a MAXIMUM per-year growth before peak ages using
+        FIELDING_AGING_GROWTH_CAP (if the smoothed empirical delta is
+        above the cap, the cap is used instead).
+
+    Both bounds exist for the same reason: the empirical delta-method curve
+    is noisiest — and most prone to selection-bias artefacts — at the
+    extreme ends of the observed age range, and an unconstrained per-year
+    delta compounds across every year of a multi-year projection.
     """
     smoothed = _get_smoothed_aging_delta(raw_deltas, age, window=window)
 
     floor_map = FIELDING_AGING_FLOOR.get(stat, {})
-    if not floor_map:
-        return smoothed
+    if floor_map:
+        max_floor_age = max(floor_map.keys())
+        if age > max_floor_age:
+            last_floor = floor_map[max_floor_age]
+            # Continue accelerating decline at 0.25 runs/yr beyond last entry
+            floor = last_floor - 0.25 * (age - max_floor_age)
+            return min(smoothed, floor)
+        elif age in floor_map:
+            return min(smoothed, floor_map[age])
 
-    # For ages beyond the floor table, extrapolate from the last entry
-    max_floor_age = max(floor_map.keys())
-    if age > max_floor_age:
-        last_floor = floor_map[max_floor_age]
-        # Continue accelerating decline at 0.25 runs/yr beyond last entry
-        floor = last_floor - 0.25 * (age - max_floor_age)
-    elif age in floor_map:
-        floor = floor_map[age]
-    else:
-        return smoothed  # Age is below the floor range — no constraint
+    cap_map = FIELDING_AGING_GROWTH_CAP.get(stat, {})
+    if cap_map and age in cap_map:
+        return min(smoothed, cap_map[age])
 
-    return min(smoothed, floor)
+    return smoothed
 
 
 # ============================================================================
@@ -274,6 +342,47 @@ FIELDING_RELIABILITY = {
         'sc_blocking_runs/150': 0.60, # optimal α=0.60, 6.6% RMSE improvement
     },
 }
+
+# Small-sample reliability scaling -------------------------------------
+# FIELDING_RELIABILITY above is a *flat* shrinkage multiplier, calibrated
+# for typical full-time regulars' seasonal noise. It does not account for
+# the *extra* variance in samples well below a full season (e.g. a
+# rookie's first 30-game stint).
+#
+# The reason a flat alpha isn't enough: _compute_marcel_weighted_average
+# weights the most recent season by `recency_weight` (5) before comparing
+# it against the innings-based regression pool. That's correct for a full
+# three-year Marcel history, but for a single partial rookie season it
+# inflates a small sample's apparent weight well past what its actual
+# innings would justify — a 267-inning debut gets treated like "1336
+# innings worth" of evidence. A flat 0.70 reliability multiplier on top
+# still lets most of an extreme, noisy small-sample rate through.
+#
+# This adds an additional multiplicative penalty based on the player's
+# ACTUAL (unweighted) total innings across the seasons used in the Marcel
+# average, scaled by sqrt(actual_inn / full_season_inn) — i.e. shrinkage
+# proportional to how much extra sampling variance a sub-full-season
+# sample carries. It's 1.0 (no extra penalty) once actual innings reach
+# a full-time workload, and shrinks toward 0 for very thin samples.
+SMALL_SAMPLE_FULL_SEASON_INN = {
+    'outfield': 1300.0,
+    'infield': 1300.0,
+    'catcher': 1000.0,   # catchers get more rest days; fewer innings/season
+}
+
+
+def _small_sample_reliability_scale(total_actual_inn: float, group_name: str) -> float:
+    """Extra reliability shrinkage for players with well-below-full-season innings.
+
+    Returns a multiplier in [0, 1], applied ON TOP of the existing flat
+    FIELDING_RELIABILITY alpha. 1.0 once actual innings reach the group's
+    full-season baseline; shrinks toward 0 for very small samples.
+    """
+    full_season_inn = SMALL_SAMPLE_FULL_SEASON_INN.get(group_name, 1300.0)
+    if total_actual_inn <= 0 or full_season_inn <= 0:
+        return 0.0
+    return float(np.clip(np.sqrt(total_actual_inn / full_season_inn), 0.0, 1.0))
+
 
 BASERUNNING_REGRESSION_GAMES = {
     'sc_baserunning_runner_runs_tot_rate': 100,
@@ -572,11 +681,21 @@ def marcel_fielding_projections(
             # enough data to overwhelm the regression.  The reliability
             # multiplier provides the empirically-calibrated additional
             # shrinkage needed to minimise out-of-sample prediction error.
+            #
+            # On top of that flat multiplier, apply extra shrinkage scaled
+            # to the player's ACTUAL total innings — this is what corrects
+            # for small, partial-season samples (e.g. a rookie's first
+            # month) that the recency-weighted Marcel average alone doesn't
+            # regress hard enough. See _small_sample_reliability_scale.
             reliability = FIELDING_RELIABILITY.get(group_name, {})
+            total_actual_inn = sum(
+                s.get('Inn', 0.0) for s in seasons_data if pd.notna(s.get('Inn'))
+            )
+            small_sample_scale = _small_sample_reliability_scale(total_actual_inn, group_name)
             for stat in stats:
                 r_key = curve_key_map[stat] if curve_key_map and stat in curve_key_map else stat
                 alpha = reliability.get(r_key, 1.0)
-                base[stat] *= alpha
+                base[stat] *= alpha * small_sample_scale
 
             # Project forward with aging
             for year_offset in range(1, future_years + 1):
@@ -1941,4 +2060,3 @@ def marcel_pitcher_projections(
     logger.info(f"Marcel pitching: generated {len(result_df)} projections for "
                 f"{result_df['Name'].nunique()} pitchers")
     return result_df
-

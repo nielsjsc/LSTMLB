@@ -170,6 +170,42 @@ MILB_SEASON_WEIGHTS = {0: 8, 1: 4, 2: 2, 3: 1, 4: 0.5}  # 0 = most recent
 REGRESSION_PA = 500
 LEAGUE_MEAN_WOBA = 0.290  # expected MLB wOBA for avg MiLB performer
 
+# ── Per-Season Shrinkage (dampens single outlier MiLB seasons) ───────────
+# The per-level translation factors (MLE_LEVEL_FACTORS) are flat multipliers:
+# a .440 wOBA season and a .300 wOBA season at the same level both get
+# multiplied by the same 0.90/0.82/etc. factor. That means one small-sample
+# monster season translates at full face value and, combined with the
+# recency weighting above (the most-recent season gets weight 8, vs 0.5 for
+# the oldest of the 5), can dominate the whole composite MLE.
+#
+# Before translation, each season's raw wOBA is now shrunk toward the
+# player's own PA×recency-weighted MiLB average (across the same 5 seasons
+# used elsewhere in this function) using the season's own PA as the
+# reliability signal. A short, hot half-season regresses hard toward the
+# player's broader track record; a full, sustained season barely moves.
+# This does NOT replace the existing league-mean regression on the final
+# composite (REGRESSION_PA) — that step still runs afterward — it just
+# keeps any one season from single-handedly setting the composite.
+SEASON_SHRINKAGE_PA = 250
+
+# ── Real-MLB Consistency Bonus (mlb_weight blend) ─────────────────────────
+# mlb_weight = career_pa / (career_pa + effective_stab) only measures
+# *volume* of real MLB PA — it can't tell the difference between 300 PA
+# spread across three separate seasons that all say "below-average hitter"
+# and 300 PA of pure noise around an unknown true talent. The former is a
+# much stronger signal and should pull the blend further toward the real
+# MLB data than raw PA alone implies.
+#
+# When a player has 2+ real MLB seasons (each with at least
+# MIN_SEASON_PA_FOR_CONSISTENCY PA) that all land on the same side of
+# league-average wOBA, we credit extra *effective* PA in the mlb_weight
+# calculation — capped so it can meaningfully shift the blend without ever
+# fully overriding the MiLB side on its own.
+MLB_LEAGUE_AVG_WOBA = 0.310
+MIN_SEASON_PA_FOR_CONSISTENCY = 40
+CONSISTENCY_BONUS_PA_PER_SEASON = 150
+MAX_CONSISTENCY_BONUS_PA = 450
+
 # Minimum PA at a level for it to count
 MIN_MILB_PA = 50
 
@@ -292,6 +328,66 @@ def _load_career_pa() -> pd.Series:
                        low_memory=False)
     hist['PA'] = pd.to_numeric(hist['PA'], errors='coerce').fillna(0)
     return hist.groupby('IDfg')['PA'].sum()
+
+
+def _load_consistency_bonus() -> pd.Series:
+    """Extra effective MLB PA for players whose real MLB seasons agree in direction.
+
+    mlb_weight (see _blend_predictions) is a pure PA-volume formula — it
+    can't distinguish 300 PA of noisy small-sample MLB performance from
+    300 PA spread across three separate seasons that all say the same
+    thing about a player's true talent. This computes a bonus for the
+    latter case: when a player has 2+ real MLB seasons (each with at
+    least MIN_SEASON_PA_FOR_CONSISTENCY PA) that all land on the same
+    side of league-average wOBA, credit extra effective PA — capped at
+    MAX_CONSISTENCY_BONUS_PA so it nudges the blend without ever fully
+    overriding the MiLB side by itself.
+
+    Returns:
+        Series indexed by IDfg of bonus PA (0 for players without a
+        qualifying consistent multi-season track record).
+    """
+    if not HISTORIC_BATTING_FILE.exists():
+        logger.warning(f"Historic batting data not found at {HISTORIC_BATTING_FILE}")
+        return pd.Series(dtype=float)
+
+    needed_cols = {'IDfg', 'Season', 'PA', 'wOBA'}
+    available_cols = set(pd.read_csv(HISTORIC_BATTING_FILE, nrows=0).columns)
+    if not needed_cols.issubset(available_cols):
+        logger.warning(
+            "Historic batting data missing columns needed for the "
+            f"consistency bonus ({needed_cols - available_cols}) — skipping"
+        )
+        return pd.Series(dtype=float)
+
+    hist = pd.read_csv(HISTORIC_BATTING_FILE,
+                       usecols=['IDfg', 'Season', 'PA', 'wOBA'],
+                       low_memory=False)
+    hist['PA'] = pd.to_numeric(hist['PA'], errors='coerce').fillna(0)
+    hist['wOBA'] = pd.to_numeric(hist['wOBA'], errors='coerce')
+
+    # Collapse to one row per player-season first (a player traded mid-year
+    # can have multiple rows per season) before checking season count.
+    per_season = hist.groupby(['IDfg', 'Season']).apply(
+        lambda g: pd.Series({
+            'PA': g['PA'].sum(),
+            'wOBA': (g['wOBA'] * g['PA']).sum() / g['PA'].sum() if g['PA'].sum() > 0 else np.nan,
+        })
+    ).reset_index()
+
+    qualifying = per_season[per_season['PA'] >= MIN_SEASON_PA_FOR_CONSISTENCY].dropna(subset=['wOBA'])
+
+    bonuses = {}
+    for pid, pdata in qualifying.groupby('IDfg'):
+        directions = np.sign(pdata['wOBA'] - MLB_LEAGUE_AVG_WOBA)
+        directions = directions[directions != 0]
+        if len(directions) >= 2 and directions.nunique() == 1:
+            bonuses[pid] = min(
+                MAX_CONSISTENCY_BONUS_PA,
+                (len(directions) - 1) * CONSISTENCY_BONUS_PA_PER_SEASON,
+            )
+
+    return pd.Series(bonuses, dtype=float)
 
 
 def _load_prospect_grades() -> dict:
@@ -483,23 +579,58 @@ def _compute_player_mle(player_milb: pd.DataFrame, current_year: int) -> tuple:
     recent_seasons = sorted(player_milb['Season'].unique(), reverse=True)[:5]
 
     stats = ['K%', 'BB%', 'AVG', 'OBP', 'SLG', 'wOBA']
-    weighted_stats = {s: 0.0 for s in stats}
-    total_weight = 0.0
-    total_pa = 0.0
 
+    # ---- Pass 1: player's own PA×recency-weighted raw wOBA (untranslated) ----
+    # This is the anchor each individual season gets shrunk toward before
+    # translation, so a single outlier season (small-sample and/or hot)
+    # doesn't pass through the flat per-level multiplier at full face value.
+    season_rows = []  # (row, recency_weight, pa) for every level-row across recent_seasons
+    anchor_weighted_sum = 0.0
+    anchor_total_weight = 0.0
     for recency_idx, season in enumerate(recent_seasons):
         season_data = player_milb[player_milb['Season'] == season]
         recency_weight = MILB_SEASON_WEIGHTS.get(recency_idx, 0.5)
 
         for _, row in season_data.iterrows():
-            mle = _translate_to_mle(row)
             pa = row['PA']
             w = pa * recency_weight
+            anchor_weighted_sum += row['wOBA'] * w
+            anchor_total_weight += w
+            season_rows.append((row, recency_weight, pa))
 
-            for stat in stats:
-                weighted_stats[stat] += mle[stat] * w
-            total_weight += w
-            total_pa += pa
+    if anchor_total_weight == 0:
+        return {}, 0
+
+    player_anchor_woba = anchor_weighted_sum / anchor_total_weight
+
+    # ---- Pass 2: shrink each season toward the anchor, then translate ----
+    weighted_stats = {s: 0.0 for s in stats}
+    total_weight = 0.0
+    total_pa = 0.0
+
+    for row, recency_weight, pa in season_rows:
+        season_reliability = pa / (pa + SEASON_SHRINKAGE_PA)
+        shrunk_row = row.copy()
+        shrunk_woba = (
+            season_reliability * row['wOBA']
+            + (1 - season_reliability) * player_anchor_woba
+        )
+        # Scale AVG/OBP/SLG proportionally so the shrunk season stays
+        # internally consistent before it goes through _translate_to_mle.
+        if row['wOBA'] > 0:
+            scale = shrunk_woba / row['wOBA']
+            shrunk_row['AVG'] = row['AVG'] * scale
+            shrunk_row['OBP'] = row['OBP'] * scale
+            shrunk_row['SLG'] = row['SLG'] * scale
+        shrunk_row['wOBA'] = shrunk_woba
+
+        mle = _translate_to_mle(shrunk_row)
+        w = pa * recency_weight
+
+        for stat in stats:
+            weighted_stats[stat] += mle[stat] * w
+        total_weight += w
+        total_pa += pa
 
     if total_weight == 0:
         return {}, 0
@@ -726,6 +857,8 @@ def apply_milb_regression(batter_data: pd.DataFrame, current_year: int) -> pd.Da
         logger.warning("No career PA data available — skipping regression")
         return batter_data
 
+    consistency_bonus_series = _load_consistency_bonus()
+
     prospect_grades = _load_prospect_grades()
 
     # Work on a copy
@@ -813,6 +946,8 @@ def apply_milb_regression(batter_data: pd.DataFrame, current_year: int) -> pd.Da
 
     for pid, mle in player_mles.items():
         career_pa = career_pa_series.get(pid, 0)
+        consistency_bonus = consistency_bonus_series.get(pid, 0.0)
+        effective_career_pa = career_pa + consistency_bonus
         milb_pa = player_milb_pa.get(pid, MLE_BLEND_PA)
         mask = result['IDfg'] == pid
 
@@ -824,7 +959,7 @@ def apply_milb_regression(batter_data: pd.DataFrame, current_year: int) -> pd.Da
         first_row = True
         for idx in result.index[mask]:
             row = result.loc[idx]
-            blended = _blend_predictions(row, mle, career_pa, milb_pa)
+            blended = _blend_predictions(row, mle, effective_career_pa, milb_pa)
             if not blended:
                 continue
 
@@ -835,13 +970,14 @@ def apply_milb_regression(batter_data: pd.DataFrame, current_year: int) -> pd.Da
                 adjusted_count += 1
                 # Log notable adjustments (first year only)
                 effective_stab = min(STABILIZATION_PA.get('wOBA', MLE_BLEND_PA), milb_pa)
-                mlb_weight = career_pa / (career_pa + effective_stab)
+                mlb_weight = effective_career_pa / (effective_career_pa + effective_stab)
                 if career_pa < 300:
                     name = row.get('Name', f'IDfg={pid}')
                     old_woba = row.get('wOBA', 0)
                     new_woba = blended.get('wOBA', old_woba)
                     logger.debug(
-                        f"  {name}: PA={career_pa:.0f}, mlb_wt={mlb_weight:.2f}, "
+                        f"  {name}: PA={career_pa:.0f} (+{consistency_bonus:.0f} consistency), "
+                        f"mlb_wt={mlb_weight:.2f}, "
                         f"wOBA {old_woba:.3f} → {new_woba:.3f} "
                         f"(MLE={mle.get('wOBA', 0):.3f})"
                     )
