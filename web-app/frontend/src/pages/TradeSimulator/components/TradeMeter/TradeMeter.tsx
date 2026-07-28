@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatCurrency, BALANCED_TRADE_THRESHOLD } from '../../../../../utils/tradeValue';
+import { formatCurrency, BALANCED_TRADE_THRESHOLD } from '../../../../utils/tradeValue';
 
 interface TradeMeterProps {
   team1Name: string;
