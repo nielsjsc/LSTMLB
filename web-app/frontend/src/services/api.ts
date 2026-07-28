@@ -52,6 +52,7 @@ export interface Player {
     fa_year: number | null;
     probable_fa_year: number | null;
     earliest_fa_year: number | null;
+    years_of_control?: number | null;
 }
 export interface PlayerFilter {
     year?: number;
@@ -78,6 +79,7 @@ export interface PlayerResponse {
         surplus_value: number;
         trade_value: number;
         status: string | null;
+        years_of_control?: number | null;
     }>;
 }
 
@@ -113,6 +115,7 @@ export interface BaseTradeAsset {
     war: number;
     total_production: number;
     total_contract: number;
+    years_of_control?: number | null;
   }
   
   export interface ProspectTradeAsset extends BaseTradeAsset {

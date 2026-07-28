@@ -48,15 +48,33 @@ def get_player_values(player_name: str, db: Session):
     if not base_player:
         raise HTTPException(status_code=404, detail=f"Player {player_name} not found")
     
+    # Safely extract projections if the relationship exists on the Player model
+    projections_data = []
+    if hasattr(base_player, 'projections') and base_player.projections:
+        projections_data = [
+            {"year": p.year, "status": p.status} 
+            for p in base_player.projections 
+            if hasattr(p, 'year') and hasattr(p, 'status')
+        ]
+
+    # Calculate FA year (usually control_through + 1)
+    fa_year = (base_player.control_through + 1) if base_player.control_through else None
+    
     return {
         "name": base_player.name,
         "team": base_player.team,
         "position": base_player.position,
-        "war": base_player.contract_war or 0,  # Changed from calculated war
-        "total_surplus": base_player.trade_value or 0,  # Already correct
-        "total_contract": base_player.total_contract or 0,  # Changed from calculated total_contract
-        "total_production": base_player.contract_base_value or 0,  # Changed from base_value
-        "years": [year for year in range(CURRENT_YEAR, (base_player.control_through or CURRENT_YEAR) + 1)]  # Using control_through
+        "war": base_player.contract_war or 0,
+        "total_surplus": base_player.trade_value or 0,
+        "total_contract": base_player.total_contract or 0,
+        "total_production": base_player.contract_base_value or 0,
+        "years": [year for year in range(CURRENT_YEAR, (base_player.control_through or CURRENT_YEAR) + 1)],
+        
+        # --- ADDED FOR TRADE SIMULATOR CONTROL YEARS ---
+        "years_control": base_player.years_control or 0,
+        "probable_fa_year": getattr(base_player, 'probable_fa_year', fa_year),
+        "fa_year": getattr(base_player, 'fa_year', fa_year),
+        "projections": projections_data
     }
 
 
@@ -84,8 +102,6 @@ def get_prospect_values(prospect_name: str, db: Session):
     
     value = prospect.get_value(PROSPECT_DEFAULT_YEAR) or 0
     
-
-    
     return {
         "name": prospect.name,
         "team": prospect.org,
@@ -94,7 +110,15 @@ def get_prospect_values(prospect_name: str, db: Session):
         "value": value,
         "total_surplus": value,
         "total_contract": 0,
-        "total_production": value
+        "total_production": value,
+
+        # --- ADDED FOR TRADE SIMULATOR CONTROL YEARS ---
+        # Prospects typically have 6 years of control once called up, 
+        # but we pass safe fallbacks here for the UI to render gracefully.
+        "years_control": 6, 
+        "probable_fa_year": None,
+        "fa_year": None,
+        "projections": []
     }
 
 @router.post("/analyze")
