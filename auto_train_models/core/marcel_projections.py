@@ -1201,6 +1201,97 @@ def _build_batter_career_profile(
     }
 
 
+# ---------------------------------------------------------------------------
+# xStat-informed shrinkage for BABIP / ISO
+#
+# Marcel's BABIP and ISO base components are pure outcome stats, regressed
+# only toward the *league* mean (BATTER_REGRESSION_PA). That regression
+# can't distinguish a hot BABIP/ISO season backed by real quality of
+# contact from one that just found grass on weak contact — both get
+# regressed by the same amount for the same PA.
+#
+# Before a season's BABIP/ISO enters the Marcel weighted average, shrink
+# the *actual* value toward an xStat-implied value, with the shrink
+# weight set by that season's PA (small samples lean harder on the
+# expected value; an established full season barely moves). This runs
+# upstream of BATTER_REGRESSION_PA, not instead of it — the league-mean
+# regression step still applies afterward to whatever comes out of this.
+#
+#   expected_iso:   xSLG - xBA (the direct expected-stat analog of
+#                   ISO = SLG - AVG).
+#   expected_babip: rebuild the BABIP formula using xBA-implied hits in
+#                   place of actual hits, handling HR/strikeouts the same
+#                   way the real BABIP formula does:
+#                     (xBA*AB - HR) / (AB - SO - HR + SF)
+#
+# NOTE: this function assumes xBA/xSLG arriving here have already been park-
+# neutralized (see predict_models.py's park_neutral_features), same as the
+# actual BABIP/ISO they're blended with. If that upstream neutralization
+# ever stops covering xBA/xSLG/xwOBA, this shrinkage will blend a
+# park-adjusted actual value with a raw expected value and quietly bias
+# extreme-park (Coors/T-Mobile-type) players.
+# ---------------------------------------------------------------------------
+XSTAT_SHRINKAGE_PA = 200  # PA at which actual/expected are weighted evenly
+
+
+def _xstat_expected_babip_iso(row: pd.Series) -> Tuple[Optional[float], Optional[float]]:
+    """Derive xStat-implied BABIP and ISO for a single player-season row.
+
+    Returns (expected_babip, expected_iso). Either may be None if the
+    columns needed to derive it aren't available for that season (e.g.
+    pre-Statcast years) — the caller falls back to the actual value in
+    that case.
+    """
+    expected_babip = None
+    expected_iso = None
+
+    x_ba = row.get('xBA', np.nan)
+    x_slg = row.get('xSLG', np.nan)
+
+    if pd.notna(x_slg) and pd.notna(x_ba):
+        expected_iso = float(x_slg - x_ba)
+
+    ab = row.get('AB', np.nan)
+    so = row.get('SO', np.nan)
+    hr = row.get('HR', np.nan)
+    sf = row.get('SF', np.nan)
+    if pd.notna(x_ba) and pd.notna(ab) and pd.notna(so) and pd.notna(hr) and ab > 0:
+        sf_val = sf if pd.notna(sf) else 0.0
+        x_hits = x_ba * ab
+        denom = ab - so - hr + sf_val
+        if denom > 0:
+            expected_babip = float((x_hits - hr) / denom)
+
+    return expected_babip, expected_iso
+
+
+def _apply_xstat_shrinkage_to_babip_iso(hist_for_marcel: pd.DataFrame) -> pd.DataFrame:
+    """Shrink each season's actual BABIP/ISO toward its xStat-implied value.
+
+    Weight is PA-based (XSTAT_SHRINKAGE_PA). Falls back to the actual
+    value untouched when xBA/xSLG (or the counting stats needed to derive
+    expected BABIP) aren't available for that season.
+    """
+    out = hist_for_marcel.copy()
+    for idx, row in out.iterrows():
+        pa = row.get('PA', np.nan)
+        if pd.isna(pa) or pa <= 0:
+            continue
+        w = pa / (pa + XSTAT_SHRINKAGE_PA)
+
+        expected_babip, expected_iso = _xstat_expected_babip_iso(row)
+
+        actual_babip = row.get('BABIP', np.nan)
+        if expected_babip is not None and pd.notna(actual_babip):
+            out.at[idx, 'BABIP'] = w * actual_babip + (1 - w) * expected_babip
+
+        actual_iso = row.get('ISO', np.nan)
+        if expected_iso is not None and pd.notna(actual_iso):
+            out.at[idx, 'ISO'] = w * actual_iso + (1 - w) * expected_iso
+
+    return out
+
+
 def marcel_batter_projections(
     raw_df: pd.DataFrame,
     player_names: pd.DataFrame,
@@ -1300,6 +1391,13 @@ def marcel_batter_projections(
                 if x_col in hist_for_marcel.columns:
                     mask = hist_for_marcel[x_col].notna()
                     hist_for_marcel.loc[mask, real_col] = hist_for_marcel.loc[mask, x_col]
+
+            # xStat-informed shrinkage: pull each season's actual BABIP/ISO
+            # toward its xStat-implied value before it feeds the Marcel
+            # weighted average (and the multivariate equations' own
+            # BABIP/ISO features, which read from this same frame). See
+            # _apply_xstat_shrinkage_to_babip_iso for rationale.
+            hist_for_marcel = _apply_xstat_shrinkage_to_babip_iso(hist_for_marcel)
 
         # ---- Extract most recent season features for multivariate equations ----
         most_recent = hist_for_marcel.iloc[-1]

@@ -42,8 +42,18 @@ from typing import Dict, Any, Tuple, Optional
 from .config import (
     Config, logger,
     # Backward compatibility exports
-    BALLPARK_FACTORS, WOBA_SCALE, RPA, LG_WOBA, RPW, LG_FIP
+    # NOTE: BALLPARK_FACTORS is intentionally NOT imported for lookups anymore.
+    # It used to be a second, independently-maintained park-factor table that
+    # drifted from core.park_factors.PARK_FACTORS_5YR (different values and no
+    # team-code aliasing for SFG/SDP/KCR/TBR/WSN), which caused the
+    # neutralize -> reapply round trip to over/under-correct. All park-factor
+    # lookups in this module now go through core.park_factors.get_park_factor()
+    # so there is exactly one source of truth.
+    WOBA_SCALE, RPA, LG_WOBA, RPW, LG_FIP
 )
+
+# Single source of truth for park factors (see note above)
+from core.park_factors import get_park_factor, get_woba_residual_factor
 
 from core.position_profiles import (
     get_primary_position, get_display_position,
@@ -224,8 +234,16 @@ def calculate_wrc_plus(woba: float, team: str, pa: float,
     # Calculate wRAA per PA
     wraa_per_pa = (woba - lg_woba) / woba_scale
     
-    # Get park factor (default to 100 if no team/FA - meaning no adjustment)
-    park_factor = BALLPARK_FACTORS.get(str(team).upper().strip(), 100) / 100
+    # Get park factor (defaults to 1.0 / neutral if no team/FA)
+    # NOTE: uses the wOBA-scale RESIDUAL factor, not the runs-scale
+    # PARK_FACTORS_5YR. `woba` here has already had most of its park effect
+    # stripped upstream (xwOBA substitution in Marcel), so only the
+    # residual — the part xwOBA doesn't already explain — should be
+    # reapplied here. Using the runs-scale factor overstates the effect
+    # for extreme parks (Coors, T-Mobile) since it was calibrated to a
+    # different quantity (runs scored) than what's actually left to
+    # correct for on a park-neutral wOBA.
+    park_factor = get_woba_residual_factor(team)
     
     # Calculate Park Adjustment
     park_adjustment = lg_runs_per_pa - (park_factor * lg_runs_per_pa)
@@ -522,7 +540,7 @@ def calculate_pitcher_war(fip: float,
         Tuple of (war, components_dict) with full breakdown
     """
     # Park factor adjustment for pitchers (inverse of batters)
-    park_factor = BALLPARK_FACTORS.get(str(team).upper().strip(), 100) / 100
+    park_factor = get_park_factor(team)
     
     # Adjust FIP for park (pitcher in a hitter's park has inflated FIP)
     park_adjusted_fip = fip / park_factor if park_factor != 0 else fip
@@ -667,11 +685,17 @@ def calculate_war_components(
     pa = row.get('PA', 650)
     
     # Get team for park factor
+    # NOTE: wOBA-scale RESIDUAL factor, not runs-scale — see note in
+    # calculate_wrc_plus above. row['wOBA'] has already had most of its
+    # park effect removed upstream via xwOBA substitution, so this should
+    # only reapply the leftover (residual) piece, matched to the same
+    # factor used in _apply_park_factors_to_batter_predictions and
+    # calculate_wrc_plus so the three don't compound on each other.
     team = row.get('Team', '')
     if pd.isnull(team):
         park_factor = 1.0
     else:
-        park_factor = BALLPARK_FACTORS.get(str(team).upper().strip(), 100) / 100
+        park_factor = get_woba_residual_factor(team)
     
     # Batting value calculation (wRAA + park adjustment)
     woba = row['wOBA']
@@ -800,10 +824,9 @@ def _apply_park_factors_to_batter_predictions(batter_df: pd.DataFrame) -> pd.Dat
     df = batter_df.copy()
     
     # Build park factor series aligned to the DataFrame
-    pf_series = df['Team'].map(
-        lambda t: BALLPARK_FACTORS.get(str(t).upper().strip(), 100) / 100.0
-        if pd.notna(t) else 1.0
-    )
+    # (get_park_factor handles NaN/None itself and resolves team-code
+    # aliases like SFG/SDP/KCR/TBR/WSN, so no separate notna() check needed)
+    pf_series = df['Team'].map(get_park_factor)
     
     # Multiply each adjustable feature by the park factor
     n_adjusted = 0
@@ -902,7 +925,7 @@ def _apply_park_factors_to_pitcher_predictions(pitcher_df: pd.DataFrame) -> pd.D
         if pd.isna(team) or team == '':
             continue
         
-        pf = BALLPARK_FACTORS.get(str(team).upper().strip(), 100) / 100.0
+        pf = get_park_factor(team)
         if pf != 1.0:
             for feat in adjustable:
                 if feat in df.columns and pd.notna(row[feat]):

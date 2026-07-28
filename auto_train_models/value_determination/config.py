@@ -28,6 +28,16 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 import logging
 
+# Single source of truth for park factors — see core/park_factors.py.
+# Previously this module kept its own hand-copied BALLPARK_FACTORS dict in
+# sync manually (see the comment that used to sit above it: "Updated to
+# match core/park_factors.py for consistency"). That copy never included
+# core.park_factors.TEAM_CODE_ALIASES (SFG/SDP/KCR/TBR/WSN), so any team
+# using those codes silently fell back to neutral (100) wherever this dict
+# was queried directly instead of through get_park_factor(). Importing the
+# real dict/alias table here means there is nothing left to keep in sync.
+from core.park_factors import PARK_FACTORS_5YR, TEAM_CODE_ALIASES, get_park_factor  # noqa: F401
+
 # Module-level constant for easy import
 CURRENT_YEAR = 2026
 # =============================================================================
@@ -161,40 +171,14 @@ STATUS_MAPPINGS = {
 class WARConstants:
     """Constants for WAR (Wins Above Replacement) calculations."""
     
-    # Park factors by team (100 = neutral) — FanGraphs 5-year Basic park factors (2025)
-    # Updated to match core/park_factors.py for consistency across neutralization and WAR calc
-    BALLPARK_FACTORS = {
-        'LAA': 101,  # Angel Stadium
-        'BAL': 99,   # Oriole Park at Camden Yards
-        'BOS': 104,  # Fenway Park
-        'CHW': 100,  # Guaranteed Rate Field
-        'CLE': 99,   # Progressive Field
-        'DET': 100,  # Comerica Park
-        'KC':  103,  # Kauffman Stadium
-        'MIN': 101,  # Target Field
-        'NYY': 99,   # Yankee Stadium
-        'ATH': 103,  # Sutter Health Park (Sacramento)
-        'SEA': 94,   # T-Mobile Park
-        'TB':  101,  # Tropicana Field
-        'TEX': 99,   # Globe Life Field
-        'TOR': 99,   # Rogers Centre
-        'ARI': 101,  # Chase Field
-        'ATL': 100,  # Truist Park
-        'CHC': 98,   # Wrigley Field
-        'CIN': 105,  # Great American Ball Park
-        'COL': 113,  # Coors Field
-        'MIA': 101,  # loanDepot park
-        'HOU': 99,   # Minute Maid Park
-        'LAD': 99,   # Dodger Stadium
-        'MIL': 99,   # American Family Field
-        'WSH': 100,  # Nationals Park
-        'NYM': 96,   # Citi Field
-        'PHI': 101,  # Citizens Bank Park
-        'PIT': 102,  # PNC Park
-        'STL': 98,   # Busch Stadium
-        'SD':  96,   # Petco Park
-        'SF':  97,   # Oracle Park
-    }
+    # Park factors by team (100 = neutral) — FanGraphs 5-year Basic park factors (2025).
+    # This is now a direct reference to core.park_factors.PARK_FACTORS_5YR — the
+    # single source of truth — instead of a second hardcoded copy. Do not
+    # re-add a literal dict here; edit core/park_factors.py instead, and use
+    # get_park_factor(team) (also re-exported below) rather than indexing
+    # this dict directly, since that function also resolves team-code
+    # aliases (SFG/SDP/KCR/TBR/WSN) and handles missing/NaN teams.
+    BALLPARK_FACTORS = PARK_FACTORS_5YR
     
     # League constants for offensive calculations (2025 season)
     WOBA_SCALE = 1.232
@@ -817,12 +801,15 @@ PREDICTION_YEARS = PipelineSettings.PREDICTION_YEARS
 HITTER_COLUMNS = Columns.HITTER_COLUMNS
 PITCHER_COLUMNS = Columns.PITCHER_COLUMNS
 
-BALLPARK_FACTORS = WARConstants.BALLPARK_FACTORS
+BALLPARK_FACTORS = WARConstants.BALLPARK_FACTORS  # == core.park_factors.PARK_FACTORS_5YR
 WOBA_SCALE = WARConstants.WOBA_SCALE
 RPA = WARConstants.RPA
 LG_WOBA = WARConstants.LG_WOBA
 RPW = WARConstants.RPW
 LG_FIP = WARConstants.LG_FIP
+# get_park_factor is already importable from this module (imported at top,
+# noqa'd for re-export) — prefer it over indexing BALLPARK_FACTORS directly,
+# since it resolves SFG/SDP/KCR/TBR/WSN aliases and NaN/missing teams.
 
 WAR_VALUE = ContractConstants.WAR_VALUE_DEFAULT
 HISTORICAL_WAR_VALUE = ContractConstants.HISTORICAL_WAR_VALUE

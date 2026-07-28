@@ -26,8 +26,10 @@ from core.marcel_projections import (
     marcel_pitcher_projections,
     marcel_batter_projections,
     marcel_baserunning_projections,
-    marcel_fielding_projections
+    marcel_fielding_projections,
+    BATTER_BASE_COMPONENTS,
 )
+from core.park_factors import neutralize_park_factors, get_woba_residual_factor
 
 # Configure logging
 logging.basicConfig(
@@ -135,6 +137,66 @@ def generate_batter_predictions(
     
     raw_df = pd.read_csv(resolved_data_file)
     raw_df = calculate_rate_stats(raw_df)
+
+    # ---- Park factor neutralization (pre-Marcel) ----------------------------
+    # Neutralize each HISTORICAL season's park-sensitive stats by that
+    # season's own team (raw_df's 'Team' column already varies per row/season)
+    # before Marcel's weighted-average/regression step ever sees them.
+    #
+    # IMPORTANT — two different scales, two different feature sets:
+    #
+    # 1. wOBA/AVG/SLG/xBA/xSLG/xwOBA are NOT neutralized here anymore.
+    #    marcel_projections.py substitutes xwOBA/xBA/xSLG directly into
+    #    wOBA/AVG/SLG for any season that has them — and Statcast x-stats
+    #    are already close to park-neutral by construction (they're modeled
+    #    from exit velo/launch angle, not from the actual outcome in this
+    #    specific park). Dividing an already-near-neutral x-stat by the
+    #    runs-scale PARK_FACTORS_5YR overstates the correction (e.g. it
+    #    inflates a Mariner's already-neutral xwOBA by ~6%, when the real
+    #    leftover park effect on wOBA is closer to a residual PF of 94, not
+    #    the runs-scale 94 used against a not-yet-neutral number). Leaving
+    #    these columns alone here means Marcel receives data that's already
+    #    correctly (and only once) neutral for these stats, matching the
+    #    single reapply that happens downstream in
+    #    calculate_war._apply_park_factors_to_batter_predictions /
+    #    calculate_wrc_plus / calculate_war_components (which now use
+    #    get_woba_residual_factor, not get_park_factor — see calculate_war.py).
+    #
+    # 2. ISO and HR/FB ARE still neutralized here, using the wOBA-scale
+    #    RESIDUAL factor (get_woba_residual_factor), not the runs-scale one.
+    #    These two components are the ones a park mechanically affects
+    #    (carry distance, altitude, wall height/distance) and aren't fully
+    #    covered by the xwOBA/xBA/xSLG substitution above, so they still
+    #    need an explicit correction. K%/BB%/HBP%/GB%/LD% are intentionally
+    #    left out — a park doesn't change plate discipline or swing plane,
+    #    so adjusting those was never justified. BABIP is excluded
+    #    automatically by park_factors.get_adjustable_features (a flat
+    #    park factor overcorrects BABIP; see that module's EXCLUDED_STATS
+    #    comment).
+    #
+    # Gated behind ENABLE_PARK_FACTOR_ADJUSTMENT (default False — see
+    # batter_config.py) since park factors are only reliable for recent/
+    # current teams; historical seasons for relocated/defunct franchises
+    # fall back to neutral automatically (see park_factors.TEAM_CODE_ALIASES).
+    if getattr(batter_config_class, 'ENABLE_PARK_FACTOR_ADJUSTMENT', False):
+        park_neutral_features = [
+            f for f in ['ISO', 'HR/FB']
+            if f in raw_df.columns
+        ]
+        logger.info(
+            f"Park factor neutralization ENABLED — neutralizing "
+            f"{len(park_neutral_features)} features (ISO, HR/FB; wOBA-scale "
+            f"residual factor) per-season by each row's own Team before "
+            f"Marcel. wOBA/AVG/SLG/xBA/xSLG/xwOBA are left as-is (already "
+            f"near-neutral via x-stat substitution downstream)."
+        )
+        raw_df = neutralize_park_factors(
+            raw_df, park_neutral_features, team_column='Team',
+            factor_fn=get_woba_residual_factor,
+        )
+    else:
+        logger.info("Park factor neutralization DISABLED (ENABLE_PARK_FACTOR_ADJUSTMENT=False)")
+
     player_names = generate_batter_names(raw_df)
     
     predictions_df = marcel_batter_projections(

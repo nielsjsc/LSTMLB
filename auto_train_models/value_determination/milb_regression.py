@@ -261,7 +261,7 @@ GRADE_BLEND_WEIGHT = 0.20    # how much of the grade residual to apply
 MILB_DATA_FILE = Config.Paths.DATA_DIR / 'MiLB' / 'MiLB_Hitters.csv'
 
 # Historic MLB batting data for career PA calculation
-HISTORIC_BATTING_FILE = Config.Paths.HISTORIC_MLB_DIR / 'mlb_batting_data_1950_2025.csv'
+HISTORIC_BATTING_FILE = Config.Paths.HISTORIC_MLB_DIR / 'mlb_batting_data_1950_2025_with_statcast.csv'
 
 # Prospect data + ID crosswalk
 PROSPECT_DATA_FILE = Config.Paths.PROSPECT_FILE
@@ -343,6 +343,17 @@ def _load_consistency_bonus() -> pd.Series:
     MAX_CONSISTENCY_BONUS_PA so it nudges the blend without ever fully
     overriding the MiLB side by itself.
 
+    Uses xwOBA (quality-of-contact-based) in place of actual wOBA when
+    it's available, per season, falling back to actual wOBA for seasons
+    where xwOBA is missing (pre-Statcast years, very low-BIP seasons, or
+    if the historic file doesn't carry xwOBA at all). This matters because
+    "agree in direction" on *actual* wOBA can be true for the wrong
+    reason (e.g. two seasons that both happened to run a similar BABIP,
+    regardless of real contact quality) — and can also be *false* for the
+    wrong reason (one lucky-BABIP season and one unlucky one, on a player
+    whose underlying contact quality was consistent the whole time).
+    xwOBA is a better read on which case is actually happening.
+
     Returns:
         Series indexed by IDfg of bonus PA (0 for players without a
         qualifying consistent multi-season track record).
@@ -360,26 +371,38 @@ def _load_consistency_bonus() -> pd.Series:
         )
         return pd.Series(dtype=float)
 
-    hist = pd.read_csv(HISTORIC_BATTING_FILE,
-                       usecols=['IDfg', 'Season', 'PA', 'wOBA'],
-                       low_memory=False)
+    has_xwoba = 'xwOBA' in available_cols
+    usecols = ['IDfg', 'Season', 'PA', 'wOBA'] + (['xwOBA'] if has_xwoba else [])
+    hist = pd.read_csv(HISTORIC_BATTING_FILE, usecols=usecols, low_memory=False)
     hist['PA'] = pd.to_numeric(hist['PA'], errors='coerce').fillna(0)
     hist['wOBA'] = pd.to_numeric(hist['wOBA'], errors='coerce')
+
+    if has_xwoba:
+        hist['xwOBA'] = pd.to_numeric(hist['xwOBA'], errors='coerce')
+        # Prefer xwOBA; fall back to actual wOBA per-season where it's missing.
+        hist['_consistency_woba'] = hist['xwOBA'].fillna(hist['wOBA'])
+    else:
+        logger.info(
+            "xwOBA not found in historic batting data (%s) — consistency "
+            "bonus is falling back to actual wOBA for all seasons",
+            HISTORIC_BATTING_FILE.name,
+        )
+        hist['_consistency_woba'] = hist['wOBA']
 
     # Collapse to one row per player-season first (a player traded mid-year
     # can have multiple rows per season) before checking season count.
     per_season = hist.groupby(['IDfg', 'Season']).apply(
         lambda g: pd.Series({
             'PA': g['PA'].sum(),
-            'wOBA': (g['wOBA'] * g['PA']).sum() / g['PA'].sum() if g['PA'].sum() > 0 else np.nan,
+            'woba': (g['_consistency_woba'] * g['PA']).sum() / g['PA'].sum() if g['PA'].sum() > 0 else np.nan,
         })
     ).reset_index()
 
-    qualifying = per_season[per_season['PA'] >= MIN_SEASON_PA_FOR_CONSISTENCY].dropna(subset=['wOBA'])
+    qualifying = per_season[per_season['PA'] >= MIN_SEASON_PA_FOR_CONSISTENCY].dropna(subset=['woba'])
 
     bonuses = {}
     for pid, pdata in qualifying.groupby('IDfg'):
-        directions = np.sign(pdata['wOBA'] - MLB_LEAGUE_AVG_WOBA)
+        directions = np.sign(pdata['woba'] - MLB_LEAGUE_AVG_WOBA)
         directions = directions[directions != 0]
         if len(directions) >= 2 and directions.nunique() == 1:
             bonuses[pid] = min(
