@@ -27,16 +27,19 @@ export const BALANCED_TRADE_THRESHOLD = 2_000_000;
 
 /**
  * Badge color classes for a position, tuned for contrast on a light
- * background (soft-tint bg + solid-weight text, e.g. bg-emerald-50 /
- * text-emerald-700) rather than the -400-on-dark-500/20 pairing, which
+ * background (soft-tint bg + solid-weight text, e.g. bg-blue-50 /
+ * text-blue-700) rather than the -400-on-dark-500/20 pairing, which
  * reads faint on white.
+ *
+ * Deliberately only two treatments, not one per position group: pitcher
+ * vs. everyone else is the one distinction that's functionally meaningful
+ * here (it's what determines war_bat vs. war_pit), so it's the only one
+ * that gets color. Coloring every position group separately (infield,
+ * outfield, DH...) added hues without adding signal.
  */
 export const getPositionBadgeClasses = (position: string | undefined): string => {
   if (!position) return 'bg-gray-100 text-gray-600 border border-gray-200';
   const pos = position.toUpperCase();
   if (['SP', 'RP', 'CL', 'P'].includes(pos)) return 'bg-blue-50 text-blue-700 border border-blue-200';
-  if (['C', '1B', '2B', '3B', 'SS'].includes(pos)) return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
-  if (['LF', 'CF', 'RF', 'OF'].includes(pos)) return 'bg-amber-50 text-amber-700 border border-amber-200';
-  if (pos === 'DH') return 'bg-purple-50 text-purple-700 border border-purple-200';
   return 'bg-gray-100 text-gray-600 border border-gray-200';
 };
