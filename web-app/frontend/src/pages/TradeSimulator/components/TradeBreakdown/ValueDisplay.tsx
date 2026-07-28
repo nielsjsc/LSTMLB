@@ -24,13 +24,34 @@ type TeamAsset = TradeAnalysis['team1']['assets'][number];
  */
 type ControlFields = {
   years_control?: number | null;
+  yearsControl?: number | null;
+  years_of_control?: number | null;
   probable_fa_year?: number | null;
+  probableFaYear?: number | null;
   fa_year?: number | null;
+  faYear?: number | null;
   projections?: Array<{ year: number; status: string }>;
 };
 
 function withControlFields(asset: TeamAsset): TeamAsset & ControlFields {
-  return asset;
+  const rawAsset = asset as TeamAsset & Record<string, unknown>;
+  return {
+    ...asset,
+    years_control:
+      (rawAsset['years_control'] as number | null | undefined) ??
+      (rawAsset['yearsControl'] as number | null | undefined) ??
+      (rawAsset['years_of_control'] as number | null | undefined) ??
+      null,
+    probable_fa_year:
+      (rawAsset['probable_fa_year'] as number | null | undefined) ??
+      (rawAsset['probableFaYear'] as number | null | undefined) ??
+      null,
+    fa_year:
+      (rawAsset['fa_year'] as number | null | undefined) ??
+      (rawAsset['faYear'] as number | null | undefined) ??
+      null,
+    projections: (rawAsset['projections'] as Array<{ year: number; status: string }> | undefined) ?? [],
+  };
 }
 
 const isProspectAsset = (asset: TeamAsset) => 'value' in asset && !('total_production' in asset);

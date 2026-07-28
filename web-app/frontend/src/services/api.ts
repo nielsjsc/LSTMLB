@@ -52,6 +52,8 @@ export interface Player {
     fa_year: number | null;
     probable_fa_year: number | null;
     earliest_fa_year: number | null;
+    years_control?: number | null;
+    yearsControl?: number | null;
     years_of_control?: number | null;
 }
 export interface PlayerFilter {
@@ -79,6 +81,8 @@ export interface PlayerResponse {
         surplus_value: number;
         trade_value: number;
         status: string | null;
+        years_control?: number | null;
+        yearsControl?: number | null;
         years_of_control?: number | null;
     }>;
 }
@@ -115,7 +119,14 @@ export interface BaseTradeAsset {
     war: number;
     total_production: number;
     total_contract: number;
+    years_control?: number | null;
+    yearsControl?: number | null;
     years_of_control?: number | null;
+    probable_fa_year?: number | null;
+    probableFaYear?: number | null;
+    fa_year?: number | null;
+    faYear?: number | null;
+    projections?: Array<{ year: number; status: string }>;
   }
   
   export interface ProspectTradeAsset extends BaseTradeAsset {
@@ -123,6 +134,14 @@ export interface BaseTradeAsset {
     value: number;
     fv: string;
     position: string;
+    years_control?: number | null;
+    yearsControl?: number | null;
+    years_of_control?: number | null;
+    probable_fa_year?: number | null;
+    probableFaYear?: number | null;
+    fa_year?: number | null;
+    faYear?: number | null;
+    projections?: Array<{ year: number; status: string }>;
   }
   
   export type TradeAsset = PlayerTradeAsset | ProspectTradeAsset;
