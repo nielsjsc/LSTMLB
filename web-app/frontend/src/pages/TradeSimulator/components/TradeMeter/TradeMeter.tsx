@@ -27,7 +27,7 @@ const TradeMeter: React.FC<TradeMeterProps> = ({
   const fillPct = Math.min((absDiff / MAX_DIFFERENTIAL) * 50, 50);
 
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-lg">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-semibold text-gray-700 truncate">{team1Name}</span>
         <span className="text-xs font-semibold text-gray-700 truncate">{team2Name}</span>
@@ -51,9 +51,9 @@ const TradeMeter: React.FC<TradeMeterProps> = ({
       </div>
 
       <div className="flex justify-between mt-1.5">
-        <span className="text-[10px] text-gray-400">{formatCurrency(MAX_DIFFERENTIAL)}</span>
-        <span className="text-[10px] text-gray-400">Even</span>
-        <span className="text-[10px] text-gray-400">{formatCurrency(MAX_DIFFERENTIAL)}</span>
+        <span className="text-[10px] text-gray-500">{formatCurrency(MAX_DIFFERENTIAL)}</span>
+        <span className="text-[10px] text-gray-500">Even</span>
+        <span className="text-[10px] text-gray-500">{formatCurrency(MAX_DIFFERENTIAL)}</span>
       </div>
 
       <p className="text-center text-sm text-gray-600 mt-3">
