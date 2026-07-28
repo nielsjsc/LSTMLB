@@ -829,7 +829,22 @@ class DataLoader:
             self._inject_current_season_stats(records)
 
     def _inject_current_season_stats(self, records: list[dict]) -> None:
-        """Append current-season batting/pitching stats to HistoricalPlayer rows."""
+        """Append current-season batting/pitching stats to HistoricalPlayer rows.
+
+        Handles two cases:
+          1. Players who already have a HistoricalPlayer row (from
+             historical_players.json) get the current season appended/
+             replaced in their batting/pitching JSON arrays.
+          2. Players with NO prior-year row at all -- e.g. rookies making
+             their MLB debut in CURRENT_YEAR, who by definition can't be in
+             historical_players.json (it only covers through last year) --
+             get a brand-new HistoricalPlayer row created here. Without this,
+             such players never get a HistoricalPlayer row, and any code path
+             that reads current-season stats via the DB (rather than the raw
+             CSVs) -- e.g. the remote/DB-only deployment fallback in
+             app/routes/players.py::_load_current_season_stats -- silently
+             returns nothing for them.
+        """
         from app.config import CURRENT_YEAR
 
         current_season_dir = PROJECT_ROOT / "data" / "current_season"
@@ -839,11 +854,12 @@ class DataLoader:
         if not bat_file.exists() and not pit_file.exists():
             return
 
-        # Build IDfg lookup from just-inserted records
-        idfg_set = {r["idfg"] for r in records}
-
         bat_by_idfg: dict[int, dict] = {}
         pit_by_idfg: dict[int, dict] = {}
+        # idfg -> CSV "Name" column, used only as a fallback to name brand-new
+        # HistoricalPlayer rows (rookies) below. Never written into the
+        # batting/pitching season dicts themselves.
+        name_by_idfg: dict[int, str] = {}
 
         def _sv(v):
             """Safe value: NaN/None → None, else native type."""
@@ -860,8 +876,9 @@ class DataLoader:
                     if pd.isna(idfg):
                         continue
                     idfg = int(idfg)
-                    if idfg not in idfg_set:
-                        continue
+                    # NOTE: intentionally NOT filtered to players already in
+                    # `records` / the DB -- that filter was the root cause of
+                    # rookies never getting current-season data (see docstring).
                     bat_by_idfg[idfg] = {
                         "year": CURRENT_YEAR, "season": CURRENT_YEAR, "team": _sv(r.get("Team")),
                         "g": _sv(r.get("G")), "pa": _sv(r.get("PA")),
@@ -879,6 +896,9 @@ class DataLoader:
                         "bat": _sv(r.get("Bat")), "bsr": _sv(r.get("BsR")),
                         "def_value": _sv(r.get("Def")),
                     }
+                    name = r.get("Name")
+                    if isinstance(name, str) and name.strip():
+                        name_by_idfg[idfg] = name.strip()
             except Exception as e:
                 logger.warning(f"    Failed to load current-season batting CSV: {e}")
 
@@ -891,8 +911,6 @@ class DataLoader:
                     if pd.isna(idfg):
                         continue
                     idfg = int(idfg)
-                    if idfg not in idfg_set:
-                        continue
                     pit_by_idfg[idfg] = {
                         "year": CURRENT_YEAR, "season": CURRENT_YEAR, "team": _sv(r.get("Team")),
                         "g": _sv(r.get("G")), "gs": _sv(r.get("GS")),
@@ -906,17 +924,22 @@ class DataLoader:
                         "fb_pct": _sv(r.get("FB%")), "hr_fb": _sv(r.get("HR/FB")),
                         "war": _sv(r.get("WAR")),
                     }
+                    name = r.get("Name")
+                    if isinstance(name, str) and name.strip() and idfg not in name_by_idfg:
+                        name_by_idfg[idfg] = name.strip()
             except Exception as e:
                 logger.warning(f"    Failed to load current-season pitching CSV: {e}")
 
         if not bat_by_idfg and not pit_by_idfg:
             return
 
-        # Update HistoricalPlayer rows: append current-season entries
+        all_idfgs = set(bat_by_idfg) | set(pit_by_idfg)
+
+        # ── 1. Update HistoricalPlayer rows that already exist ─────────────
         updated = 0
-        for hp in self.db.query(HistoricalPlayer).filter(
-            HistoricalPlayer.idfg.in_(set(bat_by_idfg) | set(pit_by_idfg))
-        ):
+        existing_idfgs: set[int] = set()
+        for hp in self.db.query(HistoricalPlayer).filter(HistoricalPlayer.idfg.in_(all_idfgs)):
+            existing_idfgs.add(hp.idfg)
             changed = False
             if hp.idfg in bat_by_idfg:
                 batting = list(hp.batting or [])
@@ -939,7 +962,71 @@ class DataLoader:
 
         if updated:
             self.db.flush()
-            logger.info(f"    Injected {CURRENT_YEAR} stats into {updated:,} historical players "
+
+        # ── 2. Create new HistoricalPlayer rows for players with no prior
+        #      row at all (rookies debuting this year) ─────────────────────
+        inserted = 0
+        new_idfgs = all_idfgs - existing_idfgs
+        if new_idfgs:
+            # Prefer the name straight off the CSV; fall back to the Player
+            # table (same IDfg/real_id ID space), since these players'
+            # projections are already loaded there.
+            missing_names = {i for i in new_idfgs if i not in name_by_idfg}
+            if missing_names:
+                try:
+                    for real_id, name in self.db.query(Player.real_id, Player.name).filter(
+                        Player.real_id.in_(missing_names)
+                    ):
+                        if real_id is not None and name:
+                            name_by_idfg.setdefault(int(real_id), name)
+                except Exception as e:
+                    logger.warning(f"    Failed to look up names for new historical players: {e}")
+
+            new_records = []
+            skipped = 0
+            for idfg in new_idfgs:
+                name = name_by_idfg.get(idfg)
+                if not name:
+                    # No way to identify the player -- skip rather than
+                    # insert a nameless/junk row.
+                    skipped += 1
+                    continue
+                bat_entry = bat_by_idfg.get(idfg)
+                pit_entry = pit_by_idfg.get(idfg)
+                teams = [t for t in {
+                    (bat_entry or {}).get("team"), (pit_entry or {}).get("team")
+                } if t]
+                new_records.append({
+                    "idfg": idfg,
+                    "mlbam": None,
+                    "bbref": None,
+                    "name": name,
+                    "name_lower": name.lower().strip(),
+                    "birth_year": None,
+                    "death_year": None,
+                    "first_year": CURRENT_YEAR,
+                    "last_year": CURRENT_YEAR,
+                    "teams": teams,
+                    "career_war": (bat_entry or {}).get("war") or (pit_entry or {}).get("war") or 0,
+                    "career_bat_war": (bat_entry or {}).get("war") or 0,
+                    "career_pit_war": (pit_entry or {}).get("war") or 0,
+                    "career_salary": 0,
+                    "career_war_value": 0,
+                    "career_surplus": 0,
+                    "is_pitcher": pit_entry is not None and bat_entry is None,
+                    "batting": [bat_entry] if bat_entry else [],
+                    "pitching": [pit_entry] if pit_entry else [],
+                })
+
+            if new_records:
+                inserted = _bulk_insert(self.db, HistoricalPlayer, new_records)
+            if skipped:
+                logger.warning(f"    Skipped {skipped} new-for-{CURRENT_YEAR} players with no "
+                                f"resolvable name (no HistoricalPlayer row created)")
+
+        if updated or inserted:
+            logger.info(f"    Injected {CURRENT_YEAR} stats into {updated:,} existing historical players "
+                        f"and created {inserted:,} new historical rows for {CURRENT_YEAR} debuts "
                         f"(bat={len(bat_by_idfg)}, pit={len(pit_by_idfg)})")
 
     # ── Past trades ───────────────────────────────────────────────────────
