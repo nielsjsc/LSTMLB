@@ -143,6 +143,9 @@ def calculate_inflation_multiplier(year: int) -> float:
 
 def calculate_war_value(war: float, year: int,
                        position_group: str = 'batter',
+                       bat: float = None, bsr: float = None,
+                       def_runs: float = None, position: str = None,
+                       wrc_plus: float = None,
                        **kwargs) -> float:
     """
     Calculate WAR dollar value using role-specific market valuation.
@@ -153,7 +156,17 @@ def calculate_war_value(war: float, year: int,
     SP commands an 18% premium over RP/batters, reflecting the higher
     replacement cost of quality starting pitching.
 
-    Reference values (2026 dollars):
+    When bat/bsr/def_runs are supplied (component-aware mode), the
+    defensive share of value is discounted by Config.Market.DEFENSIVE_VALUE_DISCOUNT
+    (or Config.Market.POSITION_DEFENSIVE_DISCOUNT_OVERRIDE for that position,
+    e.g. catchers get a steeper discount) to reflect the higher forecast
+    error of defensive metrics vs. bat metrics. When `wrc_plus` is supplied,
+    an elite-bat premium is applied directly — good hitters are rewarded on
+    top of WAR regardless of position, rather than rewarding scarce
+    positions. Both are optional — omit them (as before) to get the legacy
+    total-WAR-only calculation.
+
+    Reference values (2026 dollars, before defensive discount / bat premium):
         SP:  1 WAR → $10.6M    3 WAR → $35.6M    5 WAR → $62.4M
         Bat: 1 WAR →  $9.0M    3 WAR → $30.3M    5 WAR → $53.1M
 
@@ -161,6 +174,12 @@ def calculate_war_value(war: float, year: int,
         war: WAR value (negative returns $0)
         year: Year for inflation adjustment
         position_group: 'SP', 'RP', or 'batter'
+        bat: Batting runs component (optional)
+        bsr: Baserunning runs component (optional)
+        def_runs: Defensive runs component, i.e. the 'Def' column (optional)
+        position: Primary defensive position, used for the catcher-specific
+            defensive discount override (optional)
+        wrc_plus: Weighted runs created plus, used for the elite-bat premium (optional)
 
     Returns:
         Dollar value of WAR production for that year
@@ -168,6 +187,8 @@ def calculate_war_value(war: float, year: int,
     return Config.Market.calculate_value(
         war=war, year=year,
         position_group=position_group,
+        bat=bat, bsr=bsr, def_runs=def_runs, position=position,
+        wrc_plus=wrc_plus,
     )
 
 
@@ -234,12 +255,37 @@ def join_predictions_with_timeline(extended_timeline: pd.DataFrame,
     # two-way players (who appear in both batter and pitcher datasets)
     # produce ONE timeline row with their combined WAR, not two rows.
     component_cols = ['Bat', 'BsR', 'Def']
-    agg_cols = ['WAR'] + [c for c in component_cols if c in player_predictions.columns]
+    numeric_agg_cols = ['WAR'] + [c for c in component_cols if c in player_predictions.columns]
     war_agg = (
         player_predictions
-        .groupby(['IDfg', 'prediction_year'], as_index=False)[agg_cols]
+        .groupby(['IDfg', 'prediction_year'], as_index=False)[numeric_agg_cols]
         .sum()
     )
+
+    # Position is only meaningful for batters and is constant within a
+    # player-year group, so take the first non-null value rather than summing.
+    # Two-way players won't have a single well-defined defensive position;
+    # they fall back to the legacy total-WAR path (no Position => no
+    # defensive-discount-override lookup, since post_process_export_data
+    # recomputes their value separately anyway — see note below).
+    if 'Position' in player_predictions.columns:
+        pos_agg = (
+            player_predictions
+            .groupby(['IDfg', 'prediction_year'], as_index=False)['Position']
+            .first()
+        )
+        war_agg = war_agg.merge(pos_agg, on=['IDfg', 'prediction_year'], how='left')
+
+    # wRC+ is a rate stat, not additive — pitchers don't have it (NaN), so
+    # .mean() correctly collapses a batter-only group down to its one value
+    # and skips the NaN pitcher row for two-way players.
+    if 'wRC+' in player_predictions.columns:
+        wrc_agg = (
+            player_predictions
+            .groupby(['IDfg', 'prediction_year'], as_index=False)['wRC+']
+            .mean()
+        )
+        war_agg = war_agg.merge(wrc_agg, on=['IDfg', 'prediction_year'], how='left')
 
     # Join predictions with timeline
     timeline_with_war = extended_timeline.merge(
@@ -256,11 +302,27 @@ def join_predictions_with_timeline(extended_timeline: pd.DataFrame,
         else:
             timeline_with_war[col] = timeline_with_war[col].fillna(0.0)
 
+    if 'Position' not in timeline_with_war.columns:
+        timeline_with_war['Position'] = None
+    if 'wRC+' not in timeline_with_war.columns:
+        timeline_with_war['wRC+'] = None
+
+    # NOTE on two-way players: Bat/BsR/Def here reflect only their batting
+    # line (pitchers don't have those columns, so the groupby-sum contributes
+    # 0), while WAR is batting+pitching combined. That would make the
+    # defensive share computed here inaccurate for two-way players — but
+    # post_process_export_data() already recomputes Base_Value for two-way
+    # players from scratch using the legacy total-WAR path (see Two_Way
+    # handling below in this module), so whatever value is produced here for
+    # them is overwritten and doesn't need special-casing at this step.
+
     # Calculate WAR values using role-specific market model
     timeline_with_war['Base_Value'] = timeline_with_war.apply(
         lambda x: calculate_war_value(
             x['WAR'], x['Year'],
             position_group=x.get('position_group', 'batter'),
+            bat=x.get('Bat'), bsr=x.get('BsR'), def_runs=x.get('Def'),
+            position=x.get('Position'), wrc_plus=x.get('wRC+'),
         ),
         axis=1
     )

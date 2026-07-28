@@ -378,18 +378,46 @@ class MarketValuation:
            SP intercept $5.42M vs RP $3.63M vs Batter $3.19M.
         2. FA contracts are sublinear (beta < 1), but trade value has a
            consolidation premium (can't trade 7 role-players for 1 star),
-           so we use a mild superlinear beta for trade purposes.
-        3. WAR already incorporates positional adjustments and defensive
-           value — no need to decompose or discount components.
+           so we use a superlinear beta for trade purposes — increased from
+           1.15 to further separate high-WAR/short-term production from
+           low-WAR/long-term production that sums to the same total WAR.
+        3. WAR already incorporates positional *run-scale* adjustments
+           (POSITIONAL_ADJUSTMENTS in WARConstants) — those stay untouched.
+           This class adds two SEPARATE, dollar-side adjustments on top:
+             a) DEFENSIVE_VALUE_DISCOUNT — defensive runs (Fld + Pos) are
+                priced below offensive runs (Bat + BsR) because defensive
+                metrics carry more year-to-year forecast error than bat
+                metrics. Catchers get an even steeper discount
+                (POSITION_DEFENSIVE_DISCOUNT_OVERRIDE) since catcher defensive
+                value leans heavily on framing, which is the noisiest,
+                least stable defensive metric in the sport. This is a
+                trust/uncertainty discount, not a statement that defense
+                doesn't matter.
+             b) WRC_PLUS_BAT_PREMIUM — elite bats get a direct premium on
+                top of whatever their WAR already earned them. This reflects
+                that the market bids up great hitters harder than great
+                gloves at the same WAR total — good bats are simply more
+                coveted, not just "more scarce by position". Replaces the
+                old position-scarcity multiplier, which rewarded playing a
+                scarce position rather than actually hitting well.
 
-    Formula:
-        base_rate = {SP: $10M, RP: $8.5M, batter: $8.5M}
+    Formula (component-aware path):
+        off_war    = (Bat + BsR) / RPW
+        def_war    = (Fld + Pos) / RPW           [Fld + Pos == 'Def' column]
+        def_share  = def_war / (off_war + def_war), clipped to [0, 1]
+        def_disc   = POSITION_DEFENSIVE_DISCOUNT_OVERRIDE.get(position, DEFENSIVE_VALUE_DISCOUNT)
+        discount   = 1 - def_share * (1 - def_disc)
+        bat_bonus  = 1 + clip((wRC+ - 100) * WRC_PLUS_PREMIUM_RATE, 0, WRC_PLUS_PREMIUM_CAP)
+        value      = base_rate[role] * WAR^BETA * inflation(year) * discount * bat_bonus
+
+    Formula (legacy total-WAR-only path, used when component breakdown is
+    unavailable — e.g. two-way players, historical backfill rows):
         value = base_rate[role] * WAR^BETA * inflation(year)
 
     The SP premium (~18%) reflects the higher replacement cost of starting
     pitching in FA, driven by scarcity of quality innings.
 
-    Reference values (2026 dollars):
+    Reference values (2026 dollars, no defensive discount / bat premium applied):
         SP:  1 WAR → $10.6M    3 WAR → $35.6M    5 WAR → $62.4M
         RP:  1 WAR →  $9.0M    3 WAR → $30.3M    5 WAR → $53.1M
         Bat: 1 WAR →  $9.0M    3 WAR → $30.3M    5 WAR → $53.1M
@@ -402,20 +430,73 @@ class MarketValuation:
     RATE_BATTER = 8_500_000
 
     # Consolidation exponent — a 5-WAR player is worth more than five 1-WAR.
-    # beta=1.15 means a 5-WAR player ≈ 1.27× the value of five 1-WAR players.
-    CONSOLIDATION_BETA = 1.15
+    # Raised from 1.15 -> 1.35 (2026-07) to further penalize compiling total
+    # WAR from many low-WAR seasons (long-term deals) vs. concentrated
+    # high-WAR seasons (short-term/peak production). At beta=1.35, a 5-WAR
+    # player is worth ~1.63x five 1-WAR players (vs. ~1.27x at beta=1.15).
+    # NOTE: this was widened without re-running the FA-contract calibration
+    # that produced the base rates above — re-validate against actual trade/
+    # extension data before trusting absolute dollar values, especially at
+    # the high end (8+ WAR seasons get pushed considerably higher).
+    CONSOLIDATION_BETA = 1.35
+
+    # Defensive runs (Fld + Pos, i.e. the 'Def' WAR component) are priced at
+    # this fraction of the rate applied to offensive runs (Bat + BsR).
+    # 1.0 = no discount. Lowered from 0.82 -> 0.70 (2026-07) — defense should
+    # matter less to trade value than the original convex model implied.
+    DEFENSIVE_VALUE_DISCOUNT = 0.70
+
+    # Position-specific override for the discount above. Catchers get a
+    # steeper discount than the general default: catcher defensive value is
+    # dominated by framing runs, which are the least stable/most subjective
+    # defensive metric we track, so we trust it least in trade value.
+    POSITION_DEFENSIVE_DISCOUNT_OVERRIDE = {
+        'C': 0.55,
+    }
+
+    # Direct bonus for elite hitting, independent of WAR/position. Rewards
+    # the bat itself rather than the scarcity of the position it's attached
+    # to — "good bats are good bats" and the market pays for them regardless
+    # of glove. Linear above a 100 wRC+ (league-average) baseline, capped so
+    # a single outlier season doesn't blow up trade value.
+    #   +0.6% of value per point of wRC+ above 100, capped at +25%
+    #   (cap reached at wRC+ ~142)
+    WRC_PLUS_PREMIUM_RATE = 0.006
+    WRC_PLUS_PREMIUM_CAP = 0.25
 
     @classmethod
     def calculate_value(cls, war: float, year: int,
                         position_group: str = 'batter',
+                        bat: float = None, bsr: float = None,
+                        def_runs: float = None, position: str = None,
+                        wrc_plus: float = None,
                         **kwargs) -> float:
         """
         Convert WAR to dollar value using role-specific base rates.
+
+        Two modes:
+          - Component-aware (pass bat, bsr, def_runs): applies the
+            defensive discount to the defensive share of value, using
+            POSITION_DEFENSIVE_DISCOUNT_OVERRIDE for that position if one
+            exists (catchers), otherwise DEFENSIVE_VALUE_DISCOUNT.
+          - Legacy total-WAR (leave bat/bsr/def_runs as None): unchanged
+            behavior, used when component breakdown isn't available
+            (two-way players, historical rows without Bat/BsR/Def).
+
+        WRC_PLUS_PREMIUM is applied in either mode whenever `wrc_plus` is
+        supplied — it's a direct reward for hitting well, not tied to the
+        component breakdown.
 
         Args:
             war: Total projected WAR for this player-year.
             year: Season year (for inflation from BASE_YEAR).
             position_group: 'SP', 'RP', or 'batter'.
+            bat: Batting runs component (optional; enables component-aware mode).
+            bsr: Baserunning runs component (optional).
+            def_runs: Defensive runs component == 'Def' column (Fld + Pos) (optional).
+            position: Primary defensive position, e.g. 'SS', 'C' (optional;
+                selects the position-specific defensive discount override).
+            wrc_plus: Weighted runs created plus (optional; enables the bat premium).
 
         Returns:
             Dollar value of the player's production for that year.
@@ -433,7 +514,34 @@ class MarketValuation:
         else:
             rate = cls.RATE_BATTER
 
-        return rate * (war ** cls.CONSOLIDATION_BETA) * inflation
+        value = rate * (war ** cls.CONSOLIDATION_BETA) * inflation
+
+        # ── Defensive value discount (component-aware mode only) ──────────
+        have_components = (
+            bat is not None and bsr is not None and def_runs is not None
+            and not any(isinstance(x, float) and math.isnan(x) for x in (bat, bsr, def_runs))
+        )
+        if have_components:
+            off_runs = bat + bsr
+            # Runs can be negative; use absolute magnitude to weight shares
+            # so a plus bat / minus glove player isn't treated as "no defense".
+            off_mag = abs(off_runs)
+            def_mag = abs(def_runs)
+            total_mag = off_mag + def_mag
+            if total_mag > 0:
+                def_share = min(max(def_mag / total_mag, 0.0), 1.0)
+                def_disc = cls.POSITION_DEFENSIVE_DISCOUNT_OVERRIDE.get(
+                    position, cls.DEFENSIVE_VALUE_DISCOUNT
+                )
+                discount = 1.0 - def_share * (1.0 - def_disc)
+                value *= discount
+
+        # ── Elite-bat premium (either mode, whenever wRC+ is available) ────
+        if wrc_plus is not None and not (isinstance(wrc_plus, float) and math.isnan(wrc_plus)):
+            bonus = min(max(wrc_plus - 100.0, 0.0) * cls.WRC_PLUS_PREMIUM_RATE, cls.WRC_PLUS_PREMIUM_CAP)
+            value *= (1.0 + bonus)
+
+        return value
 
 
 class ContractConstants:
