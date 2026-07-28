@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { TradeAnalysis } from '../../../../services/api';
 import { getTeamColors } from '../../../../utils/teamColors';
+import { formatCurrency, BALANCED_TRADE_THRESHOLD, getPositionBadgeClasses } from '../../../../utils/tradeValue';
 import TradeMeter from '../TradeMeter/TradeMeter';
 
 interface ValueDisplayProps {
@@ -10,18 +11,25 @@ interface ValueDisplayProps {
   team2Name: string;
 }
 
+const TrendingUpIcon: React.FC = () => (
+  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6" />
+  </svg>
+);
+
+const TrendingDownIcon: React.FC = () => (
+  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0l-6-6m6 6l6-6" />
+  </svg>
+);
+
 const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2Name }) => {
   const { team1, team2 } = analysis;
   const tradeDifferential = team1.total_surplus - team2.total_surplus;
+  const isBalanced = Math.abs(tradeDifferential) < BALANCED_TRADE_THRESHOLD;
 
   const team1Colors = getTeamColors(team1Name);
   const team2Colors = getTeamColors(team2Name);
-
-  const formatValue = (value: number | undefined) => {
-    if (value === undefined || value === null) return '—';
-    const sign = value >= 0 ? '' : '-';
-    return `${sign}$${(Math.abs(value) / 1_000_000).toFixed(1)}M`;
-  };
 
   // Compute max absolute surplus across all assets for bar scaling
   const allAssets = [...team1.assets, ...team2.assets];
@@ -33,28 +41,18 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
     const isPositive = asset.total_surplus >= 0;
     const uniqueKey = 'playerId' in asset ? asset.playerId : ('mlb_id' in asset ? asset.mlb_id : ('real_id' in asset ? asset.real_id : asset.name));
 
-    const getPositionColor = (position: string | undefined) => {
-      if (!position) return 'bg-gray-200 text-gray-600';
-      const pos = position.toUpperCase();
-      if (['SP', 'RP', 'CL', 'P'].includes(pos)) return 'bg-blue-500/20 text-blue-400';
-      if (['C', '1B', '2B', '3B', 'SS'].includes(pos)) return 'bg-emerald-500/20 text-emerald-400';
-      if (['LF', 'CF', 'RF', 'OF'].includes(pos)) return 'bg-amber-500/20 text-amber-400';
-      if (['DH'].includes(pos)) return 'bg-purple-500/20 text-purple-400';
-      return 'bg-gray-200/60 text-gray-600';
-    };
-
     return (
-      <div key={uniqueKey} className="rounded-lg border border-white/[0.05] bg-white/[0.02] overflow-hidden">
+      <div key={uniqueKey} className="rounded-lg border border-gray-200 bg-white overflow-hidden">
         {/* Asset header */}
         <div className="flex items-center gap-3 px-4 py-3">
           {'position' in asset && (
-            <span className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getPositionColor(asset.position)}`}>
+            <span className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getPositionBadgeClasses(asset.position)}`}>
               {asset.position || '?'}
             </span>
           )}
           <div className="flex-1 min-w-0">
             {'id' in asset && 'war' in asset ? (
-              <Link 
+              <Link
                 to={`/players/${asset.id}`}
                 className="font-semibold text-sm text-gray-900 hover:text-brand-500 transition-colors truncate block"
               >
@@ -64,26 +62,24 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
               <h4 className="font-semibold text-sm text-gray-900 truncate">{asset.name}</h4>
             )}
             {isProspect && (
-              <span className="text-[10px] font-medium text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+              <span className="text-[10px] font-medium text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded mt-0.5 inline-block">
                 PROSPECT
               </span>
             )}
           </div>
-          <span className={`text-sm font-bold tabular-nums ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-            {formatValue(asset.total_surplus)}
+          <span className={`text-sm font-bold tabular-nums ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+            {formatCurrency(asset.total_surplus)}
           </span>
         </div>
 
         {/* Value bar */}
         <div className="px-4 pb-3">
-          <div className="h-1.5 rounded-full bg-gray-100/80 overflow-hidden">
+          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-700 ease-out"
               style={{
                 width: `${Math.max(surplusPct, 2)}%`,
-                background: isPositive
-                  ? `linear-gradient(90deg, ${teamColor}88, ${teamColor})`
-                  : `linear-gradient(90deg, #ef444488, #ef4444)`
+                backgroundColor: isPositive ? teamColor : '#dc2626',
               }}
             />
           </div>
@@ -94,35 +90,35 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
           {isProspect ? (
             <div className="flex items-center gap-4 text-xs text-gray-500">
               {'fv' in asset && (
-                <span>FV: <span className="text-gray-600 font-medium">{asset.fv || '—'}</span></span>
+                <span>FV: <span className="text-gray-700 font-medium">{asset.fv || '—'}</span></span>
               )}
               {'position' in asset && (
-                <span>POS: <span className="text-gray-600 font-medium">{asset.position || '—'}</span></span>
+                <span>POS: <span className="text-gray-700 font-medium">{asset.position || '—'}</span></span>
               )}
               {'value' in asset && (
-                <span>Value: <span className={`font-medium ${(asset.value ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {formatValue(asset.value)}
+                <span>Value: <span className={`font-medium ${(asset.value ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {formatCurrency(asset.value)}
                 </span></span>
               )}
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2 text-xs">
-              <div className="text-center p-1.5 rounded bg-white/[0.02]">
+              <div className="text-center p-1.5 rounded bg-gray-50">
                 <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-0.5">WAR</p>
                 <p className="text-gray-800 font-semibold tabular-nums">
                   {'war' in asset ? (asset.war?.toFixed(1) || '—') : '—'}
                 </p>
               </div>
-              <div className="text-center p-1.5 rounded bg-white/[0.02]">
+              <div className="text-center p-1.5 rounded bg-gray-50">
                 <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-0.5">Production</p>
-                <p className="text-emerald-400 font-semibold tabular-nums text-[11px]">
-                  {formatValue(asset.total_production)}
+                <p className="text-emerald-600 font-semibold tabular-nums text-[11px]">
+                  {formatCurrency(asset.total_production)}
                 </p>
               </div>
-              <div className="text-center p-1.5 rounded bg-white/[0.02]">
+              <div className="text-center p-1.5 rounded bg-gray-50">
                 <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-0.5">Contract</p>
-                <p className="text-red-400 font-semibold tabular-nums text-[11px]">
-                  {formatValue(asset.total_contract)}
+                <p className="text-red-600 font-semibold tabular-nums text-[11px]">
+                  {formatCurrency(asset.total_contract)}
                 </p>
               </div>
             </div>
@@ -138,7 +134,7 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
     colors: typeof team1Colors,
     otherTeamTotal: number
   ) => {
-    const isWinning = team.total_surplus > otherTeamTotal;
+    const isAhead = team.total_surplus > otherTeamTotal;
     const isTied = team.total_surplus === otherTeamTotal;
 
     return (
@@ -155,12 +151,13 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
               </div>
             </div>
             {!isTied && (
-              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
-                isWinning 
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                  : 'bg-red-500/10 text-red-400 border border-red-500/20'
+              <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
+                isAhead
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-red-50 text-red-700 border border-red-200'
               }`}>
-                {isWinning ? '▲ Winning' : '▼ Losing'}
+                {isAhead ? <TrendingUpIcon /> : <TrendingDownIcon />}
+                {isAhead ? 'Ahead' : 'Behind'}
               </span>
             )}
           </div>
@@ -172,31 +169,31 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
         </div>
 
         {/* Team totals */}
-        <div className="rounded-b-xl border-t border-gray-200 bg-white/[0.01] px-5 py-4">
+        <div className="rounded-b-xl border-t border-gray-200 bg-gray-50 px-5 py-4">
           <div className="grid grid-cols-3 gap-3 text-center mb-3">
             <div>
               <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1 font-semibold">Production</p>
-              <p className="text-sm font-bold text-emerald-400 tabular-nums">{formatValue(team.total_production)}</p>
+              <p className="text-sm font-bold text-emerald-600 tabular-nums">{formatCurrency(team.total_production)}</p>
             </div>
             <div>
               <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1 font-semibold">Contract</p>
-              <p className="text-sm font-bold text-red-400 tabular-nums">{formatValue(team.total_contract)}</p>
+              <p className="text-sm font-bold text-red-600 tabular-nums">{formatCurrency(team.total_contract)}</p>
             </div>
             <div>
               <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1 font-semibold">Net Value</p>
               <p className="text-sm font-bold tabular-nums text-gray-900">
-                {formatValue(team.total_surplus)}
+                {formatCurrency(team.total_surplus)}
               </p>
             </div>
           </div>
           {/* Visual bar for total */}
-          <div className="h-2 rounded-full bg-gray-100/60 overflow-hidden">
+          <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-1000 ease-out"
               style={{
                 width: `${Math.min((Math.abs(team.total_surplus) / Math.max(Math.abs(team1.total_surplus), Math.abs(team2.total_surplus), 1)) * 100, 100)}%`,
-                background: colors.gradient,
-                opacity: 0.8
+                backgroundColor: colors.primary,
+                opacity: 0.85,
               }}
             />
           </div>
@@ -212,6 +209,8 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
         <TradeMeter
           team1Name={team1Name}
           team2Name={team2Name}
+          team1Color={team1Colors.primary}
+          team2Color={team2Colors.primary}
           differential={tradeDifferential}
         />
       </div>
@@ -236,13 +235,13 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
             <div className="text-center sm:text-left">
               <p className="text-xs text-gray-600 uppercase tracking-wider font-semibold">Trade Differential</p>
               <p className="text-2xl font-bold tabular-nums mt-1 text-gray-900">
-                {formatValue(Math.abs(tradeDifferential))}
+                {formatCurrency(Math.abs(tradeDifferential))}
               </p>
             </div>
           </div>
           <div className="text-sm font-medium text-gray-600">
-            {Math.abs(tradeDifferential) < 2_000_000 ? (
-              <span className="text-emerald-400">This trade is balanced</span>
+            {isBalanced ? (
+              <span className="text-emerald-700 font-semibold">Balanced trade</span>
             ) : (
               <>
                 Favors{' '}
