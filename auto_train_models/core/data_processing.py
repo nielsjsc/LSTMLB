@@ -69,6 +69,21 @@ def calculate_rate_stats(df: pd.DataFrame) -> pd.DataFrame:
                 0.0
             )
     
+    # =========================================================================
+    # BATTING HBP% (per PA) — must be computed BEFORE batting_per_150 below,
+    # which overwrites HBP in-place with (HBP / G) × 150.  Without this,
+    # Marcel's fallback derivation (HBP / PA) would use the scaled value,
+    # inflating HBP% by a factor of 150/G — catastrophic for rookies with
+    # few games played.  Mirrors the pitcher HBP% block above (lines 65-70).
+    # =========================================================================
+    if 'PA' in df.columns:
+        if 'HBP' in df.columns and 'HBP%' not in df.columns:
+            df['HBP%'] = np.where(
+                df['PA'] > 0,
+                df['HBP'] / df['PA'],
+                0.0
+            )
+
     # Import the master list of batting counting stats (single source of truth)
     from core.rate_stats_config import BATTING_COUNTING_STATS as _batting_counting_stats
     
