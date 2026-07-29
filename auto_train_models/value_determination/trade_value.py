@@ -22,6 +22,7 @@ import re
 from pathlib import Path
 
 from .config import Config, logger, CURRENT_YEAR
+from .value_calculator import calculate_war_value
 from core.name_utils import name_key_alpha_only as _name_key_norm
 
 # Register data directory for mlbam → IDfg crosswalk
@@ -328,22 +329,12 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
     else:
         career_games = pd.DataFrame(columns=["IDfg"])
 
-    # ── No post-projection confidence discount ──────────────────────────
-    # Projections are treated as source of truth for trade value. Keep
-    # compatibility columns for downstream consumers.
-    result_df["projection_confidence"] = 1.0
+    # ── Preserve the raw projection-based value before any adjustment ────
     result_df["raw_trade_value"] = result_df["trade_value"]
-    logger.info("Confidence discounting disabled: using projection trade_value directly")
+    result_df["projection_confidence"] = 1.0
 
-    # ── Prospect-grade trade-value floor ─────────────────────────────────
-    # MiLB regression (Step 2.25) handles stat-level blending, but a
-    # prospect with a disastrous short MLB stint can still project ~0 WAR.
-    # The prospect floor ensures their trade value reflects their pedigree:
-    #   floor = prospect_dollar_value * prospect_weight
-    # where prospect_weight fades linearly from 1.0 (0 games) to 0.0
-    # (EXPERIENCE_THRESHOLD_GAMES reached).  The floor only RAISES value.
-
-    # Build mlbam → IDfg crosswalk from register files
+    # Build mlbam → IDfg crosswalk from register files (shared by the
+    # confidence blend below and the prospect floor further down).
     people_files = glob.glob(str(_REGISTER_DATA_DIR / 'people-*.csv'))
     if people_files:
         xw_dfs = [
@@ -359,13 +350,96 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
     else:
         mlbam_to_idfg = {}
         logger.warning(f"No register files found in {_REGISTER_DATA_DIR} — "
-                       "prospect floor disabled")
+                       "prospect floor and confidence blend disabled")
 
-    # Map prospects to IDfg and apply floor
+    latest = latest.copy()
     latest["IDfg"] = latest["prospect_mlb_id"].astype(int).map(mlbam_to_idfg)
     matched = latest.dropna(subset=["IDfg"])
     matched = matched.copy()
     matched["IDfg"] = matched["IDfg"].astype(int)
+
+    def _games_for(pid: int, pos_type: str) -> float:
+        """Career MLB games played *before* current_year, by role."""
+        if pid not in career_games["IDfg"].values:
+            return 0.0
+        cg = career_games[career_games["IDfg"] == pid].iloc[0]
+        gs = cg.get("GS", 0) or 0
+        g_pit = cg.get("G_pit", 0) or 0
+        if pos_type == "sp":
+            return gs
+        elif pos_type == "rp":
+            return g_pit - gs if gs < 50 else gs
+        return cg.get("G_bat", 0) or 0
+
+    # ── Confidence blend: temper unproven-prospect projections ───────────
+    # A player who has never taken an MLB at-bat gets the same point
+    # projection (e.g. a full 650-PA, no-bust-risk season every year through
+    # free agency) as a six-year veteran unless we discount it. Blend the
+    # projection-based trade value toward a conservative FV-grade WAR prior,
+    # weighted by career games via Config.TradeConfidence. At 0 games the
+    # projection gets only CONFIDENCE_FLOOR (10%) weight; by
+    # STABILIZATION_GAMES the player passes through at full confidence.
+    blended_count = 0
+    for _, prospect in matched.iterrows():
+        pid = prospect["IDfg"]
+        fv = prospect.get("grade_overall")
+
+        pmask = (result_df["IDfg"] == pid) & (result_df["Year"] >= current_year)
+        if not pmask.any() or pd.isna(result_df.loc[pmask, "trade_value"].iloc[0]):
+            continue
+
+        pos = result_df.loc[pmask, "position_group"].iloc[0]
+        pos_type = "sp" if pos == "SP" else ("rp" if pos == "RP" else "batter")
+        games = _games_for(pid, pos_type)
+
+        confidence = Config.TradeConfidence.calculate_confidence(games, pos_type)
+        result_df.loc[pmask, "projection_confidence"] = confidence
+        if confidence >= 1.0:
+            continue  # fully stabilized — projection stands as-is
+
+        # Recompute control-year dollars using the FV-grade's typical
+        # annual WAR instead of the model's point projection (legacy
+        # total-WAR path — a flat prior has no Bat/BsR/Def breakdown).
+        pdata = result_df[result_df["IDfg"] == pid]
+        fa_year = pdata["probable_fa_year"].iloc[0] if "probable_fa_year" in pdata.columns else np.nan
+        if pd.isna(fa_year) and "FA_Year" in pdata.columns:
+            fa_year = pdata["FA_Year"].iloc[0]
+        if pd.isna(fa_year):
+            continue
+
+        control_mask = (
+            (result_df["IDfg"] == pid)
+            & (result_df["Year"] >= current_year)
+            & (result_df["Year"] < fa_year)
+            & result_df["contract_value"].notna()
+        )
+        if not control_mask.any():
+            continue
+
+        prior_war = Config.TradeConfidence.get_prior_war(fv)
+        prior_dollars = sum(
+            calculate_war_value(prior_war, int(yr), position_group=pos)
+            for yr in result_df.loc[control_mask, "Year"]
+        )
+        contract_cost = result_df.loc[control_mask, "contract_value"].sum()
+        prior_trade_value = prior_dollars - contract_cost
+
+        raw_tv = result_df.loc[pmask, "raw_trade_value"].iloc[0]
+        blended = confidence * raw_tv + (1 - confidence) * prior_trade_value
+        result_df.loc[pmask, "trade_value"] = blended
+        blended_count += 1
+
+    logger.info(f"Confidence blend: matched {len(matched)} prospects, "
+                f"tempered projection for {blended_count} with <full confidence")
+
+    # ── Prospect-grade trade-value floor ─────────────────────────────────
+    # MiLB regression (Step 2.25) handles stat-level blending, but a
+    # prospect with a disastrous short MLB stint can still project ~0 WAR.
+    # The prospect floor ensures their trade value reflects their pedigree:
+    #   floor = prospect_dollar_value * prospect_weight
+    # where prospect_weight fades linearly from 1.0 (0 games) to 0.0
+    # (EXPERIENCE_THRESHOLD_GAMES reached). The floor only RAISES value —
+    # it applies on top of the confidence-blended value above.
     floor_count = 0
 
     for _, prospect in matched.iterrows():
@@ -381,21 +455,9 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
         if prospect_val is None or prospect_val <= 0:
             continue
 
-        # Determine experience-based prospect weight
         pos = result_df.loc[pmask, "position_group"].iloc[0]
         pos_type = "sp" if pos == "SP" else ("rp" if pos == "RP" else "batter")
-        if pid in career_games["IDfg"].values:
-            cg = career_games[career_games["IDfg"] == pid].iloc[0]
-            gs = cg.get("GS", 0) or 0
-            g_pit = cg.get("G_pit", 0) or 0
-            if pos_type == "sp":
-                games = gs
-            elif pos_type == "rp":
-                games = g_pit - gs if gs < 50 else gs
-            else:
-                games = cg.get("G_bat", 0) or 0
-        else:
-            games = 0
+        games = _games_for(pid, pos_type)
 
         prospect_weight = Config.Prospects.calculate_prospect_weight(games, pos_type)
         if prospect_weight <= 0:
