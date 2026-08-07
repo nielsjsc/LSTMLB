@@ -54,7 +54,7 @@ def _load_historical_salary() -> dict:
         _historical_salary_cache = lookup
         return lookup
     try:
-        df = pd.read_csv(_UNIVERSAL_SALARY_FILE)
+        df = pd.read_csv(_UNIVERSAL_SALARY_FILE, encoding='utf-8')
     except Exception:
         logger.warning("Could not read universal salary file: %s", _UNIVERSAL_SALARY_FILE)
         _historical_salary_cache = lookup

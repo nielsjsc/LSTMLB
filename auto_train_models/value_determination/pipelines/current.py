@@ -76,7 +76,6 @@ from value_determination.calculate_war import (
     load_player_orgs, calculate_wrc_plus
 )
 from value_determination.playing_time import estimate_playing_time
-from value_determination.milb_regression import apply_milb_regression
 from core.position_profiles import (
     build_position_profiles, load_fielding_history, load_batting_for_games,
     get_display_position, get_defensive_positions
@@ -382,10 +381,13 @@ def main(pipeline_dir=None, output_filename=None):
         logger.info(f"RP WAR: n={len(rp_data)}, avg={rp_data['WAR'].mean():.2f}")
         
         # ============================================================
-        # Step 2.25: MiLB Regression for Low-Sample Batters
+        # Step 2.25: (retired) MiLB Regression for Low-Sample Batters
         # ============================================================
-        logger.info("\n[Step 2.25/10] Applying MiLB regression to batter predictions...")
-        batter_data = apply_milb_regression(batter_data, CURRENT_YEAR)
+        # MiLB signal is now blended into each batter's Year 1 baseline
+        # upstream, in marcel_projections.py, before batter_predictions.csv
+        # is generated -- so batter_data arriving here is already blended.
+        # Re-running apply_milb_regression here was double-regressing
+        # low-PA batters against a second, independent MiLB translation.
         
         # ── Filter pitchers who no longer bat (universal DH era) ────────
         # Pitchers with old NL batting history still get batter predictions.

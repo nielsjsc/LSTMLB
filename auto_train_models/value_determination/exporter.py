@@ -59,7 +59,7 @@ def export_value_data(df: pd.DataFrame, output_dir: Path, filename: str = None) 
         # Merge with roster data to get mlb_id (mlbam_id) from fg_id
         roster_path = output_dir.parent.parent / 'active_roster' / 'current_rosters.csv'
         if roster_path.exists():
-            roster_df = pd.read_csv(roster_path)
+            roster_df = pd.read_csv(roster_path, encoding='utf-8')
             # fg_id in roster is string with '.0' suffix, IDfg in export is float
             roster_df['fg_id_clean'] = pd.to_numeric(roster_df['fg_id'], errors='coerce')
             id_map = roster_df.dropna(subset=['fg_id_clean']).drop_duplicates('fg_id_clean')[['mlbam_id', 'fg_id_clean']]
@@ -101,7 +101,7 @@ def export_value_data(df: pd.DataFrame, output_dir: Path, filename: str = None) 
         
         # Export to single file
         output_file = output_dir / output_filename
-        export_df.to_csv(output_file, index=False, na_rep='')
+        export_df.to_csv(output_file, index=False, na_rep='', encoding='utf-8')
         
         logger.info(f"Exported {len(export_df)} records to {output_file}")
         

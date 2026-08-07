@@ -264,7 +264,7 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
     if current_year is None:
         current_year = CURRENT_YEAR
 
-    prospect_df = pd.read_csv(prospect_file)
+    prospect_df = pd.read_csv(prospect_file, encoding='utf-8')
     logger.info(
         f"Loaded prospect data: {len(prospect_df)} records, "
         f"years {prospect_df['year'].min():.0f}–{prospect_df['year'].max():.0f}"
@@ -338,7 +338,7 @@ def _apply_confidence_adjustments(result_df: pd.DataFrame,
     people_files = glob.glob(str(_REGISTER_DATA_DIR / 'people-*.csv'))
     if people_files:
         xw_dfs = [
-            pd.read_csv(f, usecols=['key_mlbam', 'key_fangraphs'], low_memory=False)
+            pd.read_csv(f, usecols=['key_mlbam', 'key_fangraphs'], low_memory=False, encoding='utf-8')
             for f in people_files
         ]
         xw = pd.concat(xw_dfs, ignore_index=True).dropna(
@@ -577,11 +577,11 @@ def update_prospect_mlb_status(export_data: pd.DataFrame) -> None:
         return
 
     try:
-        pf = pd.read_csv(path)
+        pf = pd.read_csv(path, encoding='utf-8')
         mlb_ids = set(str(i) for i in export_data["IDfg"].unique())
         pf["IDfg"] = pf["IDfg"].astype(str)
         pf["has_mlb"] = pf["IDfg"].isin(mlb_ids)
-        pf.to_csv(path, index=False)
+        pf.to_csv(path, index=False, encoding='utf-8')
 
         total = pf["IDfg"].nunique()
         debuted = pf.loc[pf["has_mlb"], "IDfg"].nunique()

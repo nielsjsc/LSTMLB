@@ -154,7 +154,7 @@ def append_to_trade_value_history(today: date | None = None) -> int:
         )
         return 0
 
-    pvc = pd.read_csv(_PVC_FILE, low_memory=False)
+    pvc = pd.read_csv(_PVC_FILE, low_memory=False, encoding='utf-8')
     new_entries = _build_today_entries(pvc, today)
 
     if new_entries.empty:
@@ -164,14 +164,14 @@ def append_to_trade_value_history(today: date | None = None) -> int:
     date_str = today.isoformat()
 
     if _TVH_FILE.exists():
-        existing = pd.read_csv(_TVH_FILE, low_memory=False)
+        existing = pd.read_csv(_TVH_FILE, low_memory=False, encoding='utf-8')
         # Remove any rows for today (deduplication)
         existing = existing[existing["date"] != date_str]
         combined = pd.concat([existing, new_entries], ignore_index=True)
     else:
         combined = new_entries
 
-    combined.to_csv(_TVH_FILE, index=False, na_rep="")
+    combined.to_csv(_TVH_FILE, index=False, na_rep="", encoding='utf-8')
     logger.info(
         f"Appended {len(new_entries)} rows to trade_value_history.csv "
         f"(date={date_str}, total={len(combined)})"
