@@ -125,9 +125,18 @@ def generate_batter_predictions(
     data_file_path: str | None = None,
 ) -> Optional[pd.DataFrame]:
     if cutoff_year is None:
-        cutoff_year = datetime.now().year - 1
+        # Batters default to the CURRENT (in-progress) season, not the
+        # last completed one. marcel_batter_projections now emits the
+        # current season directly (year_offset=0) using year1_base built
+        # from in-season-to-date stats + the MiLB-prior blend — this is
+        # the single source of truth for the current year's projection,
+        # replacing the old ros.py blend-in-a-stale-preseason-number step.
+        # This requires the batter DATA_FILE to already carry the current
+        # season's stats-to-date as each player's most recent row.
+        cutoff_year = datetime.now().year
     
-    logger.info(f"Starting batter predictions generation (cutoff_year={cutoff_year})...")
+    logger.info(f"Starting batter predictions generation (cutoff_year={cutoff_year}, "
+                f"current-season row included via year_offset=0)...")
     batter_config_class = ModelFactory.get_config('batter')
     
     if data_file_path is not None:
@@ -386,7 +395,15 @@ def main():
                        choices=['pitcher', 'batter', 'fielding', 'baserunning', 'integrated-batter', 'all'],
                        default='all')
     parser.add_argument('--output-dir', type=str, default=str(PIPELINE_DIR))
-    parser.add_argument('--cutoff-year', type=int, default=default_cutoff_year)
+    parser.add_argument('--cutoff-year', type=int, default=default_cutoff_year,
+                       help='Last completed season, used by pitcher/fielding/baserunning.')
+    parser.add_argument('--batter-cutoff-year', type=int, default=None,
+                       help='Season to anchor batter Marcel projections on. Defaults to the '
+                            'CURRENT (in-progress) season — batters now emit their current-year '
+                            'row directly from year1_base (year_offset=0), so this should stay '
+                            'the in-progress season, not the last completed one, as long as the '
+                            'batter data file carries current-season stats-to-date. Override only '
+                            'for backfills/testing against a specific historical cutoff.')
     parser.add_argument('--batter-data-file', type=str, default=None)
     parser.add_argument('--pitcher-data-file', type=str, default=None)
     parser.add_argument('--fielding-data-file', type=str, default=None)
@@ -414,7 +431,7 @@ def main():
     if args.model_type in ['batter', 'all']:
         generate_batter_predictions(
             output_file=str(output_dir / 'batter_predictions.csv'),
-            cutoff_year=args.cutoff_year,
+            cutoff_year=args.batter_cutoff_year,  # None → defaults to CURRENT_YEAR inside
             roster_ids=roster_ids,
             data_file_path=args.batter_data_file
         )
