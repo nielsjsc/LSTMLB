@@ -175,6 +175,9 @@ def load_player_orgs(data_dir: Path = None) -> pd.DataFrame:
     # Convert IDfg to int to match prediction data format
     org_data['IDfg'] = pd.to_numeric(org_data['IDfg'], errors='coerce').dropna().astype(int)
     
+    # Drop duplicates in case a player appears multiple times (e.g. played for multiple minor league affiliates)
+    org_data = org_data.drop_duplicates(subset=['IDfg'], keep='first')
+    
     logger.info(f"Loaded {len(org_data)} player organizations from current rosters")
     
     return org_data
