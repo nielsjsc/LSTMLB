@@ -32,11 +32,23 @@ shrinkage formula produced.
 
 Architecture
 ------------
-Batters  — blend 8 base components (K%, BB%, HBP%, ISO, BABIP, HR/FB,
-           GB%, LD%), then recompose AVG/SLG/OBP/wOBA/wRC+ via
-           ``stat_composition.compose_from_df``.
-Pitchers — blend 8 base components (K%, BB%, HBP%, BABIP, HR/FB, GB%,
-           FB%, LD%), then reconstruct FIP/ERA/SIERA/K-rates.
+Batters  — NO LONGER BLENDED HERE. marcel_batter_projections() (see
+           core/marcel_projections.py) now re-runs with cutoff_year set to
+           the current in-progress season and emits the current year
+           directly at year_offset=0 from a freshly recomputed year1_base
+           (Marcel weighted average + MiLB-prior blend, both re-derived
+           from up-to-date in-season data). blend_batter_projections() in
+           this file is kept only to compute war_proration (banked actual
+           WAR + remaining-season fraction) for
+           prorate_current_year_war/prorate_current_year_salary — it no
+           longer touches rate stats. This avoids having two independently-
+           weighted blends of the same current-season data (this module's
+           fixed 12-unit formula vs. Marcel's PA/career-PA-weighted
+           formula) disagree with each other, which previously caused the
+           current-year projection to diverge sharply from next year's.
+Pitchers — still blended here: 8 base components (K%, BB%, HBP%, BABIP,
+           HR/FB, GB%, FB%, LD%), then reconstruct FIP/ERA/SIERA/K-rates.
+           (Not in scope for this fix — batters only, for now.)
 Fielding — blend preseason sc_total_runs/150 with actual Fld runs using
            Marcel regression-consistent weighting.
 Baserunning — blend preseason BsR with actual BsR using Marcel regression-
@@ -714,10 +726,13 @@ def load_current_season_actuals(current_year=None):
 # Batter blending
 # =============================================================================
 
-# Auxiliary features used by the Phase 2b multivariate equations.
-# These stabilize faster than the base components so we trust the current
-# season more aggressively for them.  The multiplier scales the blend weight
-# upward for high-stabilization features and downward for noisy ones.
+# UNUSED as of the batter-blend removal (see blend_batter_projections) —
+# these fed the per-feature blend multiplier that no longer runs, since
+# Marcel now recomputes the full multivariate equation (including these
+# features) from in-season data directly, rather than blending a separate
+# post-hoc adjustment on top of a stale preseason number. Left in place
+# only in case something outside this module still imports them; safe to
+# delete once confirmed unused repo-wide.
 _BATTER_AUX_WEIGHT_MULTIPLIERS = {
     # Highly sticky — stabilize in ~50–100 PA; use current season more
     'Contact%':  2.0,
@@ -776,43 +791,56 @@ def blend_batter_projections(
     team_games_map=None,
     player_team_map=None,
 ):
-    """Blend current-year batter base components with pre-season projections.
+    """Compute WAR-proration info for the current batter season.
 
-    Uses Marcel-consistent weighting: the current partial season earns weight
-    proportional to its share of a full season within the Marcel 5+4+3
-    framework.  The preseason projection (which already embeds the three prior
-    seasons at 5:4:3) receives the complementary weight, so the historical
-    signal is preserved throughout the season.
+    DEPRECATED (rate-stat blending removed): this function used to also
+    overwrite each current-year row's base components (K%, BB%, HBP%, ISO,
+    BABIP, HR/FB, GB%, LD%) by blending actual current-season stats with the
+    *pre-season* Marcel projection, using a fixed 12-unit Marcel-weight
+    formula. That is no longer done here.
 
-    Blends:
-      - 8 base components (K%, BB%, HBP%, ISO, BABIP, HR/FB, GB%, LD%)
-      - Auxiliary Phase 2b features (Contact%, Hard%, sc_ev50, etc.) with
-        per-feature stabilization multipliers
-      - ISO is park-neutralized before blending
+    Why: the pre-season projection this used to blend against was computed
+    once, before the season started (cutoff_year = last completed season),
+    and for players with little/no prior MLB history it was built mostly or
+    entirely from the MiLB-translated prior. marcel_batter_projections() is
+    now re-run with cutoff_year = the CURRENT season (raw_df already carries
+    that season's stats-to-date), and emits the current year directly at
+    year_offset=0 from a freshly recomputed year1_base — which re-derives
+    the Marcel weighted average AND the MiLB-prior blend weight
+    (mlb_weight = career_pa / (career_pa + 400)) using up-to-date career PA.
+    That is a strictly better-informed number than this function's blend
+    ever was, and — critically — it's now built from the *same* year1_base
+    that year_offset=1 (next year) also aggregates from. Blending here on
+    top of it would double-count the current season's PA through two
+    different, inconsistent formulas, which is exactly what caused the
+    current-year projection to diverge sharply from next year's.
 
-    After blending, derived stats (AVG, OBP, SLG, wOBA, wRC+, HR, 2B, 3B)
-    are recomposed from the blended components via compose_from_df.
-    xwOBA/xBA/xSLG override composed values when available.
+    preseason_df (the batter_predictions.csv rows for `current_year`) should
+    now be treated as already correct and passed through unmodified.
 
-    Only rows for current_year are modified; future years are untouched.
+    What THIS function still does: compute `war_proration`, i.e. each
+    player's actual banked WAR-to-date and their remaining-season fraction,
+    for use by prorate_current_year_war / prorate_current_year_salary. That
+    is a "how much season is left" calculation, unrelated to which rate-stat
+    projection is correct, and is unaffected by this change.
 
     Args:
-        preseason_df:    Marcel preseason projection DataFrame (Year == current_year rows
-                         are the blend target).
+        preseason_df:    Batter projection DataFrame (Year == current_year rows
+                         are read, not modified, to look up actual PA/WAR).
         actual_batting:  Current-season FanGraphs batting DataFrame.
-        current_year:    Season to blend (default CURRENT_YEAR).
+        current_year:    Season to prorate (default CURRENT_YEAR).
         team_games_map:  Dict mapping team abbreviation → games played this season.
         player_team_map: Dict mapping IDfg → team abbreviation.
 
     Returns:
-        Tuple (blended_df, war_proration_info)
+        Tuple (preseason_df unchanged, war_proration_info)
     """
     if current_year is None:
         current_year = CURRENT_YEAR
 
     use_team_remaining = bool(team_games_map and player_team_map)
 
-    df            = preseason_df.copy()
+    df            = preseason_df  # no longer copied/mutated — passthrough
     war_proration = {}
 
     actual_lookup = {
@@ -821,16 +849,13 @@ def blend_batter_projections(
         if pd.notna(row['IDfg'])
     }
 
-    blended_count   = 0
-    blended_indices = []
-    current_mask    = df['Year'] == current_year
+    current_mask = df['Year'] == current_year
+    prorated     = 0
 
     for idx in df.index[current_mask]:
-        pred_row = df.loc[idx]
-        idfg     = int(pred_row['IDfg'])
-        actual   = actual_lookup.get(idfg)
+        idfg   = int(df.at[idx, 'IDfg'])
+        actual = actual_lookup.get(idfg)
 
-        # Remaining-season fraction for WAR / playing-time proration
         if use_team_remaining:
             team           = player_team_map.get(idfg)
             remaining_frac = _team_remaining_fraction(team, team_games_map)
@@ -844,12 +869,6 @@ def blend_batter_projections(
             }
             continue
 
-        # Stash x-stats on the row (overrides composed values after blending)
-        for x_col in ('xBA', 'xSLG', 'xwOBA'):
-            val = _safe_float(actual.get(x_col))
-            if val is not None:
-                df.at[idx, x_col] = val
-
         actual_pa  = _safe_float(actual.get('PA', 0)) or 0.0
         actual_war = _safe_float(actual.get('WAR', 0)) or 0.0
 
@@ -860,51 +879,6 @@ def blend_batter_projections(
             }
             continue
 
-        # ── Marcel-consistent blend weight ───────────────────────────────
-        w = _marcel_blend_weight(actual_pa, FULL_SEASON_PA)
-        # w == 0 at season start, w == 5/12 ≈ 0.417 at full season
-
-        player_team = (player_team_map or {}).get(idfg) or actual.get('Team', '')
-        pf          = get_park_factor(player_team)
-
-        # ── Blend 8 base components ──────────────────────────────────────
-        for stat in BATTER_BASE_COMPONENTS:
-            if stat not in actual.index or stat not in df.columns:
-                continue
-            act_val = _safe_float(actual[stat])
-            pre_val = _safe_float(pred_row[stat])
-            if act_val is None or pre_val is None:
-                continue
-            # Park-neutralize actual ISO (preseason projections are park-neutral)
-            if stat == 'ISO' and pf != 1.0:
-                act_val = act_val / pf
-            df.at[idx, stat] = w * act_val + (1.0 - w) * pre_val
-
-        # ── Normalize batter batted-ball rates ───────────────────────────
-        # GB% + LD% are both directly blended; FB% is derived in composition,
-        # but we validate the sum here so compose_from_df gets clean inputs.
-        gb = _safe_float(df.at[idx, 'GB%']) or 0.0
-        ld = _safe_float(df.at[idx, 'LD%']) or 0.0
-        if (gb + ld) >= 1.0:
-            # Clamp to ensure at least a minimal FB% for the composition
-            total = gb + ld
-            df.at[idx, 'GB%'] = gb / total * 0.90
-            df.at[idx, 'LD%'] = ld / total * 0.90
-
-        # ── Blend auxiliary Phase 2b features ───────────────────────────
-        for feat in _BATTER_AUX_FEATURES:
-            if feat not in actual.index or feat not in df.columns:
-                continue
-            act_val = _safe_float(actual[feat])
-            pre_val = _safe_float(pred_row.get(feat))
-            if act_val is None or pre_val is None:
-                continue
-            multiplier = _BATTER_AUX_WEIGHT_MULTIPLIERS.get(feat, 1.0)
-            w_feat     = min(w * multiplier, MARCEL_CURRENT_FULL_WEIGHT / MARCEL_TOTAL_WEIGHT)
-            df.at[idx, feat] = w_feat * act_val + (1.0 - w_feat) * pre_val
-
-        blended_indices.append(idx)
-
         if not use_team_remaining:
             remaining_frac = max(0.0, 1.0 - actual_pa / FULL_SEASON_PA)
 
@@ -912,55 +886,12 @@ def blend_batter_projections(
             'actual_war':        actual_war,
             'remaining_fraction': remaining_frac,
         }
-        blended_count += 1
-
-    # ── Recompose derived stats from blended base components ─────────────
-    if blended_indices:
-        current_rows = df.loc[blended_indices].copy()
-
-        # Ensure HBP% exists for composition
-        if 'HBP%' not in current_rows.columns and 'HBP' in current_rows.columns:
-            pa_vals = pd.to_numeric(
-                current_rows.get('PA', FULL_SEASON_PA), errors='coerce'
-            ).fillna(FULL_SEASON_PA)
-            current_rows['HBP%'] = (
-                pd.to_numeric(current_rows['HBP'], errors='coerce').fillna(0) / pa_vals
-            )
-
-        recomposed = compose_from_df(current_rows)
-
-        # Apply x-stat overrides on top of recomposed values
-        for idx in current_rows.index:
-            row = df.loc[idx]     # read from main df (has the stashed x-stats)
-            xba   = _safe_float(row.get('xBA'))
-            xslg  = _safe_float(row.get('xSLG'))
-            xwoba = _safe_float(row.get('xwOBA'))
-
-            if xba is not None:
-                recomposed.at[idx, 'AVG'] = xba
-                recomposed.at[idx, 'xBA'] = xba
-            if xslg is not None:
-                recomposed.at[idx, 'SLG']  = xslg
-                recomposed.at[idx, 'xSLG'] = xslg
-            if xwoba is not None:
-                recomposed.at[idx, 'wOBA']  = xwoba
-                recomposed.at[idx, 'xwOBA'] = xwoba
-                recomposed.at[idx, 'wRC+']  = compose_wrc_plus(xwoba)
-
-        derived_cols = ['AVG', 'SLG', 'OBP', 'wOBA', 'wRC+', 'FB%',
-                        'HR', '2B', '3B', '1B', 'H']
-        for col in derived_cols:
-            if col in recomposed.columns:
-                df.loc[blended_indices, col] = recomposed[col].values
-
-        for col in ['xBA', 'xSLG', 'xwOBA']:
-            if col in recomposed.columns:
-                df.loc[blended_indices, col] = recomposed[col].values
+        prorated += 1
 
     logger.info(
-        f"Blended {blended_count} current-year batter projections "
-        f"(Marcel-weighted 8 base components → recompose; "
-        f"min_PA={MIN_BATTER_PA})"
+        f"Computed WAR proration for {prorated} current-year batters "
+        f"(rate-stat blending removed — Marcel year1_base is now the sole "
+        f"source of current-year rate stats; min_PA={MIN_BATTER_PA})"
     )
     return df, war_proration
 
@@ -1935,4 +1866,3 @@ def blend_baserunning_projections(baserunning_df, actual_batting, current_year=N
         f"(Marcel-weighted BsR per-650; min_PA={MIN_BASERUNNING_PA})"
     )
     return df
-
