@@ -60,7 +60,6 @@ from value_determination.calculate_war import (
     calculate_war_components, load_player_orgs, calculate_wrc_plus,
 )
 from value_determination.playing_time import estimate_playing_time
-from value_determination.milb_regression import apply_milb_regression
 from value_determination.pitcher_milb_regression import apply_pitcher_milb_regression
 from core.position_profiles import (
     build_position_profiles, load_fielding_history, load_batting_for_games,
@@ -273,7 +272,7 @@ def main():
         )
 
         # ============================================================
-        # Step 2.25: MiLB Regression for Low-Sample Batters & Pitchers
+        # Step 2.25: MiLB Regression for Low-Sample Pitchers
         # ============================================================
         # NOTE: this now runs BEFORE the pitcher WAR calculation below (it used
         # to run after). apply_pitcher_milb_regression blends/rewrites K%, BB%,
@@ -283,9 +282,16 @@ def main():
         # 2000 career TBF. Calculating WAR from FIP first and regressing FIP
         # afterward meant WAR was stale for exactly the pitchers this regression
         # exists to help.
-        logger.info("\n[Step 2.25/10] Applying MiLB regression to batter predictions...")
-        batter_data = apply_milb_regression(batter_data, CURRENT_YEAR)
-
+        #
+        # Batters no longer get a MiLB regression step here: it now happens
+        # once, upstream, in marcel_projections.py -- the MiLB prior is
+        # blended into (or used to seed) each batter's Year 1 baseline
+        # before batter_predictions.csv is even generated. Re-applying a
+        # second, independent MiLB translation here was double-regressing
+        # low-PA batters (and, for freshly-debuted rookies with 0 career
+        # PA, silently discarding the upstream projection entirely in favor
+        # of the older MLE_LEVEL_FACTORS translation). See milb_regression.py
+        # for the retired batter logic if it's ever needed for reference.
         logger.info("\n[Step 2.25/10] Applying MiLB regression to pitcher predictions...")
 
         # Load historical datasets
