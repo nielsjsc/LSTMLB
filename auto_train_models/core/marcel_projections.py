@@ -1356,6 +1356,8 @@ def marcel_batter_projections(
 
     all_predictions = []
     components = list(BATTER_BASE_COMPONENTS)
+    
+    profiles_to_project = []
 
     for player_id in current_ids:
         player_hist = raw_df[
@@ -1438,12 +1440,156 @@ def marcel_batter_projections(
             r_rate = career_profile['r_rate']
             base_woba = career_profile['base_woba']
 
-        # ---- Project forward ----
-        for year_offset in range(1, future_years + 1):
+        career_pa = float(career_profile['career_pa']) if career_profile is not None \
+            else float(hist_for_marcel['PA'].sum())
+
+        profiles_to_project.append({
+            'player_id': player_id,
+            'player_name': player_name,
+            'last_age': last_age,
+            'last_season': last_season,
+            'year1_base': year1_base,
+            'triple_share': triple_share,
+            'rbi_rate': rbi_rate,
+            'r_rate': r_rate,
+            'base_woba': base_woba,
+            'career_pa': career_pa,
+        })
+        
+    # ---- MiLB priors: blend into real-MLB profiles, inject pure prospects ----
+    # This is the single point where MiLB data informs the batter projection.
+    # There is no separate MiLB regression step downstream in value
+    # determination anymore — for players with real MLB history it used to
+    # get a second, independent MiLB translation applied on top of this one
+    # (double regression); now the two are unified here, once.
+    #
+    # Reliability weighting matches the old value-determination MiLB
+    # regression's constants (MLE_BLEND_PA=400, FULL_STABILIZATION_PA=1500)
+    # so the blend behaves the same way it used to at the boundaries —
+    # weight on the MLB side rises with career MLB PA, and above 1500
+    # career PA the MiLB prior is dropped entirely.
+    MILB_PRIOR_STABILIZATION_PA = 400
+    MILB_PRIOR_FULL_STABILIZATION_PA = 1500
+
+    try:
+        from core.milb_projections.batter_regression import (
+            get_milb_priors,
+            get_milb_priors_output_path,
+        )
+
+        milb_cache_path = get_milb_priors_output_path()
+        if milb_cache_path.exists():
+            logger.info(f"Loading cached MiLB priors from {milb_cache_path}...")
+            milb_df = pd.read_csv(milb_cache_path)
+        else:
+            # Expected to already exist — the daily pipeline's MiLB-priors
+            # step (project_milb.py / save_milb_priors) writes this cache
+            # before Predict runs. Fall back to a live computation so
+            # standalone/dev runs of predict_models.py still work.
+            logger.warning(
+                f"No cached MiLB priors found at {milb_cache_path}; "
+                f"computing live (this is expected outside the daily pipeline, "
+                f"but means the cache step didn't run beforehand)."
+            )
+            milb_df = get_milb_priors(cutoff_year + 1, exclude_mlb_experienced=False)
+
+        if not milb_df.empty:
+            prior_col_map = {
+                'K%': 'Proj_K%', 'BB%': 'Proj_BB%', 'HBP%': 'Proj_HBP%',
+                'ISO': 'Proj_ISO', 'BABIP': 'Proj_BABIP', 'HR/FB': 'Proj_HR/FB',
+                'GB%': 'Proj_GB%', 'LD%': 'Proj_LD%',
+            }
+            milb_priors_by_id = {
+                int(row['IDfg']): {comp: float(row[col]) for comp, col in prior_col_map.items()}
+                for _, row in milb_df.iterrows()
+            }
+            milb_meta_by_id = milb_df.set_index('IDfg')[['Name', 'Age_in_Latest_Season']].to_dict('index')
+
+            existing_ids = {p['player_id'] for p in profiles_to_project}
+
+            # 1. Blend the MiLB prior into every profile that already has a
+            #    real-MLB-based Marcel projection, weighted by career MLB PA.
+            blended = 0
+            for profile in profiles_to_project:
+                prior = milb_priors_by_id.get(profile['player_id'])
+                if prior is None:
+                    continue
+                career_pa = profile.get('career_pa', MILB_PRIOR_FULL_STABILIZATION_PA)
+                if career_pa >= MILB_PRIOR_FULL_STABILIZATION_PA:
+                    continue
+                mlb_weight = career_pa / (career_pa + MILB_PRIOR_STABILIZATION_PA)
+                yb = profile['year1_base']
+                profile['year1_base'] = {
+                    comp: mlb_weight * yb.get(comp, BATTER_LEAGUE_AVG[comp])
+                          + (1.0 - mlb_weight) * prior[comp]
+                    for comp in BATTER_BASE_COMPONENTS
+                }
+                blended += 1
+            logger.info(f"Blended MiLB priors into {blended} MLB-based profiles "
+                        f"(career-PA-weighted, stabilization={MILB_PRIOR_STABILIZATION_PA} PA).")
+
+            # 2. Inject pure prospects — players with a MiLB prior but no
+            #    MLB-based profile at all — using the prior as-is.
+            injected = 0
+            for pid, prior in milb_priors_by_id.items():
+                if pid in existing_ids:
+                    continue
+                meta = milb_meta_by_id.get(pid, {})
+                profiles_to_project.append({
+                    'player_id': pid,
+                    'player_name': str(meta.get('Name', pid)),
+                    'last_age': float(meta.get('Age_in_Latest_Season', 21.0)),
+                    'last_season': cutoff_year,
+                    'year1_base': prior,
+                    'triple_share': DEFAULT_TRIPLE_SHARE,
+                    'rbi_rate': 75.0,
+                    'r_rate': 75.0,
+                    'base_woba': BATTER_LEAGUE_AVG.get('ISO', 0.154) + 0.248,
+                    'career_pa': 0.0,
+                })
+                injected += 1
+            logger.info(f"Injected {injected} pure MiLB prospects with no MLB profile.")
+    except Exception as e:
+        logger.error(f"Failed to apply MiLB priors: {e}", exc_info=True)
+
+    # ---- Project forward for all profiles (MLB + MiLB) ----
+    for profile in profiles_to_project:
+        player_id = profile['player_id']
+        player_name = profile['player_name']
+        last_age = profile['last_age']
+        last_season = profile['last_season']
+        year1_base = profile['year1_base']
+        triple_share = profile['triple_share']
+        rbi_rate = profile['rbi_rate']
+        r_rate = profile['r_rate']
+        base_woba = profile['base_woba']
+
+        # year_offset=0 is the CURRENT season (cutoff_year itself). It is
+        # emitted directly from year1_base with zero aging applied, since
+        # year1_base already reflects the player's in-season-to-date
+        # performance (via the PA-weighted Marcel average + MiLB-prior
+        # blend above) — this IS the current-season projection. Previously
+        # this row didn't exist here at all; a separate module (ros.py)
+        # patched a *stale* preseason projection with actual current-season
+        # stats using a different, inconsistent weighting formula, which is
+        # what caused the current-year number to diverge from year_offset=1
+        # (next year) even though both nominally reflect the same season's
+        # data. Emitting year_offset=0 here makes this function the single
+        # source of truth for every year, including the current one, so
+        # cutoff_year and cutoff_year+1 can only differ by one year of
+        # aging — never by a blending-formula mismatch.
+        #
+        # NOTE: this requires cutoff_year to be set to the CURRENT
+        # (in-progress) season, with raw_df already containing that
+        # season's stats-to-date as the most recent row per player — not
+        # the last *completed* season. See predict_models.py.
+        for year_offset in range(0, future_years + 1):
             proj_year = cutoff_year + year_offset
             proj_age = last_age + (cutoff_year - last_season) + year_offset
 
             # Start from multivariate Year 1 base, apply cumulative aging
+            # (aging_total is 0.0 at year_offset=0 by construction, since
+            # range(1, 1) is empty — this year IS year1_base, unmodified)
             projected = {}
             for stat in components:
                 stat_curves = batting_curves.get(stat, {})
