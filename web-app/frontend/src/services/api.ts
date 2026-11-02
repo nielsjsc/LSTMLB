@@ -5,7 +5,7 @@ const API_BASE = CONFIG_API_BASE;
 const createApiHeaders = () => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
+
     'User-Agent': 'LongballAnalytics/1.0',
   };
   // Attach API key when configured (production)

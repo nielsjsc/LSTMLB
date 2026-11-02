@@ -1,11 +1,28 @@
-INSTRUCTIONS FOR RELOADING LOCAL HOST AND NGROK:
+INSTRUCTIONS FOR RUNNING LOCAL BACKEND WITH CLOUDFLARE TUNNEL:
 
-1. navigate to web-app\backend
-2. activate venv: venv\Scripts\activate
-3. launch backend: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-4. (in new cmd) launch ngrok: ngrok http 8000
-5. get new ngrok url (should look like: https://8304133ee795.ngrok-free.app)
-   and replace all instances of old url in codebase
-6. replace vite api url on netlify with new ngrok: https://app.netlify.com/projects/longball-analytics/configuration/env#VITE_ENV
-7. push changes to github
-8. verify on netlify that the build succeeded
+--- DAILY STARTUP (Once Setup Is Complete) ---
+1. Navigate to web-app\backend
+2. Activate venv: venv\Scripts\activate
+3. Launch backend: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+4. (In a second terminal) Launch tunnel: cloudflared tunnel run longball-api
+   (Because the URL https://api.baseballvalues.com is permanent, you NEVER need to update Netlify or rebuild!)
+
+--- ONE-TIME SETUP FOR PERMANENT SUBDOMAIN (api.baseballvalues.com) ---
+1. Create a free Cloudflare account at https://dash.cloudflare.com and add baseballvalues.com (Free plan).
+   - Cloudflare will automatically import your existing Netlify DNS records so baseballvalues.com stays live.
+   - Update your domain registrar's nameservers to the two Cloudflare nameservers shown, or if using Netlify DNS, delegate/transfer DNS to Cloudflare.
+2. Authenticate cloudflared on your PC:
+   cloudflared tunnel login
+3. Create the named tunnel:
+   cloudflared tunnel create longball-api
+   (Note the <TUNNEL-UUID> and credentials .json path printed in the terminal)
+4. Route the DNS subdomain to your tunnel:
+   cloudflared tunnel route dns longball-api api.baseballvalues.com
+5. Create C:\Users\nlsc\.cloudflared\config.yml with:
+   tunnel: longball-api
+   credentials-file: C:\Users\nlsc\.cloudflared\<TUNNEL-UUID>.json
+   ingress:
+     - hostname: api.baseballvalues.com
+       service: http://localhost:8000
+     - service: http_status:404
+6. Set VITE_API_URL=https://api.baseballvalues.com in Netlify environment variables once, and trigger one final deploy.

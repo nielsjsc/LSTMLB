@@ -84,7 +84,7 @@ origins = [
     FRONTEND_URL,
     "https://baseballvalues.com",
     "https://longball-analytics.netlify.app",  # Add your Netlify URL
-    "https://*.ngrok-free.app",  # Allow any ngrok subdomain
+    "https://www.baseballvalues.com",
 ]
 
 if RAILWAY_STATIC_URL:

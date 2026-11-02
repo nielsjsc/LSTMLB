@@ -4,11 +4,8 @@ const getApiUrl = (): string => {
     return 'http://localhost:8000';
   }
   
-  // In production, use environment variable with fallback to current ngrok
-  const apiUrl = import.meta.env.VITE_API_URL || 'https://28a8-174-21-17-205.ngrok-free.app';
-  if (!import.meta.env.VITE_API_URL) {
-    console.warn('VITE_API_URL not set - using hardcoded ngrok URL');
-  }
+  // In production, use environment variable with fallback to permanent custom API subdomain
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://api.baseballvalues.com';
   return apiUrl;
 };
 
