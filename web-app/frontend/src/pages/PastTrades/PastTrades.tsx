@@ -14,9 +14,9 @@ const fmtDate = (d: string) => {
 const fmtWar = (n: number | null | undefined) => (n == null ? '—' : Number(n).toFixed(1));
 
 const MLB_TEAMS = [
-  'ARI','ATL','BAL','BOS','CHC','CHW','CIN','CLE','COL','DET',
-  'HOU','KCR','LAA','LAD','MIA','MIL','MIN','NYM','NYY','OAK',
-  'PHI','PIT','SDP','SFG','SEA','STL','TBR','TEX','TOR','WSN',
+  'ARI','ATL','ATH','BAL','BOS','CHC','CHW','CIN','CLE','COL',
+  'DET','HOU','KC','LAA','LAD','MIA','MIL','MIN','NYM','NYY',
+  'PHI','PIT','SD','SEA','SF','STL','TB','TEX','TOR','WSH',
 ];
 
 const YEARS = Array.from({ length: CURRENT_YEAR - 2013 }, (_, i) => CURRENT_YEAR - 1 - i);
