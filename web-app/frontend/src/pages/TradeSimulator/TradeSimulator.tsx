@@ -99,19 +99,25 @@ const TradeAnalyzer = () => {
     
     setLoading(true);
     try {
-      const team1Assets = currentTrade.teamAReceiving.map(a => ({
+      const sideAAssets = currentTrade.teamAReceiving.map(a => ({
         name: a.asset.name,
         isProspect: a.isProspect,
-        team: currentTrade.teamA!.toLowerCase()
+        team: ('team' in a.asset ? a.asset.team : a.asset.org)?.toUpperCase(),
+        fg_id: !a.isProspect && 'fg_id' in a.asset && typeof a.asset.fg_id === 'number' ? a.asset.fg_id : undefined,
+        mlbam_id: a.asset.mlbam_id ?? undefined,
+        prospect_id: a.isProspect ? a.asset.id : undefined,
       }));
-  
-      const team2Assets = currentTrade.teamBReceiving.map(a => ({
+
+      const sideBAssets = currentTrade.teamBReceiving.map(a => ({
         name: a.asset.name,
         isProspect: a.isProspect,
-        team: currentTrade.teamB!.toLowerCase()
+        team: ('team' in a.asset ? a.asset.team : a.asset.org)?.toUpperCase(),
+        fg_id: !a.isProspect && 'fg_id' in a.asset && typeof a.asset.fg_id === 'number' ? a.asset.fg_id : undefined,
+        mlbam_id: a.asset.mlbam_id ?? undefined,
+        prospect_id: a.isProspect ? a.asset.id : undefined,
       }));
-  
-      const result = await analyzeTrade(team1Assets, team2Assets);
+
+      const result = await analyzeTrade(sideAAssets, sideBAssets);
       setAnalysis(result);
       setError(null);
     } catch (err) {
