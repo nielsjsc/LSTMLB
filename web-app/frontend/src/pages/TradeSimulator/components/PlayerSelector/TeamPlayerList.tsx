@@ -32,14 +32,12 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
   const filteredPlayers = availablePlayers
     .filter(p => !receivingAssets.some(a => a.asset.name === p.name))
     .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    // Sorted by WAR so the best players surface first, even though we
-    // don't display the number itself in this list anymore.
-    .sort((a, b) => ((b.war_bat || b.war_pit || 0) - (a.war_bat || a.war_pit || 0)));
+    .sort((a, b) => ((b.trade_value ?? 0) - (a.trade_value ?? 0)));
 
   const filteredProspects = availableProspects
     .filter(p => !receivingAssets.some(a => a.asset.name === p.name))
     .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    .sort((a, b) => ((b.value || 0) - (a.value || 0)));
+    .sort((a, b) => ((b.trade_value || 0) - (a.trade_value || 0)));
 
   return (
     <div className="flex flex-col h-full">
@@ -64,11 +62,12 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
           </div>
         ) : (
           receivingAssets.map(({ asset, isProspect }) => {
-            const prospectValue = isProspect && 'value' in asset ? (asset as Prospect).value : null;
+            const prospectValue = isProspect ? (asset as Prospect).trade_value : null;
+            const linkId = asset.mlbam_id || asset.id;
 
             return (
               <div
-                key={'playerId' in asset ? asset.playerId : ('mlb_id' in asset ? asset.mlb_id : asset.real_id)}
+                key={`${isProspect ? 'p' : 'm'}-${linkId}-${asset.name}`}
                 className="group relative flex items-center gap-3 p-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-all duration-200"
               >
                 {/* Position badge */}
@@ -78,9 +77,9 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
 
                 {/* Player info */}
                 <div className="flex-1 min-w-0">
-                  {'id' in asset ? (
+                  {linkId ? (
                     <Link
-                      to={`/players/${(asset as Player).id}`}
+                      to={`/players/${linkId}`}
                       className="text-sm font-medium text-gray-900 hover:text-brand-500 transition-colors truncate block"
                     >
                       {asset.name}
@@ -168,7 +167,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
               ) : (
                 filteredPlayers.slice(0, 50).map(player => (
                   <button
-                    key={player.mlb_id || player.real_id}
+                    key={player.mlbam_id || player.fg_id}
                     onClick={() => {
                       onAssetSelect(player, false);
                       setSearchQuery('');
@@ -179,6 +178,11 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
                       {player.position}
                     </span>
                     <span className="flex-1 text-sm text-gray-800 truncate">{player.name}</span>
+                    {player.trade_value != null && !isNaN(player.trade_value) && (
+                      <span className="text-xs font-medium text-gray-500 tabular-nums">
+                        ${(player.trade_value / 1_000_000).toFixed(1)}M
+                      </span>
+                    )}
                   </button>
                 ))
               )
@@ -188,7 +192,7 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
               ) : (
                 filteredProspects.slice(0, 50).map(prospect => (
                   <button
-                    key={prospect.playerId}
+                    key={prospect.id}
                     onClick={() => {
                       onAssetSelect(prospect, true);
                       setSearchQuery('');
@@ -203,9 +207,9 @@ const TeamPlayerList: React.FC<TeamPlayerListProps> = ({
                       <span className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-1 py-0.5 rounded font-medium">
                         FV {prospect.fv}
                       </span>
-                      {prospect.value && !isNaN(prospect.value) && (
+                      {prospect.trade_value != null && !isNaN(prospect.trade_value) && (
                         <span className="text-xs font-medium text-gray-500 tabular-nums">
-                          ${(prospect.value / 1_000_000).toFixed(1)}M
+                          ${(prospect.trade_value / 1_000_000).toFixed(1)}M
                         </span>
                       )}
                     </div>
