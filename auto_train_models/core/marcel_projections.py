@@ -1,14 +1,13 @@
 """
-Marcel-style projection engine for fielding and baserunning.
+Unified Component-Based Marcel Projection Engine
+================================================
 
-Instead of autoregressive LSTM predictions, this uses the classic Marcel method:
-1. Weighted average of recent seasons (5/4/3 weighting, sample-size weighted)
-2. Regress toward zero (league average for fielding/baserunning)
-3. Apply empirically-derived aging curves
-4. Project forward year-by-year with aging adjustments
-
-This produces more realistic projections for defensive metrics and baserunning,
-which are too noisy for LSTM models to learn meaningful signal from limited data.
+Projects MLB batting, pitching, fielding, and baserunning components forward
+up to 15 years using:
+  1. 3-year recency- and volume-weighted averages (5/4/3 weights)
+  2. Sample-size-scaled Statcast multivariate Year-1 equations
+  3. Rookie/FV talent priors for low-experience MLB players (<1 full season)
+  4. Empirically derived, bounded aging curves
 """
 
 import json
@@ -1332,20 +1331,20 @@ def marcel_batter_projections(
     ]['IDfg'].unique()
     current_ids = set(current_players)
 
-    # Roster recovery: add roster players from history
+    # Roster recovery: add MLB-debuted roster players from history (even tiny stints >= 1 PA)
     if roster_ids is not None:
         missing = roster_ids - current_ids
         if missing:
             historical = set(raw_df[
                 (raw_df['IDfg'].isin(missing)) &
                 (raw_df['Season'] <= cutoff_year) &
-                (raw_df['PA'] >= 50)
+                (raw_df['PA'] >= 1)
             ]['IDfg'].unique())
             current_ids = current_ids | historical
             if historical:
                 logger.info(f"Marcel batting: recovered {len(historical)} roster players from history")
 
-    logger.info(f"Marcel batting: {len(current_ids)} players")
+    logger.info(f"Marcel batting: {len(current_ids)} MLB-debuted players")
 
     # All features needed by the multivariate equations
     all_eq_features = set()
@@ -1365,6 +1364,14 @@ def marcel_batter_projections(
             (raw_df['Season'] <= cutoff_year) &
             (raw_df['PA'] >= 50)
         ].copy()
+
+        # Fallback for freshly debuted roster players (<50 PA in any single season)
+        if player_hist.empty and roster_ids is not None and player_id in roster_ids:
+            player_hist = raw_df[
+                (raw_df['IDfg'] == player_id) &
+                (raw_df['Season'] <= cutoff_year) &
+                (raw_df['PA'] >= 1)
+            ].copy()
 
         if player_hist.empty:
             continue
@@ -1456,103 +1463,63 @@ def marcel_batter_projections(
             'career_pa': career_pa,
         })
         
-    # ---- MiLB priors: blend into real-MLB profiles, inject pure prospects ----
-    # This is the single point where MiLB data informs the batter projection.
-    # There is no separate MiLB regression step downstream in value
-    # determination anymore — for players with real MLB history it used to
-    # get a second, independent MiLB translation applied on top of this one
-    # (double regression); now the two are unified here, once.
-    #
-    # Reliability weighting matches the old value-determination MiLB
-    # regression's constants (MLE_BLEND_PA=400, FULL_STABILIZATION_PA=1500)
-    # so the blend behaves the same way it used to at the boundaries —
-    # weight on the MLB side rises with career MLB PA, and above 1500
-    # career PA the MiLB prior is dropped entirely.
-    MILB_PRIOR_STABILIZATION_PA = 400
-    MILB_PRIOR_FULL_STABILIZATION_PA = 1500
+    # ---- Rookie / FV Talent Prior (MLB-debuted players with < 600 career PA) ----
+    # Standard Marcel regresses small samples toward BATTER_LEAGUE_AVG (~100 wRC+),
+    # which is a survivorship-biased pool of established MLB regulars. Unranked
+    # call-ups truly project closer to replacement/fringe (~89 wRC+), while top
+    # scouting prospects merit a stronger prior proportional to their FV grade.
+    # Pure prospects with 0 MLB games are intentionally NOT injected here — they
+    # belong exclusively in the Prospect Valuation module.
+    ROOKIE_STABILIZATION_PA = 600.0
+    UNRANKED_BATTER_PRIOR = {
+        'K%': 0.255, 'BB%': 0.074, 'HBP%': 0.011, 'ISO': 0.128,
+        'BABIP': 0.285, 'HR/FB': 0.105, 'GB%': 0.440, 'LD%': 0.205,
+    }
+
+    def _batter_fv_component_prior(fv: Optional[float]) -> Dict[str, float]:
+        if fv is None or fv < 40.0:
+            return UNRANKED_BATTER_PRIOR
+        # Smooth linear interpolation from FV 40 (~91 wRC+) to FV 70 (~128 wRC+)
+        t = float(np.clip((fv - 40.0) / 30.0, 0.0, 1.0))
+        return {
+            'K%':    0.250 - 0.055 * t,   # 25.0% -> 19.5%
+            'BB%':   0.075 + 0.030 * t,   #  7.5% -> 10.5%
+            'HBP%':  0.012,
+            'ISO':   0.132 + 0.078 * t,   #  .132 -> .210
+            'BABIP': 0.287 + 0.021 * t,   #  .287 -> .308
+            'HR/FB': 0.108 + 0.052 * t,   # 10.8% -> 16.0%
+            'GB%':   0.438 - 0.028 * t,
+            'LD%':   0.206 + 0.012 * t,
+        }
 
     try:
-        from core.milb_projections.batter_regression import (
-            get_milb_priors,
-            get_milb_priors_output_path,
-        )
+        from core.id_crosswalk import load_recent_prospect_info
+        from core.name_utils import name_key as _nk_fn
+        name_to_fg = {_nk_fn(p['player_name']): int(p['player_id']) for p in profiles_to_project}
+        prospect_lookup = load_recent_prospect_info(cutoff_year, recency_years=3, name_to_fg_fallback=name_to_fg)
+    except Exception as exc:
+        logger.warning(f"Could not load prospect info for batter rookie priors: {exc}")
+        prospect_lookup = {}
 
-        milb_cache_path = get_milb_priors_output_path()
-        if milb_cache_path.exists():
-            logger.info(f"Loading cached MiLB priors from {milb_cache_path}...")
-            milb_df = pd.read_csv(milb_cache_path)
-        else:
-            # Expected to already exist — the daily pipeline's MiLB-priors
-            # step (project_milb.py / save_milb_priors) writes this cache
-            # before Predict runs. Fall back to a live computation so
-            # standalone/dev runs of predict_models.py still work.
-            logger.warning(
-                f"No cached MiLB priors found at {milb_cache_path}; "
-                f"computing live (this is expected outside the daily pipeline, "
-                f"but means the cache step didn't run beforehand)."
-            )
-            milb_df = get_milb_priors(cutoff_year + 1, exclude_mlb_experienced=False)
+    rookie_adjusted = 0
+    for profile in profiles_to_project:
+        career_pa = float(profile.get('career_pa', ROOKIE_STABILIZATION_PA))
+        if career_pa >= ROOKIE_STABILIZATION_PA:
+            continue
+        exp_weight = float(np.clip(career_pa / ROOKIE_STABILIZATION_PA, 0.0, 1.0))
+        p_info = prospect_lookup.get(int(profile['player_id']))
+        fv_val = p_info['fv'] if p_info else None
+        prior = _batter_fv_component_prior(fv_val)
+        yb = profile['year1_base']
+        profile['year1_base'] = {
+            comp: exp_weight * yb.get(comp, BATTER_LEAGUE_AVG[comp]) + (1.0 - exp_weight) * prior[comp]
+            for comp in BATTER_BASE_COMPONENTS
+        }
+        rookie_adjusted += 1
 
-        if not milb_df.empty:
-            prior_col_map = {
-                'K%': 'Proj_K%', 'BB%': 'Proj_BB%', 'HBP%': 'Proj_HBP%',
-                'ISO': 'Proj_ISO', 'BABIP': 'Proj_BABIP', 'HR/FB': 'Proj_HR/FB',
-                'GB%': 'Proj_GB%', 'LD%': 'Proj_LD%',
-            }
-            milb_priors_by_id = {
-                int(row['IDfg']): {comp: float(row[col]) for comp, col in prior_col_map.items()}
-                for _, row in milb_df.iterrows()
-            }
-            milb_meta_by_id = milb_df.set_index('IDfg')[['Name', 'Age_in_Latest_Season']].to_dict('index')
+    logger.info(f"Applied Rookie/FV talent priors to {rookie_adjusted} batters with <{int(ROOKIE_STABILIZATION_PA)} career PA")
 
-            existing_ids = {p['player_id'] for p in profiles_to_project}
-
-            # 1. Blend the MiLB prior into every profile that already has a
-            #    real-MLB-based Marcel projection, weighted by career MLB PA.
-            blended = 0
-            for profile in profiles_to_project:
-                prior = milb_priors_by_id.get(profile['player_id'])
-                if prior is None:
-                    continue
-                career_pa = profile.get('career_pa', MILB_PRIOR_FULL_STABILIZATION_PA)
-                if career_pa >= MILB_PRIOR_FULL_STABILIZATION_PA:
-                    continue
-                mlb_weight = career_pa / (career_pa + MILB_PRIOR_STABILIZATION_PA)
-                yb = profile['year1_base']
-                profile['year1_base'] = {
-                    comp: mlb_weight * yb.get(comp, BATTER_LEAGUE_AVG[comp])
-                          + (1.0 - mlb_weight) * prior[comp]
-                    for comp in BATTER_BASE_COMPONENTS
-                }
-                blended += 1
-            logger.info(f"Blended MiLB priors into {blended} MLB-based profiles "
-                        f"(career-PA-weighted, stabilization={MILB_PRIOR_STABILIZATION_PA} PA).")
-
-            # 2. Inject pure prospects — players with a MiLB prior but no
-            #    MLB-based profile at all — using the prior as-is.
-            injected = 0
-            for pid, prior in milb_priors_by_id.items():
-                if pid in existing_ids:
-                    continue
-                meta = milb_meta_by_id.get(pid, {})
-                profiles_to_project.append({
-                    'player_id': pid,
-                    'player_name': str(meta.get('Name', pid)),
-                    'last_age': float(meta.get('Age_in_Latest_Season', 21.0)),
-                    'last_season': cutoff_year,
-                    'year1_base': prior,
-                    'triple_share': DEFAULT_TRIPLE_SHARE,
-                    'rbi_rate': 75.0,
-                    'r_rate': 75.0,
-                    'base_woba': BATTER_LEAGUE_AVG.get('ISO', 0.154) + 0.248,
-                    'career_pa': 0.0,
-                })
-                injected += 1
-            logger.info(f"Injected {injected} pure MiLB prospects with no MLB profile.")
-    except Exception as e:
-        logger.error(f"Failed to apply MiLB priors: {e}", exc_info=True)
-
-    # ---- Project forward for all profiles (MLB + MiLB) ----
+    # ---- Project forward for all MLB-debuted profiles ----
     for profile in profiles_to_project:
         player_id = profile['player_id']
         player_name = profile['player_name']
@@ -1874,21 +1841,24 @@ def _apply_pitcher_multivariate_equations(
     recent_features: Dict[str, float],
     marcel_base: Dict[str, float],
     role: str,
+    recent_ip: float = 150.0,
 ) -> Dict[str, float]:
     """
     Apply Phase 2b multivariate regression equations for a pitcher.
 
-    Same R²-weighted blending as batters:
-      projected = r2 × multivariate + (1 − r2) × marcel_base
-
-    Uses SP or RP equations based on role.
+    Scales R² by sample-size reliability (min(1, recent_ip / stab_ip)) so
+    small-sample stints (e.g. 15 IP of high Stuff+) cannot override Marcel's
+    regressed estimate.
     """
     equations = PITCHER_SP_MULTIVARIATE_EQUATIONS if role == 'SP' else PITCHER_RP_MULTIVARIATE_EQUATIONS
+    stab_ip = 100.0 if role == 'SP' else 50.0
+    ip_reliability = min(1.0, max(0.0, float(recent_ip)) / stab_ip)
 
     result = {}
     for component, equation in equations.items():
         intercept = equation['_intercept']
         r2 = equation['_r2']
+        effective_r2 = r2 * ip_reliability
 
         # Compute multivariate prediction
         mv_pred = intercept
@@ -1900,9 +1870,9 @@ def _apply_pitcher_multivariate_equations(
                 val = marcel_base.get(feat, _PITCHER_AUX_FEATURE_LEAGUE_AVG.get(feat, 0.0))
             mv_pred += coef * val
 
-        # R²-weighted blend
+        # Sample-scaled R² blend
         mb = marcel_base.get(component, PITCHER_LEAGUE_AVG.get(component, 0.0))
-        result[component] = r2 * mv_pred + (1.0 - r2) * mb
+        result[component] = effective_r2 * mv_pred + (1.0 - effective_r2) * mb
 
         # Clip to physical bounds
         if component in PITCHER_BOUNDS:
@@ -2110,7 +2080,7 @@ def marcel_pitcher_projections(
                 player_roles[pid] = 'RP'
                 qualifying_ids.add(pid)
 
-    # Roster recovery
+    # Roster recovery (include MLB-debuted roster pitchers with >= 1 IP)
     if roster_ids is not None:
         missing = roster_ids - qualifying_ids
         if missing:
@@ -2120,7 +2090,7 @@ def marcel_pitcher_projections(
                 phist = raw_df[
                     (raw_df['IDfg'] == pid) &
                     (raw_df['Season'] <= cutoff_year) &
-                    (raw_df['IP'] >= 10)
+                    (raw_df['IP'] >= 1.0)
                 ]
                 if phist.empty:
                     continue
@@ -2129,15 +2099,54 @@ def marcel_pitcher_projections(
                     gs_rate = last['GS'] / last['G']
                     player_roles[pid] = 'SP' if gs_rate >= 0.8 else 'RP'
                     qualifying_ids.add(pid)
-            recovered = len(qualifying_ids) - len(player_roles)
-            if recovered > 0:
-                logger.info(f"Marcel pitching: recovered {recovered} roster pitchers from history")
 
     logger.info(f"Marcel pitching: {len(player_roles)} pitchers "
                 f"({sum(1 for r in player_roles.values() if r == 'SP')} SP, "
                 f"{sum(1 for r in player_roles.values() if r == 'RP')} RP)")
 
+    try:
+        from core.id_crosswalk import load_recent_prospect_info
+        pitcher_prospect_lookup = load_recent_prospect_info(cutoff_year + 1, recency_years=3)
+    except Exception as exc:
+        logger.warning(f"Could not load prospect info for pitcher rookie priors: {exc}")
+        pitcher_prospect_lookup = {}
+
+    def _pitcher_fv_component_prior(fv: Optional[float], p_role: str) -> Dict[str, float]:
+        if fv is None or fv < 40.0:
+            if p_role == 'SP':
+                return {
+                    'K%': 0.198, 'BB%': 0.092, 'HBP%': 0.011, 'BABIP': 0.296,
+                    'HR/FB': 0.126, 'GB%': 0.425, 'FB%': 0.355, 'LD%': 0.220,
+                }
+            return {
+                'K%': 0.222, 'BB%': 0.096, 'HBP%': 0.012, 'BABIP': 0.292,
+                'HR/FB': 0.120, 'GB%': 0.430, 'FB%': 0.350, 'LD%': 0.220,
+            }
+        t = float(np.clip((fv - 40.0) / 30.0, 0.0, 1.0))
+        if p_role == 'SP':
+            return {
+                'K%':    0.205 + 0.075 * t,   # 20.5% -> 28.0%
+                'BB%':   0.090 - 0.022 * t,   #  9.0% ->  6.8%
+                'HBP%':  0.010,
+                'BABIP': 0.295 - 0.010 * t,
+                'HR/FB': 0.123 - 0.018 * t,
+                'GB%':   0.430 + 0.025 * t,
+                'FB%':   0.350 - 0.025 * t,
+                'LD%':   0.220,
+            }
+        return {
+            'K%':    0.230 + 0.085 * t,
+            'BB%':   0.095 - 0.020 * t,
+            'HBP%':  0.011,
+            'BABIP': 0.292 - 0.012 * t,
+            'HR/FB': 0.118 - 0.015 * t,
+            'GB%':   0.435 + 0.020 * t,
+            'FB%':   0.345 - 0.020 * t,
+            'LD%':   0.220,
+        }
+
     all_predictions = []
+    rookie_pitchers_adjusted = 0
 
     # Collect all features used by SP and RP multivariate equations
     all_pitcher_eq_features = set()
@@ -2155,6 +2164,13 @@ def marcel_pitcher_projections(
             (raw_df['Season'] <= cutoff_year) &
             (raw_df['IP'] >= min_ip_season)
         ].copy()
+
+        if player_hist.empty and roster_ids is not None and player_id in roster_ids:
+            player_hist = raw_df[
+                (raw_df['IDfg'] == player_id) &
+                (raw_df['Season'] <= cutoff_year) &
+                (raw_df['IP'] >= 1.0)
+            ].copy()
 
         if player_hist.empty:
             continue
@@ -2203,8 +2219,27 @@ def marcel_pitcher_projections(
             seasons_data, stats, 'IP', PITCHER_REGRESSION_IP, PITCHER_LEAGUE_AVG
         )
 
-        # Apply multivariate equations → Year 1 base (role-specific)
-        year1_base = _apply_pitcher_multivariate_equations(recent_features, marcel_base, role)
+        # Apply multivariate equations → Year 1 base (role-specific, sample-scaled)
+        recent_ip = float(most_recent.get('IP', 100.0))
+        year1_base = _apply_pitcher_multivariate_equations(
+            recent_features, marcel_base, role, recent_ip=recent_ip
+        )
+
+        # Apply Rookie / FV Talent Prior for low-volume MLB pitchers
+        career_ip = float(raw_df[
+            (raw_df['IDfg'] == player_id) & (raw_df['Season'] <= cutoff_year)
+        ]['IP'].fillna(0).sum())
+        rookie_stab_ip = 150.0 if role == 'SP' else 70.0
+        if career_ip < rookie_stab_ip:
+            exp_w = float(np.clip(career_ip / rookie_stab_ip, 0.0, 1.0))
+            p_info = pitcher_prospect_lookup.get(int(player_id))
+            fv_val = p_info['fv'] if p_info else None
+            prior = _pitcher_fv_component_prior(fv_val, role)
+            year1_base = {
+                st: exp_w * year1_base[st] + (1.0 - exp_w) * prior[st]
+                for st in stats
+            }
+            rookie_pitchers_adjusted += 1
 
         # Career ERA-FIP gap
         era_fip_gap = _compute_career_era_fip_gap_marcel(player_hist)
