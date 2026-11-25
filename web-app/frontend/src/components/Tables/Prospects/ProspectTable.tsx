@@ -20,7 +20,6 @@ interface ProspectsTableProps {
 const ProspectsTable: React.FC<ProspectsTableProps> = ({ 
   data, 
   playerType, 
-  year,
   currentPage,
   totalPages,
   onPageChange,
@@ -34,11 +33,13 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
     { key: 'name', label: 'Name' },
     { key: 'org', label: 'Team' },
     { key: 'position', label: 'Pos' },
+    { key: 'level', label: 'Lvl' },
     { key: 'age', label: 'Age' },
     { key: 'fv', label: 'FV' },
     { key: 'top_100', label: 'T100' },
     { key: 'org_rank', label: 'Org#' },
-    { key: 'value', label: 'Value ($M)' },
+    { key: 'trade_value', label: 'Value ($M)' },
+    { key: 'trade_value_p90', label: 'P10–P90 ($M)' },
   ];
 
   const hitterGradeHeaders = [
@@ -122,7 +123,7 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
     if (!stats) return null;
     // Map table key → stats object key
     const statKey = key === 'spd_stat' ? 'spd' : key;
-    return (stats as Record<string, unknown>)[statKey] as number | string | undefined | null;
+    return (stats as unknown as Record<string, unknown>)[statKey] as number | string | undefined | null;
   };
 
   const getCellValue = (player: typeof data.players[0], key: string): string => {
@@ -130,25 +131,26 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
       case 'name': return player.name;
       case 'org': return player.org;
       case 'position': return player.position;
+      case 'level': return player.level || '-';
       case 'age': return player.age ? Math.floor(player.age).toString() : '-';
       case 'fv': return player.fv || '-';
       case 'top_100': return player.top_100 ? '#' + player.top_100 : '-';
       case 'org_rank': return player.org_rank ? '#' + player.org_rank : '-';
-      case 'value': return formatValue(player.value);
+      case 'trade_value': return formatValue(player.trade_value);
+      case 'trade_value_p90':
+        if (player.trade_value_p10 == null || player.trade_value_p90 == null) return '-';
+        return `${formatValue(player.trade_value_p10)} – ${formatValue(player.trade_value_p90)}`;
       // Grades
       case 'hit': case 'game': case 'raw': case 'speed':
       case 'fastball': case 'slider': case 'curve': case 'change': case 'command':
-        return (player as Record<string, unknown>)[key] as string || '-';
+        return (player as unknown as Record<string, unknown>)[key] as string || '-';
       // Stats
       default:
         return formatStat(key, getStatValue(player, key));
     }
   };
 
-  // No grade color coding — keep all grade values uniform
   const gradeColor = (_grade: string | null | undefined) => '';
-
-  // No stat color coding — keep all stat values uniform
   const statColor = (_key: string, _value: number | string | undefined | null) => '';
 
   const isGradeColumn = (key: string) =>
@@ -156,7 +158,7 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
 
   const isStatColumn = (key: string) =>
     !isGradeColumn(key) && ![
-      'name', 'org', 'position', 'age', 'fv', 'top_100', 'org_rank', 'value'
+      'name', 'org', 'position', 'level', 'age', 'fv', 'top_100', 'org_rank', 'trade_value', 'trade_value_p90'
     ].includes(key);
 
   const headers = getHeaders();
@@ -190,17 +192,17 @@ const ProspectsTable: React.FC<ProspectsTableProps> = ({
                   if (header.key === 'name') {
                     return (
                       <td key={header.key} className="px-1.5 py-2 whitespace-nowrap">
-                        {player.has_mlb && player.IDfg ? (
+                        {player.mlbam_id ? (
                           <Link
-                            to={`/players/${player.IDfg}`}
-                            className="text-accent-blue hover:text-blue-300 font-medium"
+                            to={`/players/${player.mlbam_id}`}
+                            className="text-accent-blue hover:text-blue-300 font-medium transition-colors"
                           >
                             {player.name}
                           </Link>
-                        ) : (player as any).mlbam_id ? (
+                        ) : player.has_mlb && player.fg_id && /^\d+$/.test(player.fg_id) ? (
                           <Link
-                            to={`/players/${(player as any).mlbam_id}`}
-                            className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                            to={`/players/${player.fg_id}`}
+                            className="text-accent-blue hover:text-blue-300 font-medium"
                           >
                             {player.name}
                           </Link>
