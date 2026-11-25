@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { ProjectionResponse } from '../../../services/api';
 
@@ -20,9 +20,9 @@ interface FormattedPlayerRow extends Record<string, any> {
   position: string;
   age: number;
   status: string;
-  base_value: number;
-  contract_value: number;
-  surplus_value: number;
+  production_value: number;
+  salary_cost: number;
+  annual_surplus: number;
   // Hitting stats
   g_bat?: number;
   war_bat?: number;
@@ -85,9 +85,9 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
     { key: 'bat', label: 'Bat' },
     { key: 'def_value', label: 'Def' },
     { key: 'bsr', label: 'BsR' },
-    { key: 'base_value', label: 'Value ($M)' },
-    { key: 'contract_value', label: 'Contract ($M)' },
-    { key: 'surplus_value', label: 'Surplus ($M)' },
+    { key: 'production_value', label: 'Value ($M)' },
+    { key: 'salary_cost', label: 'Contract ($M)' },
+    { key: 'annual_surplus', label: 'Surplus ($M)' },
     { key: 'status', label: 'Status' }
   ];
 
@@ -108,9 +108,9 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
     { key: 'fb_pct', label: 'FB%' },
     { key: 'hr_9', label: 'HR/9' },
     { key: 'hr_fb', label: 'HR/FB' },
-    { key: 'base_value', label: 'Value ($M)' },
-    { key: 'contract_value', label: 'Contract ($M)' },
-    { key: 'surplus_value', label: 'Surplus ($M)' },
+    { key: 'production_value', label: 'Value ($M)' },
+    { key: 'salary_cost', label: 'Contract ($M)' },
+    { key: 'annual_surplus', label: 'Surplus ($M)' },
     { key: 'status', label: 'Status' }
   ];
 
@@ -171,9 +171,9 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
       case 'bb_pct_bat':
       case 'k_pct_bat':
         return formatPercent(value);
-      case 'base_value':
-      case 'contract_value':
-      case 'surplus_value':
+      case 'production_value':
+      case 'salary_cost':
+      case 'annual_surplus':
         return formatValue(value);
       default:
         return value.toString();
@@ -181,33 +181,17 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
   };
 
   const formattedData: FormattedPlayerRow[] = data.players.map(player => ({
-    id: player.real_id,
-    name: { id: player.mlb_id || player.real_id, name: player.name },
+    id: player.fg_id,
+    name: { id: player.mlbam_id || player.fg_id, name: player.name },
     team: player.team,
     position: player.position,
     age: player.age,
     ...(playerType === 'hitter' ? player.hitting : player.pitching),
-    base_value: player.value.base_value,
-    contract_value: player.value.contract_value,
-    surplus_value: player.value.surplus_value,
+    production_value: player.value.production_value,
+    salary_cost: player.value.salary_cost,
+    annual_surplus: player.value.annual_surplus,
     status: player.status,
   }));
-
-
-
-  const mobileHeaders = playerType === 'hitter'
-    ? [
-        { key: 'name', label: 'Name' },
-        { key: 'position', label: 'Pos' },
-        { key: 'war_bat', label: 'WAR' },
-        { key: 'base_value', label: 'Value ($M)' }
-      ]
-    : [
-        { key: 'name', label: 'Name' },
-        { key: 'position', label: 'Pos' },
-        { key: 'war_pit', label: 'WAR' },
-        { key: 'base_value', label: 'Value ($M)' }
-      ];
 
   return (
     <div>
@@ -224,7 +208,7 @@ const ProjectionsTable: React.FC<ProjectionsTableProps> = ({
                 <p className="text-xs text-gray-500 mt-0.5">{row.team} • {row.position} • Age {row.age}</p>
               </div>
               <span className="text-xs font-semibold text-brand-500 bg-brand-500/10 px-2.5 py-1 rounded whitespace-nowrap">
-                ${formatValue(row.base_value)}M
+                ${formatValue(row.production_value)}M
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs">
