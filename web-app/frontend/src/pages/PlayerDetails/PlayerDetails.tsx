@@ -71,21 +71,33 @@ const PlayerHeadshot: React.FC<{ mlbId: number | null; name: string; teamColor: 
 /** ──────────────────────────────────────────────────────────
  *  Surplus Bar — horizontal value bar (-$50M → +$50M range)
  *  ────────────────────────────────────────────────────────── */
-const SurplusBar: React.FC<{ value: number; teamColor: string }> = ({ value, teamColor }) => {
-  const maxAbs = 200_000_000; // $200M range
-  const pct = clamp01((value / maxAbs + 1) / 2); // 0 = -max, 0.5 = 0, 1 = +max
+const SurplusBar: React.FC<{
+  value: number;
+  p10?: number | null;
+  p90?: number | null;
+  teamColor: string;
+}> = ({ value, p10, p90, teamColor }) => {
+  const maxAbs = 200_000_000;
+  const pct = clamp01((value / maxAbs + 1) / 2);
   const isPositive = value >= 0;
 
   return (
     <div className="w-full">
       <div className="flex justify-between items-baseline mb-1.5">
         <span className="text-xs text-gray-500 font-medium">Surplus Value</span>
-        <span
-          className="text-lg font-bold"
-          style={{ color: isPositive ? teamColor : '#f87171' }}
-        >
-          {fmt.dollar(value)}
-        </span>
+        <div className="text-right">
+          <span
+            className="text-lg font-bold"
+            style={{ color: isPositive ? teamColor : '#f87171' }}
+          >
+            {fmt.dollar(value)}
+          </span>
+          {p10 != null && p90 != null && (
+            <span className="text-[11px] text-gray-400 ml-2 tabular-nums" title="10th – 90th percentile">
+              ({fmt.dollar(p10)} – {fmt.dollar(p90)})
+            </span>
+          )}
+        </div>
       </div>
       <div className="relative h-2.5 bg-gray-100/60 rounded-full overflow-hidden">
         {/* Center line marker */}
@@ -313,14 +325,14 @@ const GradeBar: React.FC<{ label: string; grade: string | null | undefined }> = 
 /** Prospect Profile section — collapsible, shows tool grades, FV, rankings, and year history */
 const ProspectProfile: React.FC<{
   prospectData: NonNullable<PlayerStats['prospectData']>;
-  teamColor: string;
-}> = ({ prospectData, teamColor }) => {
+  teamColor?: string;
+}> = ({ prospectData }) => {
   const { tools, history, fv, is_pitcher } = prospectData;
   const latest = history[0];
   // Compute peak Top 100 value across all prospect years
   const peakTop100Value = history.reduce<number | null>((best, h) => {
-    if (h.value != null && h.top_100 != null) {
-      return best == null ? h.value : Math.max(best, h.value);
+    if (h.trade_value != null && h.top_100 != null) {
+      return best == null ? h.trade_value : Math.max(best, h.trade_value);
     }
     return best;
   }, null);
@@ -427,7 +439,7 @@ const ProspectProfile: React.FC<{
                     <td className={`px-2 py-1.5 font-semibold ${fvColor(h.fv)}`}>{h.fv}</td>
                     <td className="px-2 py-1.5 text-center font-mono text-amber-400">{h.top_100 ? '#' + h.top_100 : '-'}</td>
                     <td className="px-2 py-1.5 text-center font-mono text-gray-500">{h.org_rank ? '#' + h.org_rank : '-'}</td>
-                    <td className="px-2 py-1.5 text-right font-mono text-emerald-400">{h.value != null ? `$${(h.value / 1_000_000).toFixed(1)}M` : '-'}</td>
+                    <td className="px-2 py-1.5 text-right font-mono text-emerald-400">{h.trade_value != null ? `$${(h.trade_value / 1_000_000).toFixed(1)}M` : '-'}</td>
                     {is_pitcher ? (
                       <>
                         <td className={`px-2 py-1.5 text-center font-mono ${gradeColor(h.fastball)}`}>{h.fastball ?? '-'}</td>
@@ -486,9 +498,9 @@ const PlayerDetails: React.FC = () => {
     fetchPlayer();
   }, [playerId]);
 
-  // Fetch trade value history once we have the player's mlb_id (or fallback to playerId)
+  // Fetch trade value history once we have the player's mlbam_id (or fallback to playerId)
   useEffect(() => {
-    const id = player?.mlb_id ?? (playerId ? parseInt(playerId) : null);
+    const id = player?.mlbam_id ?? (playerId ? parseInt(playerId) : null);
     if (id == null) return;
     getTradeValueHistory(id, { granularity: 'daily' }).then(setTradeHistory).catch(() => setTradeHistory([]));
     getPlayerTransactions(id).then(setTransactions).catch(() => setTransactions([]));
@@ -496,7 +508,7 @@ const PlayerDetails: React.FC = () => {
     getPlayerPastTrades(id).then(r => setPastTrades(r.trades)).catch(() => setPastTrades([]));
     getPlayerMiLBStats(id).then(setMilbStats).catch(() => setMilbStats(null));
     getPlayerFieldingStats(id).then(setFieldingStats).catch(() => setFieldingStats([]));
-  }, [player?.mlb_id, playerId]);
+  }, [player?.mlbam_id, playerId]);
 
   // ── Derived state ──
   const isHistorical = player?.isHistorical === true;
@@ -545,7 +557,7 @@ const PlayerDetails: React.FC = () => {
       .filter(
         (proj): proj is typeof proj & { pitching: NonNullable<typeof proj.pitching> } =>
           proj.pitching?.war_pit != null
-          && (proj.pitching.g_pit > 0 || proj.pitching.ip > 0)
+          && (proj.pitching.g_pit > 0 || (proj.pitching.ip ?? 0) > 0)
           && (isHistorical || proj.year <= MAX_PROJECTION_YEAR)
       )
       .map((proj) => ({ year: proj.year, age: proj.age, team: proj.team, status: proj.status, value: proj.value, pitching: proj.pitching }));
@@ -581,7 +593,7 @@ const PlayerDetails: React.FC = () => {
         age: curProj?.age ?? 0,
         team: bat.team ?? curProj?.team ?? '',
         status: curProj?.status ?? '',
-        value: curProj?.value ?? { base_value: 0, contract_value: 0, surplus_value: 0 } as any,
+        value: curProj?.value ?? { production_value: 0, salary_cost: 0, annual_surplus: 0 } as any,
         hitting: {
           g_bat: bat.g ?? 0,
           war_bat: bat.war ?? 0,
@@ -622,7 +634,7 @@ const PlayerDetails: React.FC = () => {
         age: curProj?.age ?? 0,
         team: pit.team ?? curProj?.team ?? '',
         status: curProj?.status ?? '',
-        value: curProj?.value ?? { base_value: 0, contract_value: 0, surplus_value: 0 } as any,
+        value: curProj?.value ?? { production_value: 0, salary_cost: 0, annual_surplus: 0 } as any,
         pitching: {
           g_pit: pit.g ?? 0,
           gs: pit.gs ?? 0,
@@ -674,13 +686,13 @@ const PlayerDetails: React.FC = () => {
   const faEarliest = cur?.earliest_fa_year;
   const faProbable = cur?.probable_fa_year;
   const faLatest = cur?.fa_year;
-  const h = cur?.hitting;
-  const pit = cur?.pitching;
   const v = cur?.value;
-  const prospectTradeValue = player.prospectData?.history.find((entry) => entry.value != null)?.value ?? null;
-  const displayTradeValue = v?.trade_value ?? prospectTradeValue;
+  const prospectEntry = player.prospectData?.history.find((entry) => entry.trade_value != null);
+  const displayTradeValue = v?.trade_value ?? prospectEntry?.trade_value ?? null;
+  const displayTradeP10 = v?.trade_value_p10 ?? prospectEntry?.trade_value_p10 ?? null;
+  const displayTradeP90 = v?.trade_value_p90 ?? prospectEntry?.trade_value_p90 ?? null;
 
-  const projWar = isHistorical ? (histMeta?.career_war ?? 0) : (v?.contract_war ?? 0);
+  const projWar = isHistorical ? (histMeta?.career_war ?? 0) : (v?.control_war ?? 0);
 
   return (
     <div className="min-h-screen bg-\[#F5F3EE\]">
@@ -706,7 +718,7 @@ const PlayerDetails: React.FC = () => {
           <div className="flex flex-col md:flex-row items-start gap-6 md:gap-10">
             {/* Left: Headshot */}
             <PlayerHeadshot
-              mlbId={player.mlb_id}
+              mlbId={player.mlbam_id}
               name={player.name}
               teamColor={colors.primary}
             />
@@ -765,9 +777,13 @@ const PlayerDetails: React.FC = () => {
                 )}
               </div>
 
-              {/* Surplus value bar — for projected players and prospect-only pages with loaded value */}
               {!isHistorical && displayTradeValue != null && (
-                <SurplusBar value={displayTradeValue} teamColor={colors.accent} />
+                <SurplusBar
+                  value={displayTradeValue}
+                  p10={displayTradeP10}
+                  p90={displayTradeP90}
+                  teamColor={colors.accent}
+                />
               )}
 
               {/* Career WAR summary for historical players */}
@@ -843,11 +859,11 @@ const PlayerDetails: React.FC = () => {
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
                 <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Total Contract</span>
-                <span className="text-xl font-bold text-red-400">{fmt.dollar(v?.total_contract)}</span>
+                <span className="text-xl font-bold text-red-400">{fmt.dollar(v?.control_salary_cost)}</span>
               </div>
               <div>
                 <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Avg $/Year</span>
-                <span className="text-xl font-bold text-red-400">{fmt.dollar(v?.avg_contract)}</span>
+                <span className="text-xl font-bold text-red-400">{fmt.dollar(v?.avg_salary_cost)}</span>
               </div>
             </div>
           </div>
@@ -859,26 +875,26 @@ const PlayerDetails: React.FC = () => {
             </h3>
             <div className="grid grid-cols-2 gap-x-8 gap-y-5">
               <div>
-                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Projected WAR</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Control WAR</span>
                 <span className="text-2xl font-bold" style={{ color: colors.accent }}>{fmt.war(projWar)}</span>
                 <span className="text-[10px] text-gray-400 block mt-0.5">
                   over {v?.years_control ?? '?'} yr · {fmt.war(v?.avg_war)} WAR/yr
                 </span>
               </div>
               <div>
-                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Projected Value</span>
-                <span className="text-2xl font-bold text-gray-900">{fmt.dollar(v?.contract_base_value)}</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Control Production</span>
+                <span className="text-2xl font-bold text-gray-900">{fmt.dollar(v?.control_production_value)}</span>
                 <span className="text-[10px] text-gray-400 block mt-0.5">on-field production value</span>
               </div>
               <div>
-                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Historical WAR</span>
-                <span className="text-2xl font-bold text-gray-900">{fmt.war(v?.historical_war)}</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Past Career WAR</span>
+                <span className="text-2xl font-bold text-gray-900">{fmt.war(v?.past_career_war)}</span>
                 <span className="text-[10px] text-gray-400 block mt-0.5">career to date</span>
               </div>
               <div>
-                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Total WAR</span>
-                <span className="text-2xl font-bold text-gray-900">{fmt.war(v?.total_war)}</span>
-                <span className="text-[10px] text-gray-400 block mt-0.5">hist + projected</span>
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 block mb-0.5">Projected Career WAR</span>
+                <span className="text-2xl font-bold text-gray-900">{fmt.war(v?.career_war)}</span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">past + 15yr projected</span>
               </div>
             </div>
           </div>
@@ -969,7 +985,7 @@ const PlayerDetails: React.FC = () => {
             <div className="p-4">
               <PlayerTradeHistory
                 trades={pastTrades}
-                playerMlbId={player?.mlb_id ?? (playerId ? parseInt(playerId) : 0)}
+                playerMlbId={player?.mlbam_id ?? (playerId ? parseInt(playerId) : 0)}
                 teamColor={colors.primary}
               />
             </div>
