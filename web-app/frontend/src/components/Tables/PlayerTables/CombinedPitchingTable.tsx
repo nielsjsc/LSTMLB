@@ -7,14 +7,14 @@ interface CombinedPitchingTableProps {
     team?: string;
     status: string;
     value: {
-      base_value: number;
-      contract_value: number;
-      surplus_value: number;
+      production_value: number;
+      salary_cost: number;
+      annual_surplus: number;
     };
     pitching: {
       g_pit: number;
       gs: number;
-      ip: number;
+      ip?: number;
       war_pit: number;
       era: number;
       fip: number;
@@ -36,9 +36,9 @@ interface FormattedPitchingRow extends Record<string, any> {
   age: number;
   team: string;
   status: string;
-  base_value: number;
-  contract_value: number;
-  surplus_value: number;
+  production_value: number;
+  salary_cost: number;
+  annual_surplus: number;
   g_pit: number;
   gs: number;
   ip: number;
@@ -53,7 +53,7 @@ interface FormattedPitchingRow extends Record<string, any> {
   hr_9?: number;
   xera?: number;
 }
-const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, dividerYear, showCareerTotals = false, hideXStats = false }) => {
+const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, showCareerTotals = false, hideXStats = false }) => {
   const [sortKey, setSortKey] = useState<string>('year');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
@@ -74,9 +74,9 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
     { key: 'hr_9', label: 'HR/9' },
     { key: 'hr_fb', label: 'HR/FB' },
     ...(!hideXStats ? [{ key: 'xera', label: 'xERA' }] : []),
-    { key: 'base_value', label: 'Value ($M)' },
-    { key: 'contract_value', label: 'Contract ($M)' },
-    { key: 'surplus_value', label: 'Surplus ($M)' },
+    { key: 'production_value', label: 'Value ($M)' },
+    { key: 'salary_cost', label: 'Contract ($M)' },
+    { key: 'annual_surplus', label: 'Surplus ($M)' },
     { key: 'status', label: 'Status' }
   ];
 
@@ -114,9 +114,9 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
       case 'fb_pct':
       case 'hr_fb':
         return formatPercent(value);
-      case 'base_value':
-      case 'contract_value':
-      case 'surplus_value':
+      case 'production_value':
+      case 'salary_cost':
+      case 'annual_surplus':
         return formatValue(value);
       default:
         return value.toString();
@@ -126,9 +126,9 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
   const formattedData = data.map(row => ({
     ...row,
     team: row.team ?? '',
-    base_value: row.value.base_value,
-    contract_value: row.value.contract_value,
-    surplus_value: row.value.surplus_value,
+    production_value: row.value.production_value,
+    salary_cost: row.value.salary_cost,
+    annual_surplus: row.value.annual_surplus,
     status: row.status,
     ...row.pitching
   })) as FormattedPitchingRow[];
@@ -181,9 +181,9 @@ const CombinedPitchingTable: React.FC<CombinedPitchingTableProps> = ({ data, div
       hr_fb: ipWeightedAvg('hr_fb'),
       hr_9: ipWeightedAvg('hr_9'),
       xera: ipWeightedAvg('xera'),
-      base_value: sum('base_value'),
-      contract_value: sum('contract_value'),
-      surplus_value: sum('surplus_value'),
+      production_value: sum('production_value'),
+      salary_cost: sum('salary_cost'),
+      annual_surplus: sum('annual_surplus'),
     };
   }, [formattedData]);
 
