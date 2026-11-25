@@ -1,186 +1,252 @@
 import csv
 import json
+import math
 import sys
-from math import isnan
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, func, or_
 from typing import Any, Dict, List, Optional, Tuple
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 import logging
 
-# Add backend to path
 backend_dir = Path(__file__).resolve().parent.parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.append(str(backend_dir))
 
-# Change relative imports to absolute
 from app.database import get_db
 from app.models.player import Player
 from app.models.prospect import Prospect
 from app.config import CURRENT_YEAR, PROSPECT_DEFAULT_YEAR, PROSPECT_YEAR_START, PROSPECT_YEAR_END
 
-# Initialize router and logger
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-def map_team_abbreviation(team: str) -> str:
-    """Map UI team abbreviations to database team abbreviations"""
-    team_mapping = {
-        'SF': 'SFG',
-        'SD': 'SDP',
-        'KC': 'KCR',
-        'TB': 'TBR'
-    }
-    return team_mapping.get(team.upper(), team.upper())
-
-def get_player_values(player_name: str, db: Session):
-    # Get only the current-year player entry since it has all the values we need
-    base_player = (
-        db.query(Player)
-        .filter(Player.name == player_name)
-        .filter(Player.year == CURRENT_YEAR)
-        .filter(Player.projection_type == "ros")
-        .first()
-    )
-    
-    if not base_player:
-        raise HTTPException(status_code=404, detail=f"Player {player_name} not found")
-    
-    # Safely extract projections if the relationship exists on the Player model
-    projections_data = []
-    if hasattr(base_player, 'projections') and base_player.projections:
-        projections_data = [
-            {"year": p.year, "status": p.status} 
-            for p in base_player.projections 
-            if hasattr(p, 'year') and hasattr(p, 'status')
-        ]
-
-    # Calculate FA year (usually control_through + 1)
-    fa_year = (base_player.control_through + 1) if base_player.control_through else None
-    
-    return {
-        "name": base_player.name,
-        "team": base_player.team,
-        "position": base_player.position,
-        "war": base_player.contract_war or 0,
-        "total_surplus": base_player.trade_value or 0,
-        "total_contract": base_player.total_contract or 0,
-        "total_production": base_player.contract_base_value or 0,
-        "years": [year for year in range(CURRENT_YEAR, (base_player.control_through or CURRENT_YEAR) + 1)],
-        
-        # --- ADDED FOR TRADE SIMULATOR CONTROL YEARS ---
-        "years_control": base_player.years_control or 0,
-        "probable_fa_year": getattr(base_player, 'probable_fa_year', fa_year),
-        "fa_year": getattr(base_player, 'fa_year', fa_year),
-        "projections": projections_data
-    }
+_CALIBRATION_FILE = (
+    Path(__file__).resolve().parents[4] / "data" / "generated" / "valuation_calibration.json"
+)
 
 
+def _get_package_gamma() -> float:
+    """Load empirically calibrated package consolidation exponent (default 1.211)."""
+    if _CALIBRATION_FILE.exists():
+        try:
+            with open(_CALIBRATION_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return float(data.get("package_gamma", 1.211))
+        except Exception:
+            pass
+    return 1.211
+
+
+def _consolidate_package(asset_values: List[float], gamma: float) -> Tuple[float, float, float]:
+    """Sub-additive L_gamma norm for positive-surplus assets; linear sum for salary dumps."""
+    clean = [float(v) for v in asset_values if v is not None and not math.isnan(float(v))]
+    if not clean:
+        return 0.0, 0.0, 0.0
+    raw_sum = sum(clean)
+    pos = [v for v in clean if v > 0.0]
+    neg = [v for v in clean if v <= 0.0]
+    if len(pos) <= 1:
+        pos_c = sum(pos)
+    else:
+        g = max(1.0, float(gamma))
+        pos_c = sum(v ** g for v in pos) ** (1.0 / g)
+    consolidated = pos_c + sum(neg)
+    penalty = consolidated - raw_sum
+    return consolidated, raw_sum, penalty
 
 
 class TradeAsset(BaseModel):
     name: str
     isProspect: bool
-    team: str
+    team: Optional[str] = None
+    fg_id: Optional[int] = None
+    mlbam_id: Optional[int] = None
+    prospect_id: Optional[int] = None
+
 
 class TradeRequest(BaseModel):
-    team1_assets: List[TradeAsset]
-    team2_assets: List[TradeAsset]
+    side_a_assets: List[TradeAsset] = []
+    side_b_assets: List[TradeAsset] = []
 
-def get_prospect_values(prospect_name: str, db: Session):
-    prospect = (
-        db.query(Prospect)
-        .filter(Prospect.name == prospect_name)
-        .filter(Prospect.year == PROSPECT_DEFAULT_YEAR)
-        .first()
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_legacy_keys(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "side_a_assets" not in data and "team1_assets" in data:
+                data = {**data, "side_a_assets": data["team1_assets"]}
+            if "side_b_assets" not in data and "team2_assets" in data:
+                data = {**data, "side_b_assets": data["team2_assets"]}
+        return data
+
+
+def get_player_values(asset: TradeAsset, db: Session) -> Dict[str, Any]:
+    q = db.query(Player).filter(
+        Player.year == CURRENT_YEAR,
+        Player.projection_type == "ros",
     )
-    
-    if not prospect:
-        raise HTTPException(status_code=404, detail=f"Prospect {prospect_name} not found")
-    
-    value = prospect.get_value(PROSPECT_DEFAULT_YEAR) or 0
-    
+    base_player = None
+    if asset.fg_id is not None:
+        base_player = q.filter(Player.fg_id == asset.fg_id).first()
+    if base_player is None and asset.mlbam_id is not None:
+        base_player = q.filter(Player.mlbam_id == asset.mlbam_id).first()
+    if base_player is None:
+        matches = q.filter(Player.name == asset.name).all()
+        if len(matches) == 1:
+            base_player = matches[0]
+        elif len(matches) > 1:
+            if asset.team:
+                t_up = asset.team.upper()
+                base_player = next((m for m in matches if (m.team or "").upper() == t_up), matches[0])
+            else:
+                base_player = matches[0]
+
+    if not base_player:
+        raise HTTPException(status_code=404, detail=f"Player {asset.name} not found")
+
+    timeline_rows = (
+        db.query(Player.year, Player.status)
+        .filter(
+            Player.fg_id == base_player.fg_id,
+            Player.year >= CURRENT_YEAR,
+            Player.projection_type == "ros",
+        )
+        .order_by(Player.year.asc())
+        .all()
+    )
+    projections_data = [{"year": r.year, "status": r.status or ""} for r in timeline_rows]
+    fa_year = base_player.fa_year or ((base_player.control_through + 1) if base_player.control_through else None)
+
     return {
+        "type": "player",
+        "id": base_player.mlbam_id or base_player.fg_id,
+        "fg_id": base_player.fg_id,
+        "mlbam_id": base_player.mlbam_id,
+        "name": base_player.name,
+        "team": base_player.team,
+        "position": base_player.position,
+        "control_war": base_player.control_war or 0,
+        "trade_value": base_player.trade_value or 0,
+        "trade_value_p10": base_player.trade_value_p10,
+        "trade_value_p90": base_player.trade_value_p90,
+        "control_salary_cost": base_player.control_salary_cost or 0,
+        "control_production_value": base_player.control_production_value or 0,
+        "years_control": base_player.years_control or 0,
+        "probable_fa_year": base_player.probable_fa_year or fa_year,
+        "fa_year": fa_year,
+        "projections": projections_data,
+    }
+
+
+def get_prospect_values(asset: TradeAsset, db: Session) -> Dict[str, Any]:
+    q = db.query(Prospect).filter(Prospect.year == PROSPECT_DEFAULT_YEAR)
+    prospect = None
+    if asset.prospect_id is not None:
+        prospect = q.filter(Prospect.id == asset.prospect_id).first()
+    if prospect is None and asset.mlbam_id is not None:
+        prospect = q.filter(Prospect.mlbam_id == asset.mlbam_id).first()
+    if prospect is None:
+        matches = q.filter(Prospect.name == asset.name).all()
+        if len(matches) == 1:
+            prospect = matches[0]
+        elif len(matches) > 1:
+            if asset.team:
+                t_up = asset.team.upper()
+                prospect = next((m for m in matches if (m.org or "").upper() == t_up), matches[0])
+            else:
+                prospect = matches[0]
+
+    if not prospect:
+        raise HTTPException(status_code=404, detail=f"Prospect {asset.name} not found")
+
+    val = prospect.get_value(PROSPECT_DEFAULT_YEAR) or 0
+
+    return {
+        "type": "prospect",
+        "id": prospect.mlbam_id or prospect.id,
+        "prospect_id": prospect.id,
+        "fg_id": prospect.fg_id,
+        "mlbam_id": prospect.mlbam_id,
         "name": prospect.name,
         "team": prospect.org,
         "position": prospect.position,
+        "level": prospect.level,
+        "eta": prospect.eta,
         "fv": prospect.fv,
-        "value": value,
-        "total_surplus": value,
-        "total_contract": 0,
-        "total_production": value,
-
-        # --- ADDED FOR TRADE SIMULATOR CONTROL YEARS ---
-        # Prospects typically have 6 years of control once called up, 
-        # but we pass safe fallbacks here for the UI to render gracefully.
-        "years_control": 6, 
+        "trade_value": val,
+        "trade_value_p10": prospect.trade_value_p10,
+        "trade_value_p90": prospect.trade_value_p90,
+        "control_salary_cost": 0,
+        "control_production_value": val,
+        "years_control": 6,
         "probable_fa_year": None,
         "fa_year": None,
-        "projections": []
+        "projections": [],
     }
+
+
+def _summarize_trade_side(assets: List[Dict[str, Any]], gamma: float) -> Dict[str, Any]:
+    surpluses = [a["trade_value"] or 0.0 for a in assets]
+    consolidated, raw_sum, penalty = _consolidate_package(surpluses, gamma)
+
+    p10_vals = [a["trade_value_p10"] if a.get("trade_value_p10") is not None else (a["trade_value"] or 0.0) for a in assets]
+    p90_vals = [a["trade_value_p90"] if a.get("trade_value_p90") is not None else (a["trade_value"] or 0.0) for a in assets]
+    c_p10, _, _ = _consolidate_package(p10_vals, gamma)
+    c_p90, _, _ = _consolidate_package(p90_vals, gamma)
+
+    return {
+        "consolidated_surplus": round(consolidated),
+        "raw_surplus_sum": round(raw_sum),
+        "consolidation_penalty": round(penalty),
+        "surplus_p10": round(c_p10),
+        "surplus_p90": round(c_p90),
+        "control_salary_cost": round(sum(a["control_salary_cost"] or 0 for a in assets)),
+        "control_production_value": round(sum(a["control_production_value"] or 0 for a in assets)),
+        "assets": assets,
+    }
+
 
 @router.post("/analyze")
 def analyze_trade(trade: TradeRequest, db: Session = Depends(get_db)):
     try:
-        # Process team 1 assets
-        team1_analysis = []
-        for asset in trade.team1_assets:
-            if asset.isProspect:
-                analysis = get_prospect_values(asset.name, db)
-            else:
-                analysis = get_player_values(asset.name, db)
-            team1_analysis.append(analysis)
+        gamma = _get_package_gamma()
 
-        # Process team 2 assets
-        team2_analysis = []
-        for asset in trade.team2_assets:
-            if asset.isProspect:
-                analysis = get_prospect_values(asset.name, db)
-            else:
-                analysis = get_player_values(asset.name, db)
-            team2_analysis.append(analysis)
-        
-        # Safe summation function
-        def safe_sum(items, key):
-            return sum(item[key] or 0 for item in items)
-        
+        side_a_assets = [
+            get_prospect_values(a, db) if a.isProspect else get_player_values(a, db)
+            for a in trade.side_a_assets
+        ]
+        side_b_assets = [
+            get_prospect_values(a, db) if a.isProspect else get_player_values(a, db)
+            for a in trade.side_b_assets
+        ]
+
         return {
-            "team1": {
-                "total_surplus": safe_sum(team1_analysis, "total_surplus"),
-                "total_contract": safe_sum(team1_analysis, "total_contract"),
-                "total_production": safe_sum(team1_analysis, "total_production"),
-                "assets": team1_analysis
-            },
-            "team2": {
-                "total_surplus": safe_sum(team2_analysis, "total_surplus"),
-                "total_contract": safe_sum(team2_analysis, "total_contract"),
-                "total_production": safe_sum(team2_analysis, "total_production"),
-                "assets": team2_analysis
-            }
+            "side_a": _summarize_trade_side(side_a_assets, gamma),
+            "side_b": _summarize_trade_side(side_b_assets, gamma),
+            "package_gamma": gamma,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error analyzing trade: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/prospects")
 async def get_all_prospects(
     player_type: str = Query(..., description="Either 'hitter' or 'pitcher'"),
     year: int = Query(PROSPECT_DEFAULT_YEAR, ge=PROSPECT_YEAR_START, le=PROSPECT_YEAR_END),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """Deprecated: use GET /prospects/?slim=true instead.
-    Kept for backward compatibility — delegates to the unified prospects endpoint."""
     from app.routes.prospects import get_prospects
     result = await get_prospects(
         player_type=player_type, year=year,
-        page=1, page_size=500, slim=True, db=db
+        page=1, page_size=500, slim=True, db=db,
     )
     return {"players": result["players"]}
 
 
-# Add this new endpoint after existing endpoints
 @router.get("/trade-val-rank")
 def get_trade_value_rankings(
     db: Session = Depends(get_db),
@@ -192,86 +258,91 @@ def get_trade_value_rankings(
     page_size: int = Query(50, ge=1, le=100),
     sort_by: str = Query(
         "trade_value",
-        pattern="^(trade_value|contract_war|avg_war|total_contract|avg_contract|control_through|years_control|total_future_war|total_future_value|historical_war|historical_value|contract_base_value)$"
+        pattern="^(trade_value|trade_value_p10|trade_value_p90|control_war|avg_war|control_salary_cost|avg_salary_cost|control_through|years_control|projected_15yr_war|projected_15yr_value|past_career_war|past_career_value|control_production_value)$",
     ),
-    sort_direction: str = Query("desc", pattern="^(asc|desc)$")
+    sort_direction: str = Query("desc", pattern="^(asc|desc)$"),
 ):
     try:
-        # Start with current-year players
-        query = db.query(Player).filter(Player.year == CURRENT_YEAR, Player.projection_type == "ros")
-        
-        # Add filter for non-NaN trade values
-        query = query.filter(Player.trade_value.isnot(None))  # Filter out NULL values
-        
-        # Add team filter if specified
+        query = db.query(Player).filter(
+            Player.year == CURRENT_YEAR,
+            Player.projection_type == "ros",
+            Player.trade_value.isnot(None),
+        )
+
         if team:
-            if team.upper() == 'FA':
-                query = query.filter(Player.team == 'FA')
+            if team.upper() == "FA":
+                query = query.filter(Player.team == "FA")
             else:
                 query = query.filter(func.upper(Player.team) == team.upper())
-        
-        # Add position filter if specified
+
         if position:
-            if position == 'OF':
+            if position == "OF":
                 query = query.filter(or_(
-                    Player.position.in_(['LF', 'CF', 'RF']),
-                    Player.position.like('%/LF%'),
-                    Player.position.like('%/CF%'),
-                    Player.position.like('%/RF%'),
-                    Player.position.like('LF/%'),
-                    Player.position.like('CF/%'),
-                    Player.position.like('RF/%')
+                    Player.position.in_(["LF", "CF", "RF"]),
+                    Player.position.like("%/LF%"),
+                    Player.position.like("%/CF%"),
+                    Player.position.like("%/RF%"),
+                    Player.position.like("LF/%"),
+                    Player.position.like("CF/%"),
+                    Player.position.like("RF/%"),
                 ))
             else:
                 query = query.filter(or_(
-                    Player.position == position,  # Exact match
-                    Player.position.like(f'{position}/%'),  # Position at start
-                    Player.position.like(f'%/{position}')  # Position at end
+                    Player.position == position,
+                    Player.position.like(f"{position}/%"),
+                    Player.position.like(f"%/{position}"),
                 ))
-        
-        # Add age filter if specified
+
         if age_value is not None and age_operator:
-            if age_operator == '>=':
+            if age_operator == ">=":
                 query = query.filter(Player.age >= age_value)
-            elif age_operator == '<=':
+            elif age_operator == "<=":
                 query = query.filter(Player.age <= age_value)
-            elif age_operator == '=':
+            elif age_operator == "=":
                 query = query.filter(Player.age == age_value)
-        
+
         sort_column = getattr(Player, sort_by)
         query = query.order_by(desc(sort_column) if sort_direction == "desc" else asc(sort_column))
-        
+
         total_count = query.count()
-        query = query.offset((page - 1) * page_size).limit(page_size)
-        
-        players = query.all()
-        results = [{
-            "real_id": p.real_id,
-            "mlb_id": p.mlb_id,
-            "name": p.name,
-            "team": p.team,
-            "position": p.position,
-            "contract_war": p.contract_war,
-            "avg_war": p.avg_war,
-            "total_contract": p.total_contract,
-            "avg_contract": p.avg_contract,
-            "trade_value": p.trade_value,
-            "control_through": p.control_through,
-            "years_control": p.years_control,
-            "total_future_war": p.total_future_war,
-            "total_future_value": p.total_future_value,
-            "historical_war": p.historical_war,
-            "historical_value": p.historical_value,
-            "contract_base_value": p.contract_base_value,
-        } for p in players]
-        
+        players = query.offset((page - 1) * page_size).limit(page_size).all()
+
+        results = [
+            {
+                "fg_id": p.fg_id,
+                "mlbam_id": p.mlbam_id,
+                "name": p.name,
+                "team": p.team,
+                "position": p.position,
+                "player_role": p.player_role,
+                "age": p.age,
+                "trade_value": p.trade_value,
+                "trade_value_p10": p.trade_value_p10,
+                "trade_value_p50": p.trade_value_p50,
+                "trade_value_p90": p.trade_value_p90,
+                "control_war": p.control_war,
+                "avg_war": p.avg_war,
+                "control_salary_cost": p.control_salary_cost,
+                "avg_salary_cost": p.avg_salary_cost,
+                "control_production_value": p.control_production_value,
+                "control_surplus": p.control_surplus,
+                "control_through": p.control_through,
+                "years_control": p.years_control,
+                "projected_15yr_war": p.projected_15yr_war,
+                "projected_15yr_value": p.projected_15yr_value,
+                "past_career_war": p.past_career_war,
+                "past_career_value": p.past_career_value,
+            }
+            for p in players
+        ]
+
         return {
             "players": results,
             "total_count": total_count,
             "total_pages": (total_count + page_size - 1) // page_size,
-            "current_page": page
+            "current_page": page,
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting trade value rankings: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -336,22 +407,22 @@ def _load_surplus_projections() -> Dict[int, Dict[str, Any]]:
                     except ValueError:
                         pass
 
-            # Total future values
+            # Total future values (canonical V2 surplus_*.csv columns)
             try:
-                total_war = float(row.get("total_future_WAR", 0) or 0)
-                total_war_value = float(row.get("total_future_WAR_value", 0) or 0)
-                total_salary = float(row.get("total_future_salary", 0) or 0)
-                surplus = float(row.get("surplus", 0) or 0)
-                years_control = int(float(row.get("years_control", 0) or 0))
-                control_through_raw = row.get("control_through", 0) or 0
-                control_through = int(float(control_through_raw)) if control_through_raw not in ("", "nan", None) else 0
+                total_war = float(row.get("control_war", row.get("total_future_WAR", 0)) or 0)
+                total_war_value = float(row.get("control_production_value", row.get("total_future_WAR_value", 0)) or 0)
+                total_salary = float(row.get("control_salary_cost", row.get("total_future_salary", 0)) or 0)
+                surplus = float(row.get("trade_value", row.get("surplus", 0)) or 0)
+                years_control = int(round(float(row.get("years_control", 0) or 0)))
+                snap_yr = int(float(row.get("snapshot_year", CURRENT_YEAR - 1) or (CURRENT_YEAR - 1)))
+                control_through = (snap_yr + years_control - 1) if years_control > 0 else 0
             except (ValueError, TypeError):
                 total_war = total_war_value = total_salary = surplus = 0.0
                 years_control = 0
                 control_through = 0
 
             projections[mlbam_id] = {
-                "name": row.get("Name", ""),
+                "name": row.get("player_name", row.get("Name", "")),
                 "projected_war": round(total_war, 1),
                 "projected_war_value": int(total_war_value),
                 "projected_salary": int(total_salary),
@@ -768,16 +839,17 @@ def _attach_contract_remaining(trades: List[Dict[str, Any]]) -> None:
 # ── FV → dollar value fallback (median by FV grade from prospect model) ──────
 
 _FV_VALUE_MAP: Dict[int, int] = {
-    35: 3_000_000,
-    40: 7_000_000,
-    45: 15_000_000,
-    50: 30_000_000,
-    55: 60_000_000,
-    60: 100_000_000,
-    65: 135_000_000,
-    70: 200_000_000,
-    75: 275_000_000,
-    80: 350_000_000,
+    30: 150_000,
+    35: 400_000,
+    40: 1_200_000,
+    45: 3_500_000,
+    50: 8_500_000,
+    55: 19_000_000,
+    60: 38_000_000,
+    65: 56_000_000,
+    70: 78_000_000,
+    75: 98_000_000,
+    80: 120_000_000,
 }
 
 
@@ -827,10 +899,10 @@ def _augment_with_prospect_values(trades: List[Dict[str, Any]], db=None) -> None
         year = p.year
         val = p.get_value(year)
         fv_str = p.fv
-        # Also store the DB FV for cross-reference
         prospect_db[(name_lower, year)] = {
             "value": val,
             "fv": fv_str,
+            "top_100": p.top_100 is not None,
         }
 
     enriched = 0
@@ -844,30 +916,7 @@ def _augment_with_prospect_values(trades: List[Dict[str, Any]], db=None) -> None
                 if not prospect_fv:
                     continue
 
-                # ------- Fix prospect_top_100 -------
-                # The offline pipeline has a bug: bool(NaN) == True
-                # If prospect_top_100 is True but prospect has no top-100 rank,
-                # it's a false positive. We reset it.
-                # A true top-100 prospect would have a top_100_rank in the CSV.
-                # Since we can't access the CSV at runtime, use FV as heuristic:
-                # Generally only FV >= 50 are top-100 candidates, and even then
-                # not guaranteed. But the key indicator is: the pipeline stored
-                # top_100=True for ALL prospects because of the NaN bug.
-                # Safe fix: treat prospect_top_100 as False unless we see
-                # prospect_rank ≤ 10 AND fv >= 50 (org top-3 with solid FV).
-                # Actually better: just set it to False. The pipeline fix will
-                # generate correct data on the next run.
-                if player.get("prospect_top_100") is True:
-                    # Heuristic: a real top-100 prospect typically has FV >= 50
-                    # and the rank field from the CSV doesn't discriminate
-                    # between org rank and national rank. Safest to clear.
-                    player["prospect_top_100"] = False
-                    t100_fixed += 1
-
-                # ------- Add prospect_value -------
                 name_lower = player.get("name", "").strip().lower()
-
-                # Try exact year, then adjacent years
                 db_entry = None
                 for yr_offset in [0, -1, 1, -2, 2]:
                     lookup_year = trade_year + yr_offset
@@ -875,10 +924,13 @@ def _augment_with_prospect_values(trades: List[Dict[str, Any]], db=None) -> None
                     if db_entry and db_entry["value"]:
                         break
 
+                if db_entry is not None:
+                    player["prospect_top_100"] = bool(db_entry.get("top_100"))
+                    t100_fixed += 1
+
                 if db_entry and db_entry["value"]:
                     player["prospect_value"] = int(db_entry["value"])
                 else:
-                    # Fallback to FV-based estimate
                     player["prospect_value"] = _estimate_prospect_value(int(prospect_fv))
 
                 # ------- Clear salary for non-rostered prospects -------
@@ -1025,22 +1077,24 @@ def _link_prospect_ids(trades: List[Dict[str, Any]], db=None) -> None:
         if close_db:
             db.close()
 
-    # Build lookups: (name_lower, year) → prospect row, and idfg → prospect row
+    # Build lookups: (name_lower, year) → prospect row, and fg_id → prospect row
     name_year_lookup: Dict[Tuple[str, int], Any] = {}
-    idfg_lookup: Dict[int, Any] = {}
+    fg_lookup: Dict[str, Any] = {}
+    mlbam_lookup: Dict[int, Any] = {}
     for p in all_prospects:
         nl = p.name.strip().lower() if p.name else ""
         yr = p.year
         key = (nl, yr)
-        # Keep the most recent year entry per name
         if key not in name_year_lookup or p.year > name_year_lookup[key].year:
             name_year_lookup[key] = p
-        if p.IDfg:
-            # Keep the most recent entry per IDfg
-            if p.IDfg not in idfg_lookup or p.year > idfg_lookup[p.IDfg].year:
-                idfg_lookup[p.IDfg] = p
+        if p.fg_id:
+            fg_str = str(p.fg_id)
+            if fg_str not in fg_lookup or p.year > fg_lookup[fg_str].year:
+                fg_lookup[fg_str] = p
+        if p.mlbam_id:
+            if p.mlbam_id not in mlbam_lookup or p.year > mlbam_lookup[p.mlbam_id].year:
+                mlbam_lookup[p.mlbam_id] = p
 
-    # Also need MLBAM → IDfg from historical data for cross-referencing
     try:
         from app.routes import historical as _hist_mod
         _hist_mod._load_historical()
@@ -1058,12 +1112,13 @@ def _link_prospect_ids(trades: List[Dict[str, Any]], db=None) -> None:
                 name_lower = player.get("name", "").strip().lower()
                 mlb_id = player.get("mlb_id")
 
-                # Try to find prospect by IDfg (via MLBAM crosswalk)
                 prospect = None
                 if mlb_id:
-                    idfg_str = mlbam_to_idfg.get(str(mlb_id))
-                    if idfg_str:
-                        prospect = idfg_lookup.get(int(idfg_str))
+                    prospect = mlbam_lookup.get(int(mlb_id))
+                    if not prospect:
+                        idfg_str = mlbam_to_idfg.get(str(mlb_id))
+                        if idfg_str:
+                            prospect = fg_lookup.get(str(idfg_str))
 
                 # Fallback: name + year matching (try exact year, then adjacent)
                 if not prospect:
