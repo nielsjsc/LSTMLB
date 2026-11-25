@@ -36,71 +36,62 @@ async function cancellableFetch(key: string, url: string, init: RequestInit = {}
 
 
 export interface Player {
-    id: number;
-    name: string;
-    team: string;
-    position: string;
-    status: string | null;
-    year: number;
-    war_bat?: number | null;  // Changed from war
-    war_pit?: number | null;  // Added
-    base_value: number;
-    contract_value: number;
-    surplus_value: number;
-    trade_value: number;
-    age: number | null;
-    fa_year: number | null;
-    probable_fa_year: number | null;
-    earliest_fa_year: number | null;
-    years_control?: number | null;
-    yearsControl?: number | null;
-    years_of_control?: number | null;
+  id: number;
+  fg_id: number;
+  mlbam_id: number | null;
+  name: string;
+  team: string;
+  position: string;
+  player_role?: string | null;
+  status: string | null;
+  year: number;
+  age: number | null;
+  war_bat?: number | null;
+  war_pit?: number | null;
+  production_value: number;
+  salary_cost: number;
+  annual_surplus: number;
+  trade_value: number | null;
+  trade_value_p10?: number | null;
+  trade_value_p90?: number | null;
+  fa_year: number | null;
+  probable_fa_year: number | null;
+  earliest_fa_year: number | null;
+  years_control?: number | null;
 }
+
 export interface PlayerFilter {
-    year?: number;
-    team?: string;
-    position?: string;
-    sort_by?: 'war' | 'value';
-    search?: string; 
+  year?: number;
+  team?: string;
+  position?: string;
+  sort_by?: 'war' | 'value';
+  search?: string;
 }
-
-
 
 export interface PlayerResponse {
-    count: number;
-    players: Array<{
-        real_id: number;
-        mlb_id: number | null;
-        name: string;
-        team: string;
-        position: string;
-        war_bat?: number | null;  // Changed
-        war_pit?: number | null;  // Added
-        base_value: number;
-        contract_value: number;
-        surplus_value: number;
-        trade_value: number;
-        status: string | null;
-        years_control?: number | null;
-        yearsControl?: number | null;
-        years_of_control?: number | null;
-    }>;
+  count: number;
+  players: Array<
+    Player & {
+      is_historical?: boolean;
+      career_war?: number;
+      first_year?: number;
+      last_year?: number;
+    }
+  >;
 }
-
 
 export const getAllProspects = async (
   playerType: 'hitter' | 'pitcher',
   year: number = PROSPECT_DEFAULT_YEAR
 ): Promise<Prospect[]> => {
-  // Uses the unified /prospects/ endpoint with slim=true for minimal fields
   const params = new URLSearchParams({
     player_type: playerType,
     year: year.toString(),
     page_size: '500',
-    slim: 'true'
+    slim: 'true',
   });
   const response = await fetch(`${API_BASE}/prospects?${params}`, {
-    headers: createApiHeaders()
+    headers: createApiHeaders(),
   });
   if (!response.ok) {
     const errorData = await response.json();
@@ -109,98 +100,94 @@ export const getAllProspects = async (
   const data = await response.json();
   return data.players;
 };
+
 export interface BaseTradeAsset {
-    name: string;
-    total_surplus: number;
-  }
-  
-  export interface PlayerTradeAsset extends BaseTradeAsset {
-    type: 'player';
-    war: number;
-    total_production: number;
-    total_contract: number;
-    years_control?: number | null;
-    yearsControl?: number | null;
-    years_of_control?: number | null;
-    probable_fa_year?: number | null;
-    probableFaYear?: number | null;
-    fa_year?: number | null;
-    faYear?: number | null;
-    projections?: Array<{ year: number; status: string }>;
-  }
-  
-  export interface ProspectTradeAsset extends BaseTradeAsset {
-    type: 'prospect';
-    value: number;
-    fv: string;
-    position: string;
-    years_control?: number | null;
-    yearsControl?: number | null;
-    years_of_control?: number | null;
-    probable_fa_year?: number | null;
-    probableFaYear?: number | null;
-    fa_year?: number | null;
-    faYear?: number | null;
-    projections?: Array<{ year: number; status: string }>;
-  }
-  
-  export type TradeAsset = PlayerTradeAsset | ProspectTradeAsset;
-  
-  // Update TradeAnalysis interface to use TradeAsset
-  export interface TradeAnalysis {
-    team1: {
-      total_surplus: number;
-      total_contract: number;
-      total_production: number;
-      assets: TradeAsset[];
-    };
-    team2: {
-      total_surplus: number;
-      total_contract: number;
-      total_production: number;
-      assets: TradeAsset[];
-    };
-  }
-// Update TradeAssetRequest to include type information
+  id: number;
+  fg_id?: number | string | null;
+  mlbam_id?: number | null;
+  name: string;
+  team: string;
+  position: string;
+  trade_value: number;
+  trade_value_p10?: number | null;
+  trade_value_p90?: number | null;
+  control_salary_cost: number;
+  control_production_value: number;
+  years_control?: number | null;
+  probable_fa_year?: number | null;
+  fa_year?: number | null;
+  projections?: Array<{ year: number; status: string }>;
+}
+
+export interface PlayerTradeAsset extends BaseTradeAsset {
+  type: 'player';
+  control_war: number;
+}
+
+export interface ProspectTradeAsset extends BaseTradeAsset {
+  type: 'prospect';
+  prospect_id?: number;
+  fv: string;
+  level?: string | null;
+  eta?: number | null;
+}
+
+export type TradeAsset = PlayerTradeAsset | ProspectTradeAsset;
+
+export interface TradeSideAnalysis {
+  consolidated_surplus: number;
+  raw_surplus_sum: number;
+  consolidation_penalty: number;
+  surplus_p10: number;
+  surplus_p90: number;
+  control_salary_cost: number;
+  control_production_value: number;
+  assets: TradeAsset[];
+}
+
+export interface TradeAnalysis {
+  side_a: TradeSideAnalysis;
+  side_b: TradeSideAnalysis;
+  package_gamma?: number;
+}
+
 export interface TradeAssetRequest {
   name: string;
   isProspect: boolean;
-  team: string;
-  type?: 'player' | 'prospect';  // Add optional type field
+  team?: string;
+  fg_id?: number | null;
+  mlbam_id?: number | null;
+  prospect_id?: number | null;
 }
-  
+
 export interface TradeRequest {
-  team1_assets: TradeAssetRequest[];
-  team2_assets: TradeAssetRequest[];
+  side_a_assets: TradeAssetRequest[];
+  side_b_assets: TradeAssetRequest[];
 }
 
 export const analyzeTrade = async (
-team1Assets: TradeAssetRequest[],
-team2Assets: TradeAssetRequest[]
+  sideAAssets: TradeAssetRequest[],
+  sideBAssets: TradeAssetRequest[]
 ): Promise<TradeAnalysis> => {
-  try {
-    const response = await fetch(`${API_BASE}/trades/analyze`, {
-      method: 'POST',
-      headers: createApiHeaders(),  // Replace the existing headers
-      body: JSON.stringify({
-        team1_assets: team1Assets,
-        team2_assets: team2Assets
-      })
-    });
+  const response = await fetch(`${API_BASE}/trades/analyze`, {
+    method: 'POST',
+    headers: createApiHeaders(),
+    body: JSON.stringify({
+      side_a_assets: sideAAssets,
+      side_b_assets: sideBAssets,
+    }),
+  });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      const errorMessage = typeof errorData.detail === 'object' 
-        ? JSON.stringify(errorData.detail) 
+  if (!response.ok) {
+    const errorData = await response.json();
+    const errorMessage =
+      typeof errorData.detail === 'object'
+        ? JSON.stringify(errorData.detail)
         : errorData.detail || 'Unknown error';
-      throw new Error(`Failed to analyze trade: ${errorMessage}`);
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    throw error;
+    throw new Error(`Failed to analyze trade: ${errorMessage}`);
   }
+
+  return response.json();
 };
 
 
@@ -239,70 +226,80 @@ export const filterPlayers = async (filters: PlayerFilter): Promise<PlayerRespon
 };
 
 export interface PlayerStats {
+  name: string;
+  team: string;
+  position: string;
+  fg_id?: number | string | null;
+  mlbam_id: number | null;
+  isHistorical?: boolean;
+  isProspectOnly?: boolean;
+  headshot_url?: string;
+  prospectData?: {
+    prospect_id: number;
+    fg_id: string | null;
+    mlbam_id: number | null;
     name: string;
-    team: string;
+    org: string;
     position: string;
-    mlb_id: number | null;
-    isHistorical?: boolean;
-    isProspectOnly?: boolean;
-    headshot_url?: string;
-    prospectData?: {
-        prospect_id: number;
-        IDfg: string | null;
-        mlbam_id: number | null;
-        name: string;
-        org: string;
-        position: string;
-        age: number | null;
-        fv: string;
-        has_mlb: boolean;
-        is_pitcher: boolean;
-        tools: Record<string, string | null>;
-        history: ProspectDetailHistory[];
+    level?: string | null;
+    eta?: number | null;
+    age: number | null;
+    fv: string;
+    trade_value?: number | null;
+    trade_value_p10?: number | null;
+    trade_value_p90?: number | null;
+    has_mlb: boolean;
+    is_pitcher: boolean;
+    tools: Record<string, string | null>;
+    history: ProspectDetailHistory[];
+  };
+  historicalMeta?: {
+    idfg: number;
+    bbref: string | null;
+    birth_year: number | null;
+    death_year: number | null;
+    first_year: number;
+    last_year: number;
+    teams: string[];
+    career_war: number;
+    career_bat_war: number;
+    career_pit_war: number;
+    career_salary: number | null;
+    career_war_value: number;
+    career_surplus: number | null;
+  };
+  projections: Array<{
+    year: number;
+    age: number;
+    status: string;
+    position: string;
+    fa_year: number;
+    team: string;
+    probable_fa_year: number;
+    earliest_fa_year: number;
+    value: {
+      production_value: number;
+      salary_cost: number;
+      annual_surplus: number;
+      trade_value: number | null;
+      trade_value_p10?: number | null;
+      trade_value_p50?: number | null;
+      trade_value_p90?: number | null;
+      control_war: number;
+      avg_war: number;
+      control_salary_cost: number;
+      avg_salary_cost: number;
+      control_production_value: number;
+      control_surplus?: number;
+      years_control: number;
+      control_through: number;
+      projected_15yr_war: number;
+      projected_15yr_value: number;
+      career_war: number;
+      career_production_value: number;
+      past_career_war: number;
+      past_career_value: number;
     };
-    historicalMeta?: {
-        idfg: number;
-        bbref: string | null;
-        birth_year: number | null;
-        death_year: number | null;
-        first_year: number;
-        last_year: number;
-        teams: string[];
-        career_war: number;
-        career_bat_war: number;
-        career_pit_war: number;
-        career_salary: number | null;
-        career_war_value: number;
-        career_surplus: number | null;
-    };
-    projections: Array<{
-        year: number;
-        age: number;
-        status: string;
-        position: string;
-        fa_year: number;
-        team: string;
-        probable_fa_year: number;
-        earliest_fa_year: number;
-        value: {
-            base_value: number;
-            contract_value: number;
-            surplus_value: number;
-            trade_value: number;
-            contract_war: number;
-            avg_war: number;
-            total_contract: number;
-            avg_contract: number;
-            years_control: number;
-            control_through: number;
-            total_future_war: number;
-            total_future_value: number;
-            total_war: number;
-            total_value: number;
-            historical_war: number;
-            historical_value: number;
-            contract_base_value: number;
-        };
         salary?: number | null;
         war_value?: number | null;
         hitting?: {
@@ -409,43 +406,39 @@ export interface PlayerStats {
     };
 }
   
-export const getPlayerDetails = async (real_id: number): Promise<PlayerStats> => {
-  const url = `${API_BASE}/players/${real_id}/details`;
-
-  try {
-      const response = await fetch(url, {
-        headers: createApiHeaders()  // Add this line
-      });
-      if (!response.ok) {
-          throw new Error('Failed to fetch player details');
-      }
-      const data = await response.json();
-      return data;
-  } catch (error) {
-      throw error;
+export const getPlayerDetails = async (playerId: number): Promise<PlayerStats> => {
+  const url = `${API_BASE}/players/${playerId}/details`;
+  const response = await fetch(url, { headers: createApiHeaders() });
+  if (!response.ok) {
+    throw new Error('Failed to fetch player details');
   }
+  return response.json();
 };
 
 export type BasePosition = 'C' | '1B' | '2B' | '3B' | 'SS' | 'OF' | 'LF' | 'CF' | 'RF' | 'DH' | 'SP' | 'RP';
 export type PlayerPosition = string;
 export interface ProjectionResponse {
-    count: number;
-    players: Array<{
-        real_id: number;
-        mlb_id: number | null;
-        name: string;
-        team: string;
-        position: string;
-        age: number;
-        fa_year: number;
-        probable_fa_year: number;
-        earliest_fa_year: number;
-        status: string;
-        value: {
-            base_value: number;
-            contract_value: number;
-            surplus_value: number;
-        };
+  count?: number;
+  players: Array<{
+    fg_id: number;
+    mlbam_id: number | null;
+    name: string;
+    team: string;
+    position: string;
+    player_role?: string | null;
+    age: number;
+    fa_year: number;
+    probable_fa_year: number;
+    earliest_fa_year: number;
+    status: string;
+    value: {
+      production_value: number;
+      salary_cost: number;
+      annual_surplus: number;
+      trade_value?: number | null;
+      trade_value_p10?: number | null;
+      trade_value_p90?: number | null;
+    };
         hitting?: {
             g_bat: number;
             war_bat: number;
@@ -526,38 +519,43 @@ export interface MiLBStatRow {
 }
 
 export interface Prospect {
-    id: number;
-    playerId: string;
-    IDfg: string | null;
-    name: string;
-    has_mlb: boolean;
-    org: string;
-    position: string;
-    age: number | null;
-    level: string | null;
-    fv: string;
-    value: number | null;
-    composite: number | null;
-    top_100: number | null;
-    org_rank: number | null;
+  id: number;
+  fg_id: string | null;
+  mlbam_id: number | null;
+  name: string;
+  has_mlb: boolean;
+  org: string;
+  position: string;
+  player_role?: string | null;
+  age: number | null;
+  level: string | null;
+  eta?: number | null;
+  fv: string;
+  trade_value: number | null;
+  trade_value_p10?: number | null;
+  trade_value_p50?: number | null;
+  trade_value_p90?: number | null;
+  composite: number | null;
+  top_100: number | null;
+  org_rank: number | null;
 
-    // Hitter Tool Grades
-    hit?: string;
-    game?: string;
-    raw?: string;
-    speed?: string;
+  // Hitter Tool Grades
+  hit?: string;
+  game?: string;
+  raw?: string;
+  speed?: string;
 
-    // Pitcher Tool Grades
-    fastball?: string;
-    slider?: string;
-    curve?: string;
-    change?: string;
-    command?: string;
+  // Pitcher Tool Grades
+  fastball?: string;
+  slider?: string;
+  curve?: string;
+  change?: string;
+  command?: string;
 
-    // Stats (populated when view=stats or view=all_stats)
-    latest_stats?: MiLBStatRow;
-    all_stats?: MiLBStatRow[];
-  }
+  // Stats (populated when view=stats or view=all_stats)
+  latest_stats?: MiLBStatRow;
+  all_stats?: MiLBStatRow[];
+}
   
   export interface ProspectResponse {
     count: number;
@@ -611,8 +609,12 @@ export interface ProspectDetailHistory {
   age: number | null;
   org: string;
   position: string;
+  level?: string | null;
+  eta?: number | null;
   fv: string;
-  value: number | null;
+  trade_value: number | null;
+  trade_value_p10?: number | null;
+  trade_value_p90?: number | null;
   composite: number | null;
   top_100: number | null;
   org_rank: number | null;
@@ -629,20 +631,24 @@ export interface ProspectDetailHistory {
 
 export interface ProspectDetail {
   id: number;
-  IDfg: number | null;
+  fg_id: string | null;
   mlbam_id: number | null;
   name: string;
   org: string;
   position: string;
+  level?: string | null;
+  eta?: number | null;
   age: number | null;
   fv: string;
+  trade_value?: number | null;
+  trade_value_p10?: number | null;
+  trade_value_p90?: number | null;
   has_mlb: boolean;
   is_pitcher: boolean;
   tools: Record<string, string | null>;
   history: ProspectDetailHistory[];
   mlb_info: {
     mlbam_id?: number;
-    mlb_id?: number;
     headshot_url: string;
   } | null;
 }
@@ -754,23 +760,29 @@ export const getPlayerMiLBStats = async (playerId: number): Promise<MiLBStatsRes
 // TRADE VALUE RANKING
 
 export interface TradeValueRankings {
-  real_id: number;
-  mlb_id: number | null;
+  fg_id: number;
+  mlbam_id: number | null;
   name: string;
   team: string;
   position: string;
-  contract_war: number;
-  avg_war: number;
-  total_contract: number;
-  avg_contract: number;
+  player_role?: string | null;
+  age?: number | null;
   trade_value: number;
+  trade_value_p10?: number | null;
+  trade_value_p50?: number | null;
+  trade_value_p90?: number | null;
+  control_war: number;
+  avg_war: number;
+  control_salary_cost: number;
+  avg_salary_cost: number;
+  control_production_value: number;
+  control_surplus?: number | null;
   control_through: number;
   years_control: number;
-  total_future_war: number;
-  total_future_value: number;
-  historical_war: number;
-  historical_value: number;
-  contract_base_value: number;
+  projected_15yr_war: number;
+  projected_15yr_value: number;
+  past_career_war: number;
+  past_career_value: number;
 }
 
 export interface TradeValueRankingsResponse {
@@ -828,14 +840,16 @@ export const getTradeValueRankings = async (
 // ── Trade Value History (per-player timeline) ─────────────────────────────
 export interface TradeValuePoint {
   year: number;
-  date: string | null;              // YYYY-MM-DD
+  date: string | null;
   value: number;
+  valueP10?: number | null;
+  valueP90?: number | null;
   valueType: 'prospect' | 'mlb_surplus' | 'free_agent';
-  transactionType: string | null;   // Spotrac txn type (traded, fa_signing, …)
+  transactionType: string | null;
   label: string;
   yearsControl: number | null;
   optOutYear: number | null;
-  status: string | null;            // Contract status (Signed, Arb-1, Opt-Out, etc.)
+  status?: string | null;
   projectedWar: number | null;
   projectedSalary: number | null;
   warPerYear: number | null;
@@ -947,7 +961,7 @@ export const getPlayerInfo = async (playerId: number): Promise<PlayerInfo | null
 export interface LinkedPlayer {
   name: string;
   mlbId: number;
-  realId: number | null;
+  fgId: number | null;
 }
 
 export interface Transaction {
