@@ -334,7 +334,7 @@ def generate_integrated_batter_predictions(
     cutoff_year: int = None,
     roster_ids: set = None
 ) -> Optional[pd.DataFrame]:
-    from value_determination.calculate_war import calculate_war_components, calculate_baserunning_value, calculate_defensive_value, load_player_orgs
+    from value_determination.war_engine import calculate_war_components, calculate_baserunning_value, calculate_defensive_value, load_player_orgs
     
     if cutoff_year is None:
         cutoff_year = datetime.now().year - 1
