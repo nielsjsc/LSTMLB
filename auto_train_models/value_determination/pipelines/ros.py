@@ -72,7 +72,7 @@ import requests
 from pathlib import Path
 
 from value_determination.config import Config, logger, CURRENT_YEAR
-from value_determination.calculate_war import load_player_orgs
+from value_determination.war_engine import load_player_orgs
 from core.park_factors import get_park_factor, EXCLUDED_STATS
 from core.stat_composition import compose_from_df, compose_wrc_plus
 from core.marcel_projections import (
@@ -1476,8 +1476,9 @@ def prorate_current_year_salary(df, war_proration, current_year=None):
     df       = df.copy()
     prorated = 0
 
-    if 'contract_value' not in df.columns:
-        logger.warning("contract_value column not found; skipping salary proration")
+    sal_col = 'salary_cost' if 'salary_cost' in df.columns else ('contract_value' if 'contract_value' in df.columns else None)
+    if sal_col is None:
+        logger.warning("salary_cost column not found; skipping salary proration")
         return df
 
     current_mask = df['Year'] == current_year
@@ -1495,11 +1496,11 @@ def prorate_current_year_salary(df, war_proration, current_year=None):
         if remaining_frac >= 1.0:
             continue
 
-        original_contract = df.at[idx, 'contract_value']
+        original_contract = df.at[idx, sal_col]
         if pd.isna(original_contract) or original_contract == 0:
             continue
 
-        df.at[idx, 'contract_value'] = original_contract * remaining_frac
+        df.at[idx, sal_col] = original_contract * remaining_frac
         prorated += 1
 
     logger.info(
