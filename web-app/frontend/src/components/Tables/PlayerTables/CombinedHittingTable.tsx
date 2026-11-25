@@ -7,9 +7,9 @@ interface CombinedHittingTableProps {
     team?: string;
     status: string;
     value: {
-      base_value: number;
-      contract_value: number;
-      surplus_value: number;
+      production_value: number;
+      salary_cost: number;
+      annual_surplus: number;
     };
     hitting: {
       g_bat: number;
@@ -22,7 +22,7 @@ interface CombinedHittingTableProps {
       ops: number;
       woba: number;
       wrc_plus: number;
-      off: number;
+      off?: number;
       bat: number;
       bsr: number;
       def_value: number;
@@ -47,9 +47,9 @@ interface FormattedRow extends Record<string, any> {
   age: number;
   team: string;
   status: string;
-  base_value: number;
-  contract_value: number;
-  surplus_value: number;
+  production_value: number;
+  salary_cost: number;
+  annual_surplus: number;
   g_bat: number;
   war_bat: number;
   bb_pct_bat: number;
@@ -75,7 +75,7 @@ interface FormattedRow extends Record<string, any> {
   xslg?: number;
   xwoba?: number;
 }
-const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, dividerYear, showCareerTotals = false, hideXStats = false }) => {
+const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, showCareerTotals = false, hideXStats = false }) => {
   const [sortKey, setSortKey] = useState<string>('year');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
@@ -112,9 +112,9 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
     { key: 'bsr', label: 'BsR' },
     { key: 'def_value', label: 'Def' },
     // Value
-    { key: 'base_value', label: 'Value ($M)' },
-    { key: 'contract_value', label: 'Contract ($M)' },
-    { key: 'surplus_value', label: 'Surplus ($M)' },
+    { key: 'production_value', label: 'Value ($M)' },
+    { key: 'salary_cost', label: 'Contract ($M)' },
+    { key: 'annual_surplus', label: 'Surplus ($M)' },
     { key: 'status', label: 'Status' }  ];
 
   const formatValue = (value: number | undefined | null) => {
@@ -156,9 +156,9 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
       case 'bb_pct_bat':
       case 'k_pct_bat':
         return formatPercent(value);
-      case 'base_value':
-      case 'contract_value':
-      case 'surplus_value':
+      case 'production_value':
+      case 'salary_cost':
+      case 'annual_surplus':
         return formatValue(value);
       default:
         return value.toString();
@@ -168,9 +168,9 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
   const formattedData = data.map(row => ({
     ...row,
     team: row.team ?? '',
-    base_value: row.value.base_value,
-    contract_value: row.value.contract_value,
-    surplus_value: row.value.surplus_value,
+    production_value: row.value.production_value,
+    salary_cost: row.value.salary_cost,
+    annual_surplus: row.value.annual_surplus,
     status: row.status,
     ...row.hitting
   })) as FormattedRow[];
@@ -233,9 +233,9 @@ const CombinedHittingTable: React.FC<CombinedHittingTableProps> = ({ data, divid
       xba: gamesWeightedAvg('xba'),
       xslg: gamesWeightedAvg('xslg'),
       xwoba: gamesWeightedAvg('xwoba'),
-      base_value: sum('base_value'),
-      contract_value: sum('contract_value'),
-      surplus_value: sum('surplus_value'),
+      production_value: sum('production_value'),
+      salary_cost: sum('salary_cost'),
+      annual_surplus: sum('annual_surplus'),
     };
   }, [formattedData]);
 
