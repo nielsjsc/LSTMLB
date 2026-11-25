@@ -1,143 +1,123 @@
 """
-Central Configuration for the Value Determination Module
-=========================================================
+Central Configuration for the Value Determination Engine (V2)
+=============================================================
 
-This module consolidates ALL configuration values used throughout the value determination
-pipeline. Edit values here rather than in individual files.
-
-Configuration Categories:
-    - Directory Paths
-    - Column Definitions
-    - WAR Calculation Constants
-    - Contract/Salary Constants
-    - Prospect Valuation Constants
-    - Pipeline Settings
+Consolidates paths, MLB league constants, contract rules, market valuation
+parameters, Monte Carlo simulation settings, and pre-debut prospect valuation
+curves in one self-documenting module.
 
 Usage:
     from value_determination.config import Config, CURRENT_YEAR
-    
-    # Access any config value
-    data_dir = Config.Paths.DATA_DIR
-    war_value = Config.WAR.get_value_for_year(2025)
-    prospect_threshold = Config.Prospects.EXPERIENCE_THRESHOLD_GAMES['batter']
 """
 
-from pathlib import Path
-from enum import Enum
-from dataclasses import dataclass
-from typing import Dict, Optional
-import logging
+from __future__ import annotations
 
-# Single source of truth for park factors — see core/park_factors.py.
-# Previously this module kept its own hand-copied BALLPARK_FACTORS dict in
-# sync manually (see the comment that used to sit above it: "Updated to
-# match core/park_factors.py for consistency"). That copy never included
-# core.park_factors.TEAM_CODE_ALIASES (SFG/SDP/KCR/TBR/WSN), so any team
-# using those codes silently fell back to neutral (100) wherever this dict
-# was queried directly instead of through get_park_factor(). Importing the
-# real dict/alias table here means there is nothing left to keep in sync.
+import json
+import logging
+import math
+from enum import Enum
+from pathlib import Path
+
 from core.park_factors import PARK_FACTORS_5YR, TEAM_CODE_ALIASES, get_park_factor  # noqa: F401
 
-# Module-level constant for easy import
 CURRENT_YEAR = 2026
+
 # =============================================================================
 # LOGGING CONFIGURATION
 # =============================================================================
-# All modules should use this logger for consistent output
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger('value_determination')
+logger = logging.getLogger("value_determination")
 
 
 # =============================================================================
 # PATH CONFIGURATION
 # =============================================================================
 class Paths:
-    """All directory and file paths used in the pipeline."""
-    
-    # Root directories
-    ROOT_DIR = Path(__file__).resolve().parents[2]
-    DATA_DIR = ROOT_DIR / 'data'
-    
-    # Input directories
-    PIPELINE_DIR = DATA_DIR / 'generated' / 'pipeline'
-    HISTORIC_MLB_DIR = DATA_DIR / 'historic_mlb'
-    SALARY_DIR = DATA_DIR / 'salary'
-    PROSPECT_DIR = DATA_DIR / 'prospect_data'
-    ROSTER_DIR = DATA_DIR / 'active_roster'
-    
-    # Output directories
-    GENERATED_DIR = DATA_DIR / 'generated'
-    OUTPUT_DIR = GENERATED_DIR / 'value_by_year'
-    
-    # Specific files
-    ROSTER_FILE = ROSTER_DIR / 'current_rosters.csv'
-    SALARY_FILE = SALARY_DIR / 'mlb_salary_data.csv'
-    PROSPECT_FILE = PROSPECT_DIR / 'prospects_2014_2026_with_top100.csv'
+    """All directory and file paths used in the valuation pipeline."""
 
-    # ── Historical trade-value pipeline paths ────────────────────────────
-    COTS_BY_YEAR_DIR      = SALARY_DIR / 'by_year'
-    HISTORIC_BATTING_FILE  = HISTORIC_MLB_DIR / 'mlb_batting_data_1950_2025_with_statcast.csv'
-    HISTORIC_PITCHING_FILE = HISTORIC_MLB_DIR / 'mlb_pitching_data_1950_2025_with_statcast.csv'
-    HISTORIC_BATTING_FILE_CLASSIC  = HISTORIC_MLB_DIR / 'mlb_batting_data_1950_2025.csv'
-    HISTORIC_PITCHING_FILE_CLASSIC = HISTORIC_MLB_DIR / 'mlb_pitching_data_1950_2025.csv'
-    HISTORIC_FIELDING_FILE = HISTORIC_MLB_DIR / 'mlb_fielding_data_2000_2025_with_statcast.csv'
-    CROSSWALK_FILE         = GENERATED_DIR / 'player_id_crosswalk.csv'
-    PLAYER_VALUES_FILE     = OUTPUT_DIR / 'player_values_complete.csv'
-    SPOTRAC_TRANSACTIONS_FILE = SALARY_DIR / 'spotrac_transactions.csv'
-    PROJECTIONS_DIR        = GENERATED_DIR / 'historical_values' / 'projections'
-    SURPLUS_DIR            = GENERATED_DIR / 'historical_values' / 'surplus'
-    TRADE_VALUE_HISTORY_FILE = OUTPUT_DIR / 'trade_value_history.csv'
-    
+    ROOT_DIR = Path(__file__).resolve().parents[2]
+    DATA_DIR = ROOT_DIR / "data"
+
+    # Input directories
+    PIPELINE_DIR = DATA_DIR / "generated" / "pipeline"
+    HISTORIC_MLB_DIR = DATA_DIR / "historic_mlb"
+    SALARY_DIR = DATA_DIR / "salary"
+    PROSPECT_DIR = DATA_DIR / "prospect_data"
+    ROSTER_DIR = DATA_DIR / "active_roster"
+
+    # Output directories
+    GENERATED_DIR = DATA_DIR / "generated"
+    OUTPUT_DIR = GENERATED_DIR / "value_by_year"
+    MILB_GENERATED_DIR = GENERATED_DIR / "MiLB"
+
+    # Canonical files
+    ROSTER_FILE = ROSTER_DIR / "current_rosters.csv"
+    SALARY_FILE = SALARY_DIR / "mlb_salary_data.csv"
+    UNIVERSAL_SALARY_FILE = SALARY_DIR / "universal_salary.csv"
+    PROSPECT_FILE = PROSPECT_DIR / "prospects_2014_2026_with_top100.csv"
+    PROSPECT_VALUES_FILE = MILB_GENERATED_DIR / "prospect_values.csv"
+    VALUATION_CALIBRATION_FILE = GENERATED_DIR / "valuation_calibration.json"
+
+    # Historical trade-value pipeline paths
+    COTS_BY_YEAR_DIR = SALARY_DIR / "by_year"
+    HISTORIC_BATTING_FILE = HISTORIC_MLB_DIR / "mlb_batting_data_1950_2025_with_statcast.csv"
+    HISTORIC_PITCHING_FILE = HISTORIC_MLB_DIR / "mlb_pitching_data_1950_2025_with_statcast.csv"
+    HISTORIC_BATTING_FILE_CLASSIC = HISTORIC_MLB_DIR / "mlb_batting_data_1950_2025.csv"
+    HISTORIC_PITCHING_FILE_CLASSIC = HISTORIC_MLB_DIR / "mlb_pitching_data_1950_2025.csv"
+    HISTORIC_FIELDING_FILE = HISTORIC_MLB_DIR / "mlb_fielding_data_2000_2025_with_statcast.csv"
+    CROSSWALK_FILE = GENERATED_DIR / "player_id_crosswalk.csv"
+    PLAYER_VALUES_FILE = OUTPUT_DIR / "player_values_complete.csv"
+    SPOTRAC_TRANSACTIONS_FILE = SALARY_DIR / "spotrac_transactions.csv"
+    PROJECTIONS_DIR = GENERATED_DIR / "historical_values" / "projections"
+    SURPLUS_DIR = GENERATED_DIR / "historical_values" / "surplus"
+    TRADE_VALUE_HISTORY_FILE = OUTPUT_DIR / "trade_value_history.csv"
+
     @classmethod
-    def ensure_directories(cls):
+    def ensure_directories(cls) -> None:
         """Create all required output directories."""
-        for directory in [cls.DATA_DIR, cls.GENERATED_DIR, cls.OUTPUT_DIR,
-                          cls.PROJECTIONS_DIR, cls.SURPLUS_DIR]:
+        for directory in (
+            cls.DATA_DIR,
+            cls.GENERATED_DIR,
+            cls.OUTPUT_DIR,
+            cls.MILB_GENERATED_DIR,
+            cls.PROJECTIONS_DIR,
+            cls.SURPLUS_DIR,
+        ):
             directory.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"Verified directory exists: {directory}")
 
 
 # =============================================================================
 # COLUMN DEFINITIONS
 # =============================================================================
 class Columns:
-    """Column name definitions for data validation and processing."""
-    
-    # Required columns by data type
+    """Column name definitions for upstream prediction validation and stat extraction."""
+
     REQUIRED = {
-        'batter_predictions': ['Name', 'IDfg', 'Age', 'wOBA'],
-        'pitcher_predictions': ['Name', 'IDfg', 'Age', 'FIP'],
-        'salary': ['player_name', 'player_id', 'payroll_annual', 'status']
+        "batter_predictions": ["Name", "IDfg", "Age", "wOBA"],
+        "pitcher_predictions": ["Name", "IDfg", "Age", "FIP"],
+        "salary": ["player_name", "player_id", "payroll_annual", "status"],
     }
-    
-    # Output column sets
+
     HITTER_COLUMNS = [
-        'Name', 'Age', 'G', 'PA', 'BB_bat', 'K_bat', 'IDfg', 'BB%', 'K%', 'AVG', 'OBP', 'SLG', 'wOBA',
-        'wRC+', 'Bat', 'BsR', 'Def', 'WAR', 'HR', '2B', '3B', 'SB', 'CS', 'R', 'RBI'
+        "Name", "Age", "G", "PA", "BB_bat", "K_bat", "IDfg", "BB%", "K%", "AVG", "OBP", "SLG", "wOBA",
+        "wRC+", "Bat", "BsR", "Def", "WAR", "HR", "2B", "3B", "SB", "CS", "R", "RBI",
     ]
 
     PITCHER_COLUMNS = [
-        'Name', 'Age', 'GS', 'G', 'IP', 'BB_pit', 'K_pit', 'ER_pit', 'IDfg', 'ERA', 'FIP', 'K%', 'BB%', 'WAR',
-        'HR/FB', 'K/9', 'BB/9', 'HR/9', 'FB%', 'GB%', 'SIERA',
+        "Name", "Age", "GS", "G", "IP", "BB_pit", "K_pit", "ER_pit", "IDfg", "ERA", "FIP", "K%", "BB%", "WAR",
+        "HR/FB", "K/9", "BB/9", "HR/9", "FB%", "GB%", "SIERA",
     ]
-    # ID column mappings (for transitioning from FG ID to MLB ID)
-    # TODO: Complete migration to mlbam_id as primary identifier
-    ID_COLUMNS = {
-        'fangraphs': 'IDfg',
-        'mlb': 'mlbam_id',
-        'roster_fangraphs': 'fg_id',
-        'salary': 'player_id'
-    }
 
 
 # =============================================================================
 # PLAYER STATUS DEFINITIONS
 # =============================================================================
 class PlayerStatus(Enum):
-    """Enum for player contract status."""
+    """Canonical player contract status tiers."""
+
     PRE_ARB = "Pre-ARB"
     ARB1 = "ARB1"
     ARB2 = "ARB2"
@@ -147,21 +127,20 @@ class PlayerStatus(Enum):
     UNKNOWN = "Unknown"
 
 
-# Status string mappings to normalize various input formats
 STATUS_MAPPINGS = {
-    'PRE-ARB': PlayerStatus.PRE_ARB,
-    'PRE ARB': PlayerStatus.PRE_ARB,
-    'ROOKIE': PlayerStatus.PRE_ARB,
-    'MIN': PlayerStatus.PRE_ARB,
-    'ARB 1': PlayerStatus.ARB1,
-    'ARB1': PlayerStatus.ARB1,
-    'ARB 2': PlayerStatus.ARB2,
-    'ARB2': PlayerStatus.ARB2,
-    'ARB 3': PlayerStatus.ARB3,
-    'ARB3': PlayerStatus.ARB3,
-    'ARB 4': PlayerStatus.ARB3,
-    'UFA': PlayerStatus.FREE_AGENT,
-    'FA': PlayerStatus.FREE_AGENT,
+    "PRE-ARB": PlayerStatus.PRE_ARB,
+    "PRE ARB": PlayerStatus.PRE_ARB,
+    "ROOKIE": PlayerStatus.PRE_ARB,
+    "MIN": PlayerStatus.PRE_ARB,
+    "ARB 1": PlayerStatus.ARB1,
+    "ARB1": PlayerStatus.ARB1,
+    "ARB 2": PlayerStatus.ARB2,
+    "ARB2": PlayerStatus.ARB2,
+    "ARB 3": PlayerStatus.ARB3,
+    "ARB3": PlayerStatus.ARB3,
+    "ARB 4": PlayerStatus.ARB3,
+    "UFA": PlayerStatus.FREE_AGENT,
+    "FA": PlayerStatus.FREE_AGENT,
 }
 
 
@@ -169,680 +148,416 @@ STATUS_MAPPINGS = {
 # WAR CALCULATION CONSTANTS
 # =============================================================================
 class WARConstants:
-    """Constants for WAR (Wins Above Replacement) calculations."""
-    
-    # Park factors by team (100 = neutral) — FanGraphs 5-year Basic park factors (2025).
-    # This is now a direct reference to core.park_factors.PARK_FACTORS_5YR — the
-    # single source of truth — instead of a second hardcoded copy. Do not
-    # re-add a literal dict here; edit core/park_factors.py instead, and use
-    # get_park_factor(team) (also re-exported below) rather than indexing
-    # this dict directly, since that function also resolves team-code
-    # aliases (SFG/SDP/KCR/TBR/WSN) and handles missing/NaN teams.
+    """League environment and FanGraphs WAR calculation constants."""
+
     BALLPARK_FACTORS = PARK_FACTORS_5YR
-    
-    # League constants for offensive calculations (2025 season)
+
+    # League offensive environment (2025 baseline)
     WOBA_SCALE = 1.232
-    RPA = 0.118  # League runs per PA
+    RPA = 0.118
     LG_WOBA = 0.313
-    RPW = 9.774  # Runs per Win
-    LG_PA = 186188  # League total PA
+    RPW = 9.774
+    LG_PA = 186188
     LG_RUNS_PER_PA = 0.118
     LG_WRC_PER_PA = 0.117
-    
-    # 2025 wOBA weights for calculating wOBA from counting stats
+
     WOBA_WEIGHTS = {
-        'wBB': 0.691,    # Unintentional walk
-        'wHBP': 0.722,   # Hit by pitch
-        'w1B': 0.882,    # Single
-        'w2B': 1.252,    # Double
-        'w3B': 1.584,    # Triple
-        'wHR': 2.037     # Home run
+        "wBB": 0.691,
+        "wHBP": 0.722,
+        "w1B": 0.882,
+        "w2B": 1.252,
+        "w3B": 1.584,
+        "wHR": 2.037,
     }
-    
+
     # Positional adjustments (runs per 162 games)
     POSITIONAL_ADJUSTMENTS = {
-        'C': 12.5,
-        'SS': 7.5,
-        '2B': 2.5,
-        'CF': 2.5,
-        '3B': 2.5,
-        'LF': -7.5,
-        'RF': -7.5,
-        '1B': -12.5,
-        'DH': -17.5
+        "C": 12.5,
+        "SS": 7.5,
+        "2B": 2.5,
+        "CF": 2.5,
+        "3B": 2.5,
+        "LF": -7.5,
+        "RF": -7.5,
+        "1B": -12.5,
+        "DH": -17.5,
     }
-    
-    # Pitcher-specific constants
-    LG_FIP = 4.14  # League average FIP (2024 actual ≈ 4.14)
-    LG_RA9 = 4.50  # League average runs allowed per 9 IP (incl. unearned)
-    REPLACEMENT_LEVEL_RUNS_200IP = 22.0  # Replacement level runs per 200 IP
-    DEFAULT_IP_PER_START = 5.75  # Average IP per start (for dynamic RPW)
-    DEFAULT_IP_PER_APPEARANCE_RP = 1.0  # Average IP per RP appearance
-    
-    # Default IP assumptions for projections
-    DEFAULT_SP_IP = 180  # Standard full season for SP
-    DEFAULT_RP_IP = 70   # Standard full season for RP
-    BF_PER_IP = 4.33     # Average batters faced per inning (MLB average)
-    
-    # Team name to abbreviation mapping (for roster data)
+
+    # Defensive spectrum drift: past age 28, defenders lose range and migrate
+    # down the defensive spectrum toward corner/DH (-0.8 runs per 150 G per year).
+    DEFENSIVE_SPECTRUM_DRIFT_AGE_PIVOT = 28.0
+    DEFENSIVE_SPECTRUM_DRIFT_RUNS_PER_YEAR = -0.8
+
+    # Pitcher environment constants
+    LG_FIP = 4.14
+    LG_RA9 = 4.50
+    REPLACEMENT_LEVEL_RUNS_200IP = 22.0
+    DEFAULT_IP_PER_START = 5.75
+    DEFAULT_IP_PER_APPEARANCE_RP = 1.0
+    DEFAULT_SP_IP = 175
+    DEFAULT_RP_IP = 65
+    BF_PER_IP = 4.33
+
     TEAM_ABBREVIATIONS = {
-        'Athletics': 'ATH',
-        'Pittsburgh Pirates': 'PIT',
-        'San Diego Padres': 'SD',
-        'Seattle Mariners': 'SEA',
-        'San Francisco Giants': 'SF',
-        'Arizona Diamondbacks': 'ARI',
-        'Atlanta Braves': 'ATL',
-        'Baltimore Orioles': 'BAL',
-        'Boston Red Sox': 'BOS',
-        'Chicago Cubs': 'CHC',
-        'Chicago White Sox': 'CHW',
-        'Cincinnati Reds': 'CIN',
-        'Cleveland Guardians': 'CLE',
-        'Colorado Rockies': 'COL',
-        'Detroit Tigers': 'DET',
-        'Houston Astros': 'HOU',
-        'Kansas City Royals': 'KC',
-        'Los Angeles Angels': 'LAA',
-        'Los Angeles Dodgers': 'LAD',
-        'Miami Marlins': 'MIA',
-        'Milwaukee Brewers': 'MIL',
-        'Minnesota Twins': 'MIN',
-        'New York Mets': 'NYM',
-        'New York Yankees': 'NYY',
-        'Philadelphia Phillies': 'PHI',
-        'St. Louis Cardinals': 'STL',
-        'Tampa Bay Rays': 'TB',
-        'Texas Rangers': 'TEX',
-        'Toronto Blue Jays': 'TOR',
-        'Washington Nationals': 'WSH'
+        "Athletics": "ATH",
+        "Oakland Athletics": "ATH",
+        "Pittsburgh Pirates": "PIT",
+        "San Diego Padres": "SD",
+        "Seattle Mariners": "SEA",
+        "San Francisco Giants": "SF",
+        "Arizona Diamondbacks": "ARI",
+        "Atlanta Braves": "ATL",
+        "Baltimore Orioles": "BAL",
+        "Boston Red Sox": "BOS",
+        "Chicago Cubs": "CHC",
+        "Chicago White Sox": "CHW",
+        "Cincinnati Reds": "CIN",
+        "Cleveland Guardians": "CLE",
+        "Cleveland Indians": "CLE",
+        "Colorado Rockies": "COL",
+        "Detroit Tigers": "DET",
+        "Houston Astros": "HOU",
+        "Kansas City Royals": "KC",
+        "Los Angeles Angels": "LAA",
+        "Los Angeles Dodgers": "LAD",
+        "Miami Marlins": "MIA",
+        "Milwaukee Brewers": "MIL",
+        "Minnesota Twins": "MIN",
+        "New York Mets": "NYM",
+        "New York Yankees": "NYY",
+        "Philadelphia Phillies": "PHI",
+        "St. Louis Cardinals": "STL",
+        "Tampa Bay Rays": "TB",
+        "Texas Rangers": "TEX",
+        "Toronto Blue Jays": "TOR",
+        "Washington Nationals": "WSH",
     }
 
 
 # =============================================================================
-# CONTRACT/SALARY CONSTANTS
+# CONTRACT & ARBITRATION CONSTANTS
 # =============================================================================
-# =============================================================================
-# CONVEX WAR VALUATION MODEL
-# =============================================================================
-class ConvexModel:
-    """
-    Empirically calibrated convex power-law model for WAR-to-dollar conversion.
-    
-    Formula:
-        value = alpha * max(WAR, 0)^beta * (1 + inflation_rate)^(year - base_year)
-    
-    Parameters were derived by minimizing the median absolute trade imbalance
-    across 744 MLB trades (2014-2024) using Nelder-Mead optimization on the
-    joint (alpha, beta) surface.
-    
-    The convex shape (beta > 1) means each additional WAR is worth MORE than
-    the last, reflecting real market dynamics:
-        - Scarcity premium: elite players are rare and irreplaceable
-        - Certainty premium: high-WAR players have lower variance
-        - Optionality: surplus WAR can be traded for prospects/assets
-        - Roster-slot cost: each player occupies a 26-man roster spot,
-          so one 6-WAR player is worth more than two 3-WAR players
-    
-    Reference values (2025 dollars, alpha=$8.59M, beta=1.18, replacement floor=0.5):
-        0.5 WAR =      $0       3 WAR  =  $24.5M
-        1.0 WAR =   $3.8M       5 WAR  =  $49.2M
-        2.0 WAR =  $13.8M       8 WAR  = $121.9M
-    
-    Usage:
-        from value_determination.config import Config
-        alpha, beta = Config.ConvexModel.load_calibration()
-        value = Config.ConvexModel.calculate_value(war=4.5, year=2026)
-    """
-    
-    # Default parameters (from trade analysis calibration 2014-2024)
-    ALPHA_DEFAULT = 8_592_188   # Base $/WAR coefficient ($8.59M)
-    BETA_DEFAULT = 1.18        # Convexity exponent (>1 = superlinear)
-    
-    # Path to calibration file (no longer auto-generated — defaults are used)
-    CALIBRATION_FILE = Paths.GENERATED_DIR / 'historical_values' / 'convex_calibration.json'
-    
+class ContractConstants:
+    """CBA minimum salary and arbitration progression parameters."""
+
+    HISTORICAL_WAR_VALUE = {
+        2002: 4_800_000, 2003: 4_800_000, 2004: 4_800_000, 2005: 4_800_000,
+        2006: 5_200_000, 2007: 5_700_000, 2008: 6_200_000, 2009: 6_400_000,
+        2010: 6_000_000, 2011: 7_500_000, 2012: 6_500_000, 2013: 7_400_000,
+        2014: 7_600_000, 2015: 8_000_000, 2016: 8_000_000, 2017: 7_900_000,
+        2018: 8_000_000, 2019: 8_100_000, 2020: 7_900_000, 2021: 8_100_000,
+        2022: 8_200_000, 2023: 8_500_000, 2024: 8_800_000, 2025: 9_000_000,
+    }
+
+    WAR_VALUE_DEFAULT = 9_200_000
+    INFLATION_RATE = 0.04
+    BASE_YEAR = 2026
+
+    # Minimum salaries by status (2026 baseline; scaled by year when historical)
+    MIN_SALARY = {
+        "Pre-Arb": 780_000,
+        "Arb-1": 2_000_000,
+        "Arb-1 (Super 2)": 2_000_000,
+        "Arb-2": 3_500_000,
+        "Arb-3": 5_500_000,
+        "Arb-4": 7_000_000,
+    }
+
+    # Share of single-season production value paid in each arbitration tier
+    ARB_PERCENT = {
+        "Arb-1": 0.20,
+        "Arb-1 (Super 2)": 0.18,
+        "Arb-2": 0.35,
+        "Arb-3": 0.55,
+        "Arb-4": 0.70,
+    }
+
     @classmethod
-    def load_calibration(cls) -> tuple:
-        """
-        Load calibrated (alpha, beta) from the trade analysis pipeline.
-        
-        Falls back to hardcoded defaults if the calibration file is missing
-        or unreadable. This ensures the value determination module works
-        independently of the trade analysis pipeline.
-        
-        Returns:
-            Tuple of (alpha, beta) as floats.
-        """
-        import json
-        try:
-            if cls.CALIBRATION_FILE.exists():
-                with open(cls.CALIBRATION_FILE, 'r') as f:
-                    cal = json.load(f)
-                alpha = float(cal.get('alpha', cls.ALPHA_DEFAULT))
-                beta = float(cal.get('beta', cls.BETA_DEFAULT))
-                logger.info(
-                    f"Loaded convex calibration from {cls.CALIBRATION_FILE.name}: "
-                    f"alpha=${alpha:,.0f}, beta={beta:.3f}"
-                )
-                return alpha, beta
-        except Exception as e:
-            logger.warning(f"Could not load calibration file: {e}")
-        
-        logger.info(
-            f"Using default convex parameters: "
-            f"alpha=${cls.ALPHA_DEFAULT:,.0f}, beta={cls.BETA_DEFAULT:.3f}"
-        )
-        return cls.ALPHA_DEFAULT, cls.BETA_DEFAULT
-    
-    @classmethod
-    def calculate_value(cls, war: float, year: int,
-                        alpha: float = None, beta: float = None) -> float:
-        """
-        DEPRECATED — Use MarketValuation.calculate_value() instead.
-
-        Convert WAR to dollar value using the convex power-law model.
-
-        Args:
-            war: WAR value (sub-replacement returns $0).
-            year: Season year (for inflation adjustment from BASE_YEAR).
-            alpha: Override alpha parameter (defaults to ALPHA_DEFAULT).
-            beta: Override beta parameter (defaults to BETA_DEFAULT).
-
-        Returns:
-            Dollar value of player's WAR production for that year.
-        """
-        if alpha is None:
-            alpha = cls.ALPHA_DEFAULT
-        if beta is None:
-            beta = cls.BETA_DEFAULT
-        
-        import math
-        if war is None or (isinstance(war, float) and math.isnan(war)) or war <= 0:
-            return 0.0
-        
-        inflation = (1 + ContractConstants.INFLATION_RATE) ** (year - ContractConstants.BASE_YEAR)
-        return alpha * (war ** beta) * inflation
+    def get_war_value(cls, year: int) -> float:
+        """Linear $/WAR benchmark for a given season."""
+        if year in cls.HISTORICAL_WAR_VALUE:
+            return float(cls.HISTORICAL_WAR_VALUE[year])
+        return float(cls.WAR_VALUE_DEFAULT * ((1.0 + cls.INFLATION_RATE) ** (year - cls.BASE_YEAR)))
 
 
 # =============================================================================
-# ROLE-SPECIFIC MARKET VALUATION MODEL
+# MARKET VALUATION & CONSOLIDATION MODEL
 # =============================================================================
 class MarketValuation:
     """
-    Role-specific WAR-to-dollar conversion calibrated from FA contract analysis.
+    Empirically calibrated WAR-to-dollar production model + package consolidation.
 
-    Calibrated from 506 FA contracts (2014-2025). Key empirical findings:
+    Single-season production value:
+        production_value = rate[player_role] * max(WAR, 0)^WAR_BETA * (1 + INFLATION_RATE)^(year - BASE_YEAR)
 
-        1. At the same WAR level, SP are paid MORE than RP (not less).
-           SP intercept $5.42M vs RP $3.63M vs Batter $3.19M.
-        2. FA contracts are sublinear (beta < 1), but trade value has a
-           consolidation premium (can't trade 7 role-players for 1 star),
-           so we use a superlinear beta for trade purposes — increased from
-           1.15 to further separate high-WAR/short-term production from
-           low-WAR/long-term production that sums to the same total WAR.
-        3. WAR already incorporates positional *run-scale* adjustments
-           (POSITIONAL_ADJUSTMENTS in WARConstants) — those stay untouched.
-           This class adds two SEPARATE, dollar-side adjustments on top:
-             a) DEFENSIVE_VALUE_DISCOUNT — defensive runs (Fld + Pos) are
-                priced below offensive runs (Bat + BsR) because defensive
-                metrics carry more year-to-year forecast error than bat
-                metrics. Catchers get an even steeper discount
-                (POSITION_DEFENSIVE_DISCOUNT_OVERRIDE) since catcher defensive
-                value leans heavily on framing, which is the noisiest,
-                least stable defensive metric in the sport. This is a
-                trust/uncertainty discount, not a statement that defense
-                doesn't matter.
-             b) WRC_PLUS_BAT_PREMIUM — elite bats get a direct premium on
-                top of whatever their WAR already earned them. This reflects
-                that the market bids up great hitters harder than great
-                gloves at the same WAR total — good bats are simply more
-                coveted, not just "more scarce by position". Replaces the
-                old position-scarcity multiplier, which rewarded playing a
-                scarce position rather than actually hitting well.
+    Note:
+        WAR already prices offensive runs, baserunning, fielding, positional scarcity,
+        and post-28 defensive spectrum drift. No double-counted wRC+ or defensive
+        dollar multipliers are layered on top.
 
-    Formula (component-aware path):
-        off_war    = (Bat + BsR) / RPW
-        def_war    = (Fld + Pos) / RPW           [Fld + Pos == 'Def' column]
-        def_share  = def_war / (off_war + def_war), clipped to [0, 1]
-        def_disc   = POSITION_DEFENSIVE_DISCOUNT_OVERRIDE.get(position, DEFENSIVE_VALUE_DISCOUNT)
-        discount   = 1 - def_share * (1 - def_disc)
-        bat_bonus  = 1 + clip((wRC+ - 100) * WRC_PLUS_PREMIUM_RATE, 0, WRC_PLUS_PREMIUM_CAP)
-        value      = base_rate[role] * WAR^BETA * inflation(year) * discount * bat_bonus
-
-    Formula (legacy total-WAR-only path, used when component breakdown is
-    unavailable — e.g. two-way players, historical backfill rows):
-        value = base_rate[role] * WAR^BETA * inflation(year)
-
-    The SP premium (~18%) reflects the higher replacement cost of starting
-    pitching in FA, driven by scarcity of quality innings.
-
-    Reference values (2026 dollars, no defensive discount / bat premium applied):
-        SP:  1 WAR → $10.6M    3 WAR → $35.6M    5 WAR → $62.4M
-        RP:  1 WAR →  $9.0M    3 WAR → $30.3M    5 WAR → $53.1M
-        Bat: 1 WAR →  $9.0M    3 WAR → $30.3M    5 WAR → $53.1M
+    Multi-asset trade package consolidation (applied in /trades/analyze):
+        consolidated_pos = (sum_{v_i > 0} v_i^PACKAGE_GAMMA)^(1 / PACKAGE_GAMMA)
+        consolidated_surplus = consolidated_pos + sum_{v_j <= 0} v_j
     """
 
-    # Role-specific base rates derived from FA regression intercepts.
-    # SP commands an 18% premium reflecting scarcity of quality innings.
-    RATE_SP = 10_000_000
-    RATE_RP = 8_500_000
-    RATE_BATTER = 8_500_000
-
-    # Consolidation exponent — a 5-WAR player is worth more than five 1-WAR.
-    # Raised from 1.15 -> 1.35 (2026-07) to further penalize compiling total
-    # WAR from many low-WAR seasons (long-term deals) vs. concentrated
-    # high-WAR seasons (short-term/peak production). At beta=1.35, a 5-WAR
-    # player is worth ~1.63x five 1-WAR players (vs. ~1.27x at beta=1.15).
-    # NOTE: this was widened without re-running the FA-contract calibration
-    # that produced the base rates above — re-validate against actual trade/
-    # extension data before trusting absolute dollar values, especially at
-    # the high end (8+ WAR seasons get pushed considerably higher).
-    CONSOLIDATION_BETA = 1.35
-
-    # Defensive runs (Fld + Pos, i.e. the 'Def' WAR component) are priced at
-    # this fraction of the rate applied to offensive runs (Bat + BsR).
-    # 1.0 = no discount. Lowered from 0.82 -> 0.70 (2026-07) — defense should
-    # matter less to trade value than the original convex model implied.
-    DEFENSIVE_VALUE_DISCOUNT = 0.70
-
-    # Position-specific override for the discount above. Catchers get a
-    # steeper discount than the general default: catcher defensive value is
-    # dominated by framing runs, which are the least stable/most subjective
-    # defensive metric we track, so we trust it least in trade value.
-    POSITION_DEFENSIVE_DISCOUNT_OVERRIDE = {
-        'C': 0.55,
-    }
-
-    # Direct bonus for elite hitting, independent of WAR/position. Rewards
-    # the bat itself rather than the scarcity of the position it's attached
-    # to — "good bats are good bats" and the market pays for them regardless
-    # of glove. Linear above a 100 wRC+ (league-average) baseline, capped so
-    # a single outlier season doesn't blow up trade value.
-    #   +0.6% of value per point of wRC+ above 100, capped at +25%
-    #   (cap reached at wRC+ ~142)
-    WRC_PLUS_PREMIUM_RATE = 0.006
-    WRC_PLUS_PREMIUM_CAP = 0.25
-
-    @classmethod
-    def calculate_value(cls, war: float, year: int,
-                        position_group: str = 'batter',
-                        bat: float = None, bsr: float = None,
-                        def_runs: float = None, position: str = None,
-                        wrc_plus: float = None,
-                        **kwargs) -> float:
-        """
-        Convert WAR to dollar value using role-specific base rates.
-
-        Two modes:
-          - Component-aware (pass bat, bsr, def_runs): applies the
-            defensive discount to the defensive share of value, using
-            POSITION_DEFENSIVE_DISCOUNT_OVERRIDE for that position if one
-            exists (catchers), otherwise DEFENSIVE_VALUE_DISCOUNT.
-          - Legacy total-WAR (leave bat/bsr/def_runs as None): unchanged
-            behavior, used when component breakdown isn't available
-            (two-way players, historical rows without Bat/BsR/Def).
-
-        WRC_PLUS_PREMIUM is applied in either mode whenever `wrc_plus` is
-        supplied — it's a direct reward for hitting well, not tied to the
-        component breakdown.
-
-        Args:
-            war: Total projected WAR for this player-year.
-            year: Season year (for inflation from BASE_YEAR).
-            position_group: 'SP', 'RP', or 'batter'.
-            bat: Batting runs component (optional; enables component-aware mode).
-            bsr: Baserunning runs component (optional).
-            def_runs: Defensive runs component == 'Def' column (Fld + Pos) (optional).
-            position: Primary defensive position, e.g. 'SS', 'C' (optional;
-                selects the position-specific defensive discount override).
-            wrc_plus: Weighted runs created plus (optional; enables the bat premium).
-
-        Returns:
-            Dollar value of the player's production for that year.
-        """
-        import math
-        if war is None or (isinstance(war, float) and math.isnan(war)) or war <= 0:
-            return 0.0
-
-        inflation = (1 + ContractConstants.INFLATION_RATE) ** (year - ContractConstants.BASE_YEAR)
-
-        if position_group == 'SP':
-            rate = cls.RATE_SP
-        elif position_group == 'RP':
-            rate = cls.RATE_RP
-        else:
-            rate = cls.RATE_BATTER
-
-        value = rate * (war ** cls.CONSOLIDATION_BETA) * inflation
-
-        # ── Defensive value discount (component-aware mode only) ──────────
-        have_components = (
-            bat is not None and bsr is not None and def_runs is not None
-            and not any(isinstance(x, float) and math.isnan(x) for x in (bat, bsr, def_runs))
-        )
-        if have_components:
-            off_runs = bat + bsr
-            # Runs can be negative; use absolute magnitude to weight shares
-            # so a plus bat / minus glove player isn't treated as "no defense".
-            off_mag = abs(off_runs)
-            def_mag = abs(def_runs)
-            total_mag = off_mag + def_mag
-            if total_mag > 0:
-                def_share = min(max(def_mag / total_mag, 0.0), 1.0)
-                def_disc = cls.POSITION_DEFENSIVE_DISCOUNT_OVERRIDE.get(
-                    position, cls.DEFENSIVE_VALUE_DISCOUNT
-                )
-                discount = 1.0 - def_share * (1.0 - def_disc)
-                value *= discount
-
-        # ── Elite-bat premium (either mode, whenever wRC+ is available) ────
-        if wrc_plus is not None and not (isinstance(wrc_plus, float) and math.isnan(wrc_plus)):
-            bonus = min(max(wrc_plus - 100.0, 0.0) * cls.WRC_PLUS_PREMIUM_RATE, cls.WRC_PLUS_PREMIUM_CAP)
-            value *= (1.0 + bonus)
-
-        return value
-
-
-class ContractConstants:
-    """Constants for contract value and salary calculations."""
-    
-    # Historical WAR dollar values by year
-    HISTORICAL_WAR_VALUE = {
-        2002: 4_800_000,
-        2003: 4_800_000,
-        2004: 4_800_000,
-        2005: 4_800_000,
-        2006: 5_200_000,
-        2007: 5_700_000,
-        2008: 6_200_000,
-        2009: 6_400_000,
-        2010: 6_000_000,
-        2011: 7_500_000,
-        2012: 6_500_000,
-        2013: 7_400_000,
-        2014: 7_600_000,
-        2015: 8_000_000,
-        2016: 8_000_000,
-        2017: 7_900_000,
-        2018: 8_000_000,
-        2019: 8_100_000,
-        2020: 7_900_000,
-        2021: 8_100_000,
-        2022: 8_200_000,
-        2023: 8_100_000,
-        2024: 8_200_000
-    }
-    
-    # Current/default WAR value and inflation
-    WAR_VALUE_DEFAULT = 8_200_000
+    BASE_YEAR = 2026
     INFLATION_RATE = 0.04
-    BASE_YEAR = 2025
-    
-    # WAR value tiers (for tiered calculations)
-    WAR_VALUE_TIERS = {
-        'tier1': {'max': 2, 'value': 8_000_000},
-        'tier2': {'max': 4, 'value': 9_000_000},
-        'tier3': {'value': 10_000_000}
-    }
-    
-    # Minimum salaries by status (2025 MLB minimums / floors)
-    MIN_SALARY = {
-        'Pre-Arb': 740_000,
-        'Arb-1': 2_000_000,
-        'Arb-1 (Super 2)': 2_000_000,
-        'Arb-2': 3_500_000,
-        'Arb-3': 5_500_000,
-        'Arb-4': 7_000_000
-    }
-    
-    # Arbitration percentage of market value
-    ARB_PERCENT = {
-        'Arb-1': 0.15,
-        'Arb-1 (Super 2)': 0.15,
-        'Arb-2': 0.25,
-        'Arb-3': 0.40,
-        'Arb-4': 0.60
-    }
-    
-    @classmethod
-    def get_war_value(cls, year: int) -> float:
-        """
-        Get WAR dollar value for a specific year.
-        
-        Uses historical data for past years, applies inflation for future years.
-        """
-        if year in cls.HISTORICAL_WAR_VALUE:
-            return cls.HISTORICAL_WAR_VALUE[year]
-        
-        # Apply inflation for future years
-        years_from_base = year - cls.BASE_YEAR
-        return cls.WAR_VALUE_DEFAULT * ((1 + cls.INFLATION_RATE) ** years_from_base)
+    DISCOUNT_RATE = 0.09       # Annual time + roster/health risk discount rate
 
+    RATE_BATTER = 9_200_000.0
+    RATE_SP = 10_200_000.0
+    RATE_RP = 8_600_000.0
+    WAR_BETA = 1.12            # Gentle single-season roster-slot convexity
+    PACKAGE_GAMMA = 1.40       # Sub-additive multi-piece package norm exponent
 
-# =============================================================================
-# PROSPECT VALUATION CONSTANTS
-# =============================================================================
-class ProspectConstants:
-    """Constants for prospect value calculations using FanGraphs methodology."""
-    
-    # FV (Future Value) grade base values in dollars
-    # Based on FanGraphs research on prospect value
-    FV_BASE_VALUES = {
-        70: 120_000_000,  # Generational talent
-        65: 90_000_000,  # Perennial All-Star
-        60: 70_000_000,   # All-Star caliber
-        55: 50_000_000,   # Above average regular
-        50: 30_000_000,   # Average regular
-        45: 15_000_000,   # Platoon/utility player
-        40: 7_000_000,   # Fringe major leaguer
-        35: 2_000_000,    # Organizational depth
-        30: 1_000_000     # Minor league depth
-    }
-    
-    # Rank adjustment factors (BONUS multipliers for top 100)
-    # Top 100 prospects: bonus from 1.5 (rank 1) to 1.0 (rank 100)
-    # This ensures top 100 prospects are NEVER valued less than non-top-100 with same FV
-    RANK_ADJ_TOP100_MAX = 1.5   # Rank 1 gets 50% bonus
-    RANK_ADJ_TOP100_MIN = 1.0   # Rank 100 gets no bonus (base FV value)
-    RANK_ADJ_NON_TOP100 = 1.0   # Non-top-100 gets base FV value
-    
-    # Experience thresholds for prospect weight diminishing
-    # These define when a player transitions from "prospect" to "established"
-    # The weight diminishes linearly from 1.0 (no experience) to 0.0 (threshold reached)
-    EXPERIENCE_THRESHOLD_GAMES = {
-        'batter': 300,        # ~2 full seasons
-        'sp': 45,             # ~1.5 seasons of starts
-        'rp': 65,             # ~1.5 seasons of appearances
-    }
-    
-    # Minimum games for ANY prospect adjustment (below this = pure prospect value)
-    EXPERIENCE_MINIMUM_GAMES = {
-        'batter': 0,
-        'sp': 0,
-        'rp': 0
-    }
-    
+    _calibration_loaded = False
+
     @classmethod
-    def calculate_prospect_weight(cls, games_played: float, position_type: str) -> float:
-        """
-        Calculate the prospect weight (0.0 to 1.0) based on MLB experience.
-        
-        As players gain experience, their value shifts from prospect-based to
-        performance-based (MLB projections).
-        
-        Args:
-            games_played: Total MLB games played
-            position_type: 'batter', 'sp', or 'rp'
-            
-        Returns:
-            Float from 0.0 (fully established) to 1.0 (pure prospect)
-        """
-        threshold = cls.EXPERIENCE_THRESHOLD_GAMES.get(position_type, 300)
-        
-        if games_played >= threshold:
-            return 0.0  # Fully established player
-        
-        # Linear decrease from 1.0 to 0.0
-        return max(0.0, 1.0 - (games_played / threshold))
-    
+    def load_calibration(cls, force: bool = False) -> dict:
+        """Load empirical calibration parameters from valuation_calibration.json if present."""
+        if cls._calibration_loaded and not force:
+            return cls.current_parameters()
+
+        cal_path = Paths.VALUATION_CALIBRATION_FILE
+        if cal_path.exists():
+            try:
+                with open(cal_path, "r", encoding="utf-8") as f:
+                    cal = json.load(f)
+                cls.RATE_BATTER = float(cal.get("rate_batter", cls.RATE_BATTER))
+                cls.RATE_SP = float(cal.get("rate_sp", cls.RATE_SP))
+                cls.RATE_RP = float(cal.get("rate_rp", cls.RATE_RP))
+                cls.WAR_BETA = float(cal.get("war_beta", cls.WAR_BETA))
+                cls.DISCOUNT_RATE = float(cal.get("discount_rate", cls.DISCOUNT_RATE))
+                cls.PACKAGE_GAMMA = float(cal.get("package_gamma", cls.PACKAGE_GAMMA))
+                if "prospect_scale" in cal:
+                    ProspectValuationConfig.PROSPECT_SCALE = float(cal["prospect_scale"])
+                logger.info(
+                    "Loaded calibrated V2 valuation parameters from %s "
+                    "(Batter=$%.2fM, SP=$%.2fM, RP=$%.2fM, beta=%.3f, r=%.3f, gamma=%.2f)",
+                    cal_path.name,
+                    cls.RATE_BATTER / 1e6,
+                    cls.RATE_SP / 1e6,
+                    cls.RATE_RP / 1e6,
+                    cls.WAR_BETA,
+                    cls.DISCOUNT_RATE,
+                    cls.PACKAGE_GAMMA,
+                )
+            except Exception as exc:
+                logger.warning("Could not load %s (%s) — using defaults", cal_path, exc)
+
+        cls._calibration_loaded = True
+        return cls.current_parameters()
+
     @classmethod
-    def calculate_rank_adjustment(cls, rank: float) -> float:
+    def current_parameters(cls) -> dict:
+        return {
+            "rate_batter": cls.RATE_BATTER,
+            "rate_sp": cls.RATE_SP,
+            "rate_rp": cls.RATE_RP,
+            "war_beta": cls.WAR_BETA,
+            "discount_rate": cls.DISCOUNT_RATE,
+            "inflation_rate": cls.INFLATION_RATE,
+            "package_gamma": cls.PACKAGE_GAMMA,
+            "prospect_scale": ProspectValuationConfig.PROSPECT_SCALE,
+        }
+
+    @classmethod
+    def role_rate(cls, player_role: str | None) -> float:
+        cls.load_calibration()
+        role_upper = str(player_role or "Batter").strip().upper()
+        if role_upper == "SP":
+            return cls.RATE_SP
+        if role_upper == "RP":
+            return cls.RATE_RP
+        return cls.RATE_BATTER
+
+    @classmethod
+    def calculate_production_value(
+        cls,
+        war: float,
+        year: int,
+        player_role: str = "Batter",
+        **kwargs,
+    ) -> float:
+        """Convert single-season WAR into nominal year-specific production dollars."""
+        cls.load_calibration()
+        if war is None or (isinstance(war, float) and math.isnan(war)) or war <= 0.0:
+            return 0.0
+        rate = cls.role_rate(player_role)
+        inflation = (1.0 + cls.INFLATION_RATE) ** (int(year) - cls.BASE_YEAR)
+        return float(rate * (float(war) ** cls.WAR_BETA) * inflation)
+
+    # Alias for callers transitioning from MarketValuation.calculate_value
+    @classmethod
+    def calculate_value(cls, war: float, year: int, position_group: str = "Batter", **kwargs) -> float:
+        return cls.calculate_production_value(war=war, year=year, player_role=position_group)
+
+    @classmethod
+    def consolidate_package(cls, asset_values: list[float]) -> tuple[float, float, float]:
         """
-        Calculate the rank-based value adjustment multiplier.
-        
-        Top 100 prospects get a BONUS (1.0-1.5x) based on rank.
-        Non-top-100 prospects get base FV value (1.0x).
-        
-        This ensures a top 100 prospect is NEVER valued less than a
-        non-top-100 prospect with the same FV grade.
-        
-        Args:
-            rank: Prospect ranking (1-100 for top 100, higher for org rankings)
-            
+        Consolidate a package of trade assets using the sub-additive L_gamma norm.
+
+        Positive-surplus assets combine sub-linearly (so 4 depth pieces cannot
+        buy 1 superstar), while negative-surplus salary dumps subtract linearly.
+
         Returns:
-            Multiplier between 1.0 and 1.5 for top 100, 1.0 for others
+            (consolidated_surplus, raw_surplus_sum, consolidation_penalty)
         """
-        if rank <= 100:
-            # Top 100: bonus from 1.5 (rank 1) down to 1.0 (rank 100)
-            return cls.RANK_ADJ_TOP100_MAX - (rank - 1) * (
-                cls.RANK_ADJ_TOP100_MAX - cls.RANK_ADJ_TOP100_MIN
-            ) / 99  # Use 99 so rank 100 gets exactly 1.0
+        cls.load_calibration()
+        clean_vals = [float(v) for v in asset_values if v is not None and not math.isnan(float(v))]
+        if not clean_vals:
+            return 0.0, 0.0, 0.0
+
+        raw_sum = sum(clean_vals)
+        positives = [v for v in clean_vals if v > 0.0]
+        negatives = [v for v in clean_vals if v <= 0.0]
+
+        if len(positives) <= 1:
+            pos_consolidated = sum(positives)
         else:
-            # Non-top-100: base FV value only
-            return cls.RANK_ADJ_NON_TOP100
+            gamma = max(1.0, cls.PACKAGE_GAMMA)
+            pos_consolidated = sum(v ** gamma for v in positives) ** (1.0 / gamma)
+
+        consolidated = pos_consolidated + sum(negatives)
+        penalty = consolidated - raw_sum  # <= 0 when >1 positive assets
+        return float(consolidated), float(raw_sum), float(penalty)
 
 
 # =============================================================================
-# TRADE CONFIDENCE & REPLACEMENT LEVEL
+# MONTE CARLO SIMULATION SETTINGS
 # =============================================================================
-class TradeConfidence:
-    """
-    Replacement-level floor and projection confidence for trade values.
+class MonteCarloConfig:
+    """Parameters for the vectorized career-path Monte Carlo trade valuation engine."""
 
-    Two mechanisms adjust raw trade values to better reflect real market behavior:
+    N_SIMS = 1000
+    SEED = 42
 
-    1. **Convex power-law valuation** — WAR is converted to dollar value using
-       a convex curve (value = alpha * WAR^beta * inflation). Any positive WAR
-       contributes trade value.
+    # Year-to-year AR(1) persistence of talent/health shocks
+    AR1_RHO = 0.75
 
-    2. **Projection confidence** — Players with limited MLB track records have
-       their trade value blended between the performance projection and a
-       prospect-grade prior.  Confidence scales linearly from
-       ``CONFIDENCE_FLOOR`` (no games) to 1.0 (fully stabilised).
-       Only players with a prospect FV grade receive blending; established
-       players and non-prospects pass through at full confidence.
-
-    All parameters are configurable here so the pipeline can be tuned without
-    editing calculation code.
-    """
-
-    # -- Stabilisation thresholds (career games for full confidence) -----------
-    # Below these thresholds trade value is blended with the prospect prior.
-    # ~2 full batter seasons, ~2 SP seasons, ~1.5 RP seasons.
-    STABILIZATION_GAMES: dict[str, int] = {
-        'batter': 300,
-        'sp':      65,   # starts
-        'rp':     100,   # appearances
+    # Annual WAR shock standard deviation (established MLB player)
+    SIGMA_ESTABLISHED = {
+        "Batter": 1.25,
+        "SP": 1.35,
+        "RP": 0.85,
     }
 
-    # Confidence range
-    CONFIDENCE_FLOOR = 0.10   # 0-game prospect still gets 10 % performance weight
-    CONFIDENCE_CEILING = 1.0  # fully stabilised — no blending
-
-    # -- FV-grade prior (annual WAR expectation by prospect grade) -------------
-    # Used to compute the prospect-side trade value for blending.
-    FV_PRIOR_WAR: dict[int, float] = {
-        70: 4.0,   # Generational — perennial MVP candidate
-        65: 3.0,   # Perennial All-Star
-        60: 2.5,   # All-Star caliber
-        55: 2.0,   # Above-average regular
-        50: 1.5,   # Average regular
-        45: 1.0,   # Bench / utility
-        40: 0.5,   # Fringe major-leaguer
+    # Unproven call-ups have wider outcome dispersion until stabilized
+    SIGMA_ROOKIE_MULTIPLIER = 1.45
+    STABILIZATION_VOLUME = {
+        "Batter": 600.0,   # Career MLB PA
+        "SP": 150.0,       # Career MLB IP
+        "RP": 70.0,        # Career MLB IP
     }
-    DEFAULT_PRIOR_WAR = 1.0   # fallback for non-prospects with limited games
 
-    # -- Recent-prospect window ------------------------------------------------
-    # Only prospects ranked within this many years of CURRENT_YEAR are eligible
-    # for confidence blending.  Older rankings are considered stale.
-    PROSPECT_RECENCY_YEARS = 3
+    # Annual permanent MLB-viability / career-attrition hazard
+    ATTRITION_BASE_HAZARD = {
+        "Batter": 0.03,
+        "SP": 0.055,
+        "RP": 0.085,
+    }
+    ATTRITION_AGE_PIVOT = 29.0
+    ATTRITION_AGE_SLOPE = {
+        "Batter": 0.018,
+        "SP": 0.022,
+        "RP": 0.025,
+    }
 
-    # ── helpers ───────────────────────────────────────────────────────────────
+    # Career volume below which recent ranked prospects blend smoothly with
+    # their pre-debut scouting distribution to prevent MLB-debut value cliffs
+    ROOKIE_PROSPECT_BLEND_VOLUME = {
+        "Batter": 150.0,   # Career MLB PA
+        "SP": 40.0,        # Career MLB IP
+        "RP": 25.0,        # Career MLB IP
+    }
 
-    @classmethod
-    def calculate_confidence(cls, games: float, position_type: str) -> float:
-        """
-        Projection confidence from career MLB games.
-
-        Returns a float in [CONFIDENCE_FLOOR, CONFIDENCE_CEILING].  Scales
-        linearly between the two based on ``games / threshold``.
-        """
-        threshold = cls.STABILIZATION_GAMES.get(position_type, 450)
-        if threshold <= 0:
-            return cls.CONFIDENCE_CEILING
-        raw = games / threshold
-        return min(cls.CONFIDENCE_CEILING, max(cls.CONFIDENCE_FLOOR, raw))
-
-    @classmethod
-    def get_prior_war(cls, fv_grade) -> float:
-        """
-        Map a FanGraphs FV grade to an expected annual WAR prior.
-
-        Handles '+' grades (e.g. '55+' → 57.5) and falls back to
-        ``DEFAULT_PRIOR_WAR`` when the grade is missing or unrecognised.
-        """
-        import math
-        if fv_grade is None or (isinstance(fv_grade, float) and math.isnan(fv_grade)):
-            return cls.DEFAULT_PRIOR_WAR
-        try:
-            fv = float(str(fv_grade).replace('+', ''))
-        except (TypeError, ValueError):
-            return cls.DEFAULT_PRIOR_WAR
-        # Find highest tier ≤ fv
-        tiers = sorted(cls.FV_PRIOR_WAR.keys(), reverse=True)
-        for t in tiers:
-            if fv >= t:
-                return cls.FV_PRIOR_WAR[t]
-        return cls.DEFAULT_PRIOR_WAR
+    # Default buyout cost as a fraction of option salary when buyout is unspecified
+    OPTION_BUYOUT_FRACTION = 0.10
 
 
 # =============================================================================
-# PIPELINE SETTINGS
+# UNIFIED PRE-DEBUT PROSPECT VALUATION SETTINGS
+# =============================================================================
+class ProspectValuationConfig:
+    """Single source of truth for pre-debut (0 MLB game) prospect trade values."""
+
+    BASE_YEAR = 2026
+    PROSPECT_SCALE = 1.0       # Global calibration scalar tuned by calibrate_valuation.py
+
+    # Expected NPV surplus in BASE_YEAR (2026) dollars for an MLB-ready Batter
+    # calibrated to MLB.com Pipeline's empirical FV grade percentiles
+    # (~18 FV 60+, ~82 FV 55s in Top-100, ~131 FV 50s in #101-230, ~252 FV 45s, ~416 FV 40s).
+    FV_BASE_VALUES: dict[int, float] = {
+        80: 120_000_000.0,
+        75: 98_000_000.0,
+        70: 78_000_000.0,
+        65: 56_000_000.0,
+        60: 38_000_000.0,
+        55: 19_000_000.0,
+        50: 8_500_000.0,
+        45: 3_500_000.0,
+        40: 1_200_000.0,
+        35: 400_000.0,
+        30: 150_000.0,
+    }
+
+    # Top-100 rank bonus: smooth decay from 1.35x (#1 overall) to 1.00x (#100)
+    TOP100_MAX_BONUS = 1.35
+    TOP100_MIN_BONUS = 1.00
+
+    # Role multiplier reflecting pitcher UCL / attrition risk ("TINSTAAPP")
+    ROLE_MULTIPLIER = {
+        "Batter": 1.00,
+        "SP": 0.78,
+        "RP": 0.55,
+    }
+
+    # Expected years to MLB arrival by minor-league level when explicit ETA is absent
+    LEVEL_ETA_YEARS = {
+        "MLB": 0.0,
+        "AAA": 0.3,
+        "AA": 1.2,
+        "A+": 2.2,
+        "HIGH-A": 2.2,
+        "A": 3.0,
+        "LOW-A": 3.0,
+        "A-": 3.5,
+        "ROK": 4.0,
+        "CPX": 4.0,
+        "DSL": 4.5,
+    }
+
+    # Bounded MiLB age-adjusted performance modifier [min, max]
+    PERF_MODIFIER_BOUNDS = (0.85, 1.15)
+
+    # Prospect recency window (years) when checking recent scouting pedigree
+    RECENCY_YEARS = 3
+
+
+# =============================================================================
+# PIPELINE & HISTORICAL SETTINGS
 # =============================================================================
 class PipelineSettings:
-    """Settings controlling pipeline behavior."""
-    
-    # Year range for predictions (5 years for all players)
-    PREDICTION_YEARS = range(2026, 2031)  # Save 5 years of projections for each player
+    """Settings controlling pipeline execution."""
+
+    PREDICTION_YEARS = range(2026, 2031)
     CURRENT_YEAR = 2026
-    
-    # Processing flags
-    APPLY_PROSPECT_ADJUSTMENTS = True
     APPLY_PARK_FACTORS = True
-    
-    # Error handling
-    FAIL_ON_MISSING_DATA = False  # If True, pipeline fails on missing data
-    LOG_UNMATCHED_PLAYERS = True  # Log players that couldn't be matched
-    
-    # Output options
-    EXPORT_INTERMEDIATE_FILES = False  # Save intermediate DataFrames
-    VERBOSE_OUTPUT = True  # Print detailed progress
+    FAIL_ON_MISSING_DATA = False
+    LOG_UNMATCHED_PLAYERS = True
+    EXPORT_INTERMEDIATE_FILES = False
+    VERBOSE_OUTPUT = True
 
 
-# =============================================================================
-# HISTORICAL TRADE-VALUE PIPELINE SETTINGS
-# =============================================================================
 class HistorySettings:
-    """Settings for the historical trade-value timeline builder."""
+    """Settings for the 2014-2026 historical trade-value snapshot builder."""
 
-    CUTOFF_START       = 2013   # first cutoff year  (predictions 2014-2028)
-    CUTOFF_END         = 2025   # last cutoff year   (predictions 2026-2040)
-    SNAPSHOT_LAG       = 1      # snapshot_year = cutoff_year + 1
-    PROJECTION_HORIZON = 15     # years into the future per snapshot
-    SERVICE_TIME_FA    = 6      # years to free agency
+    CUTOFF_START = 2013
+    CUTOFF_END = 2025
+    SNAPSHOT_LAG = 1
+    PROJECTION_HORIZON = 15
+    SERVICE_TIME_FA = 6
 
-    # Historical minimum salary by year (for pre-arb estimation in past years)
     HISTORICAL_MIN_SALARY = {
         2014: 500_000, 2015: 507_500, 2016: 507_500, 2017: 535_000,
         2018: 545_000, 2019: 555_000, 2020: 563_500, 2021: 570_500,
@@ -850,53 +565,31 @@ class HistorySettings:
         2026: 780_000,
     }
 
-    # Spotrac transaction types
     ZERO_VALUE_TYPES = {"elected_fa", "released", "designated"}
-    CONTRACT_TYPES   = {"fa_signing", "extension", "signing"}
+    CONTRACT_TYPES = {"fa_signing", "extension", "signing"}
 
 
 # =============================================================================
 # UNIFIED CONFIG CLASS
 # =============================================================================
 class Config:
-    """
-    Unified access point for all configuration.
-    
-    Usage:
-        from value_determination.config import Config
-        
-        # Access paths
-        Config.Paths.DATA_DIR
-        
-        # Access WAR constants
-        Config.WAR.LG_FIP
-        
-        # Get war value for year
-        Config.Contracts.get_war_value(2025)
-    """
+    """Unified access point for all valuation configuration."""
+
     Paths = Paths
     Columns = Columns
     PlayerStatus = PlayerStatus
     StatusMappings = STATUS_MAPPINGS
     WAR = WARConstants
     Contracts = ContractConstants
-    ConvexModel = ConvexModel
     Market = MarketValuation
-    Prospects = ProspectConstants
-    TradeConfidence = TradeConfidence
+    MonteCarlo = MonteCarloConfig
+    Prospects = ProspectValuationConfig
     Pipeline = PipelineSettings
     History = HistorySettings
-    
-    # Convenience re-export of logger
     logger = logger
 
 
-# =============================================================================
-# BACKWARD COMPATIBILITY EXPORTS
-# =============================================================================
-# These exports maintain compatibility with existing code that imports from constants.py
-# TODO: Remove after full migration to Config class
-
+# Module-level convenience exports
 ROOT_DIR = Paths.ROOT_DIR
 DATA_DIR = Paths.DATA_DIR
 PIPELINE_DIR = Paths.PIPELINE_DIR
@@ -909,15 +602,12 @@ PREDICTION_YEARS = PipelineSettings.PREDICTION_YEARS
 HITTER_COLUMNS = Columns.HITTER_COLUMNS
 PITCHER_COLUMNS = Columns.PITCHER_COLUMNS
 
-BALLPARK_FACTORS = WARConstants.BALLPARK_FACTORS  # == core.park_factors.PARK_FACTORS_5YR
+BALLPARK_FACTORS = WARConstants.BALLPARK_FACTORS
 WOBA_SCALE = WARConstants.WOBA_SCALE
 RPA = WARConstants.RPA
 LG_WOBA = WARConstants.LG_WOBA
 RPW = WARConstants.RPW
 LG_FIP = WARConstants.LG_FIP
-# get_park_factor is already importable from this module (imported at top,
-# noqa'd for re-export) — prefer it over indexing BALLPARK_FACTORS directly,
-# since it resolves SFG/SDP/KCR/TBR/WSN aliases and NaN/missing teams.
 
 WAR_VALUE = ContractConstants.WAR_VALUE_DEFAULT
 HISTORICAL_WAR_VALUE = ContractConstants.HISTORICAL_WAR_VALUE
