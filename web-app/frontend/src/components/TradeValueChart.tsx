@@ -639,6 +639,11 @@ const TradeValueChart: React.FC<Props> = ({ data, teamColor, teamAccent, transac
 
             {/* Trade value */}
             <div className="font-semibold text-gray-900 text-sm">{fmtDollarFull(hovered.value)}</div>
+            {hovered.valueP10 != null && hovered.valueP90 != null && (
+              <div className="text-[11px] text-gray-400 tabular-nums">
+                P10–P90: {fmtDollarFull(hovered.valueP10)} – {fmtDollarFull(hovered.valueP90)}
+              </div>
+            )}
 
             {/* Transaction type (only if present) */}
             {hovered.transactionType && (
