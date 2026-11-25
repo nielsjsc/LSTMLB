@@ -17,6 +17,15 @@ export const formatCurrency = (value: number | null | undefined): string => {
   return `${sign}$${abs.toFixed(0)}`;
 };
 
+/** Formats a P10 – P90 range, e.g. "$12.0M – $38.5M" */
+export const formatRange = (
+  p10: number | null | undefined,
+  p90: number | null | undefined,
+): string | null => {
+  if (p10 == null || p90 == null || isNaN(p10) || isNaN(p90)) return null;
+  return `${formatCurrency(p10)} – ${formatCurrency(p90)}`;
+};
+
 /**
  * Below this absolute surplus differential, a trade is treated as balanced
  * rather than favoring either side. Both TradeMeter and ValueDisplay's
