@@ -24,8 +24,8 @@ const ProspectsPage = () => {
   const [year, setYear] = useState(PROSPECT_DEFAULT_YEAR);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
-  const [sortBy, setSortBy] = useState<string>('composite');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortBy, setSortBy] = useState<string>('trade_value');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<ViewMode>('grades');
   const [minPa, setMinPa] = useState<number | undefined>();
   const [minIp, setMinIp] = useState<number | undefined>();
