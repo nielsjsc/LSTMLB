@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getTradeValueRankings, getPastTrades, type TradeValueRankings, type PastTradeSummary } from '../../services/api'
 
@@ -110,17 +110,17 @@ const Home = () => {
                 </thead>
                 <tbody>
                   {topPlayers.map((p, i) => (
-                    <tr key={p.real_id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 1 ? 'bg-[#F7F4EF]' : ''}`}>
+                    <tr key={p.fg_id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 1 ? 'bg-[#F7F4EF]' : ''}`}>
                       <td className="pl-4 pr-2 py-2 text-gray-400 font-medium">{i + 1}</td>
                       <td className="px-2 py-2">
-                        <Link to={`/players/${p.mlb_id || p.real_id}`} className="text-accent-blue hover:underline font-medium">
+                        <Link to={`/players/${p.mlbam_id || p.fg_id}`} className="text-accent-blue hover:underline font-medium">
                           {p.name}
                         </Link>
                         <span className="text-gray-400 text-xs ml-1.5">{p.team}</span>
                       </td>
                       <td className="px-2 py-2 text-gray-500 hidden sm:table-cell">{p.position}</td>
                       <td className="px-2 py-2 text-right font-semibold text-gray-900">{fmtDollar(p.trade_value)}</td>
-                      <td className="px-2 py-2 text-right text-gray-600 hidden md:table-cell">{p.contract_war.toFixed(1)}</td>
+                      <td className="px-2 py-2 text-right text-gray-600 hidden md:table-cell">{p.control_war.toFixed(1)}</td>
                       <td className="pl-2 pr-4 py-2 text-right text-gray-500 hidden md:table-cell">{p.years_control}y</td>
                     </tr>
                   ))}
