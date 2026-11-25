@@ -24,8 +24,7 @@ export default function ProspectDetailPage() {
     setLoading(true);
     getProspectDetail(id)
       .then((p: ProspectDetailType) => {
-        // Prefer mlb_info.mlb_id (set when prospect has MLB stats), else mlbam_id
-        const targetId = p.mlb_info?.mlb_id ?? p.mlbam_id;
+        const targetId = p.mlb_info?.mlbam_id ?? p.mlbam_id;
         if (targetId) {
           navigate(`/players/${targetId}`, { replace: true });
         } else {
