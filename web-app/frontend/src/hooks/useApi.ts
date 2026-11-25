@@ -164,7 +164,7 @@ export function useTradeAssets() {
   const prospects = useMemo(() => {
     if (!hittersQuery.data || !pitchersQuery.data) return [];
     return [...hittersQuery.data, ...pitchersQuery.data].sort(
-      (a, b) => (b.value || 0) - (a.value || 0),
+      (a, b) => (b.trade_value || 0) - (a.trade_value || 0),
     );
   }, [hittersQuery.data, pitchersQuery.data]);
 
