@@ -94,7 +94,7 @@ DATA_PATHS: Dict[str, Path] = {
     # ── Generated / processed ─────────────────────────────────────────
     "players":       PROJECT_ROOT / "data" / "generated" / "value_by_year" / "player_values_complete.csv",
     "players_preseason": PROJECT_ROOT / "data" / "generated" / "value_by_year",  # directory; resolved dynamically
-    "prospects":     PROJECT_ROOT / "data" / "prospect_data" / "prospects_2014_2026_with_top100.csv",
+    "prospects":     PROJECT_ROOT / "data" / "generated" / "MiLB" / "prospect_values.csv",
     "historical":    PROJECT_ROOT / "data" / "generated" / "historical_players" / "historical_players.json",
     "trades":        PROJECT_ROOT / "data" / "generated" / "past_trades" / "trades.json",
     "crosswalk":     PROJECT_ROOT / "data" / "generated" / "player_id_crosswalk.csv",
@@ -108,7 +108,7 @@ DATA_PATHS: Dict[str, Path] = {
     "spotrac_transactions": PROJECT_ROOT / "data" / "salary" / "spotrac_transactions.csv",
     # ── Fielding ───────────────────────────────────────────────────
     "fielding_historical": PROJECT_ROOT / "data" / "historic_mlb" / "mlb_fielding_data_2000_2025_with_statcast.csv",
-    "fielding_projections": PROJECT_ROOT / "data" / "generated" / "pipeline" / "fielding_projections_complete.csv",
+    "fielding_projections": PROJECT_ROOT / "data" / "generated" / "value_by_year" / "fielding_projections_complete.csv",
     "crosswalk_for_fielding": PROJECT_ROOT / "data" / "generated" / "player_id_crosswalk.csv",
 }
 
@@ -195,146 +195,21 @@ def _bulk_insert(session: Session, model, records: list[dict]) -> int:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Column-mapping configs
+# Column-mapping configs (Canonical V2 snake_case CSV schema)
 # ══════════════════════════════════════════════════════════════════════════
 
-# CSV column name → Player model column name
-# NOTE: column names must match the ACTUAL CSV headers exactly.
-# player_values_complete.csv uses: Player_Name, WAR_batter, WAR_pitcher,
-# Status (capitalised), Base_Value, Contract_Value, Surplus_Value, etc.
 PLAYER_COL_MAP = {
-    "IDfg": "real_id", "mlb_id": "mlb_id",
-    "Player_Name": "name", "Team": "team", "Position": "position", "Status": "status",
-    "Age": "age", "Year": "year",
-    "years_control": "years_control", "FA_Year": "fa_year",
-    "Probable_FA_Year": "probable_fa_year", "Earliest_FA_Year": "earliest_fa_year",
-    "control_through": "control_through",
-    "Base_Value": "base_value", "Contract_Value": "contract_value",
-    "Surplus_Value": "surplus_value", "trade_value": "trade_value",
-    "contract_war": "contract_war",
-    # Hitting
-    "G_bat": "g_bat", "WAR_batter": "war_bat",
-    "BB%_bat": "bb_pct_bat", "K%_bat": "k_pct_bat",
-    "AVG": "avg", "OBP": "obp", "SLG": "slg", "OPS": "ops",
-    "wOBA": "woba", "wRC+": "wrc_plus",
-    "Bat": "bat", "Off": "off", "BsR": "bsr", "Def": "def_value",
-    "HR": "hr", "2B": "doubles", "3B": "triples",
-    "R": "r", "RBI": "rbi", "SB": "sb", "CS": "cs",
-    # Statcast expected stats (current-year only)
-    # Both naming conventions: xBA/xwOBA/xSLG (from statcast CSVs) and sc_est_ba/sc_est_woba/sc_est_slg (from with_statcast files)
-    "xBA": "xba", "xSLG": "xslg", "xwOBA": "xwoba",
-    "sc_est_ba": "xba", "sc_est_slg": "xslg", "sc_est_woba": "xwoba",
-    "sc_ba": "sc_ba", "sc_slg": "sc_slg", "sc_woba": "sc_woba",
-    # Pitching
-    "G_pit": "g_pit", "GS": "gs", "IP": "ip", "WAR_pitcher": "war_pit",
-    "ERA": "era", "FIP": "fip", "K%_pit": "k_pct_pit", "BB%_pit": "bb_pct_pit",
-    "GB%_pit": "gb_pct", "FB%_pit": "fb_pct", "HR/FB_pit": "hr_fb", "HR/9": "hr_9",
-    # Aggregate values
-    "avg_war": "avg_war", "total_contract": "total_contract",
-    "avg_contract": "avg_contract",
-    "total_future_war": "total_future_war", "total_future_value": "total_future_value",
-    "total_value": "total_value", "total_war": "total_war",
-    "historical_value": "historical_value", "historical_war": "historical_war",
-    "contract_base_value": "contract_base_value",
+    "player_name": "name",
 }
 
 PLAYER_INT_COLS = {
-    "real_id", "mlb_id", "age", "year", "years_control", "fa_year",
+    "fg_id", "mlbam_id", "age", "year", "years_control", "fa_year",
     "probable_fa_year", "earliest_fa_year", "control_through",
     "g_bat", "hr", "doubles", "triples", "r", "rbi", "sb", "cs",
     "g_pit", "gs",
 }
 
-PLAYER_STR_COLS = {"name", "team", "position", "status", "projection_type"}
-
-# ── Prospect source CSV (prospects_2014_2026_with_top100.csv) ──────────
-# This CSV has one row per player per year with lowercase column names.
-# We map them to DB model column names.
-
-PROSPECT_TEAM_SLUG_MAP = {
-    'diamondbacks': 'ARI', 'dbacks': 'ARI',
-    'braves': 'ATL',
-    'orioles': 'BAL',
-    'red-sox': 'BOS', 'redsox': 'BOS',
-    'cubs': 'CHC',
-    'white-sox': 'CHW', 'whitesox': 'CHW',
-    'reds': 'CIN',
-    'guardians': 'CLE', 'indians': 'CLE',
-    'rockies': 'COL',
-    'tigers': 'DET',
-    'astros': 'HOU',
-    'royals': 'KCR', 'kcroyals': 'KCR',
-    'angels': 'LAA',
-    'dodgers': 'LAD',
-    'marlins': 'MIA',
-    'brewers': 'MIL',
-    'twins': 'MIN',
-    'mets': 'NYM',
-    'yankees': 'NYY',
-    'athletics': 'ATH',
-    'phillies': 'PHI',
-    'pirates': 'PIT',
-    'padres': 'SDP', 'sdpadres': 'SDP',
-    'giants': 'SFG', 'sfgiants': 'SFG',
-    'mariners': 'SEA',
-    'cardinals': 'STL',
-    'rays': 'TBR', 'tbr': 'TBR',
-    'rangers': 'TEX',
-    'blue-jays': 'TOR', 'bluejays': 'TOR',
-    'nationals': 'WSH', 'wsh': 'WSH',
-}
-
-# FV grade → base value in dollars (must match the prospect model pipeline)
-_FV_BASE_VALUES = {
-    80: 300_000_000,
-    75: 250_000_000,
-    70: 200_000_000,
-    65: 135_000_000,
-    60: 90_000_000,
-    55: 50_000_000,
-    50: 25_000_000,
-    47: 15_000_000,
-    45: 10_000_000,
-    40: 4_000_000,
-    35: 1_000_000,
-    30: 250_000,
-}
-
-import re as _re
-
-def _extract_mlbam_from_url(url) -> int | None:
-    """Extract MLBAM ID from prospect URL like ``...-605151``."""
-    if not url or not isinstance(url, str) or pd.isna(url):
-        return None
-    m = _re.search(r"-(\d+)$", str(url))
-    return int(m.group(1)) if m else None
-
-
-def _prospect_rank_adj(rank: float) -> float:
-    """Top-100 rank → multiplicative adjustment (1.0 = no change)."""
-    if rank <= 5:
-        return 1.35
-    if rank <= 10:
-        return 1.25
-    if rank <= 25:
-        return 1.15
-    if rank <= 50:
-        return 1.05
-    if rank <= 75:
-        return 0.95
-    return 0.90
-
-
-def _calc_prospect_value(fv: float, top_100: float | None) -> float:
-    """Calculate prospect value from FV grade + optional top-100 rank."""
-    if pd.isna(fv):
-        return 0.0
-    grade = max(30, min(80, round(fv / 5) * 5))
-    base = _FV_BASE_VALUES.get(int(grade), 0)
-    if base == 0:
-        return 0.0
-    mult = _prospect_rank_adj(top_100) if pd.notna(top_100) else 1.0
-    return base * mult
+PLAYER_STR_COLS = {"name", "team", "position", "player_role", "status", "projection_type"}
 
 # MiLB hitting CSV → model
 MILB_HIT_COL_MAP = {
@@ -390,46 +265,38 @@ class DataLoader:
             # Tag projection type
             df["projection_type"] = projection_type
 
-            # Drop rows without mlb_id (can't link them to anything)
-            df = df.dropna(subset=["mlb_id"])
+            # Drop rows without mlbam_id
+            df = df.dropna(subset=["mlbam_id"])
 
             # Numeric coercion (vectorised)
             for col in df.columns:
                 if col not in PLAYER_STR_COLS:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
 
-            # ── Fill missing salary from Cot's by-year data ──────────────
-            # Historical rows in the pipeline may have NaN contract_value
-            # even though Cot's by-year CSVs have the actual salary.
+            # Fill missing historical salary_cost from universal_salary
             self._augment_player_salary(df)
 
             records = _clean_records(df)
             _coerce_int_cols(records, PLAYER_INT_COLS)
 
             n = _bulk_insert(self.db, Player, records)
-            logger.info(f"    {n:,} players loaded ({initial - n:,} skipped — no mlb_id)")
+            logger.info(f"    {n:,} players loaded ({initial - n:,} skipped — no mlbam_id)")
 
     # ── Salary augmentation for players ───────────────────────────────────
 
     @staticmethod
     def _augment_player_salary(df: pd.DataFrame) -> None:
-        """Fill NaN ``contract_value`` from the universal salary CSV (in-place).
-
-        Also recalculates ``surplus_value`` for rows that gained a salary.
-        Uses (name_lower, year) as the primary key, with a (name_lower,
-        team, year) check first for specificity.
-        """
-        if "contract_value" not in df.columns:
+        """Fill NaN ``salary_cost`` from the universal salary CSV (in-place)."""
+        if "salary_cost" not in df.columns:
             return
 
-        mask = df["contract_value"].isna()
+        mask = df["salary_cost"].isna()
         if not mask.any():
             return
 
-        # Lazy import to avoid circular deps at module level
         from app.routes.historical import _load_universal_salary
 
-        salary_lookup = _load_universal_salary()  # {(name, yr): int, (name, team, yr): int}
+        salary_lookup = _load_universal_salary()
         if not salary_lookup:
             return
 
@@ -444,101 +311,63 @@ class DataLoader:
                 continue
             yr = int(yr)
 
-            # Try team-specific first, then name+year
             sal = salary_lookup.get((nm, team, yr))
             if sal is None:
                 sal = salary_lookup.get((nm, yr))
             if sal is not None:
-                df.at[idx, "contract_value"] = float(sal)
-                bv = row.get("base_value")
-                if pd.notna(bv):
-                    df.at[idx, "surplus_value"] = float(bv) - float(sal)
+                df.at[idx, "salary_cost"] = float(sal)
+                pv = row.get("production_value")
+                if pd.notna(pv):
+                    df.at[idx, "annual_surplus"] = float(pv) - float(sal)
                 filled += 1
 
         if filled:
-            logger.info(f"    Salary augmentation: filled {filled:,}/{mask.sum():,} missing contract_value rows")
+            logger.info(f"    Salary augmentation: filled {filled:,}/{mask.sum():,} missing salary_cost rows")
 
     # ── Prospects ─────────────────────────────────────────────────────────
 
     def load_prospects(self, csv_path: Path) -> None:
-        """Load prospect data from the raw source CSV
-        (``prospects_2014_2026_with_top100.csv``).
-
-        One DB row per player-year.  Extracts mlbam_id from prospect_url,
-        maps team slugs → 3-letter abbreviations, maps tool grades,
-        calculates per-row value & composite, and builds JSON
-        ``values_by_year`` / ``composites_by_year`` for backward compat.
-        """
+        """Load unified V2 prospect valuations from ``prospect_values.csv``."""
         with _Timer("Prospects"):
             df = pd.read_csv(csv_path, low_memory=False)
             logger.info(f"    Source CSV: {len(df):,} rows, years {df['year'].min():.0f}–{df['year'].max():.0f}")
 
-            # ── Column mapping & derivation ────────────────────────────
-            # Name → name (already lowercase in source)
-            df = df.rename(columns={"name": "name", "position": "position",
-                                     "age": "age", "rank": "org_rank"})
+            df = df.rename(columns={"player_name": "name"})
 
-            # Team slug → 3-letter abbreviation
-            df["org"] = df["team_slug"].map(
-                lambda s: PROSPECT_TEAM_SLUG_MAP.get(str(s).lower().strip(), str(s).upper()[:3])
-                if pd.notna(s) else "FA"
-            )
-
-            # Year (float → int)
             df["year"] = pd.to_numeric(df["year"], errors="coerce")
             df = df.dropna(subset=["year"])
             df["year"] = df["year"].astype(int)
 
-            # FV (grade_overall → fv, stored as string to match model)
-            df["fv"] = pd.to_numeric(df["grade_overall"], errors="coerce")
-            # Round to nearest 5 for display
-            df["fv_num"] = df["fv"].copy()  # keep numeric copy
-            df["fv"] = df["fv"].apply(
-                lambda v: str(int(round(v / 5) * 5)) if pd.notna(v) else None
+            # Ensure string grades & fg_id are clean strings or None
+            str_grade_cols = (
+                "fg_id", "fv", "level", "player_role", "org", "position",
+                "hit", "game_power", "raw_power", "speed",
+                "fastball", "slider", "curve", "changeup", "command",
             )
+            for sc in str_grade_cols:
+                if sc in df.columns:
+                    df[sc] = df[sc].apply(
+                        lambda v: None if pd.isna(v) or str(v).strip() in ("", "nan", "None")
+                        else (str(int(float(v))) if sc not in ("fg_id", "level", "player_role", "org", "position") and str(v).replace(".", "", 1).isdigit() else str(v).strip())
+                    )
+                    if sc == "fg_id":
+                        df[sc] = df[sc].apply(lambda v: v[:-2] if isinstance(v, str) and v.endswith(".0") else v)
 
-            # Top 100 rank
-            df["top_100"] = pd.to_numeric(df["top_100"], errors="coerce")
-            df.loc[df["top_100"].isna(), "top_100"] = None
+            for num_col in ("mlbam_id", "age", "eta", "top_100", "org_rank", "trade_value", "trade_value_p10", "trade_value_p50", "trade_value_p90"):
+                if num_col in df.columns:
+                    df[num_col] = pd.to_numeric(df[num_col], errors="coerce")
 
-            # Org rank
-            df["org_rank"] = pd.to_numeric(df["org_rank"], errors="coerce")
-
-            # ── Tool grades (stored as "grade" strings) ────────────────
-            # Hitter tools
-            df["hit"] = df["grade_hit"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
-            df["game_power"] = df["grade_power"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
-            df["raw_power"] = df["grade_power"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
-            df["speed"] = df["grade_run"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
-            # Pitcher tools
-            df["fastball"] = df["grade_fastball"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
-            df["slider"] = df["grade_slider"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
-            df["curve"] = df["grade_curveball"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
-            df["changeup"] = df["grade_changeup"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
-            df["command"] = df["grade_control"].apply(lambda v: str(int(v)) if pd.notna(v) else None)
-
-            # ── mlbam_id from prospect_url ─────────────────────────────
-            df["mlbam_id"] = df["prospect_url"].apply(_extract_mlbam_from_url)
-
-            # ── Value & Composite per row ──────────────────────────────
-            df["value"] = df.apply(
-                lambda r: _calc_prospect_value(r["fv_num"], r["top_100"]),
-                axis=1,
-            )
-            # Composite = top_100 rank if available, else None
             df["composite"] = df["top_100"]
 
-            # ── Build legacy JSON dicts per player ─────────────────────
-            # Group by name → aggregate all years' values/composites
             val_lookup: dict[str, dict] = {}
             comp_lookup: dict[str, dict] = {}
             for name_key, grp in df.groupby("name"):
                 vd, cd = {}, {}
                 for _, r in grp.iterrows():
                     yr_str = str(int(r["year"]))
-                    if pd.notna(r["value"]) and r["value"] > 0:
-                        vd[yr_str] = float(r["value"])
-                    if pd.notna(r["top_100"]):
+                    if pd.notna(r.get("trade_value")) and r["trade_value"] > 0:
+                        vd[yr_str] = float(r["trade_value"])
+                    if pd.notna(r.get("top_100")):
                         cd[yr_str] = float(r["top_100"])
                 val_lookup[name_key] = vd
                 comp_lookup[name_key] = cd
@@ -546,21 +375,18 @@ class DataLoader:
             df["values_by_year"] = df["name"].map(val_lookup)
             df["composites_by_year"] = df["name"].map(comp_lookup)
 
-            # ── has_mlb default False ──────────────────────────────────
-            df["has_mlb"] = False
+            if "has_mlb" in df.columns:
+                df["has_mlb"] = df["has_mlb"].apply(lambda v: bool(v) if pd.notna(v) else False)
+            else:
+                df["has_mlb"] = False
 
-            # ── IDfg placeholder (resolved later via crosswalk) ────────
-            df["IDfg"] = None
-
-            # ── Keep only model columns ────────────────────────────────
             model_cols = {c.key for c in Prospect.__table__.columns if c.key != "id"}
             df = df[[c for c in df.columns if c in model_cols]]
 
             records = _clean_records(df)
 
-            # Fix int types for mlbam_id / year / org_rank / top_100
             for rec in records:
-                for col in ("mlbam_id", "year", "org_rank", "top_100"):
+                for col in ("mlbam_id", "year", "eta", "org_rank", "top_100"):
                     if rec.get(col) is not None:
                         try:
                             rec[col] = int(rec[col])
@@ -602,57 +428,55 @@ class DataLoader:
     # ── Resolve prospect IDfg via SQL ─────────────────────────────────────
 
     def resolve_prospect_idfg(self) -> None:
-        """Single SQL UPDATE: ``prospects.IDfg = crosswalk.fg_id``
-        where the prospect has ``mlbam_id`` but no ``IDfg``.
-        Replaces the old Python loop over every prospect row.
+        """Single SQL UPDATE: ``prospects.fg_id = crosswalk.fg_id``
+        where the prospect has ``mlbam_id`` but no ``fg_id``.
         """
-        with _Timer("Resolve prospect IDfg"):
+        with _Timer("Resolve prospect fg_id"):
             if self._is_sqlite:
                 sql = text("""
                     UPDATE prospects
-                    SET "IDfg" = (
+                    SET fg_id = (
                         SELECT pc.fg_id
                         FROM   player_id_crosswalk pc
                         WHERE  pc.mlbam_id = prospects.mlbam_id
                           AND  pc.fg_id IS NOT NULL
                         LIMIT 1
                     )
-                    WHERE "IDfg" IS NULL
+                    WHERE fg_id IS NULL
                       AND mlbam_id IS NOT NULL
                 """)
             else:
-                # PostgreSQL supports UPDATE ... FROM
                 sql = text("""
                     UPDATE prospects
-                    SET    "IDfg" = pc.fg_id
+                    SET    fg_id = pc.fg_id
                     FROM   player_id_crosswalk pc
                     WHERE  pc.mlbam_id = prospects.mlbam_id
                       AND  pc.fg_id IS NOT NULL
-                      AND  prospects."IDfg" IS NULL
+                      AND  prospects.fg_id IS NULL
                       AND  prospects.mlbam_id IS NOT NULL
                 """)
 
             result = self.db.execute(sql)
             self.db.commit()
-            logger.info(f"    {result.rowcount:,} prospect IDfg values resolved")
+            logger.info(f"    {result.rowcount:,} prospect fg_id values resolved")
 
     def resolve_prospect_has_mlb(self) -> None:
-        """Set ``has_mlb = True`` for prospects whose ``mlbam_id``
-        appears in the MLB *players* table (``players.mlb_id``).
-
-        Uses an indexed integer join — nearly instant compared to the
-        old LOWER(name) approach which took ~140 s.
+        """Ensure current-year prospects whose ``mlbam_id`` appears in ``players``
+        are marked ``has_mlb = True`` so MLB-debuted rookies never appear twice
+        in the Trade Simulator.
         """
+        from app.config import CURRENT_YEAR
         with _Timer("Resolve prospect has_mlb"):
             if self._is_sqlite:
                 sql = text("""
                     UPDATE prospects
                     SET has_mlb = 1
                     WHERE has_mlb = 0
+                      AND year >= :cur_year
                       AND mlbam_id IS NOT NULL
                       AND mlbam_id IN (
-                          SELECT DISTINCT mlb_id FROM players
-                          WHERE mlb_id IS NOT NULL
+                          SELECT DISTINCT mlbam_id FROM players
+                          WHERE mlbam_id IS NOT NULL
                       )
                 """)
             else:
@@ -660,15 +484,16 @@ class DataLoader:
                     UPDATE prospects
                     SET    has_mlb = TRUE
                     WHERE  has_mlb = FALSE
+                      AND  year >= :cur_year
                       AND  mlbam_id IS NOT NULL
                       AND  mlbam_id IN (
-                          SELECT DISTINCT mlb_id FROM players
-                          WHERE mlb_id IS NOT NULL
+                          SELECT DISTINCT mlbam_id FROM players
+                          WHERE mlbam_id IS NOT NULL
                       )
                 """)
-            result = self.db.execute(sql)
+            result = self.db.execute(sql, {"cur_year": CURRENT_YEAR})
             self.db.commit()
-            logger.info(f"    {result.rowcount:,} prospects marked as has_mlb")
+            logger.info(f"    {result.rowcount:,} additional current-year prospects marked as has_mlb")
 
     # ── MiLB statistics ───────────────────────────────────────────────────
 
@@ -974,11 +799,11 @@ class DataLoader:
             missing_names = {i for i in new_idfgs if i not in name_by_idfg}
             if missing_names:
                 try:
-                    for real_id, name in self.db.query(Player.real_id, Player.name).filter(
-                        Player.real_id.in_(missing_names)
+                    for fg_id, name in self.db.query(Player.fg_id, Player.name).filter(
+                        Player.fg_id.in_(missing_names)
                     ):
-                        if real_id is not None and name:
-                            name_by_idfg.setdefault(int(real_id), name)
+                        if fg_id is not None and name:
+                            name_by_idfg.setdefault(int(fg_id), name)
                 except Exception as e:
                     logger.warning(f"    Failed to look up names for new historical players: {e}")
 
@@ -1120,35 +945,24 @@ class DataLoader:
     # ── Trade-value history ───────────────────────────────────────────────
 
     def load_trade_value_history(self, csv_path: Path) -> None:
-        """Ingest trade-value history from the legacy CSV **plus** snapshot files.
-
-        1. Load ``trade_value_history.csv`` for historical/transaction entries.
-        2. Scan ``snapshots/`` directory for ``YYYY-MM-DD.csv`` files and
-           extract current-year trade-value rows from each, using the
-           filename as the date.  This makes the DB loader self-sufficient —
-           no separate append step is required.
-        """
+        """Ingest canonical V2 ``trade_value_history.csv`` plus daily ``snapshots/``."""
         from app.config import CURRENT_YEAR
 
         with _Timer("Trade value history"):
             frames: list[pd.DataFrame] = []
 
-            # ── 1. Legacy CSV (historical + transaction entries) ──────────
             if csv_path.exists():
-                legacy = pd.read_csv(csv_path, low_memory=False)
-                legacy = legacy.rename(columns={"IDfg": "idfg"})
-                # Drop current-year snapshot rows from legacy — snapshots
-                # are the authoritative source for those.
-                legacy = legacy[
-                    ~((legacy["year"] == CURRENT_YEAR)
-                      & (legacy["transaction_type"].isna()))
+                tvh = pd.read_csv(csv_path, low_memory=False)
+                tvh = tvh.rename(columns={"mlb_id": "mlbam_id", "IDfg": "fg_id", "idfg": "fg_id", "name": "player_name"})
+                tvh = tvh[
+                    ~((tvh["year"] == CURRENT_YEAR)
+                      & (tvh["transaction_type"].isna()))
                 ]
-                frames.append(legacy)
-                logger.info(f"    Legacy CSV: {len(legacy):,} rows (excl. {CURRENT_YEAR} snapshots)")
+                frames.append(tvh)
+                logger.info(f"    Base CSV: {len(tvh):,} rows (excl. {CURRENT_YEAR} snapshots)")
             else:
-                logger.warning(f"  Legacy file not found: {csv_path}")
+                logger.warning(f"  File not found: {csv_path}")
 
-            # ── 2. Snapshot files → current-year entries ──────────────────
             snapshot_dir = csv_path.parent / "snapshots"
             snapshot_count = 0
             if snapshot_dir.is_dir():
@@ -1164,37 +978,47 @@ class DataLoader:
                         logger.warning(f"    Skipping snapshot {snap_file.name}: {e}")
                         continue
 
+                    yr_col = "year" if "year" in snap.columns else "Year"
+                    mlb_col = "mlbam_id" if "mlbam_id" in snap.columns else "mlb_id"
+                    fg_col = "fg_id" if "fg_id" in snap.columns else "IDfg"
+                    nm_col = "player_name" if "player_name" in snap.columns else ("Player_Name" if "Player_Name" in snap.columns else "name")
+                    war_col = "control_war" if "control_war" in snap.columns else "total_future_war"
+                    sal_col = "control_salary_cost" if "control_salary_cost" in snap.columns else "total_contract"
+
+                    if yr_col not in snap.columns or mlb_col not in snap.columns or "trade_value" not in snap.columns:
+                        continue
+
                     cur = snap[
-                        (snap["Year"] == CURRENT_YEAR)
-                        & snap["mlb_id"].notna()
+                        (snap[yr_col] == CURRENT_YEAR)
+                        & snap[mlb_col].notna()
                         & snap["trade_value"].notna()
                     ].copy()
                     if cur.empty:
                         continue
 
-                    name_col = "Player_Name" if "Player_Name" in cur.columns else "name"
                     entries = pd.DataFrame({
-                        "mlb_id": cur["mlb_id"].astype(int),
-                        "idfg": pd.to_numeric(cur["IDfg"], errors="coerce"),
-                        "name": cur[name_col],
+                        "mlbam_id": pd.to_numeric(cur[mlb_col], errors="coerce").astype(int),
+                        "fg_id": pd.to_numeric(cur[fg_col], errors="coerce"),
+                        "player_name": cur[nm_col],
                         "date": snap_date,
                         "year": CURRENT_YEAR,
                         "value": cur["trade_value"].round(0),
+                        "value_p10": cur["trade_value_p10"].round(0) if "trade_value_p10" in cur.columns else pd.NA,
+                        "value_p90": cur["trade_value_p90"].round(0) if "trade_value_p90" in cur.columns else pd.NA,
                         "value_type": "mlb_surplus",
                         "transaction_type": pd.NA,
                         "label": cur.apply(
                             lambda r: (
                                 f"{int(r.get('years_control', 0) or 0)}yr control, "
-                                f"{r.get('total_future_war', 0) or 0:.1f} WAR"
+                                f"{r.get(war_col, 0) or 0:.1f} WAR"
                             ), axis=1
                         ),
                         "years_control": cur.get("years_control", 0),
-                        "status": cur.get("Status", None),
-                        "projected_war": cur.get("total_future_war", 0),
-                        "projected_salary": cur.get("total_contract", 0),
+                        "projected_war": cur.get(war_col, 0),
+                        "projected_salary": cur.get(sal_col, 0),
                         "war_per_year": cur.apply(
                             lambda r: (
-                                round((r.get("total_future_war", 0) or 0)
+                                round((r.get(war_col, 0) or 0)
                                       / max(r.get("years_control", 0) or 0, 0.001), 2)
                             ), axis=1
                         ),
@@ -1211,43 +1035,42 @@ class DataLoader:
                 return
 
             df = pd.concat(frames, ignore_index=True)
-            for col in ("mlb_id", "idfg", "year"):
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-            df = df.dropna(subset=["mlb_id"])
-            df["mlb_id"] = df["mlb_id"].astype(int)
+            for col in ("mlbam_id", "fg_id", "year"):
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+            df = df.dropna(subset=["mlbam_id"])
+            df["mlbam_id"] = df["mlbam_id"].astype(int)
 
             model_cols = {c.key for c in TradeValueHistory.__table__.columns if c.key != "id"}
             df = df[[c for c in df.columns if c in model_cols]]
             records = _clean_records(df)
-            _coerce_int_cols(records, {"mlb_id", "idfg", "year"})
+            _coerce_int_cols(records, {"mlbam_id", "fg_id", "year"})
             n = _bulk_insert(self.db, TradeValueHistory, records)
             logger.info(f"    {n:,} trade-value-history rows loaded")
 
     def upsert_trade_value_history(self, csv_path: Path, target_date: str) -> None:
-        """Insert/update only *target_date* rows in trade_value_history.
-
-        Much faster than a full reload for daily pipeline runs.
-        """
+        """Insert/update only *target_date* rows in trade_value_history."""
         with _Timer(f"TVH upsert ({target_date})"):
             if not csv_path.exists():
                 logger.warning(f"  File not found: {csv_path}")
                 return
             df = pd.read_csv(csv_path, low_memory=False)
-            df = df.rename(columns={"IDfg": "idfg"})
+            df = df.rename(columns={"mlb_id": "mlbam_id", "IDfg": "fg_id", "idfg": "fg_id", "name": "player_name"})
             df = df[df["date"] == target_date]
             if df.empty:
                 logger.info(f"    No rows for date {target_date}")
                 return
 
-            for col in ("mlb_id", "idfg", "year"):
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-            df = df.dropna(subset=["mlb_id"])
-            df["mlb_id"] = df["mlb_id"].astype(int)
+            for col in ("mlbam_id", "fg_id", "year"):
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+            df = df.dropna(subset=["mlbam_id"])
+            df["mlbam_id"] = df["mlbam_id"].astype(int)
 
             model_cols = {c.key for c in TradeValueHistory.__table__.columns if c.key != "id"}
             df = df[[c for c in df.columns if c in model_cols]]
             records = _clean_records(df)
-            _coerce_int_cols(records, {"mlb_id", "idfg", "year"})
+            _coerce_int_cols(records, {"mlbam_id", "fg_id", "year"})
 
             deleted = (
                 self.db.query(TradeValueHistory)
