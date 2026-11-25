@@ -238,7 +238,11 @@ def _build_prospect_data(db: Session, *, mlbam_id: int = None, name: str = None)
     for r in records:
         entry: Dict[str, Any] = {
             "year": r.year, "age": r.age, "org": r.org,
-            "position": r.position, "fv": r.fv, "value": r.value,
+            "position": r.position, "level": r.level, "eta": r.eta,
+            "fv": r.fv,
+            "trade_value": r.trade_value,
+            "trade_value_p10": r.trade_value_p10,
+            "trade_value_p90": r.trade_value_p90,
             "composite": r.composite, "top_100": r.top_100,
             "org_rank": r.org_rank,
         }
@@ -256,42 +260,24 @@ def _build_prospect_data(db: Session, *, mlbam_id: int = None, name: str = None)
 
     return {
         "prospect_id": anchor.id,
-        "IDfg": latest.IDfg,
+        "fg_id": latest.fg_id,
         "mlbam_id": latest.mlbam_id,
         "name": latest.name,
         "org": latest.org,
         "position": latest.position,
+        "level": latest.level,
+        "eta": latest.eta,
         "age": latest.age,
         "fv": latest.fv,
+        "trade_value": latest.trade_value,
+        "trade_value_p10": latest.trade_value_p10,
+        "trade_value_p90": latest.trade_value_p90,
         "has_mlb": latest.has_mlb,
         "is_pitcher": is_pitcher_flag,
         "tools": tools,
         "history": history,
     }
 
-
-# ── Statcast expected stats (DB-backed) ───────────────────────────────────
-
-
-def normalize_team_abbreviation(team: str) -> str:
-    """Normalize team abbreviations - players use 2-letter codes, prospects use 3-letter codes"""
-    # Map from prospect 3-letter codes to player 2-letter codes for output consistency
-    from_prospect_to_player = {
-        'SFG': 'SF',
-        'SDP': 'SD',
-        'KCR': 'KC',
-        'OAK': 'ATH',
-        'TBR': 'TB'
-    }
-    # Map from player 2-letter codes to themselves (identity)
-    player_codes = {'SF', 'SD', 'KC', 'ATH', 'TB'}
-    
-    team_upper = team.upper()
-    # If it's a 3-letter prospect code, convert to 2-letter player code
-    if team_upper in from_prospect_to_player:
-        return from_prospect_to_player[team_upper]
-    # Otherwise return as-is (uppercase)
-    return team_upper
 
 @router.get("/")
 async def get_players(
@@ -300,83 +286,85 @@ async def get_players(
     position: Optional[str] = None,
     search: Optional[str] = None,
     sort_by: str = "war",
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     try:
         logger.info(f"Getting players: year={year}, team={team}, position={position}, search={search}")
-        
-        # Base query
-        query = db.query(Player).filter(Player.year == year)
-        query = query.filter(Player.projection_type == "ros")
-        
-        # Apply filters
+
+        query = db.query(Player).filter(Player.year == year, Player.projection_type == "ros")
+
         if search:
-            # Convert search string for SQL LIKE comparison
-            normalized_search = search.lower().replace('.', '').replace(' ', '')
-            # Use SQL function to normalize player names for comparison
+            normalized_search = search.lower().replace(".", "").replace(" ", "")
             normalized_name = func.replace(
-                func.replace(
-                    func.lower(Player.name),
-                    '.', ''
-                ),
-                ' ', ''
+                func.replace(func.lower(Player.name), ".", ""),
+                " ", "",
             )
             query = query.filter(normalized_name.like(f"%{normalized_search}%"))
-            
+
         if team:
-            # Players use 2-letter codes (TB, SD, SF, ATH, KC) directly
             query = query.filter(Player.team == team.upper())
-            
+
         if position:
             query = query.filter(
                 or_(
                     Player.position.ilike(f"%{position}%"),
-                    Player.status == position
+                    Player.status == position,
                 )
             )
-            
-        # Apply sorting
+
         if sort_by == "war":
-            # Combined WAR sorting (parenthesized so .desc() applies to the sum)
             query = query.order_by(
-                (func.coalesce(Player.war_bat, 0) + 
-                 func.coalesce(Player.war_pit, 0)).desc()
+                (func.coalesce(Player.war_bat, 0) + func.coalesce(Player.war_pit, 0)).desc()
             )
         elif sort_by == "value":
-            query = query.order_by(Player.surplus_value.desc())
-            
+            query = query.order_by(Player.annual_surplus.desc())
+
         players = query.all()
         logger.info(f"Found {len(players)} players")
 
         active_results = [
             {
-                "real_id": p.real_id,
-                "mlb_id": p.mlb_id,
+                "id": p.mlbam_id or p.fg_id,
+                "fg_id": p.fg_id,
+                "mlbam_id": p.mlbam_id,
                 "name": p.name,
                 "team": p.team,
                 "position": p.position,
+                "player_role": p.player_role,
                 "status": p.status,
                 "age": p.age,
+                "year": p.year,
                 "war_bat": p.war_bat,
                 "war_pit": p.war_pit,
+                "production_value": p.production_value,
+                "salary_cost": p.salary_cost,
+                "annual_surplus": p.annual_surplus,
+                "trade_value": p.trade_value,
+                "trade_value_p10": p.trade_value_p10,
+                "trade_value_p90": p.trade_value_p90,
+                "fa_year": p.fa_year,
+                "probable_fa_year": p.probable_fa_year,
+                "earliest_fa_year": p.earliest_fa_year,
+                "years_control": p.years_control,
                 "is_historical": False,
                 "value": {
-                    "base_value": p.base_value,
-                    "contract_value": p.contract_value,
-                    "surplus_value": p.surplus_value,
-                    "trade_value": p.trade_value
-                }
-            } for p in players
+                    "production_value": p.production_value,
+                    "salary_cost": p.salary_cost,
+                    "annual_surplus": p.annual_surplus,
+                    "trade_value": p.trade_value,
+                    "trade_value_p10": p.trade_value_p10,
+                    "trade_value_p90": p.trade_value_p90,
+                },
+            }
+            for p in players
         ]
 
-        # For searches, also include historical player matches (up to a limit)
         historical_results = []
         if search and len(search) >= 2:
             try:
                 from app.models.historical import HistoricalPlayer
                 q_lower = search.strip().lower()
-                # Collect active mlb_ids to avoid duplicates
-                active_mlb_ids = {p.get("mlb_id") for p in active_results if p.get("mlb_id")}
+                active_mlbam_ids = {p.get("mlbam_id") for p in active_results if p.get("mlbam_id")}
                 active_names_lower = {p["name"].lower() for p in active_results}
                 hist_rows = (
                     db.query(HistoricalPlayer)
@@ -387,14 +375,15 @@ async def get_players(
                 )
                 for hp in hist_rows:
                     mlbam = hp.mlbam
-                    if mlbam and mlbam in active_mlb_ids:
+                    if mlbam and mlbam in active_mlbam_ids:
                         continue
                     if hp.name_lower in active_names_lower:
                         continue
                     teams_str = ", ".join((hp.teams or [])[:3])
                     historical_results.append({
-                        "real_id": hp.idfg,
-                        "mlb_id": mlbam,
+                        "id": mlbam or hp.idfg,
+                        "fg_id": hp.idfg,
+                        "mlbam_id": mlbam,
                         "name": hp.name,
                         "team": teams_str or "---",
                         "position": "P" if hp.is_pitcher else "Pos",
@@ -406,7 +395,7 @@ async def get_players(
                         "career_war": hp.career_war or 0,
                         "first_year": hp.first_year,
                         "last_year": hp.last_year,
-                        "value": None
+                        "value": None,
                     })
                     if len(historical_results) >= 15:
                         break
@@ -417,7 +406,7 @@ async def get_players(
 
         return {
             "count": len(all_results),
-            "players": all_results
+            "players": all_results,
         }
     except Exception as e:
         logger.error(f"Error in get_players: {str(e)}")
@@ -521,19 +510,27 @@ def _build_historical_response(hist: dict, db: Session) -> dict:
             "probable_fa_year": None,
             "earliest_fa_year": None,
             "value": {
-                "base_value": e.get("war_value") or 0,
-                "contract_value": e.get("salary") or 0,
-                "surplus_value": e.get("surplus") or 0,
-                "trade_value": 0, "contract_war": 0, "avg_war": 0,
-                "total_contract": hist.get("career_salary") or 0,
-                "avg_contract": 0,
-                "years_control": 0, "control_through": 0,
-                "total_future_war": 0, "total_future_value": 0,
-                "total_war": hist.get("career_war", 0),
-                "total_value": hist.get("career_war_value", 0),
-                "historical_war": hist.get("career_war", 0),
-                "historical_value": hist.get("career_war_value", 0),
-                "contract_base_value": 0,
+                "production_value": e.get("war_value") or 0,
+                "salary_cost": e.get("salary") or 0,
+                "annual_surplus": e.get("surplus") or 0,
+                "trade_value": 0,
+                "trade_value_p10": None,
+                "trade_value_p50": None,
+                "trade_value_p90": None,
+                "control_war": 0,
+                "avg_war": 0,
+                "control_salary_cost": hist.get("career_salary") or 0,
+                "avg_salary_cost": 0,
+                "control_production_value": 0,
+                "control_surplus": 0,
+                "years_control": 0,
+                "control_through": 0,
+                "projected_15yr_war": 0,
+                "projected_15yr_value": 0,
+                "career_war": hist.get("career_war", 0),
+                "career_production_value": hist.get("career_war_value", 0),
+                "past_career_war": hist.get("career_war", 0),
+                "past_career_value": hist.get("career_war_value", 0),
             },
             "salary": e.get("salary"),
             "war_value": e.get("war_value"),
@@ -544,7 +541,6 @@ def _build_historical_response(hist: dict, db: Session) -> dict:
             proj["pitching"] = e["pitching"]
         projections.append(proj)
 
-    # Determine position and team from last season
     last_team = hist.get("teams", [""])[0] if hist.get("teams") else ""
     if projections:
         last_team = projections[-1].get("team", last_team)
@@ -553,7 +549,8 @@ def _build_historical_response(hist: dict, db: Session) -> dict:
         "name": hist["name"],
         "team": last_team,
         "position": "P" if hist.get("is_pitcher") else "Pos",
-        "mlb_id": hist.get("mlbam"),
+        "fg_id": hist.get("idfg"),
+        "mlbam_id": hist.get("mlbam"),
         "isHistorical": True,
         "historicalMeta": {
             "idfg": hist.get("idfg"),
@@ -573,36 +570,27 @@ def _build_historical_response(hist: dict, db: Session) -> dict:
         "projections": projections,
     }
 
+
 @router.get("/{player_id}/details")
 async def get_player_details(player_id: int, db: Session = Depends(get_db)):
     logger.debug(f"Received request for player_id: {player_id}")
-    
+
     try:
-        # Try lookup by mlb_id first, then fall back to real_id (IDfg)
-        logger.debug(f"Trying mlb_id lookup for: {player_id}")
-        query = db.query(Player).filter(Player.mlb_id == player_id, Player.projection_type == "ros")
+        query = db.query(Player).filter(Player.mlbam_id == player_id, Player.projection_type == "ros")
         player_years = query.order_by(Player.year).all()
-        
+
         if not player_years:
-            logger.info(f"No mlb_id match, trying real_id lookup for: {player_id}")
-            query = db.query(Player).filter(Player.real_id == player_id, Player.projection_type == "ros")
+            query = db.query(Player).filter(Player.fg_id == player_id, Player.projection_type == "ros")
             player_years = query.order_by(Player.year).all()
-        
-        logger.info(f"Found {len(player_years)} years for player with ID: {player_id}")
-        
+
         if not player_years:
-            # Fall back to historical player data
             from app.routes.historical import get_historical_player
             hist = get_historical_player(player_id)
             if hist is not None:
-                logger.info(f"Found historical player: {hist['name']} (IDfg={hist['idfg']})")
                 return _build_historical_response(hist, db)
 
-            # Fall back to prospect-only data (player has mlbam_id but no
-            # Player rows — e.g. a prospect who hasn't accumulated MLB stats)
             prospect_data = _build_prospect_data(db, mlbam_id=player_id)
             if prospect_data is not None:
-                logger.info(f"Found prospect-only player: {prospect_data['name']} (mlbam={player_id})")
                 headshot_url = (
                     f"https://img.mlbstatic.com/mlb-photos/image/upload/"
                     f"w_213,d_people:generic:headshot:silo:current.png,"
@@ -612,7 +600,8 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
                     "name": prospect_data["name"],
                     "team": prospect_data["org"],
                     "position": prospect_data["position"],
-                    "mlb_id": player_id,
+                    "fg_id": prospect_data.get("fg_id"),
+                    "mlbam_id": player_id,
                     "isProspectOnly": True,
                     "prospectData": prospect_data,
                     "headshot_url": headshot_url,
@@ -620,46 +609,51 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
                 }
 
             raise HTTPException(
-                status_code=404, 
-                detail=f"Player not found with ID: {player_id}"
+                status_code=404,
+                detail=f"Player not found with ID: {player_id}",
             )
-        
-        # Get current year data or fallback to first available
+
         current_year_data = next((p for p in player_years if p.year == CURRENT_YEAR), player_years[0])
-        
+
         response = {
             "name": current_year_data.name,
             "team": current_year_data.team,
             "position": current_year_data.position,
-            "mlb_id": current_year_data.mlb_id,
-            "projections": [{
-                "year": p.year,
-                "age": p.age,
-                "team": p.team,
-                "position": p.position,
-                "status": p.status,
-                "fa_year": p.fa_year,
-                "probable_fa_year": p.probable_fa_year,
-                "earliest_fa_year": p.earliest_fa_year,
-                "value": {
-                    "base_value": p.base_value,
-                    "contract_value": p.contract_value,
-                    "surplus_value": p.surplus_value,
-                    "trade_value": p.trade_value,
-                    "contract_war": p.contract_war,
-                    "avg_war": p.avg_war,
-                    "total_contract": p.total_contract,
-                    "avg_contract": p.avg_contract,
-                    "years_control": p.years_control,
-                    "control_through": p.control_through,
-                    "total_future_war": p.total_future_war,
-                    "total_future_value": p.total_future_value,
-                    "total_war": p.total_war,
-                    "total_value": p.total_value,
-                    "historical_war": p.historical_war,
-                    "historical_value": p.historical_value,
-                    "contract_base_value": p.contract_base_value,
-                },
+            "fg_id": current_year_data.fg_id,
+            "mlbam_id": current_year_data.mlbam_id,
+            "projections": [
+                {
+                    "year": p.year,
+                    "age": p.age,
+                    "team": p.team,
+                    "position": p.position,
+                    "status": p.status,
+                    "fa_year": p.fa_year,
+                    "probable_fa_year": p.probable_fa_year,
+                    "earliest_fa_year": p.earliest_fa_year,
+                    "value": {
+                        "production_value": p.production_value,
+                        "salary_cost": p.salary_cost,
+                        "annual_surplus": p.annual_surplus,
+                        "trade_value": p.trade_value,
+                        "trade_value_p10": p.trade_value_p10,
+                        "trade_value_p50": p.trade_value_p50,
+                        "trade_value_p90": p.trade_value_p90,
+                        "control_war": p.control_war,
+                        "avg_war": p.avg_war,
+                        "control_salary_cost": p.control_salary_cost,
+                        "avg_salary_cost": p.avg_salary_cost,
+                        "control_production_value": p.control_production_value,
+                        "control_surplus": p.control_surplus,
+                        "years_control": p.years_control,
+                        "control_through": p.control_through,
+                        "projected_15yr_war": p.projected_15yr_war,
+                        "projected_15yr_value": p.projected_15yr_value,
+                        "career_war": p.career_war,
+                        "career_production_value": p.career_production_value,
+                        "past_career_war": p.past_career_war,
+                        "past_career_value": p.past_career_value,
+                    },
                 **({"hitting": {
                     "g_bat": p.g_bat,
                     "war_bat": p.war_bat,
@@ -700,7 +694,7 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
         }
 
         # Augment historical seasons with statcast expected stats
-        mlbam = current_year_data.mlb_id
+        mlbam = current_year_data.mlbam_id
         if mlbam:
             sc_rows = (
                 db.query(StatcastExpected)
@@ -722,24 +716,24 @@ async def get_player_details(player_id: int, db: Session = Depends(get_db)):
                         if sc.xera is not None:
                             proj["pitching"]["xera"] = sc.xera
 
-        # Attach prospect data if available (looked up by mlbam_id or name)
         prospect_data = _build_prospect_data(
             db,
-            mlbam_id=current_year_data.mlb_id,
+            mlbam_id=current_year_data.mlbam_id,
             name=current_year_data.name,
         )
         if prospect_data is not None:
             response["prospectData"] = prospect_data
 
-        # Attach actual current-season stats (from FanGraphs historic data)
-        idfg = current_year_data.real_id
+        idfg = current_year_data.fg_id
         if idfg:
             season_stats = _load_current_season_stats(int(idfg), db=db)
             if season_stats:
                 response["currentSeasonStats"] = season_stats
 
         return response
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in get_player_details: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -807,42 +801,45 @@ async def get_trade_value_history(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
 ):
-    """Return trade value timeline for a player.
-
-    Query params
-    ------------
-    granularity : auto | daily | weekly | monthly | yearly
-        ``auto`` (default) returns yearly for historical seasons and weekly
-        for the current season.
-    start_date / end_date : YYYY-MM-DD
-        Optional date-range filter applied *before* aggregation.
-    """
-    # Resolve the player so we can match on mlb_id
+    """Return trade value timeline (including P10/P90 uncertainty band) for a player."""
     try:
         pid = int(player_id)
-        player = db.query(Player).filter(
-            or_(Player.mlb_id == pid, Player.real_id == pid),
-            Player.projection_type == "ros"
-        ).first()
+        player = (
+            db.query(Player)
+            .filter(
+                or_(Player.mlbam_id == pid, Player.fg_id == pid),
+                Player.projection_type == "ros",
+                Player.year == CURRENT_YEAR,
+            )
+            .first()
+        )
+        if player is None:
+            player = (
+                db.query(Player)
+                .filter(
+                    or_(Player.mlbam_id == pid, Player.fg_id == pid),
+                    Player.projection_type == "ros",
+                )
+                .first()
+            )
     except (ValueError, TypeError):
+        pid = None
         player = None
 
-    if player is None:
-        return JSONResponse([])
-
-    mlb_id = player.mlb_id
-    rows = (
-        db.query(TradeValueHistory)
-        .filter(TradeValueHistory.mlb_id == mlb_id)
-        .order_by(TradeValueHistory.date)
-        .all()
-    )
-
-    if not rows and player.real_id is not None:
-        # Try matching by IDfg (real_id) as fallback
+    mlbam_id = player.mlbam_id if player is not None else pid
+    rows = []
+    if mlbam_id is not None:
         rows = (
             db.query(TradeValueHistory)
-            .filter(TradeValueHistory.idfg == player.real_id)
+            .filter(TradeValueHistory.mlbam_id == mlbam_id)
+            .order_by(TradeValueHistory.date)
+            .all()
+        )
+
+    if not rows and player is not None and player.fg_id is not None:
+        rows = (
+            db.query(TradeValueHistory)
+            .filter(TradeValueHistory.fg_id == player.fg_id)
             .order_by(TradeValueHistory.date)
             .all()
         )
@@ -850,16 +847,14 @@ async def get_trade_value_history(
     if not rows:
         return JSONResponse([])
 
-    # Determine fixed opt-out year from actual contract timeline rows.
-    # Use the earliest Opt-Out season so UI never infers it from years_control.
     opt_out_year = None
-    if player.real_id is not None:
+    if player is not None and player.fg_id is not None:
         opt_out_year = (
             db.query(Player.year)
             .filter(
-                Player.real_id == player.real_id,
+                Player.fg_id == player.fg_id,
                 Player.projection_type == "ros",
-                Player.status == "Opt-Out",
+                Player.status.in_(["Opt-Out", "Player Option"]),
             )
             .order_by(Player.year.asc())
             .limit(1)
@@ -871,6 +866,8 @@ async def get_trade_value_history(
             "year": r.year,
             "date": r.date,
             "value": round(float(r.value), 2) if r.value is not None else 0,
+            "valueP10": round(float(r.value_p10), 2) if r.value_p10 is not None else None,
+            "valueP90": round(float(r.value_p90), 2) if r.value_p90 is not None else None,
             "valueType": r.value_type,
             "transactionType": r.transaction_type,
             "label": r.label,
@@ -883,73 +880,60 @@ async def get_trade_value_history(
         for r in rows
     ]
 
-    # Override today's entry with live trade_value from Player table
-    if player.trade_value is not None:
+    if player is not None and player.trade_value is not None:
         today_str = date.today().isoformat()
         yrs = player.years_control or 0
-        fw = player.total_future_war or 0
-        sal = player.total_contract or 0
-        wpy = fw / yrs if yrs > 0 else 0.0
-        label = f"{int(yrs)}yr control, {fw:.1f} WAR" if yrs > 0 else f"{fw:.1f} WAR projected"
+        cwar = player.control_war or 0
+        csal = player.control_salary_cost or 0
+        wpy = cwar / yrs if yrs > 0 else 0.0
+        label = f"{int(yrs)}yr control, {cwar:.1f} WAR" if yrs > 0 else f"{cwar:.1f} WAR projected"
         current_entry = {
             "year": CURRENT_YEAR,
             "date": today_str,
             "value": round(float(player.trade_value), 2),
+            "valueP10": round(float(player.trade_value_p10), 2) if player.trade_value_p10 is not None else None,
+            "valueP90": round(float(player.trade_value_p90), 2) if player.trade_value_p90 is not None else None,
             "valueType": "mlb_surplus",
             "transactionType": None,
             "label": label,
             "yearsControl": round(float(yrs), 1),
             "optOutYear": int(opt_out_year) if opt_out_year is not None else None,
-            "projectedWar": round(float(fw), 1),
-            "projectedSalary": round(float(sal), 2),
+            "projectedWar": round(float(cwar), 1),
+            "projectedSalary": round(float(csal), 2),
             "warPerYear": round(float(wpy), 1),
         }
-        # Remove only today's entry (not all current-year entries)
         result = [r for r in result if r.get("date") != today_str]
         result.append(current_entry)
         result.sort(key=lambda r: r["date"] or f"{r['year']}-01-01")
 
-    # Date-range filter
     if start_date:
         result = [r for r in result if (r["date"] or f"{r['year']}-01-01") >= start_date]
     if end_date:
         result = [r for r in result if (r["date"] or f"{r['year']}-12-31") <= end_date]
 
-    # Aggregation
     result = _aggregate_tvh(result, granularity, CURRENT_YEAR)
-
     return JSONResponse(result)
 
 
-# ── Fielding stats endpoint ──────────────────────────────────────────────
-
 @router.get("/{player_id}/fielding-stats")
 async def get_player_fielding_stats(player_id: int, db: Session = Depends(get_db)):
-    """Return per-position fielding statistics (historical + projected).
-
-    Looks up by mlb_id first, falls back to IDfg (real_id).
-    Returns rows grouped by season, each with per-position run-value
-    components, innings, games, and traditional metrics.
-    """
     from app.models.fielding_stats import FieldingStats
 
     try:
-        # Resolve player → get both mlb_id and idfg
         player = db.query(Player).filter(
-            or_(Player.mlb_id == player_id, Player.real_id == player_id),
-            Player.projection_type == "ros"
+            or_(Player.mlbam_id == player_id, Player.fg_id == player_id),
+            Player.projection_type == "ros",
         ).first()
 
         if player is None:
             return JSONResponse([])
 
-        mlb_id = player.mlb_id
-        idfg = player.real_id
+        mlbam_id = player.mlbam_id
+        idfg = player.fg_id
 
-        # Query by mlb_id or idfg
         conditions = []
-        if mlb_id:
-            conditions.append(FieldingStats.mlb_id == int(mlb_id))
+        if mlbam_id:
+            conditions.append(FieldingStats.mlb_id == int(mlbam_id))
         if idfg:
             conditions.append(FieldingStats.idfg == int(idfg))
 
@@ -1138,36 +1122,31 @@ async def get_player_info(player_id: str, db: Session = Depends(get_db)):
     try:
         pid = int(player_id)
         player = db.query(Player).filter(
-            or_(Player.mlb_id == pid, Player.real_id == pid),
-            Player.projection_type == "ros"
+            or_(Player.mlbam_id == pid, Player.fg_id == pid),
+            Player.projection_type == "ros",
         ).first()
     except (ValueError, TypeError):
         player = None
 
-    mlb_id = None
-    if player is not None and player.mlb_id is not None:
-        mlb_id = player.mlb_id
+    mlbam_id = None
+    if player is not None and player.mlbam_id is not None:
+        mlbam_id = player.mlbam_id
     else:
-        # Fall back to historical data for MLBAM resolution
         from app.routes.historical import get_historical_player
         try:
             hist = get_historical_player(int(player_id))
             if hist and hist.get("mlbam"):
-                mlb_id = hist["mlbam"]
+                mlbam_id = hist["mlbam"]
         except (ValueError, TypeError):
             pass
 
-    if mlb_id is None:
-        # Last resort: try the raw player_id as an mlbam_id directly.
-        # This covers prospect-only players who have an mlbam_id but no
-        # Player or HistoricalPlayer rows — the MLB Stats API will still
-        # return bio data for them (draft info, height, bats/throws, etc.).
+    if mlbam_id is None:
         try:
-            mlb_id = int(player_id)
+            mlbam_id = int(player_id)
         except (ValueError, TypeError):
             return JSONResponse({})
 
-    info = await _fetch_player_info(mlb_id)
+    info = await _fetch_player_info(mlbam_id)
     return JSONResponse(info)
 
 
@@ -1244,22 +1223,20 @@ _MLB_TEAM_TO_ABBREV: Dict[str, str] = {
 
 
 def _build_name_index(db: Session) -> Dict[str, List[Dict[str, Any]]]:
-    """Build a name→[{mlb_id, real_id, name}] index for matching players in trade descriptions."""
+    """Build a name→[{mlbam_id, fg_id, name}] index for matching players in trade descriptions."""
     players = db.query(
-        Player.name, Player.mlb_id, Player.real_id
+        Player.name, Player.mlbam_id, Player.fg_id
     ).filter(Player.year == CURRENT_YEAR, Player.projection_type == "ros").all()
 
     index: Dict[str, List[Dict[str, Any]]] = {}
     for p in players:
-        if not p.name or not p.mlb_id:
+        if not p.name or not p.mlbam_id:
             continue
         key = p.name.lower().strip()
-        if key not in index:
-            index[key] = []
-        index[key].append({
+        index.setdefault(key, []).append({
             "name": p.name,
-            "mlb_id": p.mlb_id,
-            "real_id": p.real_id,
+            "mlbam_id": p.mlbam_id,
+            "fg_id": p.fg_id,
         })
     return index
 
@@ -1269,19 +1246,19 @@ def _find_players_in_description(
 ) -> List[Dict[str, Any]]:
     """Parse a trade description and find referenced players in our database."""
     found = []
-    seen_ids = {exclude_mlb_id}  # Don't link the player to themselves
+    seen_ids = {exclude_mlb_id}
 
-    for name_key, player_list in name_index.items():
+    for _, player_list in name_index.items():
         for player in player_list:
             pname = player["name"]
             if pname in description:
-                if player["mlb_id"] not in seen_ids:
+                if player["mlbam_id"] not in seen_ids:
                     found.append({
                         "name": pname,
-                        "mlbId": player["mlb_id"],
-                        "realId": player["real_id"],
+                        "mlbId": player["mlbam_id"],
+                        "fgId": player["fg_id"],
                     })
-                    seen_ids.add(player["mlb_id"])
+                    seen_ids.add(player["mlbam_id"])
 
     return found
 
@@ -1325,24 +1302,21 @@ async def get_player_milb_stats(player_id: str, db: Session = Depends(get_db)):
     try:
         pid = int(player_id)
         player = db.query(Player).filter(
-            or_(Player.mlb_id == pid, Player.real_id == pid),
-            Player.projection_type == "ros"
+            or_(Player.mlbam_id == pid, Player.fg_id == pid),
+            Player.projection_type == "ros",
         ).first()
     except (ValueError, TypeError):
         player = None
 
-    # Collect candidate FanGraphs IDs to try (as strings)
     candidate_fgids: list[str] = []
 
     if player:
-        # real_id is the numeric FanGraphs ID for active players
-        if player.real_id is not None:
-            candidate_fgids.append(str(player.real_id))
-        # Try crosswalk via mlbam_id
-        if player.mlb_id is not None:
+        if player.fg_id is not None:
+            candidate_fgids.append(str(player.fg_id))
+        if player.mlbam_id is not None:
             xref = (
                 db.query(PlayerIdCrosswalk)
-                .filter(PlayerIdCrosswalk.mlbam_id == player.mlb_id)
+                .filter(PlayerIdCrosswalk.mlbam_id == player.mlbam_id)
                 .first()
             )
             if xref and xref.fg_id and xref.fg_id not in candidate_fgids:
@@ -1443,16 +1417,16 @@ async def get_player_transactions(player_id: str, db: Session = Depends(get_db))
     try:
         pid = int(player_id)
         player = db.query(Player).filter(
-            or_(Player.mlb_id == pid, Player.real_id == pid),
-            Player.projection_type == "ros"
+            or_(Player.mlbam_id == pid, Player.fg_id == pid),
+            Player.projection_type == "ros",
         ).first()
     except (ValueError, TypeError):
         player = None
 
     mlb_id = None
     player_name = None
-    if player is not None and player.mlb_id is not None:
-        mlb_id = player.mlb_id
+    if player is not None and player.mlbam_id is not None:
+        mlb_id = player.mlbam_id
         player_name = player.name
     else:
         # Fall back to historical data for MLBAM resolution
