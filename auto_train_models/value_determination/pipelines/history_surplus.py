@@ -1,30 +1,23 @@
 """
-Historical Values — Surplus Calculator
-========================================
+Historical Values — V2 Monte Carlo Surplus Snapshot Builder (`2014–2026`)
+=========================================================================
 
-For each snapshot year S (cutoff = S − 1):
-  1. Load the four prediction CSVs from ``projections/cutoff_{S-1}/``.
-  2. Build position profiles from historical fielding data.
-  3. Compute WAR (batter + pitcher) using the shared WAR engine.
-  4. Load the Cot's salary file and adapt to the pipeline timeline format.
-  5. Run the shared value-determination pipeline:
-     extend_fa_timeline → join_predictions → calculate_contract_value →
-     calculate_surplus_value → analyze_contract_options →
-     calculate_trade_values → add_trade_ranking_metrics.
-  6. Extract per-player summary and save.
+Computes annual opening-day (`surplus_YYYY.csv`) and end-of-season
+(`surplus_YYYY_eoy.csv`) trade-value snapshots using the exact same V2
+valuation spine as the live pipeline:
 
-This module uses the **exact same** value-pipeline functions as the
-current-year value-determination pipeline, ensuring identical logic.
-The only difference is the salary source (Cot's vs Spotrac).
-
-Usage:
-    cd auto_train_models
-    python -m historical_values.surplus --start 2014 --end 2026
+  1. Enforce MLB debut boundary (`>= 1` MLB game as of `cutoff_year`) so zero
+     pre-debut minor-leaguers leak from cached `projections/cutoff_*` files.
+  2. Estimate individualized playing time (`estimate_playing_time` &
+     `estimate_batter_playing_time`) and compute WAR via `war_engine`
+     (including post-28 defensive spectrum drift).
+  3. Build Cot's + Spotrac CBA salary/option timelines.
+  4. Run the vectorized 1,000-path Monte Carlo simulator (`monte_carlo_valuation`)
+     emitting `trade_value`, `trade_value_p10`, `trade_value_p50`, `trade_value_p90`.
 """
 
 from __future__ import annotations
 
-import math
 import sys
 from pathlib import Path
 from typing import Dict, Optional
@@ -36,141 +29,70 @@ _AUTO_TRAIN = Path(__file__).resolve().parents[2]
 if str(_AUTO_TRAIN) not in sys.path:
     sys.path.insert(0, str(_AUTO_TRAIN))
 
-from value_determination.config import Config, logger, CURRENT_YEAR
-
-# Path shortcuts from Config.Paths
-PROJECTIONS_DIR = Config.Paths.PROJECTIONS_DIR
-SURPLUS_DIR     = Config.Paths.SURPLUS_DIR
-COTS_BY_YEAR_DIR = Config.Paths.COTS_BY_YEAR_DIR
-DATA_DIR        = Config.Paths.DATA_DIR
-HISTORIC_BATTING_FILE  = Config.Paths.HISTORIC_BATTING_FILE
-HISTORIC_PITCHING_FILE = Config.Paths.HISTORIC_PITCHING_FILE
-HISTORIC_BATTING_FILE_CLASSIC  = Config.Paths.HISTORIC_BATTING_FILE_CLASSIC
-HISTORIC_PITCHING_FILE_CLASSIC = Config.Paths.HISTORIC_PITCHING_FILE_CLASSIC
-HISTORIC_FIELDING_FILE = Config.Paths.HISTORIC_FIELDING_FILE
-ROSTER_FILE     = Config.Paths.ROSTER_FILE
-
-from value_determination.pipelines._history_war import calculate_batter_war, calculate_pitcher_war
-from value_determination.pipelines.cots_adapter import (
-    build_salary_timeline,
-    _classify_status,
-    _years_of_control_from_svc,
-)
-
-# ── Shared value-determination pipeline functions ────────────────────────────
-from value_determination.contract_processor import extend_fa_timeline
-from value_determination.value_calculator import (
-    join_predictions_with_timeline,
-    calculate_contract_value,
-    calculate_surplus_value,
-)
-from value_determination.trade_value import (
-    analyze_contract_options,
-    calculate_trade_values,
-    add_trade_ranking_metrics,
-)
+from core.id_crosswalk import fg_to_mlbam, normalize_team_code
+from core.name_utils import name_key as _name_key_fn
 from core.position_profiles import (
     build_position_profiles,
-    load_fielding_history,
     load_batting_for_games,
+    load_fielding_history,
 )
-from core.name_utils import name_key as _name_key_fn, normalize_team as _normalise_team
+from value_determination.config import Config, logger
+from value_determination.contract_timeline import extend_fa_timeline
+from value_determination.dollar_valuation import (
+    calculate_annual_surplus,
+    calculate_salary_cost,
+    join_predictions_with_timeline,
+)
+from value_determination.monte_carlo_valuation import (
+    add_control_horizon_metrics,
+    analyze_contract_options,
+    calculate_trade_values,
+)
+from value_determination.pipelines.cots_adapter import (
+    _years_of_control_from_svc,
+    build_salary_timeline,
+)
+from value_determination.playing_time import (
+    estimate_batter_playing_time,
+    estimate_playing_time,
+)
+from value_determination.prospect_valuation import _load_first_mlb_season_by_fg
+from value_determination.salary_cleaner import clean_salary_data
+from value_determination.war_engine import (
+    calculate_batter_war_dataframe,
+    calculate_pitcher_war_dataframe,
+)
 
+PROJECTIONS_DIR = Config.Paths.PROJECTIONS_DIR
+SURPLUS_DIR = Config.Paths.SURPLUS_DIR
+COTS_BY_YEAR_DIR = Config.Paths.COTS_BY_YEAR_DIR
+DATA_DIR = Config.Paths.DATA_DIR
+HISTORIC_BATTING_FILE_CLASSIC = Config.Paths.HISTORIC_BATTING_FILE_CLASSIC
+HISTORIC_PITCHING_FILE_CLASSIC = Config.Paths.HISTORIC_PITCHING_FILE_CLASSIC
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# ID crosswalk helpers
-# ═══════════════════════════════════════════════════════════════════════════════
-
-_mlbam_xw_cache: Optional[pd.DataFrame] = None
-_idfg_team_cache: Optional[Dict[int, str]] = None
 _hist_app_cache: Optional[pd.DataFrame] = None
+_first_mlb_cache: Optional[Dict[int, int]] = None
+_spotrac_clean_cache: Optional[pd.DataFrame] = None
+_spotrac_txn_cache: Optional[pd.DataFrame] = None
+_hist_fielding_cache: Optional[pd.DataFrame] = None
+_hist_batting_cache: Optional[pd.DataFrame] = None
 
 
-def _build_mlbam_crosswalk() -> pd.DataFrame:
-    """Build IDfg → mlbam_id mapping from statcast-enriched historic data."""
-    global _mlbam_xw_cache
-    if _mlbam_xw_cache is not None:
-        return _mlbam_xw_cache
-
-    frames = []
-    for path in [HISTORIC_BATTING_FILE, HISTORIC_PITCHING_FILE]:
-        if path.exists():
-            df = pd.read_csv(path, usecols=["IDfg", "sc_mlbam_id"], low_memory=False)
-            df = df.dropna(subset=["sc_mlbam_id"]).drop_duplicates("IDfg")
-            frames.append(df)
-    if frames:
-        xw = pd.concat(frames, ignore_index=True).drop_duplicates("IDfg")
-        xw = xw.rename(columns={"sc_mlbam_id": "mlbam_id"})
-        xw["mlbam_id"] = xw["mlbam_id"].astype("Int64")
-    else:
-        xw = pd.DataFrame(columns=["IDfg", "mlbam_id"])
-    _mlbam_xw_cache = xw
-    return xw
+def _get_hist_fielding_and_batting() -> tuple[pd.DataFrame, pd.DataFrame]:
+    global _hist_fielding_cache, _hist_batting_cache
+    if _hist_fielding_cache is None:
+        _hist_fielding_cache = load_fielding_history()
+    if _hist_batting_cache is None:
+        _hist_batting_cache = load_batting_for_games()
+    return _hist_fielding_cache, _hist_batting_cache
 
 
-def _build_idfg_team_map() -> Dict[int, str]:
-    """Build IDfg → team abbreviation from the active roster."""
-    global _idfg_team_cache
-    if _idfg_team_cache is not None:
-        return _idfg_team_cache
+def _get_first_mlb_seasons() -> Dict[int, int]:
+    global _first_mlb_cache
+    if _first_mlb_cache is None:
+        _first_mlb_cache = _load_first_mlb_season_by_fg()
+    return _first_mlb_cache
 
-    team_info = DATA_DIR / "active_roster" / "team_info.csv"
-    if not ROSTER_FILE.exists() or not team_info.exists():
-        _idfg_team_cache = {}
-        return _idfg_team_cache
-
-    teams = pd.read_csv(team_info, usecols=["team_id", "abbreviation"])
-    tid_to_abbr = dict(zip(teams["team_id"], teams["abbreviation"]))
-
-    roster = pd.read_csv(ROSTER_FILE, usecols=["fg_id", "team_id"], low_memory=False)
-    roster = roster.dropna(subset=["fg_id"])
-    roster["fg_id"] = pd.to_numeric(roster["fg_id"], errors="coerce").dropna().astype(int)
-    roster["team_abbr"] = roster["team_id"].map(tid_to_abbr)
-    roster = roster.dropna(subset=["team_abbr"])
-
-    _idfg_team_cache = dict(zip(roster["fg_id"], roster["team_abbr"]))
-    return _idfg_team_cache
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Cot's ↔ projection matching
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def _enrich_cots_with_idfg(
-    cots: pd.DataFrame,
-    proj_players: pd.DataFrame,
-) -> pd.DataFrame:
-    """Add an ``IDfg`` column to the Cot's DataFrame via name + team matching."""
-    name_to_idfgs: Dict[str, list] = {}
-    for _, row in proj_players.iterrows():
-        key = row["_name_key"]
-        name_to_idfgs.setdefault(key, []).append(int(row["IDfg"]))
-
-    idfg_team_map = _build_idfg_team_map()
-    idfg_col = []
-    for _, row in cots.iterrows():
-        candidates = name_to_idfgs.get(row["_name_key"], [])
-        if len(candidates) == 1:
-            idfg_col.append(candidates[0])
-        elif len(candidates) > 1:
-            cots_team = _normalise_team(str(row.get("team", "")))
-            matched = None
-            for cand in candidates:
-                if _normalise_team(idfg_team_map.get(cand, "")) == cots_team:
-                    matched = cand
-                    break
-            idfg_col.append(matched if matched else pd.NA)
-        else:
-            idfg_col.append(pd.NA)
-
-    cots = cots.copy()
-    cots["IDfg"] = pd.array(idfg_col, dtype="Int64")
-    return cots
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Service-time helpers
-# ═══════════════════════════════════════════════════════════════════════════════
 
 def _load_historical_appearances() -> pd.DataFrame:
     global _hist_app_cache
@@ -178,352 +100,130 @@ def _load_historical_appearances() -> pd.DataFrame:
         return _hist_app_cache
 
     frames = []
-    for path in [HISTORIC_BATTING_FILE_CLASSIC, HISTORIC_PITCHING_FILE_CLASSIC]:
+    for path in (HISTORIC_BATTING_FILE_CLASSIC, HISTORIC_PITCHING_FILE_CLASSIC):
         if path.exists():
-            df = pd.read_csv(path, usecols=["IDfg", "Season"], low_memory=False)
-            frames.append(df[["IDfg", "Season"]].drop_duplicates())
-    _hist_app_cache = pd.concat(frames, ignore_index=True).drop_duplicates() if frames else pd.DataFrame()
+            df = pd.read_csv(path, usecols=["IDfg", "Season", "Team"], low_memory=False)
+            df["IDfg"] = pd.to_numeric(df["IDfg"], errors="coerce")
+            df["Season"] = pd.to_numeric(df["Season"], errors="coerce")
+            df = df.dropna(subset=["IDfg", "Season"]).copy()
+            df["IDfg"] = df["IDfg"].astype(int)
+            df["Season"] = df["Season"].astype(int)
+            df["Team"] = df["Team"].map(normalize_team_code)
+            frames.append(df.drop_duplicates(subset=["IDfg", "Season"]))
+    _hist_app_cache = pd.concat(frames, ignore_index=True).drop_duplicates(["IDfg", "Season"]) if frames else pd.DataFrame()
     return _hist_app_cache
 
 
-def _estimate_service_time(idfg: int, as_of_season: int) -> float:
+def _estimate_service_and_team(idfg: int, as_of_season: int) -> tuple[float, str]:
     app = _load_historical_appearances()
     if app.empty:
-        return 0.0
-
-    # Historical appearance counts are only a coarse fallback when Cot's
-    # does not have a player yet.  Treat the first MLB season as partial
-    # service so debut-year players do not lose a control year early.
-    seasons = int(app.loc[(app["IDfg"] == idfg) & (app["Season"] <= as_of_season), "Season"].nunique())
-    return float(max(0, seasons - 1))
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Career game-count helper (for confidence adjustments)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-_career_games_cache: Optional[pd.DataFrame] = None
+        return 0.0, "MLB"
+    sub = app[(app["IDfg"] == idfg) & (app["Season"] <= as_of_season)].sort_values("Season")
+    if sub.empty:
+        return 0.0, "MLB"
+    seasons = int(sub["Season"].nunique())
+    last_team = str(sub.iloc[-1]["Team"])
+    if not last_team or last_team == "FA":
+        last_team = "MLB"
+    return float(max(0, seasons - 1)), last_team
 
 
-def _build_career_games(snapshot_year: int) -> pd.DataFrame:
-    """
-    Compute career G_bat, G_pit, GS per player through snapshot_year - 1.
-
-    Replicates what value_calculator.integrate_historical_stats does in the
-    current pipeline so that _apply_confidence_adjustments can correctly
-    calculate projection_confidence from career game counts.
-    """
-    frames = []
-
-    # Batting games
-    if HISTORIC_BATTING_FILE_CLASSIC.exists():
-        bat = pd.read_csv(
-            HISTORIC_BATTING_FILE_CLASSIC,
-            usecols=["IDfg", "Season", "G"],
-            low_memory=False,
-        )
-        bat = bat[bat["Season"] < snapshot_year]
-        bat_g = bat.groupby("IDfg")["G"].sum().reset_index()
-        bat_g = bat_g.rename(columns={"G": "G_bat"})
-        frames.append(bat_g)
-
-    # Pitching games + GS
-    if HISTORIC_PITCHING_FILE_CLASSIC.exists():
-        pit_cols = ["IDfg", "Season", "G"]
-        pit_raw = pd.read_csv(HISTORIC_PITCHING_FILE_CLASSIC, low_memory=False, nrows=0)
-        if "GS" in pit_raw.columns:
-            pit_cols.append("GS")
-        pit = pd.read_csv(
-            HISTORIC_PITCHING_FILE_CLASSIC,
-            usecols=pit_cols,
-            low_memory=False,
-        )
-        pit = pit[pit["Season"] < snapshot_year]
-        agg = {"G": "sum"}
-        if "GS" in pit.columns:
-            agg["GS"] = "sum"
-        pit_g = pit.groupby("IDfg").agg(agg).reset_index()
-        pit_g = pit_g.rename(columns={"G": "G_pit"})
-        frames.append(pit_g)
-
-    if not frames:
-        return pd.DataFrame(columns=["IDfg", "G_bat", "G_pit", "GS"])
-
-    result = frames[0]
-    for f in frames[1:]:
-        result = result.merge(f, on="IDfg", how="outer")
-    return result.fillna(0)
-
-
-def _add_career_game_counts(
-    pipeline_df: pd.DataFrame,
-    snapshot_year: int,
+def _enrich_cots_with_idfg(
+    cots: pd.DataFrame,
+    proj_players: pd.DataFrame,
+    as_of_season: int,
 ) -> pd.DataFrame:
-    """
-    Insert synthetic historical rows carrying career game counts so that
-    _apply_confidence_adjustments (called inside calculate_trade_values)
-    can compute correct projection_confidence from each player's MLB
-    experience.
+    """Match Cot's player names to projected `IDfg` with historical team disambiguation."""
+    name_to_idfgs: Dict[str, list[int]] = {}
+    for _, row in proj_players.iterrows():
+        name_to_idfgs.setdefault(row["_name_key"], []).append(int(row["IDfg"]))
 
-    These rows use ``Year = snapshot_year - 1`` which falls under the
-    ``Year < current_year`` filter.  They are tagged with
-    ``_synthetic = True`` so they can be removed after trade-value
-    calculation.
-    """
-    career = _build_career_games(snapshot_year)
-    if career.empty:
-        return pipeline_df
+    app = _load_historical_appearances()
+    recent_teams = (
+        app[app["Season"].between(as_of_season - 1, as_of_season + 1)]
+        .groupby("IDfg")["Team"]
+        .apply(set)
+        .to_dict()
+        if not app.empty
+        else {}
+    )
 
-    player_ids = set(pipeline_df["IDfg"].unique())
-    career = career[career["IDfg"].isin(player_ids)].copy()
-    if career.empty:
-        return pipeline_df
+    idfg_col = []
+    for _, row in cots.iterrows():
+        candidates = name_to_idfgs.get(row["_name_key"], [])
+        if len(candidates) == 1:
+            idfg_col.append(candidates[0])
+        elif len(candidates) > 1:
+            cots_team = normalize_team_code(row.get("team", ""))
+            matched = next((c for c in candidates if cots_team in recent_teams.get(c, set())), None)
+            idfg_col.append(matched if matched is not None else candidates[0])
+        else:
+            idfg_col.append(pd.NA)
 
-    career["Year"] = snapshot_year - 1
-    career["_synthetic"] = True
-
-    # Ensure all pipeline columns exist in career (as NaN) so concat works
-    for col in pipeline_df.columns:
-        if col not in career.columns:
-            career[col] = np.nan
-
-    # Keep all columns: pipeline cols + game-count cols + _synthetic
-    all_cols = list(pipeline_df.columns) + [c for c in ["G_bat", "G_pit", "GS", "_synthetic"]
-                                            if c not in pipeline_df.columns]
-    # Also add game-count columns to pipeline_df (as NaN) for concat alignment
-    for c in ["G_bat", "G_pit", "GS", "_synthetic"]:
-        if c not in pipeline_df.columns:
-            pipeline_df = pipeline_df.copy()
-            pipeline_df[c] = np.nan
-
-    result = pd.concat([pipeline_df, career[all_cols]], ignore_index=True)
-    return result
+    out = cots.copy()
+    out["IDfg"] = pd.array(idfg_col, dtype="Int64")
+    return out
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Spotrac luxury_tax override
-# ═══════════════════════════════════════════════════════════════════════════════
+def _get_cleaned_spotrac_lookup() -> pd.DataFrame:
+    """Load CBA-cleaned Spotrac salaries & option statuses keyed by `(_name_key, Year)`."""
+    global _spotrac_clean_cache
+    if _spotrac_clean_cache is not None:
+        return _spotrac_clean_cache
 
-_spotrac_ltax_cache: Optional[pd.DataFrame] = None
-
-
-def _load_spotrac_luxury_tax() -> pd.DataFrame:
-    """Load Spotrac salary data with luxury_tax values, keyed by (name, year)."""
-    global _spotrac_ltax_cache
-    if _spotrac_ltax_cache is not None:
-        return _spotrac_ltax_cache
-
-    spotrac_path = DATA_DIR / "salary" / "mlb_salary_data.csv"
+    spotrac_path = Config.Paths.SALARY_FILE
     if not spotrac_path.exists():
-        _spotrac_ltax_cache = pd.DataFrame()
-        return _spotrac_ltax_cache
+        _spotrac_clean_cache = pd.DataFrame()
+        return _spotrac_clean_cache
 
-    df = pd.read_csv(spotrac_path)
+    raw = pd.read_csv(spotrac_path, low_memory=False)
+    cleaned = clean_salary_data(raw)
+    cleaned["_name_key"] = cleaned["Player Name"].map(_name_key_fn)
 
-    def _parse_dollar(s):
-        s = str(s).split("(")[0].replace("$", "").replace(",", "").replace("-", "").strip()
-        try:
-            return float(s)
-        except (TypeError, ValueError):
-            return None
-
-    df["_ltax"] = df["luxury_tax"].apply(_parse_dollar)
-    df = df.dropna(subset=["_ltax"])
-    df["_name_key"] = df["player_name"].apply(_name_key_fn)
-    df["year"] = pd.to_numeric(df["year"], errors="coerce")
-    df = df.dropna(subset=["year"])
-    df["year"] = df["year"].astype(int)
-    _spotrac_ltax_cache = df[["_name_key", "year", "_ltax"]].drop_duplicates(
-        subset=["_name_key", "year"], keep="first"
-    )
-    return _spotrac_ltax_cache
-
-
-def _override_salary_with_luxury_tax(
-    salary_timeline: pd.DataFrame,
-) -> pd.DataFrame:
-    """Override Cot's-derived Payroll with Spotrac luxury_tax where available.
-
-    Cot's data uses nominal total_future_salary which overstates the
-    economic burden for deferred-money contracts (e.g. Ohtani $700M nominal
-    but $46M/yr luxury tax).  This function cross-references Spotrac data
-    to correct those values.
-    """
-    ltax = _load_spotrac_luxury_tax()
-    if ltax.empty:
-        return salary_timeline
-
-    st = salary_timeline.copy()
-    st["_name_key"] = st["Name"].apply(_name_key_fn)
-
-    merged = st.merge(
-        ltax, left_on=["_name_key", "Year"], right_on=["_name_key", "year"],
-        how="left", suffixes=("", "_sp"),
-    )
-
-    # Override Payroll with luxury_tax where: (a) luxury_tax is available,
-    # (b) the player has a non-arb contract (Signed status means Cot's
-    #     distributed total_future_salary, which may be wrong for deferrals)
-    mask = merged["_ltax"].notna() & merged["Status"].isin(["Signed"])
-    n_overridden = mask.sum()
-    if n_overridden > 0:
-        merged.loc[mask, "Payroll"] = merged.loc[mask, "_ltax"]
-        names = merged.loc[mask, "Name"].unique()
-        logger.info(
-            f"  Overrode {n_overridden} salary rows with Spotrac luxury_tax "
-            f"for {len(names)} players"
-        )
-
-    merged = merged.drop(columns=["_ltax", "year", "_name_key"], errors="ignore")
-    return merged
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Spotrac years-of-control override (all contract options)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-_spotrac_control_cache: Optional[pd.DataFrame] = None
-
-
-def _load_spotrac_control_data() -> pd.DataFrame:
-    """Load per-player control boundaries from Spotrac contract data.
-
-    Returns a DataFrame with columns:
-        _name_key        — normalised player name key
-        _first_ctrl_year — first year in this Spotrac contract
-        _last_ctrl_year  — last non-UFA year in Spotrac (includes club options)
-
-    Only includes players who have at least one option clause (Club,
-    Player, Opt-Out, Mutual, Vesting) so that normal Pre-Arb/Arb players
-    aren't affected by minor Cot's-vs-Spotrac service-time differences.
-    """
-    global _spotrac_control_cache
-    if _spotrac_control_cache is not None:
-        return _spotrac_control_cache
-
-    spotrac_path = DATA_DIR / "salary" / "mlb_salary_data.csv"
-    if not spotrac_path.exists():
-        _spotrac_control_cache = pd.DataFrame(
-            columns=["_name_key", "_first_ctrl_year", "_last_ctrl_year"]
-        )
-        return _spotrac_control_cache
-
-    df = pd.read_csv(spotrac_path)
-    df["year"] = pd.to_numeric(df["year"], errors="coerce")
-    df = df.dropna(subset=["year", "status"])
-    df["year"] = df["year"].astype(int)
-    df["_name_key"] = df["player_name"].apply(_name_key_fn)
-
-    # Only consider players who have at least one option/exit clause
-    option_mask = df["status"].str.contains(
-        r"Opt-Out|Club|(?<!\bClub\b.)Player|Mutual|Vesting",
-        case=False, na=False, regex=True,
-    )
-    option_players = set(df.loc[option_mask, "_name_key"].unique())
-    df = df[df["_name_key"].isin(option_players)]
-
-    # --- First and last non-UFA year ---
-    non_ufa = df[~df["status"].str.contains(r"\bUFA\b", case=False, na=False)]
-    first_ctrl = (
-        non_ufa.groupby("_name_key")["year"]
-        .min()
-        .reset_index()
-        .rename(columns={"year": "_first_ctrl_year"})
-    )
-    last_ctrl = (
-        non_ufa.groupby("_name_key")["year"]
-        .max()
-        .reset_index()
-        .rename(columns={"year": "_last_ctrl_year"})
-    )
-
-    result = first_ctrl.merge(last_ctrl, on="_name_key")
-    _spotrac_control_cache = result
-    return _spotrac_control_cache
-
-
-_spotrac_status_cache: Optional[pd.DataFrame] = None
-_spotrac_txn_cache: Optional[pd.DataFrame] = None
-
-
-def _load_spotrac_statuses() -> pd.DataFrame:
-    """Load per-player-year Spotrac contract statuses.
-
-    Returns a DataFrame with columns: _name_key, year, _spotrac_status
-    where _spotrac_status is the normalised status matching the modern
-    pipeline's contract_processor vocabulary (e.g. Opt-Out, Team Option,
-    Player Option, Signed).
-    """
-    global _spotrac_status_cache
-    if _spotrac_status_cache is not None:
-        return _spotrac_status_cache
-
-    spotrac_path = DATA_DIR / "salary" / "mlb_salary_data.csv"
-    if not spotrac_path.exists():
-        _spotrac_status_cache = pd.DataFrame(
-            columns=["_name_key", "year", "_spotrac_status"]
-        )
-        return _spotrac_status_cache
-
-    df = pd.read_csv(spotrac_path)
-    df["year"] = pd.to_numeric(df["year"], errors="coerce")
-    df = df.dropna(subset=["year", "status"])
-    df["year"] = df["year"].astype(int)
-    df["_name_key"] = df["player_name"].apply(_name_key_fn)
-
-    def _normalise(s: str) -> str:
-        s = str(s).upper().strip()
-        if "OPT-OUT" in s or "OPT OUT" in s:
+    def _norm_status(s) -> str:
+        txt = "" if pd.isna(s) else str(s).upper().strip()
+        if "OPT-OUT" in txt or "OPT OUT" in txt:
             return "Opt-Out"
-        if "CLUB" in s:
+        if "CLUB" in txt:
             return "Team Option"
-        if "MUTUAL" in s:
+        if "MUTUAL" in txt:
             return "Mutual Option"
-        if "VESTING" in s:
+        if "VESTING" in txt:
             return "Vesting Option"
-        if "PLAYER" in s:
+        if "PLAYER" in txt:
             return "Player Option"
+        if any(k in txt for k in ("UFA", "RFA", "FA", "FREE AGENT")):
+            return "Free Agent"
         return "Signed"
 
-    df["_spotrac_status"] = df["status"].apply(_normalise)
-    _spotrac_status_cache = df[["_name_key", "year", "_spotrac_status"]].drop_duplicates(
-        subset=["_name_key", "year"], keep="first"
-    )
-    return _spotrac_status_cache
+    cleaned["_norm_status"] = cleaned["Status"].map(_norm_status)
+    _spotrac_clean_cache = cleaned.drop_duplicates(subset=["_name_key", "Year"], keep="first")
+    return _spotrac_clean_cache
 
 
 def _load_spotrac_transactions() -> pd.DataFrame:
     global _spotrac_txn_cache
     if _spotrac_txn_cache is not None:
         return _spotrac_txn_cache
-
     if not Config.Paths.SPOTRAC_TRANSACTIONS_FILE.exists():
-        _spotrac_txn_cache = pd.DataFrame(columns=["_name_key", "date", "transaction_type", "years"])
+        _spotrac_txn_cache = pd.DataFrame(columns=["_name_key", "date", "transaction_type", "years", "total_value"])
         return _spotrac_txn_cache
 
-    df = pd.read_csv(Config.Paths.SPOTRAC_TRANSACTIONS_FILE, parse_dates=["date"])
+    df = pd.read_csv(Config.Paths.SPOTRAC_TRANSACTIONS_FILE, parse_dates=["date"], low_memory=False)
     if df.empty:
-        _spotrac_txn_cache = pd.DataFrame(columns=["_name_key", "date", "transaction_type", "years"])
+        _spotrac_txn_cache = pd.DataFrame(columns=["_name_key", "date", "transaction_type", "years", "total_value"])
         return _spotrac_txn_cache
 
     df = df.copy()
-    df["_name_key"] = df["player_name"].apply(_name_key_fn)
+    df["_name_key"] = df["player_name"].map(_name_key_fn)
     df["transaction_type"] = df["transaction_type"].astype(str).str.lower().str.strip()
     df["years"] = pd.to_numeric(df.get("years"), errors="coerce")
     df["total_value"] = pd.to_numeric(df.get("total_value"), errors="coerce")
-    _spotrac_txn_cache = df[["_name_key", "date", "transaction_type", "years", "total_value", "description"]].copy()
+    _spotrac_txn_cache = df[["_name_key", "date", "transaction_type", "years", "total_value"]].copy()
     return _spotrac_txn_cache
 
 
 def _apply_eoy_extension_overrides(cots: pd.DataFrame, snapshot_year: int) -> pd.DataFrame:
-    """Preserve in-season extension control at end-of-year snapshots.
-
-    Cot's EOY rows are built from the prior season's opening-day control and
-    then decremented by one year. That is correct for ordinary aging, but it
-    erases mid-season extensions that are already in force by the offseason.
-    For those cases, use Spotrac's transaction years to restore the extension
-    length for the end-of-season snapshot.
-    """
     txns = _load_spotrac_transactions()
     if txns.empty:
         return cots
@@ -533,11 +233,7 @@ def _apply_eoy_extension_overrides(cots: pd.DataFrame, snapshot_year: int) -> pd
         (txns["transaction_type"] == "extension")
         & txns["date"].notna()
         & (txns["date"] <= season_end)
-    ].copy()
-    if ext.empty:
-        return cots
-
-    ext = ext.dropna(subset=["_name_key", "years"])
+    ].dropna(subset=["_name_key", "years"])
     if ext.empty:
         return cots
 
@@ -545,240 +241,66 @@ def _apply_eoy_extension_overrides(cots: pd.DataFrame, snapshot_year: int) -> pd
         ext.sort_values(["_name_key", "date"])
         .groupby("_name_key", as_index=False)
         .agg({"years": "max", "total_value": "max"})
-        .rename(columns={"years": "_extension_years", "total_value": "_extension_total_value"})
+        .rename(columns={"years": "_ext_yrs", "total_value": "_ext_val"})
     )
 
     out = cots.copy()
-    out["_name_key"] = out["player"].apply(_name_key_fn)
+    out["_name_key"] = out["player"].map(_name_key_fn)
     out = out.merge(ext, on="_name_key", how="left")
-
-    override_mask = out["_extension_years"].notna() & (out["_extension_years"] > out["years_of_control"])
-    if override_mask.any():
-        out.loc[override_mask, "years_of_control"] = out.loc[override_mask, "_extension_years"]
-        extension_value = out.loc[override_mask, "_extension_total_value"].fillna(out.loc[override_mask, "total_future_salary"])
-        out.loc[override_mask, "total_future_salary"] = extension_value.combine(
-            out.loc[override_mask, "total_future_salary"],
-            func=lambda new, old: max(float(new) if pd.notna(new) else 0.0, float(old) if pd.notna(old) else 0.0),
+    mask = out["_ext_yrs"].notna() & (out["_ext_yrs"] > out["years_of_control"])
+    if mask.any():
+        out.loc[mask, "years_of_control"] = out.loc[mask, "_ext_yrs"]
+        ext_val = out.loc[mask, "_ext_val"].fillna(out.loc[mask, "total_future_salary"])
+        out.loc[mask, "total_future_salary"] = np.maximum(
+            pd.to_numeric(ext_val, errors="coerce").fillna(0.0),
+            pd.to_numeric(out.loc[mask, "total_future_salary"], errors="coerce").fillna(0.0),
         )
-        out.loc[override_mask, "Status"] = "Signed"
-        out.loc[override_mask, "Normalized_Status"] = "Signed"
+        out.loc[mask, "Status"] = "Signed"
+        out.loc[mask, "Normalized_Status"] = "Signed"
+    return out.drop(columns=["_ext_yrs", "_ext_val"], errors="ignore")
 
-    return out.drop(columns=["_extension_years", "_extension_total_value"], errors="ignore")
 
-
-def _override_years_of_control(
+def _overlay_spotrac_salaries_and_options(
     salary_timeline: pd.DataFrame,
     snapshot_year: int,
 ) -> pd.DataFrame:
-    """Align salary timeline with Spotrac contract boundaries.
-
-    Cot's data doesn't know about contract options, so it can both
-    over-count (ignoring opt-outs) and under-count (ignoring club options).
-    This function adjusts the timeline to match Spotrac's full contract:
-
-    - **Trim**: Cot's exceeds Spotrac → remove excess rows.
-    - **Extend**: Cot's falls short of Spotrac → add rows.
-    - **Status**: Overlay Spotrac per-year statuses (Opt-Out, Team Option,
-      etc.) so ``analyze_contract_options`` can evaluate them downstream,
-      exactly as the modern pipeline does.
     """
-    ctrl = _load_spotrac_control_data()
-    if ctrl.empty:
+    Overlay CBA-accurate Spotrac annual salaries & option statuses where a
+    Spotrac contract was already active as of `snapshot_year`.
+    """
+    sp = _get_cleaned_spotrac_lookup()
+    if sp.empty:
         return salary_timeline
 
-    ltax = _load_spotrac_luxury_tax()
-    statuses = _load_spotrac_statuses()
-
     st = salary_timeline.copy()
-    st["_name_key"] = st["Name"].apply(_name_key_fn)
+    st["_name_key"] = st["Name"].map(_name_key_fn)
 
-    # Per-player last non-FA year in the current Cot's timeline
-    non_fa = st[st["Normalized_Status"] != "Free Agent"]
-    if non_fa.empty:
-        st.drop(columns=["_name_key"], inplace=True)
-        return st
-    cots_last = (
-        non_fa.groupby("_name_key")["Year"]
-        .max()
-        .reset_index()
-        .rename(columns={"Year": "_cots_last"})
+    # Identify Spotrac contracts active by snapshot_year
+    sp_non_fa = sp[sp["_norm_status"] != "Free Agent"]
+    sp_bounds = sp_non_fa.groupby("_name_key")["Year"].agg(["min", "max"]).reset_index()
+    active_keys = set(sp_bounds.loc[sp_bounds["min"] <= snapshot_year, "_name_key"])
+
+    sp_active = sp[sp["_name_key"].isin(active_keys)][["_name_key", "Year", "Payroll", "_norm_status"]]
+    merged = st.merge(sp_active, on=["_name_key", "Year"], how="left", suffixes=("", "_sp"))
+
+    # Override Signed / Option rows where Spotrac has explicit salary or option clause
+    is_not_fa = merged["Normalized_Status"] != "Free Agent"
+    sal_override = is_not_fa & merged["Payroll_sp"].notna() & (
+        merged["Normalized_Status"].eq("Signed")
+        | merged["_norm_status"].isin(["Opt-Out", "Team Option", "Player Option", "Mutual Option", "Vesting Option"])
     )
+    if sal_override.any():
+        merged.loc[sal_override, "Payroll"] = merged.loc[sal_override, "Payroll_sp"]
 
-    # Merge with Spotrac control data
-    compare = cots_last.merge(ctrl, on="_name_key", how="inner")
-    if compare.empty:
-        st.drop(columns=["_name_key"], inplace=True)
-        return st
+    opt_override = is_not_fa & merged["_norm_status"].isin(
+        ["Opt-Out", "Team Option", "Player Option", "Mutual Option", "Vesting Option"]
+    )
+    if opt_override.any():
+        merged.loc[opt_override, "Status"] = merged.loc[opt_override, "_norm_status"]
+        merged.loc[opt_override, "Normalized_Status"] = merged.loc[opt_override, "_norm_status"]
 
-    # Only apply overrides when Spotrac contract overlaps with Cot's
-    # timeline.  If Spotrac's first year is after Cot's last control year,
-    # it describes a future contract (e.g. Soto's 2025 Mets deal shouldn't
-    # affect his 2019 pre-arb snapshot where Cot's had control through ~2024).
-    # Also skip contracts that haven't started yet relative to the snapshot
-    # (e.g. Witt's 2024 extension shouldn't modify his 2023 snapshot).
-    compare = compare[
-        (compare["_first_ctrl_year"] <= compare["_cots_last"])
-        & (compare["_first_ctrl_year"] <= snapshot_year)
-    ].copy()
-    if compare.empty:
-        st.drop(columns=["_name_key"], inplace=True)
-        return st
+    return merged.drop(columns=["_name_key", "Payroll_sp", "_norm_status"], errors="ignore")
 
-    # Use the full Spotrac contract end — don't trim at exit years.
-    # The downstream analyze_contract_options will evaluate opt-outs
-    # using WAR projections vs remaining contract cost, exactly as the
-    # modern pipeline does.
-
-    # ── TRIM: Cot's has more years than Spotrac ─────────────────────────
-    to_trim = compare[compare["_cots_last"] > compare["_last_ctrl_year"]].copy()
-    n_trimmed_rows = 0
-    if not to_trim.empty:
-        for _, row in to_trim.iterrows():
-            nk = row["_name_key"]
-            fa_year = int(row["_last_ctrl_year"]) + 1
-
-            player_mask = st["_name_key"] == nk
-
-            # Convert the row at fa_year to FA
-            fa_mask = player_mask & (st["Year"] == fa_year)
-            if fa_mask.any():
-                st.loc[fa_mask, "Status"] = "Free Agent"
-                st.loc[fa_mask, "Normalized_Status"] = "Free Agent"
-                st.loc[fa_mask, "Payroll"] = np.nan
-
-            # Drop every row after fa_year
-            drop_mask = player_mask & (st["Year"] > fa_year)
-            n_trimmed_rows += drop_mask.sum()
-            st = st[~drop_mask].copy()
-
-        if n_trimmed_rows > 0:
-            logger.info(
-                f"  Trimmed {n_trimmed_rows} rows for "
-                f"{len(to_trim)} players (Spotrac contract end)"
-            )
-
-    # ── EXTEND: Cot's has fewer years than Spotrac ──────────────────────
-    to_extend = compare[compare["_cots_last"] < compare["_last_ctrl_year"]].copy()
-    n_extended_rows = 0
-    if not to_extend.empty:
-        new_rows_all: list[dict] = []
-        for _, row in to_extend.iterrows():
-            nk = row["_name_key"]
-            cots_last_yr = int(row["_cots_last"])
-            target_last = int(row["_last_ctrl_year"])
-
-            player_mask = st["_name_key"] == nk
-            player_rows = st[player_mask]
-            if player_rows.empty:
-                continue
-
-            template = player_rows.iloc[0]
-            idfg = template["IDfg"]
-            name = template["Name"]
-            team = template.get("Team", "")
-            pos_group = template.get("position_group", "")
-
-            # Last known Years_of_Service
-            last_sorted = player_rows.sort_values("Year")
-            last_yr = int(last_sorted.iloc[-1]["Year"])
-            last_yos = last_sorted.iloc[-1].get("Years_of_Service", np.nan)
-
-            # Convert the old FA row (at cots_last_yr + 1) to Signed
-            old_fa_year = cots_last_yr + 1
-            old_fa_mask = player_mask & (st["Year"] == old_fa_year)
-            if old_fa_mask.any():
-                ltax_match = ltax[
-                    (ltax["_name_key"] == nk) & (ltax["year"] == old_fa_year)
-                ]
-                sal = ltax_match["_ltax"].iloc[0] if not ltax_match.empty else np.nan
-                st.loc[old_fa_mask, "Status"] = "Signed"
-                st.loc[old_fa_mask, "Normalized_Status"] = "Signed"
-                st.loc[old_fa_mask, "Payroll"] = sal
-                n_extended_rows += 1
-
-            # Add new Signed rows for years after the old FA year
-            for yr in range(old_fa_year + 1, target_last + 1):
-                ltax_match = ltax[
-                    (ltax["_name_key"] == nk) & (ltax["year"] == yr)
-                ]
-                sal = ltax_match["_ltax"].iloc[0] if not ltax_match.empty else np.nan
-                yos = (
-                    round(last_yos + (yr - last_yr), 3)
-                    if pd.notna(last_yos)
-                    else np.nan
-                )
-                new_rows_all.append({
-                    "IDfg": idfg,
-                    "Name": name,
-                    "Year": yr,
-                    "Status": "Signed",
-                    "Normalized_Status": "Signed",
-                    "Payroll": sal,
-                    "Years_of_Service": yos,
-                    "Team": team,
-                    "position_group": pos_group,
-                    "_name_key": nk,
-                })
-                n_extended_rows += 1
-
-            # New FA row at target_last + 1
-            new_fa_year = target_last + 1
-            yos_fa = (
-                round(last_yos + (new_fa_year - last_yr), 3)
-                if pd.notna(last_yos)
-                else np.nan
-            )
-            new_rows_all.append({
-                "IDfg": idfg,
-                "Name": name,
-                "Year": new_fa_year,
-                "Status": "Free Agent",
-                "Normalized_Status": "Free Agent",
-                "Payroll": np.nan,
-                "Years_of_Service": yos_fa,
-                "Team": team,
-                "position_group": pos_group,
-                "_name_key": nk,
-            })
-
-        if new_rows_all:
-            st = pd.concat([st, pd.DataFrame(new_rows_all)], ignore_index=True)
-        if n_extended_rows > 0:
-            logger.info(
-                f"  Extended {n_extended_rows} club-option rows for "
-                f"{len(to_extend)} players (Spotrac control years)"
-            )
-
-    # ── OVERLAY Spotrac statuses on all affected players ────────────────
-    # So analyze_contract_options can see Opt-Out, Team Option, etc.
-    affected_keys = set(compare["_name_key"])
-    affected_mask = st["_name_key"].isin(affected_keys)
-    if affected_mask.any():
-        affected = st[affected_mask].merge(
-            statuses, left_on=["_name_key", "Year"],
-            right_on=["_name_key", "year"], how="left",
-        )
-        has_status = affected["_spotrac_status"].notna()
-        # Only override non-FA rows (keep FA rows as-is)
-        is_not_fa = affected["Status"] != "Free Agent"
-        override_mask = has_status & is_not_fa
-        if override_mask.any():
-            affected.loc[override_mask, "Status"] = (
-                affected.loc[override_mask, "_spotrac_status"]
-            )
-            affected.loc[override_mask, "Normalized_Status"] = (
-                affected.loc[override_mask, "_spotrac_status"]
-            )
-        affected.drop(columns=["_spotrac_status", "year"], inplace=True, errors="ignore")
-        st = pd.concat([st[~affected_mask], affected], ignore_index=True)
-
-    st.drop(columns=["_name_key"], inplace=True)
-    return st
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Core surplus computation
-# ═══════════════════════════════════════════════════════════════════════════════
 
 def compute_surplus_for_snapshot(
     snapshot_year: int,
@@ -787,304 +309,212 @@ def compute_surplus_for_snapshot(
     force: bool = False,
 ) -> pd.DataFrame:
     """
-    Compute per-player surplus value for a single snapshot year.
-
-    Uses the shared value-determination pipeline for all value calculations,
-    ensuring identical logic to the current-year pipeline.
-
-    snapshot_year S  →  cutoff_year = S − 1
+    Compute per-player V2 Monte Carlo trade value snapshot for `snapshot_year`.
     """
     cutoff_year = snapshot_year - Config.History.SNAPSHOT_LAG
     suffix = "_eoy" if is_eoy else ""
     out_path = SURPLUS_DIR / f"surplus_{snapshot_year}{suffix}.csv"
 
     if out_path.exists() and not force:
-        logger.info(f"[{snapshot_year}]  surplus file already exists — skipping")
-        return pd.read_csv(out_path)
+        logger.info("[%d%s] surplus file exists — skipping", snapshot_year, suffix)
+        return pd.read_csv(out_path, low_memory=False)
 
     SURPLUS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # ── Load Cot's salary ────────────────────────────────────────────────
     cots_year = snapshot_year - 1 if is_eoy else snapshot_year
     cots_file = COTS_BY_YEAR_DIR / f"{cots_year}.csv"
     if not cots_file.exists():
-        logger.warning(f"[{snapshot_year}]  Cot's salary file missing: {cots_file}")
+        logger.warning("[%d] Cot's file missing: %s", snapshot_year, cots_file)
         return pd.DataFrame()
 
-    cots = pd.read_csv(cots_file)
+    cots = pd.read_csv(cots_file, low_memory=False)
     cots = cots.dropna(subset=["player"]).copy()
-    # Filter out aggregate "Running Payroll Total" rows
-    cots = cots[~cots["player"].str.contains("Running|Payroll", na=False)]
-    
-    # Pre-offseason / EOY adjustment
+    cots = cots[~cots["player"].astype(str).str.contains("Running|Payroll", na=False)]
+
     if is_eoy:
-        cots["service_time"] += 1.0
-        cots["years_of_control"] = (cots["years_of_control"] - 1).clip(lower=0)
-        cots["total_future_salary"] = (cots["total_future_salary"] - cots["salary"]).clip(lower=0)
+        cots["service_time"] = pd.to_numeric(cots["service_time"], errors="coerce").fillna(0.0) + 1.0
+        cots["years_of_control"] = (pd.to_numeric(cots["years_of_control"], errors="coerce").fillna(0.0) - 1.0).clip(lower=0)
+        cots["total_future_salary"] = (
+            pd.to_numeric(cots["total_future_salary"], errors="coerce").fillna(0.0)
+            - pd.to_numeric(cots["salary"], errors="coerce").fillna(0.0)
+        ).clip(lower=0)
         cots = cots[cots["years_of_control"] > 0].copy()
         cots = _apply_eoy_extension_overrides(cots, snapshot_year)
 
-    cots["_name_key"] = cots["player"].apply(_name_key_fn)
+    cots["_name_key"] = cots["player"].map(_name_key_fn)
     cots = cots.sort_values("salary", ascending=False, na_position="last")
-    logger.info(f"[{snapshot_year}]  loaded {len(cots)} Cot's rows")
 
-    # ── Load projections ─────────────────────────────────────────────────
     proj_dir = PROJECTIONS_DIR / f"cutoff_{cutoff_year}"
-    if not proj_dir.exists():
-        logger.warning(f"[{snapshot_year}]  projections dir missing: {proj_dir}")
-        return pd.DataFrame()
-
     pred_files = {
-        "batter":      proj_dir / "batter_predictions.csv",
-        "pitcher":     proj_dir / "pitcher_predictions.csv",
-        "fielding":    proj_dir / "fielding_predictions.csv",
+        "batter": proj_dir / "batter_predictions.csv",
+        "pitcher": proj_dir / "pitcher_predictions.csv",
+        "fielding": proj_dir / "fielding_predictions.csv",
         "baserunning": proj_dir / "baserunning_predictions.csv",
     }
-    missing = [k for k, v in pred_files.items() if not v.exists()]
-    if missing:
-        logger.warning(f"[{snapshot_year}]  missing prediction files: {missing}")
+    if not proj_dir.exists() or any(not p.exists() for p in pred_files.values()):
+        logger.warning("[%d] projections missing at %s", snapshot_year, proj_dir)
         return pd.DataFrame()
 
-    batter_df      = pd.read_csv(pred_files["batter"])
-    pitcher_df     = pd.read_csv(pred_files["pitcher"])
-    fielding_df    = pd.read_csv(pred_files["fielding"])
-    baserunning_df = pd.read_csv(pred_files["baserunning"])
+    batter_df = pd.read_csv(pred_files["batter"], low_memory=False)
+    pitcher_df = pd.read_csv(pred_files["pitcher"], low_memory=False)
+    fielding_df = pd.read_csv(pred_files["fielding"], low_memory=False)
+    baserunning_df = pd.read_csv(pred_files["baserunning"], low_memory=False)
 
-    logger.info(
-        f"[{snapshot_year}]  loaded projections — "
-        f"{batter_df['IDfg'].nunique()} batters, {pitcher_df['IDfg'].nunique()} pitchers"
-    )
+    # ── Enforce Hard MLB Debut Boundary (`>= 1` MLB game as of `cutoff_year`) ─
+    first_mlb = _get_first_mlb_seasons()
+    debuted_ids = {fg for fg, yr in first_mlb.items() if yr <= cutoff_year}
+    batter_df = batter_df[batter_df["IDfg"].isin(debuted_ids) & (batter_df["Year"] >= snapshot_year)].copy()
+    pitcher_df = pitcher_df[pitcher_df["IDfg"].isin(debuted_ids) & (pitcher_df["Year"] >= snapshot_year)].copy()
 
-    # ── Build position profiles ──────────────────────────────────────────
-    hist_fielding = load_fielding_history()
-    hist_batting = load_batting_for_games()
+    if batter_df.empty and pitcher_df.empty:
+        return pd.DataFrame()
+
+    # ── Playing Time + WAR Engine (with post-28 spectrum drift) ──────────────
+    hist_fielding, hist_batting = _get_hist_fielding_and_batting()
     batter_ids = batter_df["IDfg"].unique().tolist()
     position_profiles = build_position_profiles(
-        hist_fielding, hist_batting, batter_ids,
-        cutoff_year=cutoff_year,
+        hist_fielding, hist_batting, batter_ids, cutoff_year=cutoff_year
     )
-    logger.info(f"[{snapshot_year}]  built position profiles for {len(position_profiles)}/{len(batter_ids)} batters")
 
-    # ── Compute WAR ──────────────────────────────────────────────────────
-    batter_df = calculate_batter_war(
-        batter_df, fielding_df, baserunning_df,
-        position_profiles=position_profiles,
-    )
-    pitcher_df = calculate_pitcher_war(pitcher_df)
-
-    # ── Unify into single WAR table ──────────────────────────────────────
-    batter_slim = batter_df[["IDfg", "Name", "Year", "Age", "WAR"]].copy()
-    batter_slim["player_type"] = "batter"
-    batter_slim["position_group"] = "batter"
-
-    pitcher_slim = pitcher_df[["IDfg", "Name", "Year", "Age", "WAR"]].copy()
-    pitcher_slim["player_type"] = "pitcher"
-    # Determine SP vs RP
-    if "Role" in pitcher_df.columns:
-        pitcher_slim["position_group"] = pitcher_df["Role"].apply(
-            lambda r: "SP" if str(r).upper() == "SP" else "RP"
+    if not batter_df.empty:
+        batter_df = estimate_batter_playing_time(
+            batter_df, anchor_year=snapshot_year, position_profiles=position_profiles
         )
-    else:
-        pitcher_slim["position_group"] = "SP"
+        batter_df = calculate_batter_war_dataframe(
+            batter_df, fielding_df, baserunning_df, position_profiles=position_profiles, include_components=True
+        )
+
+    if not pitcher_df.empty:
+        pit_chunks = []
+        for pyr in sorted(pitcher_df["Year"].unique()):
+            chunk = pitcher_df[pitcher_df["Year"] == pyr].copy()
+            pit_chunks.append(estimate_playing_time(chunk, int(pyr), anchor_year=snapshot_year))
+        pitcher_df = pd.concat(pit_chunks, ignore_index=True)
+        pitcher_df = calculate_pitcher_war_dataframe(pitcher_df)
+
+    # ── Unify projections & reconcile two-way players ────────────────────────
+    bat_cols = [c for c in ("IDfg", "Name", "Year", "Age", "WAR", "PA", "Bat", "BsR", "Def", "Position") if c in batter_df.columns]
+    batter_slim = batter_df[bat_cols].copy()
+    batter_slim["player_type"] = "batter"
+    batter_slim["player_role"] = "Batter"
+
+    pit_cols = [c for c in ("IDfg", "Name", "Year", "Age", "WAR", "IP") if c in pitcher_df.columns]
+    pitcher_slim = pitcher_df[pit_cols].copy()
+    pitcher_slim["player_type"] = "pitcher"
+    pitcher_slim["player_role"] = (
+        pitcher_df["Role"].map(lambda r: "SP" if str(r).upper() == "SP" else "RP")
+        if "Role" in pitcher_df.columns
+        else "SP"
+    )
 
     all_proj = pd.concat([batter_slim, pitcher_slim], ignore_index=True)
-
-    # Handle two-way players
-    #
-    # Players in both batter and pitcher predictions fall into two camps:
-    #   1. Legitimate two-way players (Ohtani) — both batting and pitching
-    #      WAR are positive → sum them.
-    #   2. NL pitchers who hit (pre-DH) — pitcher WAR is positive but
-    #      batting WAR is hugely negative because the model projects
-    #      150 games at terrible batting stats → keep only pitcher WAR.
-    #
-    # Rule: sum WAR only when BOTH contributions are positive.
-    # Otherwise keep the higher (positive) side.
     dup_mask = all_proj.duplicated(subset=["IDfg", "Year"], keep=False)
-    two_way_ids = set(all_proj.loc[dup_mask, "IDfg"].unique())
-
-    if two_way_ids:
+    if dup_mask.any():
+        two_way_ids = set(all_proj.loc[dup_mask, "IDfg"].unique())
         two_way = all_proj[all_proj["IDfg"].isin(two_way_ids)]
         non_two = all_proj[~all_proj["IDfg"].isin(two_way_ids)]
         summed = []
-        for (idfg, yr), grp in two_way.groupby(["IDfg", "Year"]):
-            bat_row = grp[grp["player_type"] == "batter"]
-            pit_row = grp[grp["player_type"] == "pitcher"]
-            bat_war = bat_row["WAR"].iloc[0] if not bat_row.empty else 0
-            pit_war = pit_row["WAR"].iloc[0] if not pit_row.empty else 0
-
-            if bat_war > 0 and pit_war > 0:
-                # Legitimate two-way (e.g. Ohtani) — sum both
+        for _, grp in two_way.groupby(["IDfg", "Year"]):
+            bat_r = grp[grp["player_type"] == "batter"]
+            pit_r = grp[grp["player_type"] == "pitcher"]
+            bw = float(bat_r["WAR"].iloc[0]) if not bat_r.empty else 0.0
+            pw = float(pit_r["WAR"].iloc[0]) if not pit_r.empty else 0.0
+            if bw > 0 and pw > 0:
                 base = grp.sort_values("WAR", ascending=False).iloc[0].copy()
-                base["WAR"] = bat_war + pit_war
+                base["WAR"] = bw + pw
                 base["player_type"] = "two_way"
-            elif pit_war >= bat_war:
-                # Pitcher is better — keep pitcher only (NL pitcher who hit)
-                base = pit_row.iloc[0].copy() if not pit_row.empty else grp.iloc[0].copy()
+            elif pw >= bw and not pit_r.empty:
+                base = pit_r.iloc[0].copy()
             else:
-                # Batter is better — keep batter only
-                base = bat_row.iloc[0].copy() if not bat_row.empty else grp.iloc[0].copy()
+                base = bat_r.iloc[0].copy() if not bat_r.empty else grp.iloc[0].copy()
             summed.append(base)
         all_proj = pd.concat([non_two, pd.DataFrame(summed)], ignore_index=True)
-    else:
-        all_proj = (
-            all_proj.sort_values("WAR", ascending=False)
-            .drop_duplicates(subset=["IDfg", "Year"], keep="first")
-        )
 
-    all_proj["_name_key"] = all_proj["Name"].apply(_name_key_fn)
-
-    # Add prediction_year for join_predictions_with_timeline
+    all_proj["_name_key"] = all_proj["Name"].map(_name_key_fn)
     all_proj["prediction_year"] = all_proj["Year"]
 
-    # ── Identify unique projected players ────────────────────────────────
     proj_players = (
-        all_proj[all_proj["Year"] == snapshot_year]
-        .drop_duplicates(subset=["IDfg"])
-        [["IDfg", "Name", "_name_key", "Age", "player_type", "position_group"]]
+        all_proj.sort_values("Year")
+        .drop_duplicates(subset=["IDfg"])[["IDfg", "Name", "_name_key", "Age", "player_type", "player_role"]]
         .copy()
     )
-    extra = (
-        all_proj[~all_proj["IDfg"].isin(proj_players["IDfg"])]
-        .sort_values("Year")
-        .drop_duplicates(subset=["IDfg"])
-        [["IDfg", "Name", "_name_key", "Age", "player_type", "position_group"]]
-        .copy()
+
+    cots = _enrich_cots_with_idfg(cots, proj_players, as_of_season=cutoff_year)
+    cots_id = cots.dropna(subset=["IDfg"]).drop_duplicates(subset=["IDfg"], keep="first")
+    cots_matched = cots_id.merge(
+        proj_players[["IDfg", "Name", "player_type", "player_role"]],
+        on="IDfg",
+        how="left",
+        suffixes=("", "_proj"),
     )
-    proj_players = pd.concat([proj_players, extra], ignore_index=True)
+    if "Name_proj" in cots_matched.columns:
+        cots_matched["Name"] = cots_matched["Name_proj"].fillna(cots_matched.get("player", ""))
+        cots_matched = cots_matched.drop(columns=["Name_proj"])
 
-    # ── Match Cot's to projections ───────────────────────────────────────
-    cots = _enrich_cots_with_idfg(cots, proj_players)
-    cots_id   = cots.dropna(subset=["IDfg"]).drop_duplicates(subset=["IDfg"], keep="first")
-    cots_name = cots[cots["IDfg"].isna()].drop_duplicates(subset=["_name_key"], keep="first")
-    cots = pd.concat([cots_id, cots_name], ignore_index=True)
+    matched_idfgs = set(cots_matched["IDfg"].astype(int))
+    unmatched_idfgs = set(proj_players["IDfg"].astype(int)) - matched_idfgs
 
-    # Merge player_type into Cot's for position group mapping
-    cots = cots.merge(
-        proj_players[["IDfg", "Name", "player_type"]],
-        on="IDfg", how="left", suffixes=("", "_proj"),
-    )
-    if "Name_proj" in cots.columns:
-        cots["Name"] = cots["Name_proj"].fillna(cots.get("player", ""))
-        cots.drop(columns=["Name_proj"], inplace=True)
-    if "player_type" not in cots.columns or cots["player_type"].isna().all():
-        cots["player_type"] = "batter"
-    cots["player_type"] = cots["player_type"].fillna("batter")
-
-    matched_idfgs = set(cots.dropna(subset=["IDfg"])["IDfg"].astype(int))
-    n_matched = len(matched_idfgs)
-    logger.info(f"[{snapshot_year}]  {n_matched} matched in Cot's")
-
-    # ── Build estimated players (not in Cot's) ───────────────────────────
-    all_idfgs = set(proj_players["IDfg"].astype(int))
-    unmatched_idfgs = all_idfgs - matched_idfgs
-    estimated_rows = []
+    est_rows = []
     for idfg in unmatched_idfgs:
         pp = proj_players[proj_players["IDfg"] == idfg]
         if pp.empty:
             continue
-        pp = pp.iloc[0]
-        svc = _estimate_service_time(idfg, snapshot_year - 1)
+        pp_row = pp.iloc[0]
+        svc, hist_team = _estimate_service_and_team(idfg, cutoff_year)
         yoc = _years_of_control_from_svc(svc)
         if yoc <= 0:
             continue
-        estimated_rows.append({
+        est_rows.append({
             "IDfg": int(idfg),
-            "Name": pp["Name"],
-            "player_type": pp["player_type"],
+            "Name": pp_row["Name"],
+            "Team": hist_team,
+            "player_type": pp_row["player_type"],
+            "player_role": pp_row["player_role"],
             "service_time": svc,
             "years_of_control": yoc,
         })
-    estimated_df = pd.DataFrame(estimated_rows) if estimated_rows else pd.DataFrame(
-        columns=["IDfg", "Name", "player_type", "service_time", "years_of_control"]
-    )
-    logger.info(f"[{snapshot_year}]  {len(estimated_df)} estimated (no Cot's match)")
-
-    # ── Build salary timeline via adapter ────────────────────────────────
-    salary_timeline = build_salary_timeline(
-        cots.dropna(subset=["IDfg"]),
-        estimated_df,
-        snapshot_year,
+    estimated_df = pd.DataFrame(est_rows) if est_rows else pd.DataFrame(
+        columns=["IDfg", "Name", "Team", "player_type", "player_role", "service_time", "years_of_control"]
     )
 
+    salary_timeline = build_salary_timeline(cots_matched, estimated_df, snapshot_year)
     if salary_timeline.empty:
-        logger.warning(f"[{snapshot_year}]  empty salary timeline — no surplus output")
         return pd.DataFrame()
 
-    # ── Override deferred salaries with Spotrac luxury_tax ───────────────
-    salary_timeline = _override_salary_with_luxury_tax(salary_timeline)
+    salary_timeline = _overlay_spotrac_salaries_and_options(salary_timeline, cots_year)
+    salary_timeline["mlbam_id"] = salary_timeline["IDfg"].map(lambda x: fg_to_mlbam(int(x)))
 
-    # ── Override years of control using Spotrac opt-outs ─────────────────
-    salary_timeline = _override_years_of_control(salary_timeline, cots_year)
-
-    # ── Add mlbam_id for prospect matching ───────────────────────────────
-    xw = _build_mlbam_crosswalk()
-    salary_timeline = salary_timeline.merge(
-        xw[["IDfg", "mlbam_id"]], on="IDfg", how="left",
-    )
-
-    # ══════════════════════════════════════════════════════════════════════
-    # SHARED VALUE PIPELINE (identical to value_determination/main.py)
-    # ══════════════════════════════════════════════════════════════════════
-
-    # Step 1: Extend FA timeline through 2040
+    # ── Shared V2 Valuation Spine ────────────────────────────────────────────
     extended = extend_fa_timeline(salary_timeline)
-    logger.info(f"[{snapshot_year}]  extended timeline: {len(extended)} rows")
-
-    # Step 2: Join predictions with timeline → adds WAR and Base_Value
     with_war = join_predictions_with_timeline(extended, all_proj)
-
-    # Step 3: Calculate contract value (arb model for NaN Payroll rows)
-    with_contract = calculate_contract_value(with_war)
-
-    # Step 4: Calculate surplus value (Base_Value - contract_value)
-    with_surplus = calculate_surplus_value(with_contract)
-
-    # Step 4b: Add career game counts for confidence adjustments
-    #   The trade_value pipeline uses G_bat / G_pit / GS to compute
-    #   projection_confidence. Without these, every player gets minimum
-    #   confidence (0.10), which massively distorts blended trade values.
-    with_surplus = _add_career_game_counts(with_surplus, snapshot_year)
-
-    # Step 5: Analyze contract options (opt-outs, team options)
+    with_cost = calculate_salary_cost(with_war)
+    with_surplus = calculate_annual_surplus(with_cost)
     with_options = analyze_contract_options(with_surplus, current_year=snapshot_year)
-
-    # Step 6: Calculate trade values (surplus over control years)
-    with_trade = calculate_trade_values(with_options, current_year=snapshot_year)
-
-    # Temporarily override CURRENT_YEAR so historical/EOY snapshots don't 
-    # erroneously apply the live fractional-season penalty from today's date.
-    import value_determination.trade_value as tv_module
-    orig_current_year = tv_module.CURRENT_YEAR
-    tv_module.CURRENT_YEAR = -1
-    try:
-        # Step 7: Add trade ranking metrics
-        result = add_trade_ranking_metrics(with_trade, current_year=snapshot_year)
-    finally:
-        tv_module.CURRENT_YEAR = orig_current_year
-
-    # Remove synthetic game-count rows added in Step 4b
-    if "_synthetic" in result.columns:
-        result = result[result["_synthetic"] != True].drop(columns=["_synthetic"])
-        # Also drop G_bat/G_pit/GS columns (not needed in summary)
-        result = result.drop(columns=[c for c in ["G_bat", "G_pit", "GS"] if c in result.columns],
-                             errors="ignore")
-
-    # ══════════════════════════════════════════════════════════════════════
-    # EXTRACT PER-PLAYER SUMMARY
-    # ══════════════════════════════════════════════════════════════════════
+    with_mc = calculate_trade_values(
+        with_options,
+        current_year=snapshot_year,
+        apply_ros_fraction=False,
+    )
+    result = add_control_horizon_metrics(
+        with_mc,
+        current_year=snapshot_year,
+        apply_ros_fraction=False,
+    )
 
     summary = _extract_player_summary(result, all_proj, snapshot_year)
     if summary.empty:
-        logger.warning(f"[{snapshot_year}]  no surplus records produced")
         return summary
 
-    summary = summary.sort_values("trade_value", ascending=False, na_position="last")
-    summary = summary.reset_index(drop=True)
+    summary = summary.sort_values("trade_value", ascending=False, na_position="last").reset_index(drop=True)
     summary.to_csv(out_path, index=False)
     logger.info(
-        f"[{snapshot_year}]  wrote {len(summary)} players to {out_path.name}  "
-        f"(median trade_value ${summary['trade_value'].median():,.0f})"
+        "[%d%s] wrote %d MLB players to %s (max=$%.1fM, median=$%.1fM)",
+        snapshot_year,
+        suffix,
+        len(summary),
+        out_path.name,
+        (summary["trade_value"].max() / 1e6) if summary["trade_value"].notna().any() else 0.0,
+        (summary["trade_value"].median() / 1e6) if summary["trade_value"].notna().any() else 0.0,
     )
     return summary
 
@@ -1094,130 +524,108 @@ def _extract_player_summary(
     all_proj: pd.DataFrame,
     snapshot_year: int,
 ) -> pd.DataFrame:
-    """
-    Extract one-row-per-player summary from the pipeline output.
-
-    Columns mirror the old surplus format for timeline.py compatibility,
-    plus the pre-computed trade_value from the shared pipeline.
-    """
+    """Extract one canonical summary row per player for `surplus_YYYY.csv`."""
     if pipeline_result.empty:
         return pd.DataFrame()
 
-    xw = _build_mlbam_crosswalk()
     records = []
-
-    for idfg in pipeline_result["IDfg"].unique():
-        pdata = pipeline_result[pipeline_result["IDfg"] == idfg].sort_values("Year")
-        if pdata.empty:
-            continue
-
+    for idfg, pdata in pipeline_result.groupby("IDfg", sort=False):
+        pdata = pdata.sort_values("Year")
         first = pdata.iloc[0]
-        name = first.get("Name", "")
-        team = first.get("Team", "")
-        pos_group = first.get("position_group", "")
+        mlbam = fg_to_mlbam(int(idfg))
 
-        # Get mlbam_id
-        mlbam_row = xw.loc[xw["IDfg"] == idfg, "mlbam_id"]
-        mlbam_id = int(mlbam_row.iloc[0]) if len(mlbam_row) else pd.NA
-
-        # Snapshot year data
         snap = pdata[pdata["Year"] == snapshot_year]
-        age = float(snap["Age"].iloc[0]) if not snap.empty and "Age" in snap.columns and pd.notna(snap["Age"].iloc[0]) else np.nan
+        age = float(snap["Age"].iloc[0]) if not snap.empty and pd.notna(snap["Age"].iloc[0]) else np.nan
 
-        # Get player_type from all_proj
         pp = all_proj[all_proj["IDfg"] == idfg]
-        player_type = pp["player_type"].iloc[0] if not pp.empty else ""
+        player_type = pp["player_type"].iloc[0] if not pp.empty else "batter"
+        role = str(first.get("player_role", "Batter"))
 
-        # Trade metrics (from add_trade_ranking_metrics — same for all rows)
-        trade_value = first.get("trade_value", np.nan)
-        years_control = first.get("years_control", 0)
-        total_future_war = first.get("total_future_war", 0)
-        total_contract = first.get("total_contract", 0)
-        contract_war = first.get("contract_war", 0)
-        avg_war = first.get("avg_war", 0)
-        total_surplus = first.get("total_surplus", 0)
+        tv = first.get("trade_value", np.nan)
+        p10 = first.get("trade_value_p10", np.nan)
+        p50 = first.get("trade_value_p50", np.nan)
+        p90 = first.get("trade_value_p90", np.nan)
+        yrs_ctrl = float(first.get("years_control", 0) or 0)
+        ctrl_war = float(first.get("control_war", 0) or 0)
+        ctrl_prod = float(first.get("control_production_value", 0) or 0)
+        ctrl_sal = float(first.get("control_salary_cost", 0) or 0)
+        ctrl_surp = float(first.get("control_surplus", 0) or 0)
+        avg_war = float(first.get("avg_war", 0) or 0)
 
-        # Service time / status
         svc = first.get("Years_of_Service", np.nan)
-        status = first.get("Normalized_Status", "")
+        status = first.get("Status", first.get("Normalized_Status", ""))
         salary_source = "cots" if pd.notna(first.get("Payroll")) else "estimated"
+        war_per_year = ctrl_war / yrs_ctrl if yrs_ctrl > 0 else 0.0
 
-        # WAR per year
-        war_per_year = (
-            total_future_war / years_control
-            if pd.notna(years_control) and years_control > 0
-            else 0.0
-        )
-
-        # Per-year WAR and salary columns (for timeline.py compatibility)
         per_year = {}
         for _, row in pdata.iterrows():
             yr = int(row["Year"])
-            war = row.get("WAR", np.nan)
-            sal = row.get("contract_value", np.nan)
-            if pd.notna(war):
-                per_year[f"WAR_{yr}"] = round(war, 3)
-            if pd.notna(sal):
-                per_year[f"salary_{yr}"] = round(sal)
+            w = row.get("WAR", np.nan)
+            s = row.get("salary_cost", np.nan)
+            if pd.notna(w):
+                per_year[f"WAR_{yr}"] = round(float(w), 3)
+            if pd.notna(s):
+                per_year[f"salary_{yr}"] = round(float(s))
 
-        record = {
-            "Name": name,
-            "IDfg": int(idfg),
-            "mlbam_id": mlbam_id,
+        rec = {
+            "fg_id": int(idfg),
+            "mlbam_id": int(mlbam) if mlbam is not None else pd.NA,
+            "player_name": first.get("Name", ""),
             "snapshot_year": snapshot_year,
-            "Team": team,
-            "Age": age,
+            "team": normalize_team_code(first.get("Team", "")),
+            "age": age,
             "player_type": player_type,
-            "position_group": pos_group,
-            "service_time": round(svc, 3) if pd.notna(svc) else np.nan,
-            "years_of_control": round(years_control, 2) if pd.notna(years_control) else 0.0,
+            "player_role": role,
+            "service_time": round(float(svc), 3) if pd.notna(svc) else np.nan,
+            "years_control": round(yrs_ctrl, 2),
             "status": status,
             "salary_source": salary_source,
-            "trade_value": round(trade_value) if pd.notna(trade_value) else np.nan,
-            "total_future_WAR": round(total_future_war, 2) if pd.notna(total_future_war) else 0,
-            "total_future_WAR_value": round(first.get("total_future_value", 0)) if pd.notna(first.get("total_future_value")) else 0,
-            "total_future_salary": round(total_contract) if pd.notna(total_contract) else 0,
-            "surplus": round(total_surplus) if pd.notna(total_surplus) else 0,
-            "contract_war": round(contract_war, 1) if pd.notna(contract_war) else 0,
-            "avg_war": round(avg_war, 2) if pd.notna(avg_war) else 0,
+            "trade_value": round(float(tv)) if pd.notna(tv) else np.nan,
+            "trade_value_p10": round(float(p10)) if pd.notna(p10) else np.nan,
+            "trade_value_p50": round(float(p50)) if pd.notna(p50) else np.nan,
+            "trade_value_p90": round(float(p90)) if pd.notna(p90) else np.nan,
+            "control_war": round(ctrl_war, 2),
+            "control_production_value": round(ctrl_prod),
+            "control_salary_cost": round(ctrl_sal),
+            "control_surplus": round(ctrl_surp),
+            "avg_war": round(avg_war, 2),
             "war_per_year": round(war_per_year, 2),
         }
-        record.update(per_year)
-        records.append(record)
+        rec.update(per_year)
+        records.append(rec)
 
     return pd.DataFrame(records)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Batch runner
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def compute_all_surpluses(
-    start: int | None = None,
-    end: int | None = None,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
     force: bool = False,
+    include_eoy: bool = True,
 ) -> dict[str, pd.DataFrame]:
-    """Compute surplus for every snapshot year in [start, end]."""
+    """Compute opening-day and EOY V2 surplus snapshots across `[start, end]`."""
     start = start or (Config.History.CUTOFF_START + Config.History.SNAPSHOT_LAG)
-    end   = end   or (Config.History.CUTOFF_END   + Config.History.SNAPSHOT_LAG)
-
+    end = end or (Config.History.CUTOFF_END + Config.History.SNAPSHOT_LAG)
     Config.Paths.ensure_directories()
-
-    logger.info("=" * 60)
-    logger.info("Historical Values — Surplus Calculator")
-    logger.info(f"Snapshot years {start} → {end}")
-    logger.info("=" * 60)
 
     results: dict[str, pd.DataFrame] = {}
     for snap_year in range(start, end + 1):
-        df_reg = compute_surplus_for_snapshot(snap_year, force=force)
-        results[str(snap_year)] = df_reg
-        # We can also compute End of Year value for the previous year
-        # E.g. snapshot_year=2024 uses 2023 Cot's data -> surplus_2024_eoy.csv
-        try:
-            df_eoy = compute_surplus_for_snapshot(snap_year, is_eoy=True, force=force)
-            if not df_eoy.empty:
-                results[f"{snap_year}_eoy"] = df_eoy
-        except Exception as e:
-            logger.warning(f"Could not compute EOY for {snap_year}: {e}")
+        results[str(snap_year)] = compute_surplus_for_snapshot(snap_year, force=force)
+        if include_eoy:
+            try:
+                df_eoy = compute_surplus_for_snapshot(snap_year, is_eoy=True, force=force)
+                if not df_eoy.empty:
+                    results[f"{snap_year}_eoy"] = df_eoy
+            except Exception as exc:
+                logger.warning("Could not compute EOY surplus for %d: %s", snap_year, exc)
     return results
+
+
+if __name__ == "__main__":
+    import argparse
+    p = argparse.ArgumentParser(description="Historical V2 Monte Carlo Surplus Snapshots")
+    p.add_argument("--start", type=int, default=None)
+    p.add_argument("--end", type=int, default=None)
+    p.add_argument("--force", "-f", action="store_true")
+    a = p.parse_args()
+    compute_all_surpluses(start=a.start, end=a.end, force=a.force)
