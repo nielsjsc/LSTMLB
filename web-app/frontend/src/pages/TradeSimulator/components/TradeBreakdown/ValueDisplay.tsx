@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { TradeAnalysis } from '../../../../services/api';
+import { TradeAnalysis, TradeAsset, TradeSideAnalysis } from '../../../../services/api';
 import { CURRENT_YEAR } from '../../../../config';
 import { getTeamColors } from '../../../../utils/teamColors';
-import { formatCurrency, getPositionBadgeClasses } from '../../../../utils/tradeValue';
+import { formatCurrency, formatRange, getPositionBadgeClasses } from '../../../../utils/tradeValue';
 import TradeMeter from '../TradeMeter/TradeMeter';
 import ControlYears from '../ControlYears/ControlYears';
 
@@ -13,81 +13,36 @@ interface ValueDisplayProps {
   team2Name: string;
 }
 
-type TeamAsset = TradeAnalysis['team1']['assets'][number];
-
-/**
- * Contract-control fields aren't part of the TradeAnalysis asset type yet.
- * Add years_control / probable_fa_year / fa_year / projections to the
- * analyzeTrade response and the Player type (mirroring what the player
- * details page already returns) to populate the Control column below.
- * Until then it renders as "—" for any asset missing this data.
- */
-type ControlFields = {
-  years_control?: number | null;
-  yearsControl?: number | null;
-  years_of_control?: number | null;
-  probable_fa_year?: number | null;
-  probableFaYear?: number | null;
-  fa_year?: number | null;
-  faYear?: number | null;
-  projections?: Array<{ year: number; status: string }>;
-};
-
-function withControlFields(asset: TeamAsset): TeamAsset & ControlFields {
-  const rawAsset = asset as TeamAsset & Record<string, unknown>;
-  return {
-    ...asset,
-    years_control:
-      (rawAsset['years_control'] as number | null | undefined) ??
-      (rawAsset['yearsControl'] as number | null | undefined) ??
-      (rawAsset['years_of_control'] as number | null | undefined) ??
-      null,
-    probable_fa_year:
-      (rawAsset['probable_fa_year'] as number | null | undefined) ??
-      (rawAsset['probableFaYear'] as number | null | undefined) ??
-      null,
-    fa_year:
-      (rawAsset['fa_year'] as number | null | undefined) ??
-      (rawAsset['faYear'] as number | null | undefined) ??
-      null,
-    projections: (rawAsset['projections'] as Array<{ year: number; status: string }> | undefined) ?? [],
-  };
-}
-
-const isProspectAsset = (asset: TeamAsset) => 'value' in asset && !('total_production' in asset);
-
-const assetKey = (asset: TeamAsset) =>
-  'playerId' in asset ? asset.playerId : 'mlb_id' in asset ? asset.mlb_id : 'real_id' in asset ? asset.real_id : asset.name;
-
 const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2Name }) => {
-  const { team1, team2 } = analysis;
-  const tradeDifferential = team1.total_surplus - team2.total_surplus;
+  const { side_a, side_b } = analysis;
+  const tradeDifferential = side_a.consolidated_surplus - side_b.consolidated_surplus;
 
   const team1Colors = getTeamColors(team1Name);
   const team2Colors = getTeamColors(team2Name);
 
-  const renderRow = (asset: TeamAsset) => {
-    const control = withControlFields(asset);
-    const isProspect = isProspectAsset(asset);
-    const isPositive = asset.total_surplus >= 0;
+  const renderRow = (asset: TradeAsset) => {
+    const isProspect = asset.type === 'prospect';
+    const isPositive = asset.trade_value >= 0;
+    const linkTarget = asset.mlbam_id || asset.id;
+    const rangeLabel = formatRange(asset.trade_value_p10, asset.trade_value_p90);
 
     return (
-      <tr key={assetKey(asset)} className="border-b border-gray-100 last:border-0">
+      <tr key={`${asset.type}-${linkTarget}-${asset.name}`} className="border-b border-gray-100 last:border-0">
         <td className="px-4 py-3 align-top">
           <div className="flex items-start gap-2.5">
-            {'position' in asset && (
+            {asset.position && (
               <span
                 className={`shrink-0 mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${getPositionBadgeClasses(
                   asset.position
                 )}`}
               >
-                {asset.position || '?'}
+                {asset.position}
               </span>
             )}
             <div className="min-w-0">
-              {'id' in asset && 'war' in asset ? (
+              {linkTarget ? (
                 <Link
-                  to={`/players/${asset.id}`}
+                  to={`/players/${linkTarget}`}
                   className="text-sm font-medium text-gray-900 hover:text-brand-500 transition-colors truncate block"
                 >
                   {asset.name}
@@ -97,10 +52,8 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
               )}
               <p className="text-xs text-gray-400 mt-0.5">
                 {isProspect
-                  ? `Prospect${'fv' in asset && asset.fv ? ` \u00b7 FV ${asset.fv}` : ''}`
-                  : 'war' in asset && asset.war != null
-                  ? `${asset.war.toFixed(1)} WAR`
-                  : null}
+                  ? `Prospect${asset.fv ? ` \u00b7 FV ${asset.fv}` : ''}${asset.level ? ` \u00b7 ${asset.level}` : ''}`
+                  : `${asset.control_war.toFixed(1)} WAR`}
               </p>
             </div>
           </div>
@@ -108,77 +61,101 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
         <td className="px-2 py-3 align-top">
           <ControlYears
             currentYear={CURRENT_YEAR}
-            yearsControl={control.years_control}
-            probableFaYear={control.probable_fa_year}
-            faYear={control.fa_year}
-            projections={control.projections}
+            yearsControl={asset.years_control}
+            probableFaYear={asset.probable_fa_year}
+            faYear={asset.fa_year}
+            projections={asset.projections ?? []}
           />
         </td>
         <td className="px-2 py-3 text-right align-top tabular-nums text-sm text-gray-700">
-          {'total_production' in asset ? formatCurrency(asset.total_production) : '—'}
+          {!isProspect ? formatCurrency(asset.control_production_value) : '—'}
         </td>
         <td className="px-2 py-3 text-right align-top tabular-nums text-sm text-gray-700">
-          {'total_contract' in asset ? formatCurrency(asset.total_contract) : '—'}
+          {!isProspect ? formatCurrency(asset.control_salary_cost) : '—'}
         </td>
-        <td
-          className={`px-4 py-3 text-right align-top tabular-nums text-sm font-semibold ${
-            isPositive ? 'text-emerald-700' : 'text-red-600'
-          }`}
-        >
-          {formatCurrency(asset.total_surplus)}
+        <td className="px-4 py-3 text-right align-top tabular-nums">
+          <div className={`text-sm font-semibold ${isPositive ? 'text-emerald-700' : 'text-red-600'}`}>
+            {formatCurrency(asset.trade_value)}
+          </div>
+          {rangeLabel && (
+            <div className="text-[10px] text-gray-400 mt-0.5 whitespace-nowrap" title="10th – 90th percentile surplus">
+              {rangeLabel}
+            </div>
+          )}
         </td>
       </tr>
     );
   };
 
-  const renderTeamTable = (team: typeof team1, teamName: string, colors: typeof team1Colors) => (
-    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center gap-2.5">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colors.primary }} />
-          <h3 className="text-sm font-semibold text-gray-900">{teamName}</h3>
-        </div>
-        <span className="text-xs text-gray-400">
-          {team.assets.length} asset{team.assets.length !== 1 ? 's' : ''}
-        </span>
-      </div>
+  const renderTeamTable = (side: TradeSideAnalysis, teamName: string, colors: typeof team1Colors) => {
+    const hasConsolidationAdj = Math.abs(side.consolidation_penalty) >= 50_000;
+    const sideRange = formatRange(side.surplus_p10, side.surplus_p90);
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="text-[10px] uppercase tracking-widest text-gray-400 border-b border-gray-200">
-              <th className="text-left font-semibold px-4 py-2">Player</th>
-              <th className="text-left font-semibold px-2 py-2">Control</th>
-              <th className="text-right font-semibold px-2 py-2">Production</th>
-              <th className="text-right font-semibold px-2 py-2">Contract</th>
-              <th className="text-right font-semibold px-4 py-2">Net</th>
-            </tr>
-          </thead>
-          <tbody>{team.assets.map(renderRow)}</tbody>
-          <tfoot>
-            <tr className="bg-gray-50 border-t border-gray-200">
-              <td colSpan={2} className="px-4 py-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
-                Total
-              </td>
-              <td className="px-2 py-3 text-right tabular-nums text-sm font-semibold text-gray-700">
-                {formatCurrency(team.total_production)}
-              </td>
-              <td className="px-2 py-3 text-right tabular-nums text-sm font-semibold text-gray-700">
-                {formatCurrency(team.total_contract)}
-              </td>
-              <td className="px-4 py-3 text-right tabular-nums text-sm font-bold text-gray-900">
-                {formatCurrency(team.total_surplus)}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colors.primary }} />
+            <h3 className="text-sm font-semibold text-gray-900">{teamName} Receives</h3>
+          </div>
+          <span className="text-xs text-gray-400">
+            {side.assets.length} asset{side.assets.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-widest text-gray-400 border-b border-gray-200">
+                <th className="text-left font-semibold px-4 py-2">Player</th>
+                <th className="text-left font-semibold px-2 py-2">Control</th>
+                <th className="text-right font-semibold px-2 py-2">Production</th>
+                <th className="text-right font-semibold px-2 py-2">Contract</th>
+                <th className="text-right font-semibold px-4 py-2">Net (P10–P90)</th>
+              </tr>
+            </thead>
+            <tbody>{side.assets.map(renderRow)}</tbody>
+            <tfoot>
+              {hasConsolidationAdj && (
+                <tr className="bg-amber-50/40 border-t border-gray-100 text-xs text-gray-500">
+                  <td colSpan={4} className="px-4 py-2 font-medium">
+                    Roster Consolidation Adjustment (Raw Sum: {formatCurrency(side.raw_surplus_sum)})
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums font-medium text-amber-700">
+                    {formatCurrency(side.consolidation_penalty)}
+                  </td>
+                </tr>
+              )}
+              <tr className="bg-gray-50 border-t border-gray-200">
+                <td colSpan={2} className="px-4 py-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
+                  {hasConsolidationAdj ? 'Consolidated Value' : 'Total'}
+                </td>
+                <td className="px-2 py-3 text-right tabular-nums text-sm font-semibold text-gray-700">
+                  {formatCurrency(side.control_production_value)}
+                </td>
+                <td className="px-2 py-3 text-right tabular-nums text-sm font-semibold text-gray-700">
+                  {formatCurrency(side.control_salary_cost)}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">
+                  <div className="text-sm font-bold text-gray-900">
+                    {formatCurrency(side.consolidated_surplus)}
+                  </div>
+                  {sideRange && side.assets.length > 0 && (
+                    <div className="text-[10px] text-gray-400 mt-0.5 whitespace-nowrap">
+                      {sideRange}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6">
-      {/* Single source of truth for who leads the trade and by how much */}
       <div className="flex justify-center">
         <TradeMeter
           team1Name={team1Name}
@@ -189,13 +166,11 @@ const ValueDisplay: React.FC<ValueDisplayProps> = ({ analysis, team1Name, team2N
         />
       </div>
 
-      {/* Per-team asset tables — team totals live only in the footer row below */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {renderTeamTable(team1, team1Name, team1Colors)}
-        {renderTeamTable(team2, team2Name, team2Colors)}
+        {renderTeamTable(side_a, team1Name, team1Colors)}
+        {renderTeamTable(side_b, team2Name, team2Colors)}
       </div>
 
-      {/* Control-column legend, shown once for both tables */}
       <div className="flex flex-wrap items-center gap-4 px-1">
         <span className="text-[10px] uppercase tracking-widest text-gray-400">Control</span>
         <Legend swatchClass="bg-gray-700 border-gray-700" label="Under control" />
