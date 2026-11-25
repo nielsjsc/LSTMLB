@@ -8,14 +8,16 @@ class TradeValueHistory(Base):
     __tablename__ = "trade_value_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    mlb_id = Column(Integer, nullable=False, index=True)
-    idfg = Column(Integer, nullable=True)
-    name = Column(String, nullable=True)
+    mlbam_id = Column(Integer, nullable=False, index=True)
+    fg_id = Column(Integer, nullable=True)
+    player_name = Column(String, nullable=True)
     date = Column(String, nullable=True)           # YYYY-MM-DD
     year = Column(Integer, nullable=False)
     value = Column(Float, nullable=True)
+    value_p10 = Column(Float, nullable=True)
+    value_p90 = Column(Float, nullable=True)
     value_type = Column(String, nullable=True)
-    transaction_type = Column(String, nullable=True)  # Spotrac txn type
+    transaction_type = Column(String, nullable=True)
     label = Column(String, nullable=True)
     years_control = Column(Float, nullable=True)
     projected_war = Column(Float, nullable=True)
@@ -23,6 +25,6 @@ class TradeValueHistory(Base):
     war_per_year = Column(Float, nullable=True)
 
     __table_args__ = (
-        Index("ix_tvh_mlb_date", "mlb_id", "date"),
-        Index("ix_tvh_mlb_year", "mlb_id", "year"),
+        Index("ix_tvh_mlbam_date", "mlbam_id", "date"),
+        Index("ix_tvh_mlbam_year", "mlbam_id", "year"),
     )
