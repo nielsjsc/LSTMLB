@@ -5,7 +5,7 @@ import { CURRENT_YEAR } from '../../config'
 
 interface PlayerResult {
   id: number;
-  mlb_id: number | null;
+  mlbam_id: number | null;
   name: string;
   team: string;
   position: string;
@@ -61,8 +61,8 @@ const PlayerSearch = () => {
         if (!response || !response.players) return;
 
         setResults(response.players.map((p: any) => ({
-          id: p.real_id,
-          mlb_id: p.mlb_id,
+          id: p.fg_id ?? p.id,
+          mlbam_id: p.mlbam_id,
           name: p.name,
           team: p.team,
           position: p.position,
@@ -82,7 +82,7 @@ const PlayerSearch = () => {
   const handleSelect = (player: PlayerResult) => {
     setQuery('');
     setResults([]);
-    navigate(`/players/${player.mlb_id || player.id}`);
+    navigate(`/players/${player.mlbam_id || player.id}`);
   };
 
   // Flatten results for keyboard navigation
