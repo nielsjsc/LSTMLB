@@ -1,27 +1,28 @@
 """
-Pitcher Playing Time Estimator
-==============================
+Playing Time Estimator (Pitchers & Batters)
+===========================================
 
-Estimates IP, GS, and G for pitcher projections in the value determination
-pipeline.  Replaces the fixed DEFAULT_SP_IP / DEFAULT_RP_IP approach with
-individualised estimates based on:
+Estimates realistic, individualized playing time for both pitchers (IP, GS, G)
+and batters (PA, G) in the valuation pipeline:
 
-    1. **IP ceiling** — trailing weighted IP from prior seasons, age-adjusted
-    2. **Injury discount** — current-IL limitation and injury-history risk
-    3. **GS / G split** — projected GS rate from historical GS/G pattern
+1. **Pitchers**:
+   - Rate-based IP ceiling (trailing weighted IP/GS or IP/G) with sample-size regression
+   - Starts escalation cap (`max(career_max_GS, 12) + 8` in Year 1, `+4 GS/yr` ramp)
+     and a `105 IP` minimum SP ceiling so unproven arms aren't handed 180+ IP
+   - Cross-season major surgery recovery (TJS / InternalBrace / labrum) + chronic
+     injury discount with workhorse durability credit
 
-Design principle: estimate the **maximum innings a pitcher could throw
-given their health**, not how many a particular team would use them.
-A back-end starter with a 4.4 ERA should still be projected for full
-innings so his WAR (and therefore trade value) isn't artificially deflated.
-
-Called from ``value_determination/main.py`` Step 2, before WAR calculation.
+2. **Batters**:
+   - Trailing 3-season weighted MLB PA (2020 prorated to 162-game pace), regressed
+     toward `500 PA` for unproven batters and capped at `650 PA` (`560 PA` for catchers)
+   - Empirical age-availability curve past age 30 (`-1.8%/yr`) + current-IL proration
+   - Proportional scaling of full-season (per-650-PA) counting stats (`HR`, `2B`, `3B`, `RBI`, `R`)
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime, date
+from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -33,84 +34,71 @@ logger = logging.getLogger(__name__)
 # ── Paths ────────────────────────────────────────────────────────────────────
 _ROOT = Path(__file__).resolve().parent.parent.parent
 _HIST_PITCHING = _ROOT / "data" / "historic_mlb" / "mlb_pitching_data_1950_2025.csv"
+_HIST_BATTING = _ROOT / "data" / "historic_mlb" / "mlb_batting_data_1950_2025.csv"
 _INJURY_CSV = _ROOT / "data" / "injury" / "fangraphs_injury_data.csv"
 
 # ── Season length ────────────────────────────────────────────────────────────
-FULL_SEASON_DAYS = 183  # ~Apr 1 – Sep 30
+FULL_SEASON_DAYS = 183
 GAMES_162_SEASON = 162
 SEASON_2020_GAMES = 60
 
-# ── IP Ceiling defaults ─────────────────────────────────────────────────────
-# Rate-based: ceiling = IP/GS × full_starts (SP), IP/G × full_apps (RP)
-# This avoids injury-shortened seasons dragging the ceiling down.
-DEFAULT_SP_CEILING = 180.0  # fallback when no historical data
-DEFAULT_RP_CEILING = 65.0   # fallback when no historical data
-MIN_IP_THRESHOLD = 10.0     # ignore seasons below this
-MIN_GAMES_FOR_RATE = 3      # need at least this many GS (SP) or G (RP) for rate
-TRAILING_YEARS = 3          # how many prior seasons to consider
-TRAILING_WEIGHTS = [0.65, 0.25, 0.10]  # most-recent first
+# ── Pitcher IP ceiling parameters ────────────────────────────────────────────
+MIN_SP_CEILING = 105.0
+MAX_SP_CEILING = 220.0
+DEFAULT_RP_CEILING = 65.0
+MAX_RP_CEILING = 90.0
+MIN_IP_THRESHOLD = 10.0
+MIN_GAMES_FOR_RATE = 3
+TRAILING_YEARS = 3
+TRAILING_WEIGHTS = [0.65, 0.25, 0.10]
 
-# Full-season opportunity counts (healthy workhorse)
-FULL_SEASON_STARTS_SP = 32   # 162 / 5-man rotation
+FULL_SEASON_STARTS_SP = 32
 FULL_SEASON_APPEARANCES_RP = 62
-STARTS_ESCALATION = 8        # max projected GS = career_max_GS + this
+STARTS_ESCALATION = 8        # Year-1 max GS = max(career_max_GS, 12) + 8
+STARTS_ANNUAL_RAMP = 4       # Additional GS ceiling unlocked per future projection year
 
-# Durability credit: reduce injury discount for proven workhorses
-DURABILITY_THRESHOLD_SP = 150  # IP threshold for a "durable" SP season
-DURABILITY_THRESHOLD_RP = 50   # IP threshold for a "durable" RP season
-DURABILITY_CREDIT_PER_SEASON = 0.30  # 30% discount reduction per durable season
-MIN_DURABILITY_FACTOR = 0.15   # floor: even 3+ durable seasons still get 15%
+DURABILITY_THRESHOLD_SP = 150
+DURABILITY_THRESHOLD_RP = 50
+DURABILITY_CREDIT_PER_SEASON = 0.30
+MIN_DURABILITY_FACTOR = 0.15
 
-# ── IP/GS and IP/G league averages (2021-2025) ──────────────────────────────
-# Used for regression when sample is small
 LG_IP_PER_GS = 5.45
 LG_IP_PER_G_RP = 1.05
-# RP IP/G declines with age — fit from analysis
 RP_IP_PER_G_BASE = 1.45
-RP_IP_PER_G_DECLINE = 0.015  # per year above age 22
+RP_IP_PER_G_DECLINE = 0.015
 
-# ── Injury risk parameters (from recurrence analysis) ───────────────────────
-# Base injury rates by role (P(hitting IL at least once) per season)
+# ── Batter PA parameters ─────────────────────────────────────────────────────
+FULL_SEASON_PA = 650.0
+CATCHER_MAX_PA = 560.0
+MIN_HEALTHY_BATTER_PA = 380.0
+ROOKIE_PRIOR_PA = 500.0
+MIN_PA_THRESHOLD = 30.0
+BATTER_AGE_PIVOT = 30.0
+BATTER_AGE_DECLINE_PER_YEAR = 0.018
+
+# ── Injury risk parameters ───────────────────────────────────────────────────
 BASE_INJURY_RATE_SP = 0.45
 BASE_INJURY_RATE_RP = 0.30
-
-# Recurrence multiplier: if injured prior year, injury risk goes up
-# Analysis showed: 37% base → 53% for 1yr prior → 55% for 2yr prior
-# (additive, not geometric)
-RECURRENCE_ADD_1YR = 0.10   # +10% absolute for 1 prior injured year
-RECURRENCE_ADD_2YR = 0.15   # +15% absolute for 2 prior injured years
-
-# Age adjustment: injury rate increases ~0.8% per year above 28
+RECURRENCE_ADD_1YR = 0.10
+RECURRENCE_ADD_2YR = 0.15
 INJURY_AGE_SLOPE = 0.008
 INJURY_AGE_PIVOT = 28
-
-# Mean days lost when injured (conditional on being injured)
 MEAN_DAYS_LOST_IF_INJURED_SP = 45.0
 MEAN_DAYS_LOST_IF_INJURED_RP = 35.0
 
-# Major surgeries with long recovery — keyed by substring match.
-# Recovery days are from SURGERY DATE, not IL placement.  Used to compute
-# an expected return date that overrides the often-bogus eligible_to_return
-# / return_date fields in the FG data (e.g. TJS return_date = last day of
-# the regular season, not when the pitcher actually comes back).
-# NOTE: Only truly major reconstructive/repair surgeries belong here.
-# Arthroscopic cleanups (bone chips, bone spurs) do NOT — they're handled
-# by the standard IL-days path which uses eligible_to_return dates.
 MAJOR_SURGERY_RECOVERY: dict[str, int] = {
-    "tommy john": 400,           # ~13.3 months (modern TJS game-readiness)
+    "tommy john": 400,
     "ucl surgery": 400,
     "ucl reconstruction": 400,
-    "ucl revision": 400,         # UCL revision repair (at least as long as TJS)
+    "ucl revision": 400,
     "ucl repair": 400,
-    "internal brace": 400,       # UCL repair with InternalBrace (same recovery as TJS)
-    "labrum surgery": 330,       # ~11 months
+    "internal brace": 400,
+    "labrum surgery": 330,
     "labrum repair": 330,
     "labrum tear": 330,
-    "rotator cuff": 330,         # ~11 months
+    "rotator cuff": 330,
 }
 
-# Injury type → typical days lost (for current-IL estimation)
-# Derived from FanGraphs injury data 2020-2025
 INJURY_DAYS_LOOKUP: dict[str, int] = {
     "tommy john": 400,
     "ucl surgery": 400,
@@ -152,27 +140,24 @@ INJURY_DAYS_LOOKUP: dict[str, int] = {
     "broken": 60,
     "non-displaced": 45,
 }
-
-# Fallback if injury text doesn't match any known type
 DEFAULT_INJURY_DAYS = 40
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Utility
+#  Caches & Helpers
 # ═══════════════════════════════════════════════════════════════════════════════
 
+_hist_pit_cache: Optional[pd.DataFrame] = None
+_hist_pit_by_fg: Optional[dict[int, pd.DataFrame]] = None
+_hist_bat_cache: Optional[pd.DataFrame] = None
+_hist_bat_by_fg: Optional[dict[int, pd.DataFrame]] = None
+_injury_all_cache: Optional[pd.DataFrame] = None
+_pit_inj_by_fg: Optional[dict[int, pd.DataFrame]] = None
+_bat_inj_by_fg: Optional[dict[int, pd.DataFrame]] = None
+
+
 def _to_baseball_ip(ip: float) -> float:
-    """Convert a raw IP float to baseball notation (thirds as .1/.2).
-
-    In baseball, innings are counted in thirds:
-      150.0 → 150.0 (0 outs recorded in partial inning)
-      150.3 → 150.1 (1 out)
-      150.7 → 150.2 (2 outs)
-      150.9 → 151.0 (rounds to next full inning)
-
-    The rule: whole = int(ip), frac thirds = round(frac * 3),
-    if thirds == 3 → whole + 1, .0.
-    """
+    """Convert raw IP float to baseball notation (.1 = 1/3, .2 = 2/3)."""
     whole = int(ip)
     frac = ip - whole
     thirds = round(frac * 3)
@@ -181,12 +166,7 @@ def _to_baseball_ip(ip: float) -> float:
     return whole + thirds * 0.1
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Internal helpers
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def _estimate_days_from_injury(injury_text: str) -> int:
-    """Estimate recovery days from injury description text."""
     if not isinstance(injury_text, str):
         return DEFAULT_INJURY_DAYS
     text = injury_text.lower().strip()
@@ -197,36 +177,24 @@ def _estimate_days_from_injury(injury_text: str) -> int:
 
 
 def _parse_date_flexible(d) -> Optional[date]:
-    """Parse date from various formats in injury data."""
     if pd.isna(d) or not isinstance(d, str):
         return None
     try:
         ts = pd.to_datetime(d, errors="coerce")
-        if pd.isna(ts):
-            return None
-        return ts.date()
+        return None if pd.isna(ts) else ts.date()
     except Exception:
         return None
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  1. Load historical IP data
-# ═══════════════════════════════════════════════════════════════════════════════
-
-_hist_cache: Optional[pd.DataFrame] = None
-_injury_cache: Optional[pd.DataFrame] = None
-
-
 def _load_historical_ip() -> pd.DataFrame:
-    """Load historical pitching data with IP, GS, G by pitcher-season."""
-    global _hist_cache
-    if _hist_cache is not None:
-        return _hist_cache
-
+    global _hist_pit_cache, _hist_pit_by_fg
+    if _hist_pit_cache is not None:
+        return _hist_pit_cache
     if not _HIST_PITCHING.exists():
-        logger.warning(f"Historical pitching file not found: {_HIST_PITCHING}")
-        _hist_cache = pd.DataFrame()
-        return _hist_cache
+        logger.warning("Historical pitching file not found: %s", _HIST_PITCHING)
+        _hist_pit_cache = pd.DataFrame()
+        _hist_pit_by_fg = {}
+        return _hist_pit_cache
 
     df = pd.read_csv(
         _HIST_PITCHING,
@@ -235,35 +203,94 @@ def _load_historical_ip() -> pd.DataFrame:
     )
     df = df.rename(columns={"IDfg": "fg_id", "Season": "season"})
     df = df.dropna(subset=["fg_id", "IP"])
+    df["fg_id"] = pd.to_numeric(df["fg_id"], errors="coerce")
+    df = df.dropna(subset=["fg_id"])
     df["fg_id"] = df["fg_id"].astype(int)
     df["gs_rate"] = df["GS"] / df["G"].clip(lower=1)
-    _hist_cache = df
-    return _hist_cache
+    df = df.sort_values(["fg_id", "season"], ascending=[True, False])
+    _hist_pit_cache = df
+    _hist_pit_by_fg = {int(k): grp for k, grp in df.groupby("fg_id", sort=False)}
+    return _hist_pit_cache
 
 
-def _load_injury_data() -> pd.DataFrame:
-    """Load and parse FanGraphs injury data for pitchers."""
-    global _injury_cache
-    if _injury_cache is not None:
-        return _injury_cache
+def _get_pitcher_hist(fg_id: int) -> Optional[pd.DataFrame]:
+    if _hist_pit_by_fg is None:
+        _load_historical_ip()
+    return _hist_pit_by_fg.get(int(fg_id)) if _hist_pit_by_fg else None
 
+
+def _load_historical_pa() -> pd.DataFrame:
+    global _hist_bat_cache, _hist_bat_by_fg
+    if _hist_bat_cache is not None:
+        return _hist_bat_cache
+    if not _HIST_BATTING.exists():
+        logger.warning("Historical batting file not found: %s", _HIST_BATTING)
+        _hist_bat_cache = pd.DataFrame()
+        _hist_bat_by_fg = {}
+        return _hist_bat_cache
+
+    df = pd.read_csv(
+        _HIST_BATTING,
+        low_memory=False,
+        usecols=["IDfg", "Season", "Age", "PA", "G"],
+    )
+    df = df.rename(columns={"IDfg": "fg_id", "Season": "season"})
+    df["fg_id"] = pd.to_numeric(df["fg_id"], errors="coerce")
+    df["PA"] = pd.to_numeric(df["PA"], errors="coerce")
+    df["G"] = pd.to_numeric(df["G"], errors="coerce")
+    df = df.dropna(subset=["fg_id", "PA"])
+    df["fg_id"] = df["fg_id"].astype(int)
+    df = df.sort_values(["fg_id", "season"], ascending=[True, False])
+    _hist_bat_cache = df
+    _hist_bat_by_fg = {int(k): grp for k, grp in df.groupby("fg_id", sort=False)}
+    return _hist_bat_cache
+
+
+def _get_batter_hist(fg_id: int) -> Optional[pd.DataFrame]:
+    if _hist_bat_by_fg is None:
+        _load_historical_pa()
+    return _hist_bat_by_fg.get(int(fg_id)) if _hist_bat_by_fg else None
+
+
+def _load_all_injury_data() -> pd.DataFrame:
+    global _injury_all_cache, _pit_inj_by_fg, _bat_inj_by_fg
+    if _injury_all_cache is not None:
+        return _injury_all_cache
     if not _INJURY_CSV.exists():
-        logger.warning(f"Injury data not found: {_INJURY_CSV}")
-        _injury_cache = pd.DataFrame()
-        return _injury_cache
+        _injury_all_cache = pd.DataFrame()
+        _pit_inj_by_fg = {}
+        _bat_inj_by_fg = {}
+        return _injury_all_cache
 
-    df = pd.read_csv(_INJURY_CSV)
-    # Keep pitcher injuries only
-    df = df[df["position"].isin(["SP", "RP", "SP/RP", "RP/SP"])].copy()
-    df["retro"] = pd.to_datetime(df["il_retro_date"], format="mixed", errors="coerce")
-    df["ret"] = pd.to_datetime(df["return_date"], format="mixed", errors="coerce")
+    df = pd.read_csv(_INJURY_CSV, low_memory=False)
+    df["fg_id"] = pd.to_numeric(df.get("fg_id"), errors="coerce")
+    df["retro"] = pd.to_datetime(df.get("il_retro_date"), format="mixed", errors="coerce")
+    df["ret"] = pd.to_datetime(df.get("return_date"), format="mixed", errors="coerce")
     df["days_out"] = (df["ret"] - df["retro"]).dt.days
-    _injury_cache = df
-    return _injury_cache
+    _injury_all_cache = df
+
+    valid = df.dropna(subset=["fg_id"]).copy()
+    valid["fg_id_int"] = valid["fg_id"].astype(int)
+    if "position" in valid.columns:
+        pit_sub = valid[valid["position"].isin(["SP", "RP", "SP/RP", "RP/SP"])]
+        bat_sub = valid[~valid["position"].isin(["SP", "RP", "SP/RP", "RP/SP"])]
+    else:
+        pit_sub = pd.DataFrame()
+        bat_sub = pd.DataFrame()
+    _pit_inj_by_fg = {int(k): grp for k, grp in pit_sub.groupby("fg_id_int", sort=False)} if not pit_sub.empty else {}
+    _bat_inj_by_fg = {int(k): grp for k, grp in bat_sub.groupby("fg_id_int", sort=False)} if not bat_sub.empty else {}
+    return _injury_all_cache
+
+
+def _load_pitcher_injury_data() -> pd.DataFrame:
+    df = _load_all_injury_data()
+    if df.empty or "position" not in df.columns:
+        return pd.DataFrame()
+    return df[df["position"].isin(["SP", "RP", "SP/RP", "RP/SP"])].copy()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  2. IP ceiling (what they'd throw if healthy all year)
+#  Pitcher Ceiling, Injury Discount, & Playing Time
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _estimate_ip_ceiling(
@@ -271,135 +298,101 @@ def _estimate_ip_ceiling(
     age: float,
     role: str,
     projection_year: int,
+    anchor_year: int,
 ) -> float:
     """
-    Estimate a pitcher's full-season healthy IP ceiling using rate-based method.
+    Estimate a pitcher's healthy-season IP ceiling.
 
-    For SPs: trailing weighted IP/GS × projected starts.
-        - Only uses seasons where the pitcher primarily started (GS/G ≥ 0.5)
-          to avoid inflated rates from mixed-role seasons.
-        - Projected starts are capped at career_max_GS + STARTS_ESCALATION
-          to prevent unproven arms from being projected for 32 starts.
-    For RPs: trailing weighted IP/G × FULL_SEASON_APPEARANCES_RP (62).
-
-    IP/GS is stable regardless of how many games a pitcher appeared in
-    (r=0.491 y2y, flat by age at ~5.5).
+    Enforces STARTS_ESCALATION for SPs so unproven starters begin near
+    `max(career_max_GS, 12) + 8` starts (~109 IP for a 0-start rookie) and
+    ramp by +4 GS/yr toward 32 starts rather than jumping straight to 180+ IP.
     """
-    hist = _load_historical_ip()
-    if hist.empty:
-        return DEFAULT_SP_CEILING if role == "SP" else DEFAULT_RP_CEILING
+    p_hist = _get_pitcher_hist(fg_id)
+    yr_offset = max(0, int(projection_year) - int(anchor_year))
 
-    # Get this pitcher's recent seasons (before the projection year)
-    pitcher = hist[
-        (hist["fg_id"] == fg_id) & (hist["season"] < projection_year)
-    ].sort_values("season", ascending=False)
+    if p_hist is None or p_hist.empty:
+        if role == "SP":
+            proj_starts = min(FULL_SEASON_STARTS_SP, 12 + STARTS_ESCALATION + STARTS_ANNUAL_RAMP * yr_offset)
+            return float(np.clip(LG_IP_PER_GS * proj_starts, MIN_SP_CEILING, MAX_SP_CEILING))
+        return DEFAULT_RP_CEILING
 
-    # Filter to meaningful seasons
-    pitcher = pitcher[pitcher["IP"] >= MIN_IP_THRESHOLD]
+    # Anchor historical lookup strictly prior to anchor_year so future projection
+    # years can smoothly escalate starts using yr_offset
+    pitcher_all = p_hist[p_hist["season"] < anchor_year]
+    career_max_gs = 0
+    if not pitcher_all.empty:
+        non_2020 = pitcher_all.copy()
+        # Scale 2020 GS to full-season equivalent for career_max_gs check
+        mask_2020 = non_2020["season"] == 2020
+        if mask_2020.any():
+            non_2020.loc[mask_2020, "GS"] = (non_2020.loc[mask_2020, "GS"] * (162.0 / 60.0)).round()
+        career_max_gs = int(non_2020["GS"].max() or 0)
 
-    if pitcher.empty:
-        return DEFAULT_SP_CEILING if role == "SP" else DEFAULT_RP_CEILING
-
-    # Take up to TRAILING_YEARS most recent seasons
-    recent = pitcher.head(TRAILING_YEARS)
+    pitcher = pitcher_all[pitcher_all["IP"] >= MIN_IP_THRESHOLD]
 
     if role == "SP":
-        # --- Rate-based ceiling: IP/GS × full-season starts ---
-        # Only use seasons where the pitcher primarily started (GS/G >= 0.5).
-        # Mixed-role seasons inflate IP/GS because relief IP is in the
-        # numerator but only starts are in the denominator.
-        rates = []
-        weights = []
+        projected_starts = min(
+            FULL_SEASON_STARTS_SP,
+            max(career_max_gs, 12) + STARTS_ESCALATION + STARTS_ANNUAL_RAMP * yr_offset,
+        )
+        if pitcher.empty:
+            ceiling = LG_IP_PER_GS * projected_starts
+            return float(np.clip(ceiling, MIN_SP_CEILING, MAX_SP_CEILING))
+
+        recent = pitcher.head(TRAILING_YEARS)
+        rates, weights = [], []
         w_idx = 0
         for _, row in recent.iterrows():
             gs = row["GS"]
             g = max(row["G"], 1)
             if gs < MIN_GAMES_FOR_RATE or gs / g < 0.5:
                 continue
-            rate = row["IP"] / gs
-            rates.append(rate)
-            weights.append(
-                TRAILING_WEIGHTS[w_idx] if w_idx < len(TRAILING_WEIGHTS) else 0.10
-            )
+            rates.append(row["IP"] / gs)
+            weights.append(TRAILING_WEIGHTS[w_idx] if w_idx < len(TRAILING_WEIGHTS) else 0.10)
             w_idx += 1
 
         if not rates:
-            # No valid primarily-starter seasons — use league average rate
             ip_per_gs = LG_IP_PER_GS
         else:
             total_w = sum(weights)
-            weights = [w / total_w for w in weights]
-            ip_per_gs = sum(r * w for r, w in zip(rates, weights))
-            # Regress toward league average based on sample size (years of data).
-            # Young pitchers (1-2 seasons) get heavy regression; veterans get light.
-            num_seasons = len(rates)
-            if num_seasons == 1:
-                regression_to_league = 0.75  # 75% to LG, 25% to pitcher
-            elif num_seasons == 2:
-                regression_to_league = 0.40  # 40% to LG, 60% to pitcher
-            else:  # 3+ seasons
-                regression_to_league = 0.05  # 5% to LG, 95% to pitcher
-            ip_per_gs = ip_per_gs * (1.0 - regression_to_league) + LG_IP_PER_GS * regression_to_league
-
-        # Healthy SP projection: 32 starts (full season)
-        # Injury discount applied separately in Step 2
-        projected_starts = FULL_SEASON_STARTS_SP  # 32
+            ip_per_gs = sum(r * (w / total_w) for r, w in zip(rates, weights))
+            reg = 0.75 if len(rates) == 1 else (0.40 if len(rates) == 2 else 0.05)
+            ip_per_gs = ip_per_gs * (1.0 - reg) + LG_IP_PER_GS * reg
 
         ceiling = ip_per_gs * projected_starts
-        ceiling = float(np.clip(ceiling, DEFAULT_SP_CEILING, 220.0))
+        return float(np.clip(ceiling, MIN_SP_CEILING, MAX_SP_CEILING))
 
+    # Relief pitcher
+    if pitcher.empty:
+        return DEFAULT_RP_CEILING
 
-    else:  # RP
-        # Only use seasons where the pitcher primarily relieved (GS/G < 0.5).
-        rates = []
-        weights = []
-        w_idx = 0
-        for _, row in recent.iterrows():
-            g = row["G"]
-            gs = row["GS"]
-            if g < MIN_GAMES_FOR_RATE or (g > 0 and gs / g >= 0.5):
-                continue
-            rate = row["IP"] / g
-            rates.append(rate)
-            weights.append(
-                TRAILING_WEIGHTS[w_idx] if w_idx < len(TRAILING_WEIGHTS) else 0.10
-            )
-            w_idx += 1
+    recent = pitcher.head(TRAILING_YEARS)
+    rates, weights = [], []
+    w_idx = 0
+    for _, row in recent.iterrows():
+        g, gs = row["G"], row["GS"]
+        if g < MIN_GAMES_FOR_RATE or (g > 0 and gs / g >= 0.5):
+            continue
+        rates.append(row["IP"] / g)
+        weights.append(TRAILING_WEIGHTS[w_idx] if w_idx < len(TRAILING_WEIGHTS) else 0.10)
+        w_idx += 1
 
-        if not rates:
-            ip_per_g = LG_IP_PER_G_RP
-        else:
-            total_w = sum(weights)
-            weights = [w / total_w for w in weights]
-            ip_per_g = sum(r * w for r, w in zip(rates, weights))
-            # Regress toward league average based on sample size (years of data).
-            # Young pitchers (1-2 seasons) get heavier regression.
-            num_seasons = len(rates)
-            if num_seasons == 1:
-                regression_to_league = 0.50  # 50% to LG for thin data
-            elif num_seasons == 2:
-                regression_to_league = 0.25  # 25% to LG
-            else:  # 3+
-                regression_to_league = 0.05  # 5% to LG
-            ip_per_g = ip_per_g * (1.0 - regression_to_league) + LG_IP_PER_G_RP * regression_to_league
+    if not rates:
+        ip_per_g = LG_IP_PER_G_RP
+    else:
+        total_w = sum(weights)
+        ip_per_g = sum(r * (w / total_w) for r, w in zip(rates, weights))
+        reg = 0.50 if len(rates) == 1 else (0.25 if len(rates) == 2 else 0.05)
+        ip_per_g = ip_per_g * (1.0 - reg) + LG_IP_PER_G_RP * reg
 
-        # RP IP/G declines with age (from analysis: 1.45@22 → 1.0@38)
-        if age > 28:
-            age_adj = max(0.70, 1.0 - RP_IP_PER_G_DECLINE * (age - 28))
-            ip_per_g *= age_adj
+    if age > 28:
+        ip_per_g *= max(0.70, 1.0 - RP_IP_PER_G_DECLINE * (age - 28))
 
-        ceiling = ip_per_g * FULL_SEASON_APPEARANCES_RP
-        ceiling = float(np.clip(ceiling, DEFAULT_RP_CEILING, 90.0))
+    ceiling = ip_per_g * FULL_SEASON_APPEARANCES_RP
+    return float(np.clip(ceiling, DEFAULT_RP_CEILING, MAX_RP_CEILING))
 
-    return ceiling
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  3. Injury discount
-# ═══════════════════════════════════════════════════════════════════════════════
 
 def _is_major_surgery(injury_text: str) -> Optional[int]:
-    """If injury_text describes a major surgery, return recovery days; else None."""
     if not isinstance(injury_text, str):
         return None
     text = injury_text.lower().strip()
@@ -410,52 +403,25 @@ def _is_major_surgery(injury_text: str) -> Optional[int]:
 
 
 def _is_end_of_season_date(d: Optional[date], year: int) -> bool:
-    """True if the date is just the last week of the regular season — a
-    common administrative placeholder, not a real 'return' date."""
     if d is None:
         return False
     return d.year == year and d.month >= 9 and d.day >= 25
 
 
-def _major_surgery_return_date(
-    fg_id: float,
-    projection_year: int,
-) -> Optional[date]:
-    """Check ALL injury records (not just current year) for a recent major
-    surgery that would still be limiting the pitcher in *projection_year*.
-
-    Returns the computed return date if one exists, else None.
-    """
-    inj_df = _load_injury_data()
-    if inj_df.empty:
+def _major_surgery_return_date(fg_id: float, projection_year: int, player_inj_df: Optional[pd.DataFrame]) -> Optional[date]:
+    if player_inj_df is None or player_inj_df.empty:
         return None
-
-    # Look at injuries from (projection_year - 2) through projection_year
-    # Sort ASCENDING so the original surgery record (with actual dates) is
-    # found before any projected follow-up records for the same surgery.
-    records = inj_df[
-        (inj_df["fg_id"] == fg_id)
-        & (inj_df["season"].between(projection_year - 2, projection_year))
+    records = player_inj_df[
+        player_inj_df["season"].between(projection_year - 2, projection_year)
     ].sort_values("season", ascending=True)
 
     for _, row in records.iterrows():
-        injury_text = str(row.get("injury_surgery", ""))
-        recovery_days = _is_major_surgery(injury_text)
+        recovery_days = _is_major_surgery(str(row.get("injury_surgery", "")))
         if recovery_days is None:
             continue
 
-        # Find the actual surgery date.
-        # Use the LATER of injury_date and il_retro_date, because the
-        # surgery always happens after or on the IL placement date:
-        #   - injury_date can be diagnosis (before surgery) or surgery date
-        #   - il_retro_date can be backdated IL placement (before surgery)
-        # Taking the max ensures we use the actual procedure date.
-        il_retro_str = row.get("il_retro_date")
-        injury_date_str = row.get("injury_date")
-
-        injury_date_parsed = _parse_date_flexible(injury_date_str)
-        il_retro_parsed = _parse_date_flexible(il_retro_str)
-
+        injury_date_parsed = _parse_date_flexible(row.get("injury_date"))
+        il_retro_parsed = _parse_date_flexible(row.get("il_retro_date"))
         if injury_date_parsed is not None and il_retro_parsed is not None:
             surgery_date = max(injury_date_parsed, il_retro_parsed)
         elif il_retro_parsed is not None:
@@ -466,27 +432,20 @@ def _major_surgery_return_date(
             continue
 
         expected_return = surgery_date + pd.Timedelta(days=recovery_days)
-        # Ensure we have a plain date (not NaT)
         try:
-            if hasattr(expected_return, 'date'):
+            if hasattr(expected_return, "date"):
                 expected_return = expected_return.date()
             if pd.isna(expected_return):
                 continue
         except (TypeError, ValueError):
             continue
 
-        # Did they *actually* return and pitch meaningfully?
-        # If return_date is end-of-season or NaN, treat as NOT returned.
         actual_return = _parse_date_flexible(row.get("return_date"))
         season_of_injury = int(row["season"])
-
         if actual_return is not None and not _is_end_of_season_date(actual_return, season_of_injury):
-            # They really came back before end of season → no longer injured
             continue
 
-        # Still recovering — does the expected return fall in projection_year?
-        season_start = date(projection_year, 3, 27)  # spring training / opening day
-        season_end = date(projection_year, 9, 30)
+        season_start = date(projection_year, 3, 27)
         if expected_return > season_start:
             return expected_return
 
@@ -497,76 +456,56 @@ def _current_il_days_remaining(
     fg_id: float,
     projection_year: int,
     today: Optional[date] = None,
+    inj_df: Optional[pd.DataFrame] = None,
+    player_inj_df: Optional[pd.DataFrame] = None,
 ) -> float:
-    """
-    If the pitcher is currently on the IL, estimate days remaining.
-
-    Returns 0 if not currently injured.
-
-    Priority order:
-    1. Major surgery (TJS, labrum, shoulder, elbow) — compute return from
-       surgery date + recovery time.  This overrides all FG metadata.
-    2. "Out for {year} season" in latest_update → full season.
-    3. Future return_date or eligible_to_return → use directly.
-    4. Estimate from injury type + time already elapsed.
-    """
     if today is None:
         today = date.today()
+    if player_inj_df is None:
+        if inj_df is not None and not inj_df.empty:
+            player_inj_df = inj_df[inj_df["fg_id"] == fg_id]
+        else:
+            _load_all_injury_data()
+            player_inj_df = _pit_inj_by_fg.get(int(fg_id)) if _pit_inj_by_fg else None
 
-    # ── 1. Major surgery return (cross-season) ──────────────────────────
-    surgery_return = _major_surgery_return_date(fg_id, projection_year)
+    surgery_return = _major_surgery_return_date(fg_id, projection_year, player_inj_df)
     if surgery_return is not None:
         season_start = date(projection_year, 3, 27)
         season_end = date(projection_year, 9, 30)
         if surgery_return > season_end:
-            # Not back this season at all
-            return FULL_SEASON_DAYS
-        # Days from season start (or today, whichever is later) to return
+            return float(FULL_SEASON_DAYS)
         ref = max(today, season_start)
-        return max(0.0, (surgery_return - ref).days)
+        return float(max(0.0, (surgery_return - ref).days))
 
-    # ── 2–4. Non-surgery IL check (current year only) ──────────────────
-    inj_df = _load_injury_data()
-    if inj_df.empty:
+    if player_inj_df is None or player_inj_df.empty:
         return 0.0
 
-    current = inj_df[
-        (inj_df["fg_id"] == fg_id) & (inj_df["season"] == projection_year)
-    ]
+    current = player_inj_df[player_inj_df["season"] == projection_year]
     if current.empty:
         return 0.0
 
     latest = current.iloc[-1]
-
-    # Already returned?
     ret_date = _parse_date_flexible(latest.get("return_date"))
     if ret_date is not None and ret_date <= today:
         return 0.0
 
-    # "Out for {year} season"
     update = str(latest.get("latest_update", "")).lower()
     if f"out for {projection_year}" in update:
         season_end = date(projection_year, 9, 30)
-        return max(0.0, (season_end - today).days)
+        return float(max(0.0, (season_end - today).days))
 
-    # Future return date
     if ret_date is not None and ret_date > today:
-        return (ret_date - today).days
+        return float((ret_date - today).days)
 
-    # Eligible to return
     etr = _parse_date_flexible(latest.get("eligible_to_return"))
     if etr is not None and etr > today:
-        return (etr - today).days
+        return float((etr - today).days)
 
-    # Estimate from injury type
-    injury_text = str(latest.get("injury_surgery", ""))
-    est_days = _estimate_days_from_injury(injury_text)
+    est_days = _estimate_days_from_injury(str(latest.get("injury_surgery", "")))
     il_start = _parse_date_flexible(latest.get("il_retro_date"))
     if il_start is not None:
-        already_out = (today - il_start).days
-        return max(0, est_days - already_out)
-
-    return est_days
+        return float(max(0, est_days - (today - il_start).days))
+    return float(est_days)
 
 
 def _history_injury_discount(
@@ -574,32 +513,17 @@ def _history_injury_discount(
     age: float,
     role: str,
     projection_year: int,
+    anchor_year: int,
 ) -> float:
-    """
-    Estimate expected days lost to injury based on historical patterns.
-
-    Returns expected days lost (0 = perfectly healthy projection).
-
-    Combines:
-    - Base injury rate for role + age
-    - Recurrence upward adjustment if injured in prior seasons
-    """
-    inj_df = _load_injury_data()
-
-    # Base rate by role
+    _load_all_injury_data()
+    p_inj = _pit_inj_by_fg.get(int(fg_id)) if _pit_inj_by_fg else None
     base_rate = BASE_INJURY_RATE_SP if role == "SP" else BASE_INJURY_RATE_RP
-
-    # Age adjustment
     if age > INJURY_AGE_PIVOT:
         base_rate += INJURY_AGE_SLOPE * (age - INJURY_AGE_PIVOT)
-    base_rate = min(base_rate, 0.75)  # cap at 75%
+    base_rate = min(base_rate, 0.75)
 
-    # Recurrence: check prior 2 seasons
-    if not inj_df.empty:
-        prior = inj_df[
-            (inj_df["fg_id"] == fg_id)
-            & (inj_df["season"].isin([projection_year - 1, projection_year - 2]))
-        ]
+    if p_inj is not None and not p_inj.empty:
+        prior = p_inj[p_inj["season"].isin([anchor_year - 1, anchor_year - 2])]
         seasons_injured = prior["season"].nunique()
         if seasons_injured >= 2:
             base_rate += RECURRENCE_ADD_2YR
@@ -607,140 +531,106 @@ def _history_injury_discount(
             base_rate += RECURRENCE_ADD_1YR
         base_rate = min(base_rate, 0.75)
 
-    # Expected days lost
-    mean_days = (
-        MEAN_DAYS_LOST_IF_INJURED_SP if role == "SP"
-        else MEAN_DAYS_LOST_IF_INJURED_RP
-    )
+    mean_days = MEAN_DAYS_LOST_IF_INJURED_SP if role == "SP" else MEAN_DAYS_LOST_IF_INJURED_RP
     expected_days_lost = base_rate * mean_days
 
-    # Durability credit: pitchers with recent full healthy seasons get a
-    # reduced injury discount.  A workhorse with 200+ IP for 3 straight
-    # years shouldn't be penalised as much as an unknown.
-    hist = _load_historical_ip()
-    if not hist.empty:
+    p_hist = _get_pitcher_hist(int(fg_id))
+    if p_hist is not None and not p_hist.empty:
         threshold = DURABILITY_THRESHOLD_SP if role == "SP" else DURABILITY_THRESHOLD_RP
-        recent_hist = hist[
-            (hist["fg_id"] == fg_id)
-            & (hist["season"].between(projection_year - 3, projection_year - 1))
-            & (hist["season"] != 2020)  # exclude shortened season
+        recent_hist = p_hist[
+            p_hist["season"].between(anchor_year - 3, anchor_year - 1)
+            & (p_hist["season"] != 2020)
         ]
         durable_count = int((recent_hist["IP"] >= threshold).sum())
-        durability_factor = max(
-            MIN_DURABILITY_FACTOR,
-            1.0 - durable_count * DURABILITY_CREDIT_PER_SEASON,
-        )
+        durability_factor = max(MIN_DURABILITY_FACTOR, 1.0 - durable_count * DURABILITY_CREDIT_PER_SEASON)
         expected_days_lost *= durability_factor
 
-    # Recent-health adjustment: compare most recent year's actual IP
-    # to the pitcher's ceiling.  Full-health seasons → lower discount;
-    # injury-shortened seasons → higher discount.
-    # Linear scale: achievement 1.0 → mult 0.30, achievement 0.3 → mult 2.0
-    if not hist.empty:
-        most_recent = hist[
-            (hist["fg_id"] == fg_id)
-            & (hist["season"] < projection_year)
-            & (hist["season"] != 2020)
-        ].sort_values("season", ascending=False)
+        most_recent = p_hist[
+            (p_hist["season"] < anchor_year)
+            & (p_hist["season"] != 2020)
+        ]
         if not most_recent.empty:
-            ceiling = _estimate_ip_ceiling(fg_id, age, role, projection_year)
+            ceiling = _estimate_ip_ceiling(int(fg_id), age, role, anchor_year, anchor_year)
             if ceiling > 0:
                 achievement = min(1.0, most_recent.iloc[0]["IP"] / ceiling)
                 recent_health_mult = max(
                     0.30,
-                    min(2.0, 2.0 - max(0, achievement - 0.30) / 0.70 * 1.70),
+                    min(2.0, 2.0 - max(0.0, achievement - 0.30) / 0.70 * 1.70),
                 )
-                expected_days_lost *= recent_health_mult
+                # Decay recent-season health penalty across distant future years
+                yr_offset = max(0, projection_year - anchor_year)
+                decay = 0.65 ** yr_offset
+                blended_mult = 1.0 + (recent_health_mult - 1.0) * decay
+                expected_days_lost *= blended_mult
 
-    return expected_days_lost
+    return float(expected_days_lost)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  4. GS / G split
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def _estimate_gs_rate(
-    fg_id: int,
-    role: str,
-    projection_year: int,
-) -> float:
-    """
-    Project GS rate (0.0–1.0) from historical pattern.
-
-    Uses trailing 2-year weighted GS/G average, regressed toward role
-    archetype (1.0 for SP, 0.0 for RP).
-    """
-    hist = _load_historical_ip()
-    if hist.empty:
+def _estimate_gs_rate(fg_id: int, role: str, anchor_year: int) -> float:
+    p_hist = _get_pitcher_hist(fg_id)
+    if p_hist is None or p_hist.empty:
         return 1.0 if role == "SP" else 0.0
 
-    recent = hist[
-        (hist["fg_id"] == fg_id)
-        & (hist["season"] < projection_year)
-        & (hist["IP"] >= MIN_IP_THRESHOLD)
-    ].sort_values("season", ascending=False).head(2)
+    recent = p_hist[
+        (p_hist["season"] < anchor_year)
+        & (p_hist["IP"] >= MIN_IP_THRESHOLD)
+    ].head(2)
 
     if recent.empty:
         return 1.0 if role == "SP" else 0.0
 
-    # Weighted average GS rate
-    if len(recent) >= 2:
-        gs_rate = recent.iloc[0]["gs_rate"] * 0.65 + recent.iloc[1]["gs_rate"] * 0.35
-    else:
-        gs_rate = recent.iloc[0]["gs_rate"]
-
-    # Regress toward archetype (20% regression)
+    gs_rate = (
+        recent.iloc[0]["gs_rate"] * 0.65 + recent.iloc[1]["gs_rate"] * 0.35
+        if len(recent) >= 2
+        else recent.iloc[0]["gs_rate"]
+    )
     archetype = 1.0 if role == "SP" else 0.0
-    gs_rate = gs_rate * 0.80 + archetype * 0.20
-
-    return float(np.clip(gs_rate, 0.0, 1.0))
+    return float(np.clip(gs_rate * 0.80 + archetype * 0.20, 0.0, 1.0))
 
 
-def _ip_to_gs_g(
-    ip: float,
-    gs_rate: float,
-    age: float,
-) -> tuple[int, int]:
-    """Convert projected IP into GS and G counts."""
+def _ip_to_gs_g(ip: float, gs_rate: float, age: float) -> tuple[int, int]:
     if ip <= 0:
         return 0, 0
-
     if gs_rate >= 0.5:
-        # Primarily starter: starts determine games
         gs = min(round(ip / LG_IP_PER_GS * gs_rate), FULL_SEASON_STARTS_SP)
         relief_g = round(ip / LG_IP_PER_GS * (1.0 - gs_rate)) if gs_rate < 1.0 else 0
         g = gs + relief_g
     else:
-        # Primarily reliever
-        ip_per_g = max(0.7, RP_IP_PER_G_BASE - RP_IP_PER_G_DECLINE * max(0, age - 22))
+        ip_per_g = max(0.7, RP_IP_PER_G_BASE - RP_IP_PER_G_DECLINE * max(0.0, age - 22))
         g = round(ip / ip_per_g)
         gs = round(g * gs_rate)
-
     return max(0, int(gs)), max(1, int(g))
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  5. Main entry point
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def estimate_playing_time(pitcher_df: pd.DataFrame, projection_year: int) -> pd.DataFrame:
+def estimate_playing_time(
+    pitcher_df: pd.DataFrame,
+    projection_year: int,
+    anchor_year: Optional[int] = None,
+) -> pd.DataFrame:
     """
-    Estimate IP, GS, G for every pitcher in the DataFrame.
+    Estimate IP, GS, and G for every pitcher row in *pitcher_df*.
 
-    Parameters
-    ----------
-    pitcher_df : pd.DataFrame
-        Must have columns: ``IDfg``, ``Age``, ``Role``.
-    projection_year : int
-        The year being projected.
-
-    Returns
-    -------
-    pd.DataFrame
-        Input DataFrame with ``IP``, ``GS``, ``G`` columns added/replaced.
+    Args:
+        pitcher_df: DataFrame containing ``IDfg`` (or ``fg_id``), ``Age`` (or ``age``),
+            and ``Role`` (or ``player_role``).
+        projection_year: Season year being projected.
+        anchor_year: Snapshot/current year anchoring historical lookups (defaults to
+            ``min(projection_year, 2026)`` so multi-year projections escalate starts
+            smoothly from the anchor year).
     """
-    _load_historical_ip()  # prime caches
-    _load_injury_data()
+    if pitcher_df.empty:
+        return pitcher_df.copy()
+
+    _load_historical_ip()
+    _load_all_injury_data()
+
+    if anchor_year is None:
+        from .config import CURRENT_YEAR
+        anchor_year = min(int(projection_year), CURRENT_YEAR)
+
+    id_col = "fg_id" if "fg_id" in pitcher_df.columns else "IDfg"
+    age_col = "age" if "age" in pitcher_df.columns else "Age"
+    role_col = "player_role" if "player_role" in pitcher_df.columns else "Role"
 
     today = date.today()
     n = len(pitcher_df)
@@ -748,63 +638,189 @@ def estimate_playing_time(pitcher_df: pd.DataFrame, projection_year: int) -> pd.
     gss = np.zeros(n, dtype=int)
     gs_arr = np.zeros(n, dtype=int)
 
-    for i, (idx, row) in enumerate(pitcher_df.iterrows()):
-        fg_id = int(row["IDfg"])
-        age = float(row["Age"])
-        role = row["Role"]
+    for i, (_, row) in enumerate(pitcher_df.iterrows()):
+        fg_id = int(row[id_col])
+        age = float(row[age_col])
+        role = str(row[role_col]).upper()
+        role = "SP" if role == "SP" else "RP"
 
-        # 1. Healthy-season IP ceiling
-        ceiling = _estimate_ip_ceiling(fg_id, age, role, projection_year)
+        ceiling = _estimate_ip_ceiling(fg_id, age, role, int(projection_year), int(anchor_year))
 
-        # 2. Injury discount
-        # 2a. Currently on IL?
-        il_days = _current_il_days_remaining(fg_id, projection_year, today)
-
+        il_days = (
+            _current_il_days_remaining(
+                fg_id, int(projection_year), today,
+                player_inj_df=_pit_inj_by_fg.get(fg_id) if _pit_inj_by_fg else None,
+            )
+            if int(projection_year) >= int(anchor_year)
+            else 0.0
+        )
         if il_days >= FULL_SEASON_DAYS:
-            # Out for the season
             ips[i] = 0.0
             gss[i] = 0
             gs_arr[i] = 0
             continue
 
-        # 2b. Historical injury risk discount
-        hist_days_lost = _history_injury_discount(fg_id, age, role, projection_year)
-
-        # Apply the LARGER of the two discounts (IL or history).
-        # History discount already captures chronic-injury risk, which
-        # subsumes short IL stints.  For long IL stints (e.g. TJS)
-        # the IL discount dominates.
+        hist_days_lost = _history_injury_discount(
+            fg_id, age, role, int(projection_year), int(anchor_year)
+        )
         il_fraction = max(0.0, 1.0 - il_days / FULL_SEASON_DAYS) if il_days > 0 else 1.0
-        hist_fraction = max(0.2, 1.0 - hist_days_lost / FULL_SEASON_DAYS)
+        hist_fraction = max(0.20, 1.0 - hist_days_lost / FULL_SEASON_DAYS)
         ip_final = ceiling * min(il_fraction, hist_fraction)
 
-        # 3. GS / G split
-        gs_rate = _estimate_gs_rate(fg_id, role, projection_year)
+        gs_rate = _estimate_gs_rate(fg_id, role, int(anchor_year))
         gs, g = _ip_to_gs_g(ip_final, gs_rate, age)
 
         ips[i] = _to_baseball_ip(ip_final)
         gss[i] = gs
         gs_arr[i] = g
 
-    pitcher_df = pitcher_df.copy()
-    pitcher_df["IP"] = ips
-    pitcher_df["GS"] = gss
-    pitcher_df["G"] = gs_arr
+    out = pitcher_df.copy()
+    out["IP"] = ips
+    out["GS"] = gss
+    out["G"] = gs_arr
+    return out
 
-    # Log summary
-    sp_mask = pitcher_df["Role"] == "SP"
-    rp_mask = pitcher_df["Role"] == "RP"
-    sp_ip = pitcher_df.loc[sp_mask, "IP"]
-    rp_ip = pitcher_df.loc[rp_mask, "IP"]
-    logger.info(
-        f"Playing time estimated: "
-        f"SP avg IP={sp_ip.mean():.1f} (median={sp_ip.median():.1f}, n={sp_mask.sum()}), "
-        f"RP avg IP={rp_ip.mean():.1f} (median={rp_ip.median():.1f}, n={rp_mask.sum()})"
-    )
 
-    # Count currently-injured
-    zero_ip = (pitcher_df["IP"] == 0).sum()
-    if zero_ip > 0:
-        logger.info(f"  {zero_ip} pitchers projected for 0 IP (season-ending injury)")
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Batter Playing Time (PA & G)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-    return pitcher_df
+def _estimate_single_batter_pa(
+    fg_id: int,
+    age: float,
+    projection_year: int,
+    anchor_year: int,
+    primary_pos: str = "",
+) -> float:
+    """
+    Estimate healthy-season PA for a batter from trailing 3-year MLB volume,
+    regressed toward ~500 PA for unproven players and adjusted for age + catcher wear.
+    """
+    b_hist = _get_batter_hist(fg_id)
+    yr_offset = max(0, int(projection_year) - int(anchor_year))
+
+    if b_hist is None or b_hist.empty:
+        base_pa = ROOKIE_PRIOR_PA + min(80.0, 35.0 * yr_offset)
+    else:
+        player = b_hist[
+            (b_hist["season"] < anchor_year)
+            & (b_hist["PA"] >= MIN_PA_THRESHOLD)
+        ]
+
+        if player.empty:
+            base_pa = ROOKIE_PRIOR_PA + min(80.0, 35.0 * yr_offset)
+        else:
+            recent = player.head(TRAILING_YEARS)
+            pas, weights = [], []
+            for idx_w, (_, r) in enumerate(recent.iterrows()):
+                pa_val = float(r["PA"])
+                if int(r["season"]) == 2020:
+                    pa_val = min(FULL_SEASON_PA, pa_val * (162.0 / 60.0))
+                pas.append(pa_val)
+                weights.append(TRAILING_WEIGHTS[idx_w] if idx_w < len(TRAILING_WEIGHTS) else 0.10)
+
+            total_w = sum(weights)
+            trailing_pa = sum(p * (w / total_w) for p, w in zip(pas, weights))
+
+            n_seasons = len(pas)
+            if n_seasons == 1:
+                base_pa = 0.55 * trailing_pa + 0.45 * 520.0
+                if age <= 26:
+                    base_pa = min(600.0, base_pa + 30.0 * yr_offset)
+            elif n_seasons == 2:
+                base_pa = 0.75 * trailing_pa + 0.25 * 540.0
+                if age <= 26:
+                    base_pa = min(615.0, base_pa + 20.0 * yr_offset)
+            else:
+                base_pa = 0.90 * trailing_pa + 0.10 * 560.0
+
+    max_pa = CATCHER_MAX_PA if primary_pos == "C" else FULL_SEASON_PA
+    base_pa = float(np.clip(base_pa, MIN_HEALTHY_BATTER_PA, max_pa))
+
+    # Empirical age-availability curve past age 30
+    if age > BATTER_AGE_PIVOT:
+        age_mult = max(0.65, 1.0 - BATTER_AGE_DECLINE_PER_YEAR * (age - BATTER_AGE_PIVOT))
+        base_pa *= age_mult
+
+    return float(np.clip(base_pa, 250.0, max_pa))
+
+
+def estimate_batter_playing_time(
+    batter_df: pd.DataFrame,
+    projection_year: Optional[int] = None,
+    anchor_year: Optional[int] = None,
+    position_profiles: Optional[dict] = None,
+) -> pd.DataFrame:
+    """
+    Estimate individualized PA and G for batter prediction rows, scaling
+    per-650-PA counting stats (`HR`, `2B`, `3B`, `RBI`, `R`, `HBP`, `SF`)
+    proportionally.
+
+    Can be called on a single year or a multi-year batter DataFrame.
+    """
+    if batter_df.empty:
+        return batter_df.copy()
+
+    _load_historical_pa()
+    _load_all_injury_data()
+
+    from .config import CURRENT_YEAR
+    if anchor_year is None:
+        min_yr = int(batter_df["Year"].min()) if "Year" in batter_df.columns else CURRENT_YEAR
+        anchor_year = min(min_yr, CURRENT_YEAR)
+
+    id_col = "fg_id" if "fg_id" in batter_df.columns else "IDfg"
+    age_col = "age" if "age" in batter_df.columns else "Age"
+    yr_col = "year" if "year" in batter_df.columns else "Year"
+
+    out = batter_df.copy()
+    today = date.today()
+
+    new_pa = np.zeros(len(out))
+    new_g = np.zeros(len(out), dtype=int)
+    scale_ratios = np.ones(len(out))
+
+    for i, (_, row) in enumerate(out.iterrows()):
+        fg_id = int(row[id_col])
+        age = float(row[age_col])
+        p_year = int(projection_year if projection_year is not None else row[yr_col])
+
+        primary_pos = str(row.get("Position", "") or "")
+        if not primary_pos and position_profiles and fg_id in position_profiles:
+            prof = position_profiles[fg_id]
+            if prof:
+                primary_pos = max(prof, key=prof.get)
+
+        pa_est = _estimate_single_batter_pa(
+            fg_id=fg_id,
+            age=age,
+            projection_year=p_year,
+            anchor_year=int(anchor_year),
+            primary_pos=primary_pos,
+        )
+
+        # Check current-IL limitation if batter is out for part/all of p_year
+        if p_year == CURRENT_YEAR and _bat_inj_by_fg:
+            b_inj = _bat_inj_by_fg.get(fg_id)
+            if b_inj is not None:
+                il_days = _current_il_days_remaining(fg_id, p_year, today, player_inj_df=b_inj)
+                if il_days >= FULL_SEASON_DAYS:
+                    pa_est = 0.0
+                elif il_days > 15:
+                    pa_est *= max(0.0, 1.0 - il_days / FULL_SEASON_DAYS)
+
+        old_pa = float(row.get("PA", FULL_SEASON_PA) or FULL_SEASON_PA)
+        ratio = (pa_est / old_pa) if old_pa > 0 else 1.0
+
+        new_pa[i] = round(pa_est)
+        new_g[i] = 0 if pa_est <= 0 else max(1, min(162, round(pa_est * (150.0 / FULL_SEASON_PA))))
+        scale_ratios[i] = ratio
+
+    out["PA"] = new_pa
+    out["G"] = new_g
+
+    for stat in ("HR", "2B", "3B", "RBI", "R", "HBP", "SF"):
+        if stat in out.columns:
+            out[stat] = pd.to_numeric(out[stat], errors="coerce").fillna(0.0) * scale_ratios
+
+    return out
