@@ -32,7 +32,7 @@ from typing import Optional
 import pandas as pd
 
 # ── Path setup ────────────────────────────────────────────────────────────────
-_AUTO_TRAIN_DIR = Path(__file__).resolve().parents[3]   # auto_train_models/
+_AUTO_TRAIN_DIR = Path(__file__).resolve().parents[2]   # auto_train_models/
 _ROOT_DIR       = _AUTO_TRAIN_DIR.parent                # LSTMLB/
 _DATA_DIR       = _ROOT_DIR / "data"
 
@@ -43,17 +43,37 @@ from value_determination.config import Config, logger, CURRENT_YEAR
 PROJECTIONS_DIR = Config.Paths.PROJECTIONS_DIR
 
 # Core prediction functions
+from core.causal_kalman_projections import (
+    causal_kalman_batter_projections,
+    causal_kalman_pitcher_projections,
+)
 from core.data_processing import calculate_rate_stats, generate_batter_names, generate_pitcher_names
 from core.marcel_projections import (
     marcel_fielding_projections,
     marcel_baserunning_projections,
-    marcel_batter_projections,
-    marcel_pitcher_projections,
 )
 from core.position_profiles import build_position_profiles, load_batting_for_games
 
 # Model configs
 from models.model_registry import ModelFactory
+
+_RAW_DF_CACHE: dict[str, tuple[pd.DataFrame, pd.DataFrame]] = {}
+_BATTING_GAMES_CACHE: Optional[pd.DataFrame] = None
+
+
+def _get_cached_dataset(data_path: Path, kind: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    key = f"{kind}:{data_path}"
+    if key not in _RAW_DF_CACHE:
+        raw_df = pd.read_csv(data_path, low_memory=False)
+        raw_df = calculate_rate_stats(raw_df)
+        if kind == "batter":
+            names = generate_batter_names(raw_df)
+        elif kind == "pitcher":
+            names = generate_pitcher_names(raw_df)
+        else:
+            names = pd.DataFrame(raw_df[["Name", "IDfg"]].drop_duplicates()).sort_values("Name")
+        _RAW_DF_CACHE[key] = (raw_df, names)
+    return _RAW_DF_CACHE[key]
 
 def _resolve_data_path(config_data_file: str) -> Path:
     """Resolve a config's relative DATA_FILE path to an absolute Path."""
@@ -87,7 +107,7 @@ def _generate_batter_predictions(
     cutoff_year: int,
     out_dir: Path,
 ) -> Optional[pd.DataFrame]:
-    """Generate batter predictions using Marcel projections."""
+    """Generate batter predictions using Causal Kalman (2018+) / Marcel (<2018)."""
 
     config = ModelFactory.get_config("batter")
     
@@ -97,11 +117,9 @@ def _generate_batter_predictions(
     else:
         data_path = _resolve_data_path(config.DATA_FILE)
 
-    raw_df = pd.read_csv(data_path)
-    raw_df = calculate_rate_stats(raw_df)
-    player_names = generate_batter_names(raw_df)
+    raw_df, player_names = _get_cached_dataset(data_path, "batter")
 
-    predictions = marcel_batter_projections(
+    predictions = causal_kalman_batter_projections(
         raw_df=raw_df,
         player_names=player_names,
         future_years=Config.History.PROJECTION_HORIZON,
@@ -110,13 +128,13 @@ def _generate_batter_predictions(
     )
 
     if predictions is None:
-        logger.error(f"  batter cutoff={cutoff_year}: marcel_batter_projections returned None")
+        logger.error(f"  batter cutoff={cutoff_year}: causal_kalman_batter_projections returned None")
         return None
 
     out_path = out_dir / "batter_predictions.csv"
     predictions.to_csv(out_path, index=False)
     logger.info(
-        f"  batter cutoff={cutoff_year} [marcel]: {len(predictions)} rows, "
+        f"  batter cutoff={cutoff_year} [causal-kalman]: {len(predictions)} rows, "
         f"{predictions['Name'].nunique()} players → {out_path.name}"
     )
     return predictions
@@ -130,17 +148,14 @@ def _generate_pitcher_predictions(
     cutoff_year: int,
     out_dir: Path,
 ) -> Optional[pd.DataFrame]:
-    """Generate pitcher predictions using Marcel projections."""
+    """Generate pitcher predictions using Causal Kalman (2018+) / Marcel (<2018)."""
 
     sp_config = ModelFactory.get_config("pitcher_sp")
 
     data_path = _resolve_data_path(sp_config.DATA_FILE)
-    raw_df = pd.read_csv(data_path)
-    raw_df = calculate_rate_stats(raw_df)
+    raw_df, player_names = _get_cached_dataset(data_path, "pitcher")
 
-    player_names = generate_pitcher_names(raw_df)
-
-    predictions = marcel_pitcher_projections(
+    predictions = causal_kalman_pitcher_projections(
         raw_df=raw_df,
         player_names=player_names,
         future_years=Config.History.PROJECTION_HORIZON,
@@ -148,13 +163,13 @@ def _generate_pitcher_predictions(
     )
 
     if predictions is None:
-        logger.error(f"  pitcher cutoff={cutoff_year}: marcel_pitcher_projections returned None")
+        logger.error(f"  pitcher cutoff={cutoff_year}: causal_kalman_pitcher_projections returned None")
         return None
 
     out_path = out_dir / "pitcher_predictions.csv"
     predictions.to_csv(out_path, index=False)
     logger.info(
-        f"  pitcher cutoff={cutoff_year} [marcel]: {len(predictions)} rows, "
+        f"  pitcher cutoff={cutoff_year} [causal-kalman]: {len(predictions)} rows, "
         f"{predictions['Name'].nunique()} players → {out_path.name}"
     )
     return predictions
@@ -169,15 +184,11 @@ def _generate_fielding_predictions(
     out_dir: Path,
 ) -> Optional[pd.DataFrame]:
     """Generate fielding predictions with Marcel projections."""
+    global _BATTING_GAMES_CACHE
 
     config = ModelFactory.get_config("defense_infield")
     data_path = _resolve_data_path(config.DATA_FILE)
-    raw_df = pd.read_csv(data_path)
-    raw_df = calculate_rate_stats(raw_df)
-
-    player_names = pd.DataFrame(
-        raw_df[["Name", "IDfg"]].drop_duplicates()
-    ).sort_values("Name")
+    raw_df, player_names = _get_cached_dataset(data_path, "fielding")
 
     position_group_map = {
         "C": "catcher",
@@ -195,10 +206,11 @@ def _generate_fielding_predictions(
     }
 
     # Build position profiles
-    batting_for_games = load_batting_for_games()
+    if _BATTING_GAMES_CACHE is None:
+        _BATTING_GAMES_CACHE = load_batting_for_games()
     all_player_ids = raw_df["IDfg"].unique().tolist()
     profiles = build_position_profiles(
-        raw_df, batting_for_games, all_player_ids, cutoff_year=cutoff_year,
+        raw_df, _BATTING_GAMES_CACHE, all_player_ids, cutoff_year=cutoff_year,
     )
 
     predictions = marcel_fielding_projections(
@@ -241,10 +253,7 @@ def _generate_baserunning_predictions(
 
     cfg = ModelFactory.get_config("baserunning")
     data_path = _resolve_data_path(cfg.DATA_FILE)
-    raw_df = pd.read_csv(data_path)
-    raw_df = calculate_rate_stats(raw_df)
-
-    player_names = generate_batter_names(raw_df)
+    raw_df, player_names = _get_cached_dataset(data_path, "baserunning")
 
     predictions = marcel_baserunning_projections(
         raw_df=raw_df,

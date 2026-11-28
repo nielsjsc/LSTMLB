@@ -556,8 +556,8 @@ def build_ros_blended_history_snapshots(
         )
 
     return (
-        _overlay_current_year_rows(raw_batter_history, batter_overlay, current_year),
-        _overlay_current_year_rows(raw_pitcher_history, pitcher_overlay, current_year),
+        raw_batter_history,
+        raw_pitcher_history,
         _overlay_current_year_rows(raw_fielding_history, fielding_overlay, current_year)
             if not fielding_overlay.empty else pd.DataFrame(),
     )
@@ -997,32 +997,6 @@ def blend_pitcher_projections(
                 }
                 continue
 
-            # ── Marcel-consistent blend weight ───────────────────────────
-            w = _marcel_blend_weight(actual_ip, full_ip)
-
-            # ── Blend 8 base components ──────────────────────────────────
-            for stat in PITCHER_MARCEL_RATE_STATS:
-                if stat not in actual.index or stat not in df.columns:
-                    continue
-                act_val = _safe_float(actual[stat])
-                pre_val = _safe_float(pred_row[stat])
-                if act_val is None or pre_val is None:
-                    continue
-                df.at[idx, stat] = w * act_val + (1.0 - w) * pre_val
-
-            # ── Blend auxiliary Phase 2b features ───────────────────────
-            p_aux = _PITCHER_AUX_FEATURES - _PITCHER_DERIVED_STATS
-            for feat in p_aux:
-                if feat not in actual.index or feat not in df.columns:
-                    continue
-                act_val = _safe_float(actual[feat])
-                pre_val = _safe_float(pred_row.get(feat))
-                if act_val is None or pre_val is None:
-                    continue
-                df.at[idx, feat] = w * act_val + (1.0 - w) * pre_val
-
-            blended_indices.append(idx)
-
             if not use_team_remaining:
                 remaining_frac = max(0.0, 1.0 - actual_ip / full_ip)
 
@@ -1032,52 +1006,9 @@ def blend_pitcher_projections(
             }
             blended_count += 1
 
-        # ── Reconstruct derived pitcher stats from blended components ────
-        if blended_indices:
-            for idx in blended_indices:
-                row = df.loc[idx]
-
-                k_pct   = _safe_float(row.get('K%',    0.22)) or 0.22
-                bb_pct  = _safe_float(row.get('BB%',   0.08)) or 0.08
-                hbp_pct = _safe_float(row.get('HBP%',  0.01)) or 0.01
-                babip   = _safe_float(row.get('BABIP',  0.29)) or 0.29
-                hr_fb   = _safe_float(row.get('HR/FB',  0.11)) or 0.11
-                gb_pct  = _safe_float(row.get('GB%',    0.43)) or 0.43
-                fb_pct  = _safe_float(row.get('FB%',    0.35)) or 0.35
-                ld_pct  = _safe_float(row.get('LD%',    0.22)) or 0.22
-
-                # Normalize batted-ball rates to sum to 1.0
-                bb_total = gb_pct + fb_pct + ld_pct
-                if bb_total > 0 and abs(bb_total - 1.0) > 0.01:
-                    gb_pct /= bb_total
-                    fb_pct /= bb_total
-                    ld_pct /= bb_total
-                    df.at[idx, 'GB%'] = gb_pct
-                    df.at[idx, 'FB%'] = fb_pct
-                    df.at[idx, 'LD%'] = ld_pct
-
-                bip_rate  = max(1.0 - k_pct - bb_pct - hbp_pct, 0.20)
-                hr_pct    = hr_fb * fb_pct * bip_rate
-                bf_per_ip = _derive_bf_per_ip(k_pct, bb_pct, hbp_pct, hr_pct, babip)
-
-                fip = _reconstruct_fip(k_pct, bb_pct, hbp_pct, hr_fb, fb_pct, bf_per_ip)
-                df.at[idx, 'FIP'] = fip
-
-                # Preserve the preseason ERA-FIP gap (pitcher-specific tendency)
-                pre_era = _safe_float(row.get('ERA'))
-                pre_fip = _safe_float(row.get('FIP'))
-                era_fip_gap = (pre_era - pre_fip) if (pre_era is not None and pre_fip is not None) else 0.0
-                df.at[idx, 'ERA'] = float(np.clip(fip + era_fip_gap, 0.5, 10.0))
-
-                df.at[idx, 'SIERA'] = _reconstruct_siera(k_pct, bb_pct, gb_pct)
-                df.at[idx, 'K/9']   = float(np.clip(k_pct   * bf_per_ip * 9.0 / 3.0, 0.0, 20.0))
-                df.at[idx, 'BB/9']  = float(np.clip(bb_pct  * bf_per_ip * 9.0 / 3.0, 0.0, 10.0))
-                df.at[idx, 'HR/9']  = float(np.clip(hr_pct  * bf_per_ip * 9.0 / 3.0, 0.0,  5.0))
-
     logger.info(
-        f"Blended {blended_count} current-year pitcher projections "
-        f"(Marcel-weighted 8 base components → reconstruct FIP/ERA/SIERA; "
-        f"min_IP={MIN_PITCHER_IP})"
+        f"Computed WAR proration for {blended_count} current-year pitchers "
+        f"(rate-stat blending delegated to Marcel year_offset=0; min_IP={MIN_PITCHER_IP})"
     )
     return sp_df, rp_df, war_proration
 

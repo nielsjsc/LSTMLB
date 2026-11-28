@@ -236,6 +236,7 @@ def _load_clean_2team_trades(
                                 "role": role,
                                 "wars": wars,
                                 "sals": sals,
+                                "rem_frac": rem_frac,
                                 "base_mc_tv": float(srow.get("trade_value", 0.0) or 0.0),
                             })
                             continue
@@ -285,19 +286,43 @@ def _load_clean_2team_trades(
     return clean_trades
 
 
+def _worp_single_year_prod(
+    w: float,
+    yr: int,
+    role: str,
+    rate: float,
+    beta: float,
+    infl: float,
+    base_yr: int,
+    sf: float = 1.0,
+) -> float:
+    """Single-season WORP production value matching Config.Market.calculate_production_value."""
+    if w <= 0.0 or sf <= 1e-6:
+        return 0.0
+    w_slot = Config.Market.roster_hurdle(role, pt_share=1.0) * sf
+    s_min = Config.Market.min_salary_for_year(yr) * sf
+    if w <= w_slot:
+        return float(s_min * (w / max(w_slot, 1e-6)))
+    ifac = (1.0 + infl) ** (yr - base_yr)
+    full_excess = (w - w_slot) / sf
+    return float(s_min + sf * rate * (full_excess ** beta) * ifac)
+
+
 def evaluate_parameters(
     params: np.ndarray,
     fa_records: list[dict],
     trades: list[dict],
 ) -> dict:
-    """Evaluate FA surplus medians and trade package imbalance for a parameter vector."""
+    """Evaluate FA surplus medians and trade package imbalance for a WORP parameter vector."""
     r_bat, r_sp, r_rp, beta, disc, gamma, p_scale = params
     rates = {"Batter": r_bat * 1e6, "SP": r_sp * 1e6, "RP": r_rp * 1e6}
     infl = Config.Market.INFLATION_RATE
     base_yr = Config.Market.BASE_YEAR
 
-    # 1. FA Signing Surplus by Role
+    # 1. FA Signing Surplus by Role & WAR Tier
     fa_surplus_by_role: dict[str, list[float]] = {"Batter": [], "SP": [], "RP": []}
+    fa_low_tier: list[float] = []
+    fa_high_tier: list[float] = []
     for rec in fa_records:
         rate = rates[rec["role"]]
         npv_prod = 0.0
@@ -305,10 +330,16 @@ def evaluate_parameters(
         for t, w in enumerate(rec["wars"]):
             yr = rec["sign_season"] + t
             dfac = (1.0 + disc) ** -t
-            ifac = (1.0 + infl) ** (yr - base_yr)
-            npv_prod += dfac * rate * (w ** beta) * ifac
+            prod = _worp_single_year_prod(w, yr, rec["role"], rate, beta, infl, base_yr, sf=1.0)
+            npv_prod += dfac * prod
             npv_cost += dfac * rec["aav"]
-        fa_surplus_by_role[rec["role"]].append((npv_prod - npv_cost) / 1e6)
+        surp_m = (npv_prod - npv_cost) / 1e6
+        fa_surplus_by_role[rec["role"]].append(surp_m)
+        avg_w = float(np.mean(rec["wars"])) if rec["wars"] else 0.0
+        if avg_w < 2.0:
+            fa_low_tier.append(surp_m)
+        else:
+            fa_high_tier.append(surp_m)
 
     # 2. Trade Imbalance
     rel_imbalances = []
@@ -319,16 +350,16 @@ def evaluate_parameters(
             asset_vals = []
             for a in side:
                 if a["kind"] == "prospect":
-                    # Adjust prospect ETA discount to candidate disc vs default 0.09
                     asset_vals.append(a["base_prospect_val"] * p_scale)
                 else:
                     rate = rates[a["role"]]
                     npv_s = 0.0
+                    rem_f = float(a.get("rem_frac", 1.0))
                     for t, (w, sal) in enumerate(zip(a["wars"], a["sals"])):
                         yr = a["year"] + t
                         dfac = (1.0 + disc) ** -t
-                        ifac = (1.0 + infl) ** (yr - base_yr)
-                        prod = rate * (w ** beta) * ifac if w > 0 else 0.0
+                        sf_t = rem_f if t == 0 else 1.0
+                        prod = _worp_single_year_prod(w, yr, a["role"], rate, beta, infl, base_yr, sf=sf_t)
                         npv_s += dfac * (prod - sal)
                     asset_vals.append(npv_s)
             side_vals.append(_consolidate(asset_vals, gamma))
@@ -344,6 +375,8 @@ def evaluate_parameters(
 
     return {
         "fa_medians_m": {k: float(np.median(v)) if v else 0.0 for k, v in fa_surplus_by_role.items()},
+        "fa_low_med_m": float(np.median(fa_low_tier)) if fa_low_tier else 0.0,
+        "fa_high_med_m": float(np.median(fa_high_tier)) if fa_high_tier else 0.0,
         "fa_all_median_m": float(np.median([x for v in fa_surplus_by_role.values() for x in v])) if fa_records else 0.0,
         "median_rel_imbalance": float(np.median(rel_imbalances)) if rel_imbalances else 1.0,
         "mean_rel_imbalance": float(np.mean(rel_imbalances)) if rel_imbalances else 1.0,
@@ -381,16 +414,17 @@ def run_calibration() -> dict:
     logger.info("Trade split: %d train (2018–2023), %d holdout (2024–2026)", len(train_trades), len(holdout_trades))
 
     # Bounds: (r_bat [$M], r_sp [$M], r_rp [$M], beta, disc, gamma, prospect_scale)
+    # Note: Under WORP, r_* prices marginal WAR above W_slot (0.55 Batter/SP, 0.35 RP)
     bounds = [
-        (8.0, 10.8),   # rate_batter ($M)
-        (8.8, 11.8),   # rate_sp ($M)
-        (7.2, 10.0),   # rate_rp ($M)
-        (1.08, 1.18),  # war_beta
+        (9.0, 14.0),   # rate_batter ($M)
+        (9.5, 14.8),   # rate_sp ($M)
+        (8.5, 13.5),   # rate_rp ($M)
+        (1.06, 1.20),  # war_beta
         (0.08, 0.11),  # discount_rate
         (1.20, 1.80),  # package_gamma
         (0.55, 1.45),  # prospect_scale
     ]
-    x0 = np.array([9.2, 10.2, 8.6, 1.12, 0.09, 1.40, 1.00])
+    x0 = np.array([11.2, 12.0, 10.4, 1.12, 0.09, 1.40, 1.00])
 
     def _loss(x: np.ndarray) -> float:
         # Enforce box bounds smoothly
@@ -400,10 +434,14 @@ def run_calibration() -> dict:
 
         metrics = evaluate_parameters(x, fa_records, train_trades)
 
-        # Target median FA surplus near -$1.5M per role (mild winner's curse)
+        # Target median FA surplus near -$1.5M per role & across WAR tiers (mild winner's curse)
         fa_loss = 0.0
         for role_med in metrics["fa_medians_m"].values():
             fa_loss += ((role_med - (-1.5)) / 4.0) ** 2
+        tier_loss = (
+            ((metrics["fa_low_med_m"] - (-1.5)) / 4.0) ** 2
+            + ((metrics["fa_high_med_m"] - (-1.5)) / 6.0) ** 2
+        )
 
         # Preserve empirically established SP >= Batter >= RP ordering
         order_pen = 0.0
@@ -412,12 +450,12 @@ def run_calibration() -> dict:
         if x[0] < x[2]:
             order_pen += (x[2] - x[0]) ** 2 * 5.0
 
-        # Primary trade-fit loss: median + 0.5 * mean relative package imbalance on train trades
+        # Primary trade-fit loss: median + 0.35 * mean relative package imbalance on train trades
         trade_loss = metrics["median_rel_imbalance"] + 0.35 * metrics["mean_rel_imbalance"]
 
         # Regularization toward sensible discount_rate ~0.09 and beta ~1.12
         reg = 0.05 * ((x[4] - 0.09) / 0.02) ** 2 + 0.03 * ((x[3] - 1.12) / 0.04) ** 2
-        return float(trade_loss + 0.08 * fa_loss + order_pen + reg)
+        return float(trade_loss + 0.08 * fa_loss + 0.04 * tier_loss + order_pen + reg)
 
     res = minimize(_loss, x0, method="Powell", bounds=bounds, options={"maxiter": 600, "ftol": 1e-4})
     best_x = np.clip(res.x, [b[0] for b in bounds], [b[1] for b in bounds])

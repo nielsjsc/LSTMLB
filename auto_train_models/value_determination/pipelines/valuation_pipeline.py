@@ -278,7 +278,9 @@ def run_valuation_pipeline(
     year_chunks = []
     for proj_year in sorted(combined_pitcher["Year"].unique()):
         chunk = combined_pitcher[combined_pitcher["Year"] == proj_year].copy()
-        chunk = estimate_playing_time(chunk, int(proj_year), anchor_year=CURRENT_YEAR)
+        chunk = estimate_playing_time(
+            chunk, int(proj_year), anchor_year=CURRENT_YEAR, include_anchor_season=is_ros
+        )
         year_chunks.append(chunk)
     combined_pitcher = pd.concat(year_chunks, ignore_index=True)
 
@@ -319,6 +321,27 @@ def run_valuation_pipeline(
         if pitchers_to_remove:
             batter_data = batter_data[~batter_data["IDfg"].isin(pitchers_to_remove)].copy()
 
+        # Symmetrically remove primary batters who only pitched mop-up blowout innings (<15 IP, 0 GS)
+        remaining_two_way = (set(sp_data["IDfg"].unique()) | set(rp_data["IDfg"].unique())) & set(batter_data["IDfg"].unique())
+        if remaining_two_way and Config.Paths.HISTORIC_PITCHING_FILE.exists():
+            hist_pit_tw = pd.read_csv(
+                Config.Paths.HISTORIC_PITCHING_FILE,
+                usecols=["IDfg", "Season", "IP", "GS"],
+                low_memory=False,
+            )
+            hist_pit_tw = hist_pit_tw[hist_pit_tw["Season"] <= CURRENT_YEAR]
+            mopup_batters = set()
+            for tw_id in remaining_two_way:
+                sub_p = hist_pit_tw[hist_pit_tw["IDfg"] == tw_id]
+                max_ip = float(pd.to_numeric(sub_p["IP"], errors="coerce").max() or 0.0) if not sub_p.empty else 0.0
+                max_gs = float(pd.to_numeric(sub_p["GS"], errors="coerce").max() or 0.0) if not sub_p.empty else 0.0
+                if max_ip < 15.0 and max_gs < 1.0:
+                    mopup_batters.add(int(tw_id))
+            if mopup_batters:
+                sp_data = sp_data[~sp_data["IDfg"].isin(mopup_batters)].copy()
+                rp_data = rp_data[~rp_data["IDfg"].isin(mopup_batters)].copy()
+                logger.info("Removed %d mop-up position players from pitcher projections", len(mopup_batters))
+
     # ── Step 3: Batter playing time, spectrum drift, & WAR ───────────────────
     batter_data = batter_data.merge(org_data, on="IDfg", how="left", suffixes=("", "_org"))
     batter_data = _apply_park_factors_to_batter_predictions(batter_data)
@@ -338,11 +361,12 @@ def run_valuation_pipeline(
     pos_counts = Counter(get_display_position(position_profiles.get(pid)) for pid in batter_ids)
     logger.info("Position distribution: %s", dict(pos_counts.most_common()))
 
-    # Estimate individualized batter PA & G (replacing fixed 650 PA / 150 G)
+    # Estimate individualized batter PA & G (skill- & usage-earned)
     batter_data = estimate_batter_playing_time(
         batter_data,
         anchor_year=CURRENT_YEAR,
         position_profiles=position_profiles,
+        include_anchor_season=is_ros,
     )
 
     if is_ros:

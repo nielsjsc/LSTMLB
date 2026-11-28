@@ -171,6 +171,107 @@ def test_generated_datasets_invariants():
     assert overlap == set(), f"Found MLB/Prospect overlap IDs: {overlap}"
 
 
+def test_martingale_no_vega_bias_on_low_or_negative_war():
+    """Martingale + WORP must never manufacture millions of trade value out of 0/negative WAR."""
+    rows = []
+    for yr in range(2026, 2031):
+        # Player 100: -0.3 WAR/yr Pre-Arb 27yo unpedigreed depth
+        rows.append({
+            "IDfg": 999100, "Name": "NegWarDepth", "Team": "SEA", "Year": yr, "Age": 27 + (yr - 2026),
+            "player_role": "Batter", "Normalized_Status": "Pre-Arb" if yr < 2029 else "Arb-1",
+            "WAR": -0.3, "PA": 180, "Payroll": np.nan,
+            "salary_cost": 780_000, "production_value": 0.0, "annual_surplus": -780_000,
+        })
+        # Player 101: +0.15 WAR/yr mop-up Pre-Arb 26yo unpedigreed RP (below 0.35 WORP hurdle)
+        rows.append({
+            "IDfg": 999101, "Name": "MopUpRP", "Team": "SEA", "Year": yr, "Age": 26 + (yr - 2026),
+            "player_role": "RP", "Normalized_Status": "Pre-Arb" if yr < 2029 else "Arb-1",
+            "WAR": 0.15, "IP": 30, "Payroll": np.nan,
+            "salary_cost": 780_000, "production_value": 330_000, "annual_surplus": -450_000,
+        })
+    res = _make_timeline(rows)
+    assert math.isclose(res.loc[999100, "trade_value"], 0.0, abs_tol=1.0), (
+        f"Negative-WAR Pre-Arb player had non-zero trade_value: {res.loc[999100, 'trade_value']}"
+    )
+    assert 0.0 <= res.loc[999101, "trade_value"] <= 1_500_000.0, (
+        f"0.15-WAR mop-up RP had inflated trade_value: {res.loc[999101, 'trade_value']}"
+    )
+
+
+def test_v3_low_end_two_way_and_mariners_invariants():
+    """Verify V3 low-end discipline, zero fake mop-up two-way players, and Mariners ordering."""
+    from core.id_crosswalk import load_recent_prospect_info
+
+    pv_path = Config.Paths.OUTPUT_DIR / "player_values_complete.csv"
+    pv = pd.read_csv(pv_path, low_memory=False)
+    cur = pv[pv["year"] == 2026].copy()
+
+    # 1. Zero mop-up position-player reliever hybrids (RP/C, RP/1B, RP/RF, etc.)
+    pos_series = cur["position"].fillna("").astype(str)
+    fake_tw = cur[
+        pos_series.str.contains("RP/", regex=False)
+        | pos_series.str.contains("/RP", regex=False)
+    ]
+    assert fake_tw.empty, (
+        f"Found fake mop-up two-way RP hybrids: {fake_tw[['player_name', 'team', 'position']].to_dict('records')}"
+    )
+
+    # 2. Low-end discipline across all 30 teams (excluding pedigreed recent FV>=45/Top-100 rookies)
+    recent_pros = load_recent_prospect_info(as_of_year=2026, recency_years=Config.Prospects.RECENCY_YEARS)
+    pedigreed_fg = {
+        fg for fg, info in recent_pros.items()
+        if float(info.get("fv") or 0.0) >= 45.0 or pd.notna(info.get("top_100"))
+    }
+    valued = cur.dropna(subset=["trade_value"]).copy()
+    unped_low = valued[
+        (~valued["fg_id"].isin(pedigreed_fg))
+        & (valued["avg_war"] <= 0.45)
+        & (valued["years_control"] >= 1.0)
+    ]
+    over_3_5m = unped_low[unped_low["trade_value"] > 3_500_000]
+    assert over_3_5m.empty, (
+        f"Unpedigreed <=0.45 avg_war players valued >$3.5M:\n"
+        f"{over_3_5m[['player_name', 'team', 'position', 'avg_war', 'control_war', 'trade_value']].to_string()}"
+    )
+
+    neg_prearb = valued[
+        (~valued["fg_id"].isin(pedigreed_fg))
+        & (valued["control_war"] <= 0.0)
+        & (valued["status"] == "Pre-Arb")
+    ]
+    over_0_5m = neg_prearb[neg_prearb["trade_value"] > 500_000]
+    assert over_0_5m.empty, (
+        f"Non-positive WAR Pre-Arb players valued >$0.5M:\n"
+        f"{over_0_5m[['player_name', 'team', 'control_war', 'trade_value']].to_string()}"
+    )
+
+    # 3. Seattle Mariners ordering invariants
+    sea = valued[valued["team"] == "SEA"].set_index("player_name")
+    munoz_tv = float(sea.loc[sea.index.str.contains("Muñoz|Munoz", case=False), "trade_value"].iloc[0])
+    wilcox_rows = sea.loc[sea.index.str.contains("Cole Wilcox", case=False), "trade_value"]
+    wilcox_tv = float(wilcox_rows.iloc[0]) if not wilcox_rows.empty else 0.0
+    assert munoz_tv > wilcox_tv + 6_000_000, f"Expected Muñoz (${munoz_tv/1e6:.1f}M) >> Wilcox (${wilcox_tv/1e6:.1f}M)"
+
+    bliss_rows = sea.loc[sea.index.str.contains("Ryan Bliss", case=False), "trade_value"]
+    bliss_tv = float(bliss_rows.iloc[0]) if not bliss_rows.empty else 0.0
+    kirby_tv = float(sea.loc[sea.index.str.contains("George Kirby", case=False), "trade_value"].iloc[0])
+    gilbert_tv = float(sea.loc[sea.index.str.contains("Logan Gilbert", case=False), "trade_value"].iloc[0])
+    assert kirby_tv > bliss_tv + 5_000_000, f"Expected Kirby (${kirby_tv/1e6:.1f}M) >> Bliss (${bliss_tv/1e6:.1f}M)"
+    assert gilbert_tv > bliss_tv, f"Expected Gilbert (${gilbert_tv/1e6:.1f}M) > Bliss (${bliss_tv/1e6:.1f}M)"
+
+    woo_tv = float(sea.loc[sea.index.str.contains("Bryan Woo", case=False), "trade_value"].iloc[0])
+    evans_rows = sea.loc[sea.index.str.contains("Logan Evans", case=False), "trade_value"]
+    evans_tv = float(evans_rows.iloc[0]) if not evans_rows.empty else 0.0
+    assert woo_tv > evans_tv + 15_000_000, f"Expected Woo (${woo_tv/1e6:.1f}M) >> Evans (${evans_tv/1e6:.1f}M)"
+
+    pereda_rows = cur[cur["player_name"].str.contains("Jhonny Pereda", case=False, na=False)]
+    if not pereda_rows.empty:
+        p_tv = float(pereda_rows["trade_value"].fillna(0.0).iloc[0])
+        p_pos = str(pereda_rows["position"].iloc[0])
+        assert "RP" not in p_pos, f"Jhonny Pereda still classified as pitcher: {p_pos}"
+        assert p_tv <= 1_500_000, f"Jhonny Pereda trade_value still inflated: ${p_tv/1e6:.2f}M"
+
+
 class TestV2ValuationSuite(unittest.TestCase):
     def test_01_player_option_never_increases_club_value(self):
         test_player_option_never_increases_club_value()
@@ -189,6 +290,12 @@ class TestV2ValuationSuite(unittest.TestCase):
 
     def test_06_generated_datasets_invariants(self):
         test_generated_datasets_invariants()
+
+    def test_07_martingale_no_vega_bias_on_low_or_negative_war(self):
+        test_martingale_no_vega_bias_on_low_or_negative_war()
+
+    def test_08_v3_low_end_two_way_and_mariners_invariants(self):
+        test_v3_low_end_two_way_and_mariners_invariants()
 
 
 if __name__ == "__main__":

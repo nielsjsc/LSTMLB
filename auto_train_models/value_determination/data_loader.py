@@ -55,6 +55,7 @@ def load_prediction_files(
 
     if "Season" in pitcher_df.columns and "Year" not in pitcher_df.columns:
         pitcher_df["Year"] = pitcher_df["Season"]
+    pitcher_df = pitcher_df[pitcher_df["Year"] >= CURRENT_YEAR].copy()
     pitcher_df["prediction_year"] = pitcher_df["Year"]
 
     sp_data = pitcher_df[pitcher_df["Role"] == "SP"].copy()
@@ -70,6 +71,12 @@ def load_prediction_files(
     batter_data = pd.read_csv(src_dir / "batter_predictions.csv", low_memory=False)
     baserunning_data = pd.read_csv(src_dir / "baserunning_predictions.csv", low_memory=False)
     fielding_data = pd.read_csv(src_dir / "fielding_predictions.csv", low_memory=False)
+
+    batter_data = batter_data[batter_data["Year"] >= CURRENT_YEAR].copy()
+    if "Year" in baserunning_data.columns:
+        baserunning_data = baserunning_data[baserunning_data["Year"] >= CURRENT_YEAR].copy()
+    if "Year" in fielding_data.columns:
+        fielding_data = fielding_data[fielding_data["Year"] >= CURRENT_YEAR].copy()
 
     core_batter_cols = {"Name", "IDfg", "Year", "Age", "wOBA", "BB%", "K%", "AVG", "OBP", "SLG"}
     missing_bat = core_batter_cols - set(batter_data.columns)
@@ -124,7 +131,7 @@ def merge_prediction_data(
     stat_cols = [
         "position_group", "BsR", "Def", "Bat", "G", "PA", "BB%", "K%", "AVG", "OBP", "SLG",
         "wOBA", "wRC+", "HR", "2B", "3B", "RBI", "R", "SB", "CS", "HBP", "SF",
-        "ERA", "FIP", "SIERA", "IP", "GS", "Role",
+        "ERA", "FIP", "SIERA", "IP", "GS", "Role", "gmLI",
     ]
     all_cols = set(required_cols + stat_cols)
 

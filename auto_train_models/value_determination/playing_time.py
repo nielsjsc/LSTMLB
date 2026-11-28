@@ -33,8 +33,10 @@ logger = logging.getLogger(__name__)
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 _ROOT = Path(__file__).resolve().parent.parent.parent
-_HIST_PITCHING = _ROOT / "data" / "historic_mlb" / "mlb_pitching_data_1950_2025.csv"
-_HIST_BATTING = _ROOT / "data" / "historic_mlb" / "mlb_batting_data_1950_2025.csv"
+_HIST_PITCHING_SC = _ROOT / "data" / "historic_mlb" / "mlb_pitching_data_1950_2025_with_statcast.csv"
+_HIST_BATTING_SC = _ROOT / "data" / "historic_mlb" / "mlb_batting_data_1950_2025_with_statcast.csv"
+_HIST_PITCHING = _HIST_PITCHING_SC if _HIST_PITCHING_SC.exists() else (_ROOT / "data" / "historic_mlb" / "mlb_pitching_data_1950_2025.csv")
+_HIST_BATTING = _HIST_BATTING_SC if _HIST_BATTING_SC.exists() else (_ROOT / "data" / "historic_mlb" / "mlb_batting_data_1950_2025.csv")
 _INJURY_CSV = _ROOT / "data" / "injury" / "fangraphs_injury_data.csv"
 
 # ── Season length ────────────────────────────────────────────────────────────
@@ -43,9 +45,10 @@ GAMES_162_SEASON = 162
 SEASON_2020_GAMES = 60
 
 # ── Pitcher IP ceiling parameters ────────────────────────────────────────────
-MIN_SP_CEILING = 105.0
+MIN_SP_CEILING = 70.0
 MAX_SP_CEILING = 220.0
-DEFAULT_RP_CEILING = 65.0
+MIN_RP_CEILING = 25.0
+DEFAULT_RP_CEILING = 62.0
 MAX_RP_CEILING = 90.0
 MIN_IP_THRESHOLD = 10.0
 MIN_GAMES_FOR_RATE = 3
@@ -70,9 +73,8 @@ RP_IP_PER_G_DECLINE = 0.015
 # ── Batter PA parameters ─────────────────────────────────────────────────────
 FULL_SEASON_PA = 650.0
 CATCHER_MAX_PA = 560.0
-MIN_HEALTHY_BATTER_PA = 380.0
-ROOKIE_PRIOR_PA = 500.0
-MIN_PA_THRESHOLD = 30.0
+MIN_BENCH_BATTER_PA = 75.0
+MIN_PA_THRESHOLD = 5.0
 BATTER_AGE_PIVOT = 30.0
 BATTER_AGE_DECLINE_PER_YEAR = 0.018
 
@@ -83,8 +85,8 @@ RECURRENCE_ADD_1YR = 0.10
 RECURRENCE_ADD_2YR = 0.15
 INJURY_AGE_SLOPE = 0.008
 INJURY_AGE_PIVOT = 28
-MEAN_DAYS_LOST_IF_INJURED_SP = 45.0
-MEAN_DAYS_LOST_IF_INJURED_RP = 35.0
+MEAN_DAYS_LOST_IF_INJURED_SP = 24.0
+MEAN_DAYS_LOST_IF_INJURED_RP = 18.0
 
 MAJOR_SURGERY_RECOVERY: dict[str, int] = {
     "tommy john": 400,
@@ -246,6 +248,23 @@ def _load_historical_pa() -> pd.DataFrame:
     return _hist_bat_cache
 
 
+_season_pace_cache: Optional[dict[int, float]] = None
+
+
+def _get_season_pace_mult(season: int) -> float:
+    """Return `162 / season_games` (>1.0) for shortened or partial seasons (e.g. 2020, mid-season 2026)."""
+    global _season_pace_cache
+    if _season_pace_cache is None:
+        _load_historical_pa()
+        _season_pace_cache = {2020: 162.0 / 60.0}
+        if _hist_bat_cache is not None and not _hist_bat_cache.empty:
+            for yr, grp in _hist_bat_cache[_hist_bat_cache["season"] >= 2018].groupby("season"):
+                q99_g = float(grp["G"].quantile(0.99)) if len(grp) >= 50 else 162.0
+                if 20.0 <= q99_g < 148.0:
+                    _season_pace_cache[int(yr)] = min(3.0, 162.0 / max(q99_g, 20.0))
+    return _season_pace_cache.get(int(season), 1.0)
+
+
 def _get_batter_hist(fg_id: int) -> Optional[pd.DataFrame]:
     if _hist_bat_by_fg is None:
         _load_historical_pa()
@@ -299,72 +318,98 @@ def _estimate_ip_ceiling(
     role: str,
     projection_year: int,
     anchor_year: int,
+    proj_fip: float = 4.14,
+    proj_gmli: float = 1.0,
+    fv: Optional[float] = None,
+    include_anchor_season: bool = False,
 ) -> float:
     """
-    Estimate a pitcher's healthy-season IP ceiling.
-
-    Enforces STARTS_ESCALATION for SPs so unproven starters begin near
-    `max(career_max_GS, 12) + 8` starts (~109 IP for a 0-start rookie) and
-    ramp by +4 GS/yr toward 32 starts rather than jumping straight to 180+ IP.
+    Estimate a pitcher's healthy-season IP ceiling conditioned on historical
+    usage, projected run-prevention skill (`proj_fip`), leverage (`proj_gmli`),
+    and prospect pedigree (`fv`).
     """
     p_hist = _get_pitcher_hist(fg_id)
     yr_offset = max(0, int(projection_year) - int(anchor_year))
+    max_hist_yr = int(anchor_year) if (include_anchor_season and int(projection_year) > int(anchor_year)) else int(anchor_year) - 1
+    has_pedigree = fv is not None and float(fv) >= 45.0
 
     if p_hist is None or p_hist.empty:
         if role == "SP":
-            proj_starts = min(FULL_SEASON_STARTS_SP, 12 + STARTS_ESCALATION + STARTS_ANNUAL_RAMP * yr_offset)
-            return float(np.clip(LG_IP_PER_GS * proj_starts, MIN_SP_CEILING, MAX_SP_CEILING))
+            base_starts = 18 if has_pedigree else 12
+            proj_starts = min(FULL_SEASON_STARTS_SP, base_starts + STARTS_ANNUAL_RAMP * yr_offset)
+            raw_ceil = LG_IP_PER_GS * proj_starts
+            if not has_pedigree and proj_fip > 4.35:
+                raw_ceil *= float(np.clip(1.0 - (proj_fip - 4.35) * 0.60, 0.55, 1.0))
+            return float(np.clip(raw_ceil, MIN_SP_CEILING, MAX_SP_CEILING))
+        if not has_pedigree and proj_fip > 4.20 and proj_gmli < 0.90:
+            return 35.0
         return DEFAULT_RP_CEILING
 
-    # Anchor historical lookup strictly prior to anchor_year so future projection
-    # years can smoothly escalate starts using yr_offset
-    pitcher_all = p_hist[p_hist["season"] < anchor_year]
+    pitcher_all = p_hist[p_hist["season"] <= max_hist_yr]
     career_max_gs = 0
+    career_ip = 0.0
     if not pitcher_all.empty:
-        non_2020 = pitcher_all.copy()
-        # Scale 2020 GS to full-season equivalent for career_max_gs check
-        mask_2020 = non_2020["season"] == 2020
-        if mask_2020.any():
-            non_2020.loc[mask_2020, "GS"] = (non_2020.loc[mask_2020, "GS"] * (162.0 / 60.0)).round()
-        career_max_gs = int(non_2020["GS"].max() or 0)
+        prorated = pitcher_all.copy()
+        pace_s = prorated["season"].map(_get_season_pace_mult)
+        prorated["GS"] = (prorated["GS"] * pace_s).round()
+        career_max_gs = int(min(34, prorated["GS"].max() or 0))
+        career_ip = float(pitcher_all["IP"].sum())
 
     pitcher = pitcher_all[pitcher_all["IP"] >= MIN_IP_THRESHOLD]
 
     if role == "SP":
-        projected_starts = min(
-            FULL_SEASON_STARTS_SP,
-            max(career_max_gs, 12) + STARTS_ESCALATION + STARTS_ANNUAL_RAMP * yr_offset,
-        )
+        # Unpedigreed fringe starters (FIP > 4.40, < 18 career max GS) don't automatically ramp to 32 GS
+        if not has_pedigree and career_max_gs < 18 and proj_fip > 4.40:
+            ramp = 1 if proj_fip <= 4.60 else 0
+            esc = 4 if proj_fip <= 4.60 else 2
+            projected_starts = min(22, max(career_max_gs, 10) + esc + ramp * yr_offset)
+        else:
+            projected_starts = min(
+                FULL_SEASON_STARTS_SP,
+                max(career_max_gs, 12) + STARTS_ESCALATION + STARTS_ANNUAL_RAMP * yr_offset,
+            )
+
         if pitcher.empty:
             ceiling = LG_IP_PER_GS * projected_starts
-            return float(np.clip(ceiling, MIN_SP_CEILING, MAX_SP_CEILING))
-
-        recent = pitcher.head(TRAILING_YEARS)
-        rates, weights = [], []
-        w_idx = 0
-        for _, row in recent.iterrows():
-            gs = row["GS"]
-            g = max(row["G"], 1)
-            if gs < MIN_GAMES_FOR_RATE or gs / g < 0.5:
-                continue
-            rates.append(row["IP"] / gs)
-            weights.append(TRAILING_WEIGHTS[w_idx] if w_idx < len(TRAILING_WEIGHTS) else 0.10)
-            w_idx += 1
-
-        if not rates:
-            ip_per_gs = LG_IP_PER_GS
         else:
-            total_w = sum(weights)
-            ip_per_gs = sum(r * (w / total_w) for r, w in zip(rates, weights))
-            reg = 0.75 if len(rates) == 1 else (0.40 if len(rates) == 2 else 0.05)
-            ip_per_gs = ip_per_gs * (1.0 - reg) + LG_IP_PER_GS * reg
+            recent = pitcher.head(TRAILING_YEARS)
+            rates, weights = [], []
+            w_idx = 0
+            for _, row in recent.iterrows():
+                gs = row["GS"]
+                g = max(row["G"], 1)
+                if gs < MIN_GAMES_FOR_RATE or gs / g < 0.5:
+                    continue
+                rates.append(row["IP"] / gs)
+                weights.append(TRAILING_WEIGHTS[w_idx] if w_idx < len(TRAILING_WEIGHTS) else 0.10)
+                w_idx += 1
 
-        ceiling = ip_per_gs * projected_starts
+            if not rates:
+                ip_per_gs = LG_IP_PER_GS
+            else:
+                total_w = sum(weights)
+                ip_per_gs = sum(r * (w / total_w) for r, w in zip(rates, weights))
+                reg = 0.75 if len(rates) == 1 else (0.40 if len(rates) == 2 else 0.05)
+                ip_per_gs = ip_per_gs * (1.0 - reg) + LG_IP_PER_GS * reg
+
+            ceiling = ip_per_gs * projected_starts
+
+        # Skill modulation for sub-replacement / #6-#7 depth starters
+        if not has_pedigree and career_max_gs < 22 and proj_fip > 4.35:
+            skill_mult = float(np.clip(1.0 - (proj_fip - 4.35) * 0.65, 0.50, 1.0))
+            ceiling *= skill_mult
         return float(np.clip(ceiling, MIN_SP_CEILING, MAX_SP_CEILING))
 
-    # Relief pitcher
+    # Relief pitcher: modulate appearances by trailing MLB workload, leverage, & projected FIP
+    trailing_rp_ip = 0.0
+    if not pitcher_all.empty:
+        rec_rp = pitcher_all.head(2).copy()
+        rec_rp["IP"] = rec_rp["IP"] * rec_rp["season"].map(_get_season_pace_mult)
+        trailing_rp_ip = float(rec_rp["IP"].mean())
+
     if pitcher.empty:
-        return DEFAULT_RP_CEILING
+        base_apps = 56 if (has_pedigree or proj_fip <= 3.90 or proj_gmli >= 1.15) else 34
+        return float(np.clip(LG_IP_PER_G_RP * base_apps, MIN_RP_CEILING, MAX_RP_CEILING))
 
     recent = pitcher.head(TRAILING_YEARS)
     rates, weights = [], []
@@ -388,8 +433,17 @@ def _estimate_ip_ceiling(
     if age > 28:
         ip_per_g *= max(0.70, 1.0 - RP_IP_PER_G_DECLINE * (age - 28))
 
-    ceiling = ip_per_g * FULL_SEASON_APPEARANCES_RP
-    return float(np.clip(ceiling, DEFAULT_RP_CEILING, MAX_RP_CEILING))
+    # High-leverage / proven relievers earn ~60-64 appearances; low-leverage / fringe
+    # shuttle arms (FIP > 4.15, gmLI < 0.90, low career IP) earn ~30-45 appearances
+    if proj_gmli >= 1.20 or proj_fip <= 3.85 or trailing_rp_ip >= 50.0 or has_pedigree:
+        target_apps = FULL_SEASON_APPEARANCES_RP
+    else:
+        skill_factor = float(np.clip(1.0 - (proj_fip - 3.95) * 0.70, 0.45, 0.95))
+        usage_factor = float(np.clip(trailing_rp_ip / 50.0, 0.45, 1.0))
+        target_apps = FULL_SEASON_APPEARANCES_RP * (0.55 * skill_factor + 0.45 * usage_factor)
+
+    ceiling = ip_per_g * target_apps
+    return float(np.clip(ceiling, MIN_RP_CEILING, MAX_RP_CEILING))
 
 
 def _is_major_surgery(injury_text: str) -> Optional[int]:
@@ -602,21 +656,28 @@ def _ip_to_gs_g(ip: float, gs_rate: float, age: float) -> tuple[int, int]:
     return max(0, int(gs)), max(1, int(g))
 
 
+_prospect_by_anchor_cache: dict[int, dict] = {}
+
+
+def _get_prospect_lookup_for_pt(anchor_year: int) -> dict:
+    if anchor_year not in _prospect_by_anchor_cache:
+        try:
+            from core.id_crosswalk import load_recent_prospect_info
+            _prospect_by_anchor_cache[anchor_year] = load_recent_prospect_info(int(anchor_year), recency_years=3)
+        except Exception:
+            _prospect_by_anchor_cache[anchor_year] = {}
+    return _prospect_by_anchor_cache[anchor_year]
+
+
 def estimate_playing_time(
     pitcher_df: pd.DataFrame,
     projection_year: int,
     anchor_year: Optional[int] = None,
+    include_anchor_season: bool = False,
 ) -> pd.DataFrame:
     """
-    Estimate IP, GS, and G for every pitcher row in *pitcher_df*.
-
-    Args:
-        pitcher_df: DataFrame containing ``IDfg`` (or ``fg_id``), ``Age`` (or ``age``),
-            and ``Role`` (or ``player_role``).
-        projection_year: Season year being projected.
-        anchor_year: Snapshot/current year anchoring historical lookups (defaults to
-            ``min(projection_year, 2026)`` so multi-year projections escalate starts
-            smoothly from the anchor year).
+    Estimate IP, GS, and G for every pitcher row in *pitcher_df* conditioned on
+    usage history, injury status, projected FIP/gmLI, and prospect pedigree.
     """
     if pitcher_df.empty:
         return pitcher_df.copy()
@@ -627,6 +688,8 @@ def estimate_playing_time(
     if anchor_year is None:
         from .config import CURRENT_YEAR
         anchor_year = min(int(projection_year), CURRENT_YEAR)
+
+    prospect_lookup = _get_prospect_lookup_for_pt(int(anchor_year))
 
     id_col = "fg_id" if "fg_id" in pitcher_df.columns else "IDfg"
     age_col = "age" if "age" in pitcher_df.columns else "Age"
@@ -644,7 +707,22 @@ def estimate_playing_time(
         role = str(row[role_col]).upper()
         role = "SP" if role == "SP" else "RP"
 
-        ceiling = _estimate_ip_ceiling(fg_id, age, role, int(projection_year), int(anchor_year))
+        proj_fip = float(row["FIP"]) if ("FIP" in row and pd.notna(row["FIP"])) else 4.14
+        proj_gmli = float(row["gmLI"]) if ("gmLI" in row and pd.notna(row["gmLI"])) else 1.0
+        p_info = prospect_lookup.get(fg_id)
+        fv_val = float(p_info["fv"]) if (p_info and p_info.get("fv") is not None) else None
+
+        ceiling = _estimate_ip_ceiling(
+            fg_id,
+            age,
+            role,
+            int(projection_year),
+            int(anchor_year),
+            proj_fip=proj_fip,
+            proj_gmli=proj_gmli,
+            fv=fv_val,
+            include_anchor_season=include_anchor_season,
+        )
 
         il_days = (
             _current_il_days_remaining(
@@ -682,8 +760,48 @@ def estimate_playing_time(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Batter Playing Time (PA & G)
+#  Batter Playing Time (PA & G) — Skill- & Usage-Earned
 # ═══════════════════════════════════════════════════════════════════════════════
+
+_POS_PT_BONUS = {
+    "C": 4.0, "SS": 5.5, "CF": 4.5, "2B": 2.5, "3B": 2.0,
+    "RF": -2.0, "LF": -3.0, "1B": -7.0, "DH": -10.0,
+}
+
+
+def _skill_earned_batter_pa(
+    proj_woba: float,
+    primary_pos: str,
+    age: float,
+    yr_offset: int,
+    fv: Optional[float],
+) -> float:
+    """
+    Map projected offensive skill (`proj_woba`), positional scarcity, and prospect
+    pedigree (`fv`) to earned healthy-season PA.
+    """
+    wrc_approx = 100.0 + ((proj_woba - 0.313) / 1.232) / 0.117 * 100.0
+    pos_bonus = _POS_PT_BONUS.get(primary_pos, 0.0)
+    eff_wrc = wrc_approx + pos_bonus
+
+    # Piecewise-linear skill curve:
+    #   eff_wrc <= 78 -> 105 PA (up-and-down bench / waiver depth)
+    #   eff_wrc == 88 -> 235 PA (backup / utility / weak platoon)
+    #   eff_wrc == 97 -> 430 PA (strong platoon / low-end regular)
+    #   eff_wrc == 106 -> 565 PA (everyday starter)
+    #   eff_wrc >= 118 -> 625 PA (lineup anchor)
+    skill_pa = float(np.interp(
+        eff_wrc,
+        [76.0, 86.0, 96.0, 105.0, 118.0],
+        [100.0, 215.0, 420.0, 560.0, 625.0],
+    ))
+
+    if fv is not None and fv >= 45.0 and age <= 26.0:
+        pedigree_floor = 290.0 + 11.0 * (fv - 45.0) + (38.0 * yr_offset if fv >= 50.0 else 18.0 * yr_offset)
+        skill_pa = max(skill_pa, min(615.0, pedigree_floor))
+
+    return skill_pa
+
 
 def _estimate_single_batter_pa(
     fg_id: int,
@@ -691,58 +809,78 @@ def _estimate_single_batter_pa(
     projection_year: int,
     anchor_year: int,
     primary_pos: str = "",
+    proj_woba: float = 0.313,
+    fv: Optional[float] = None,
+    include_anchor_season: bool = False,
 ) -> float:
     """
-    Estimate healthy-season PA for a batter from trailing 3-year MLB volume,
-    regressed toward ~500 PA for unproven players and adjusted for age + catcher wear.
+    Estimate healthy-season PA for a batter by combining revealed-preference
+    trailing MLB usage with projected skill-earned playing time (`proj_woba` + `fv`).
     """
     b_hist = _get_batter_hist(fg_id)
     yr_offset = max(0, int(projection_year) - int(anchor_year))
+    max_hist_yr = int(anchor_year) if (include_anchor_season and int(projection_year) > int(anchor_year)) else int(anchor_year) - 1
 
+    skill_pa = _skill_earned_batter_pa(proj_woba, primary_pos, age, yr_offset, fv)
+    has_pedigree = fv is not None and float(fv) >= 45.0
+
+    career_pa = 0.0
     if b_hist is None or b_hist.empty:
-        base_pa = ROOKIE_PRIOR_PA + min(80.0, 35.0 * yr_offset)
+        base_pa = skill_pa
     else:
         player = b_hist[
-            (b_hist["season"] < anchor_year)
+            (b_hist["season"] <= max_hist_yr)
             & (b_hist["PA"] >= MIN_PA_THRESHOLD)
         ]
+        career_pa = float(player["PA"].sum()) if not player.empty else 0.0
 
         if player.empty:
-            base_pa = ROOKIE_PRIOR_PA + min(80.0, 35.0 * yr_offset)
+            base_pa = skill_pa
         else:
             recent = player.head(TRAILING_YEARS)
             pas, weights = [], []
             for idx_w, (_, r) in enumerate(recent.iterrows()):
-                pa_val = float(r["PA"])
-                if int(r["season"]) == 2020:
-                    pa_val = min(FULL_SEASON_PA, pa_val * (162.0 / 60.0))
+                pa_val = float(r["PA"]) * _get_season_pace_mult(int(r["season"]))
+                pa_val = min(FULL_SEASON_PA, pa_val)
                 pas.append(pa_val)
                 weights.append(TRAILING_WEIGHTS[idx_w] if idx_w < len(TRAILING_WEIGHTS) else 0.10)
 
             total_w = sum(weights)
             trailing_pa = sum(p * (w / total_w) for p, w in zip(pas, weights))
-
             n_seasons = len(pas)
-            if n_seasons == 1:
-                base_pa = 0.55 * trailing_pa + 0.45 * 520.0
-                if age <= 26:
-                    base_pa = min(600.0, base_pa + 30.0 * yr_offset)
-            elif n_seasons == 2:
-                base_pa = 0.75 * trailing_pa + 0.25 * 540.0
-                if age <= 26:
-                    base_pa = min(615.0, base_pa + 20.0 * yr_offset)
-            else:
-                base_pa = 0.90 * trailing_pa + 0.10 * 560.0
 
-    max_pa = CATCHER_MAX_PA if primary_pos == "C" else FULL_SEASON_PA
-    base_pa = float(np.clip(base_pa, MIN_HEALTHY_BATTER_PA, max_pa))
+            if n_seasons == 1:
+                if has_pedigree and age <= 25.0 and trailing_pa < skill_pa:
+                    base_pa = 0.35 * trailing_pa + 0.65 * skill_pa
+                else:
+                    base_pa = 0.50 * trailing_pa + 0.50 * skill_pa
+                # Unproven <250 career PA rookies ramp into full-time MLB workload over Year 1..2
+                if career_pa < 250.0 and (fv is None or float(fv) < 55.0):
+                    rookie_cap = 390.0 + 0.45 * career_pa + 45.0 * yr_offset
+                    base_pa = min(base_pa, rookie_cap)
+            elif n_seasons == 2:
+                base_pa = 0.60 * trailing_pa + 0.40 * skill_pa
+            else:
+                base_pa = 0.72 * trailing_pa + 0.28 * skill_pa
+
+    # Sub-regular non-prospects gradually lose MLB playing time to roster competition
+    wrc_approx = 100.0 + ((proj_woba - 0.313) / 1.232) / 0.117 * 100.0 + _POS_PT_BONUS.get(primary_pos, 0.0)
+    if not has_pedigree and wrc_approx < 90.0 and yr_offset >= 1:
+        base_pa *= (0.88 ** yr_offset)
+
+    if primary_pos == "C":
+        # Catchers rarely exceed 420-450 PA unless proven multi-year workhorses (e.g. Raleigh/Perez)
+        max_pa = float(np.interp(career_pa + 180.0 * yr_offset, [150.0, 500.0, 1400.0], [400.0, 470.0, CATCHER_MAX_PA]))
+    else:
+        max_pa = FULL_SEASON_PA
+    base_pa = float(np.clip(base_pa, MIN_BENCH_BATTER_PA, max_pa))
 
     # Empirical age-availability curve past age 30
     if age > BATTER_AGE_PIVOT:
-        age_mult = max(0.65, 1.0 - BATTER_AGE_DECLINE_PER_YEAR * (age - BATTER_AGE_PIVOT))
+        age_mult = max(0.60, 1.0 - BATTER_AGE_DECLINE_PER_YEAR * (age - BATTER_AGE_PIVOT))
         base_pa *= age_mult
 
-    return float(np.clip(base_pa, 250.0, max_pa))
+    return float(np.clip(base_pa, 60.0, max_pa))
 
 
 def estimate_batter_playing_time(
@@ -750,13 +888,12 @@ def estimate_batter_playing_time(
     projection_year: Optional[int] = None,
     anchor_year: Optional[int] = None,
     position_profiles: Optional[dict] = None,
+    include_anchor_season: bool = False,
 ) -> pd.DataFrame:
     """
     Estimate individualized PA and G for batter prediction rows, scaling
     per-650-PA counting stats (`HR`, `2B`, `3B`, `RBI`, `R`, `HBP`, `SF`)
     proportionally.
-
-    Can be called on a single year or a multi-year batter DataFrame.
     """
     if batter_df.empty:
         return batter_df.copy()
@@ -768,6 +905,8 @@ def estimate_batter_playing_time(
     if anchor_year is None:
         min_yr = int(batter_df["Year"].min()) if "Year" in batter_df.columns else CURRENT_YEAR
         anchor_year = min(min_yr, CURRENT_YEAR)
+
+    prospect_lookup = _get_prospect_lookup_for_pt(int(anchor_year))
 
     id_col = "fg_id" if "fg_id" in batter_df.columns else "IDfg"
     age_col = "age" if "age" in batter_df.columns else "Age"
@@ -791,12 +930,19 @@ def estimate_batter_playing_time(
             if prof:
                 primary_pos = max(prof, key=prof.get)
 
+        proj_woba = float(row["wOBA"]) if ("wOBA" in row and pd.notna(row["wOBA"])) else 0.313
+        p_info = prospect_lookup.get(fg_id)
+        fv_val = float(p_info["fv"]) if (p_info and p_info.get("fv") is not None) else None
+
         pa_est = _estimate_single_batter_pa(
             fg_id=fg_id,
             age=age,
             projection_year=p_year,
             anchor_year=int(anchor_year),
             primary_pos=primary_pos,
+            proj_woba=proj_woba,
+            fv=fv_val,
+            include_anchor_season=include_anchor_season,
         )
 
         # Check current-IL limitation if batter is out for part/all of p_year

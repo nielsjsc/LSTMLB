@@ -28,15 +28,15 @@ _CALIBRATION_FILE = (
 
 
 def _get_package_gamma() -> float:
-    """Load empirically calibrated package consolidation exponent (default 1.211)."""
+    """Load empirically calibrated package consolidation exponent (default 1.35)."""
     if _CALIBRATION_FILE.exists():
         try:
             with open(_CALIBRATION_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return float(data.get("package_gamma", 1.211))
+            return float(data.get("package_gamma", 1.35))
         except Exception:
             pass
-    return 1.211
+    return 1.35
 
 
 def _consolidate_package(asset_values: List[float], gamma: float) -> Tuple[float, float, float]:

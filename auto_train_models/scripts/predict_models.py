@@ -22,9 +22,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.model_registry import ModelFactory
 from core.data_processing import calculate_rate_stats, generate_batter_names
+from core.causal_kalman_projections import (
+    causal_kalman_batter_projections,
+    causal_kalman_pitcher_projections,
+)
 from core.marcel_projections import (
-    marcel_pitcher_projections,
-    marcel_batter_projections,
     marcel_baserunning_projections,
     marcel_fielding_projections,
     BATTER_BASE_COMPONENTS,
@@ -102,7 +104,7 @@ def generate_pitcher_predictions(
     raw_df = calculate_rate_stats(raw_df)
     player_names = get_pitcher_names(raw_df)
     
-    predictions_df = marcel_pitcher_projections(
+    predictions_df = causal_kalman_pitcher_projections(
         raw_df=raw_df,
         player_names=player_names,
         future_years=15,
@@ -208,7 +210,7 @@ def generate_batter_predictions(
 
     player_names = generate_batter_names(raw_df)
     
-    predictions_df = marcel_batter_projections(
+    predictions_df = causal_kalman_batter_projections(
         raw_df=raw_df,
         player_names=player_names,
         future_years=15,
@@ -431,7 +433,7 @@ def main():
     if args.model_type in ['batter', 'all']:
         generate_batter_predictions(
             output_file=str(output_dir / 'batter_predictions.csv'),
-            cutoff_year=args.batter_cutoff_year,  # None → defaults to CURRENT_YEAR inside
+            cutoff_year=args.batter_cutoff_year if args.batter_cutoff_year is not None else args.cutoff_year,
             roster_ids=roster_ids,
             data_file_path=args.batter_data_file
         )

@@ -188,10 +188,13 @@ class WARConstants:
     DEFENSIVE_SPECTRUM_DRIFT_AGE_PIVOT = 28.0
     DEFENSIVE_SPECTRUM_DRIFT_RUNS_PER_YEAR = -0.8
 
-    # Pitcher environment constants
-    LG_FIP = 4.14
-    LG_RA9 = 4.50
-    REPLACEMENT_LEVEL_RUNS_200IP = 22.0
+    # Pitcher environment constants (calibrated to 0.00 mean bias vs official FanGraphs fWAR:
+    # SP ~0.12 wins/9 IP = 25.5 runs/200 IP; RP ~0.03 wins/9 IP = 9.8 runs/200 IP)
+    LG_FIP = 4.16
+    LG_RA9 = 4.35
+    REPLACEMENT_LEVEL_RUNS_200IP = 25.5
+    REPLACEMENT_LEVEL_RUNS_200IP_SP = 25.5
+    REPLACEMENT_LEVEL_RUNS_200IP_RP = 9.8
     DEFAULT_IP_PER_START = 5.75
     DEFAULT_IP_PER_APPEARANCE_RP = 1.0
     DEFAULT_SP_IP = 175
@@ -264,12 +267,13 @@ class ContractConstants:
     }
 
     # Share of single-season production value paid in each arbitration tier
+    # (Anchored to empirical Spotrac MLB Arb-1..Arb-4 settlements: ~18% / 28% / 42% / 52%)
     ARB_PERCENT = {
-        "Arb-1": 0.20,
-        "Arb-1 (Super 2)": 0.18,
-        "Arb-2": 0.35,
-        "Arb-3": 0.55,
-        "Arb-4": 0.70,
+        "Arb-1": 0.18,
+        "Arb-1 (Super 2)": 0.16,
+        "Arb-2": 0.28,
+        "Arb-3": 0.42,
+        "Arb-4": 0.52,
     }
 
     @classmethod
@@ -302,13 +306,23 @@ class MarketValuation:
 
     BASE_YEAR = 2026
     INFLATION_RATE = 0.04
-    DISCOUNT_RATE = 0.09       # Annual time + roster/health risk discount rate
+    DISCOUNT_RATE = 0.13       # Annual GM contention-window + roster/health risk discount rate
 
-    RATE_BATTER = 9_200_000.0
-    RATE_SP = 10_200_000.0
-    RATE_RP = 8_600_000.0
-    WAR_BETA = 1.12            # Gentle single-season roster-slot convexity
-    PACKAGE_GAMMA = 1.40       # Sub-additive multi-piece package norm exponent
+    RATE_BATTER = 7_500_000.0
+    RATE_SP = 9_600_000.0
+    RATE_RP = 14_800_000.0     # Compressed 60-IP high-leverage closer slot value above 0.44 RP hurdle
+    WAR_BETA = 1.36            # Roster-slot scarcity convexity above W_slot
+    PACKAGE_GAMMA = 1.35       # Sub-additive multi-piece package norm exponent
+
+    # Full 26-man MLB roster-slot waiver hurdle (WORP) on the FanGraphs fWAR scale:
+    # - A waiver #6/#7 SP (4.75 FIP in 150 IP at 25.5 rep runs/200 IP) earns ~0.90 fWAR.
+    # - A waiver utility/corner bat (~87 wRC+) earns ~0.55 fWAR.
+    # - A waiver middle RP (4.05 FIP, 0.90 gmLI in 60 IP at 9.8 rep runs/200 IP) earns ~0.44 fWAR.
+    WORP_HURDLE_FULL = {
+        "Batter": 0.55,
+        "SP": 0.90,
+        "RP": 0.48,
+    }
 
     _calibration_loaded = False
 
@@ -372,20 +386,54 @@ class MarketValuation:
         return cls.RATE_BATTER
 
     @classmethod
+    def roster_hurdle(cls, player_role: str | None, pt_share: float = 1.0) -> float:
+        """Return the full 26-man roster-slot waiver WAR hurdle W_slot (no part-time discount)."""
+        role_upper = str(player_role or "Batter").strip().upper()
+        if role_upper == "RP":
+            return float(cls.WORP_HURDLE_FULL["RP"])
+        if role_upper == "SP":
+            return float(cls.WORP_HURDLE_FULL["SP"])
+        return float(cls.WORP_HURDLE_FULL["Batter"])
+
+    @classmethod
+    def min_salary_for_year(cls, year: int) -> float:
+        yr = int(year)
+        if yr in HistorySettings.HISTORICAL_MIN_SALARY:
+            return float(HistorySettings.HISTORICAL_MIN_SALARY[yr])
+        return float(ContractConstants.MIN_SALARY["Pre-Arb"] * ((1.0 + cls.INFLATION_RATE) ** (yr - cls.BASE_YEAR)))
+
+    @classmethod
     def calculate_production_value(
         cls,
         war: float,
         year: int,
         player_role: str = "Batter",
+        pt_share: float = 1.0,
+        season_fraction: float = 1.0,
         **kwargs,
     ) -> float:
-        """Convert single-season WAR into nominal year-specific production dollars."""
+        """
+        Convert single-season WAR into nominal year-specific production dollars
+        using the continuous Roster-Constrained WORP curve:
+          - For 0 <= W <= W_slot: V = S_min * (W / W_slot)   (0 surplus at S_min)
+          - For W > W_slot:       V = S_min + R * inflation * (W - W_slot)^beta
+        """
         cls.load_calibration()
         if war is None or (isinstance(war, float) and math.isnan(war)) or war <= 0.0:
             return 0.0
+        sf = float(max(0.0, min(1.0, season_fraction)))
+        if sf <= 1e-6:
+            return 0.0
+        w_slot = cls.roster_hurdle(player_role, pt_share=pt_share) * sf
+        s_min = cls.min_salary_for_year(int(year)) * sf
+        w = float(war)
+        if w <= w_slot:
+            return float(s_min * (w / max(w_slot, 1e-6)))
         rate = cls.role_rate(player_role)
         inflation = (1.0 + cls.INFLATION_RATE) ** (int(year) - cls.BASE_YEAR)
-        return float(rate * (float(war) ** cls.WAR_BETA) * inflation)
+        # Scale excess-WAR term homogeneously when season_fraction < 1.0
+        full_excess = (w - w_slot) / sf
+        return float(s_min + sf * rate * (full_excess ** cls.WAR_BETA) * inflation)
 
     # Alias for callers transitioning from MarketValuation.calculate_value
     @classmethod
@@ -435,11 +483,12 @@ class MonteCarloConfig:
     # Year-to-year AR(1) persistence of talent/health shocks
     AR1_RHO = 0.75
 
-    # Annual WAR shock standard deviation (established MLB player)
+    # Annual WAR shock standard deviation (established full-time MLB player;
+    # scaled proportionally to each role's full-season fWAR range)
     SIGMA_ESTABLISHED = {
-        "Batter": 1.25,
-        "SP": 1.35,
-        "RP": 0.85,
+        "Batter": 1.15,
+        "SP": 1.20,
+        "RP": 0.42,
     }
 
     # Unproven call-ups have wider outcome dispersion until stabilized
@@ -466,9 +515,9 @@ class MonteCarloConfig:
     # Career volume below which recent ranked prospects blend smoothly with
     # their pre-debut scouting distribution to prevent MLB-debut value cliffs
     ROOKIE_PROSPECT_BLEND_VOLUME = {
-        "Batter": 150.0,   # Career MLB PA
-        "SP": 40.0,        # Career MLB IP
-        "RP": 25.0,        # Career MLB IP
+        "Batter": 350.0,   # Career MLB PA
+        "SP": 90.0,        # Career MLB IP
+        "RP": 40.0,        # Career MLB IP
     }
 
     # Default buyout cost as a fraction of option salary when buyout is unspecified

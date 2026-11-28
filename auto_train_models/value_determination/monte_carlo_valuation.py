@@ -33,11 +33,77 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+from scipy.special import ndtr
 
 from core.id_crosswalk import load_recent_prospect_info
 from .config import CURRENT_YEAR, Config, logger
 from .dollar_valuation import get_min_salary_for_year
 from .prospect_valuation import compute_single_prospect_valuation
+
+
+def _solve_martingale_location(mu_pos: np.ndarray, sigma: np.ndarray) -> np.ndarray:
+    """
+    Solve `m * Phi(m / sigma) + sigma * phi(m / sigma) = mu_pos` elementwise
+    via 6 vectorized Newton-Raphson iterations so `E[max(m + sigma * Z, 0)] == mu_pos`.
+
+    Eliminates Jensen's-inequality / truncation 'vega bias' on low-WAR and
+    sub-replacement players while leaving high-WAR stars (`mu >> sigma`) unchanged.
+    """
+    s = np.maximum(sigma, 1e-6)
+    zero_mask = mu_pos <= 1e-6
+    q = np.where(zero_mask, 0.0, mu_pos / s)
+
+    u = np.where(
+        q >= 1.2,
+        q,
+        np.clip(np.log(np.maximum(q, 1e-9) / 0.3989422804014327), -8.5, 2.0),
+    )
+    for _ in range(6):
+        Phi = ndtr(u)
+        phi = 0.3989422804014327 * np.exp(-0.5 * u * u)
+        f_val = u * Phi + phi - q
+        u = np.clip(u - f_val / np.maximum(Phi, 1e-12), -10.0, 30.0)
+
+    return np.where(zero_mask, -12.0 * s, u * s)
+
+
+def _truncated_normal_pos_mean(loc: np.ndarray, scale: np.ndarray | float) -> np.ndarray:
+    """Exact analytical expectation `E[max(X, 0)]` for `X ~ N(loc, scale^2)`."""
+    s = np.maximum(scale, 1e-6)
+    u = np.clip(loc / s, -12.0, 30.0)
+    return np.maximum(0.0, loc * ndtr(u) + s * 0.3989422804014327 * np.exp(-0.5 * u * u))
+
+
+def _worp_prod_val(
+    eff_war: np.ndarray,
+    w_slot_full: np.ndarray | float,
+    s_min_full: np.ndarray | float,
+    role_rate: np.ndarray | float,
+    inflation: np.ndarray | float,
+    beta: float,
+    sf: np.ndarray | float = 1.0,
+) -> np.ndarray:
+    """
+    Vectorized Roster-Constrained Production Value (WORP), matching
+    `Config.Market.calculate_production_value`:
+      - w_slot = w_slot_full * sf
+      - s_min  = s_min_full  * sf
+      - For 0 <= W <= w_slot: V = s_min * (W / w_slot)
+      - For W > w_slot:       V = s_min + sf * R * (((W - w_slot) / sf) ** beta) * inflation
+    """
+    sf_arr = np.asarray(sf, dtype=float)
+    sf_safe = np.maximum(sf_arr, 1e-6)
+    w_slot = w_slot_full * sf_safe
+    s_min = s_min_full * sf_safe
+    w_s = np.maximum(w_slot, 1e-6)
+    sub_val = s_min * np.clip(eff_war / w_s, 0.0, 1.0)
+    excess_full = np.maximum(eff_war - w_slot, 0.0) / sf_safe
+    above_val = s_min + sf_safe * role_rate * (excess_full ** beta) * inflation
+    return np.where(
+        sf_arr <= 1e-6,
+        0.0,
+        np.where(eff_war <= w_slot, sub_val, above_val),
+    )
 
 # Status integer codes for fast vectorized branching
 _ST_FA = 0
@@ -324,7 +390,26 @@ def calculate_trade_values(
         base_age = float(grp_sorted["Age"].dropna().iloc[0]) if grp_sorted["Age"].notna().any() else 27.0
         base_age_yr = int(grp_sorted.loc[grp_sorted["Age"].notna(), "Year"].iloc[0]) if grp_sorted["Age"].notna().any() else current_year
 
-        signed_any = False
+        spot_col = "Spotrac_Salary" if "Spotrac_Salary" in yr_index.columns else (
+            "spotrac_salary" if "spotrac_salary" in yr_index.columns else None
+        )
+        has_multi_yr_contract = False
+        for chk_yr in yr_index.index:
+            if chk_yr >= float(fa_yr):
+                continue
+            chk_r = yr_index.loc[chk_yr]
+            chk_st = str(chk_r.get(status_col, "Free Agent") or "Free Agent")
+            chk_code = _STATUS_TO_CODE.get(chk_st, _ST_FA)
+            if chk_code in (_ST_SIGNED, _ST_TEAM_OPT, _ST_PLAYER_OPT, _ST_MUTUAL_OPT):
+                has_multi_yr_contract = True
+                break
+            if chk_yr > current_year and spot_col is not None:
+                sp_v = chk_r.get(spot_col, np.nan)
+                if pd.notna(sp_v) and float(sp_v) > 0:
+                    has_multi_yr_contract = True
+                    break
+
+        signed_any = has_multi_yr_contract
         for t_idx, yr in enumerate(years_grid):
             ages[t_idx] = base_age + (yr - base_age_yr)
             if yr >= float(fa_yr) or yr not in yr_index.index:
@@ -334,6 +419,17 @@ def calculate_trade_values(
             r = yr_index.loc[yr]
             st_str = str(r.get(status_col, "Free Agent") or "Free Agent")
             code = _STATUS_TO_CODE.get(st_str, _ST_SIGNED if pd.notna(r.get(sal_col)) else _ST_FA)
+
+            # Pre-FA extension buyout years: Spotrac labels contracted Pre-Arb/Arb buyout years
+            # as 'Pre-Arb' / 'Arb-1..4' with explicit Spotrac_Salary > 0. Those years are
+            # guaranteed club obligations (not dynamic arb or free non-tender years).
+            spot_v = r.get(spot_col, np.nan) if spot_col is not None else np.nan
+            has_spot_sal = pd.notna(spot_v) and float(spot_v) > 0
+            if code in (_ST_PREARB, _ST_ARB1, _ST_ARB2, _ST_ARB3, _ST_ARB4):
+                if (t_idx >= 1 and has_spot_sal) or (t_idx == 0 and has_multi_yr_contract and has_spot_sal):
+                    code = _ST_SIGNED
+                    signed_any = True
+
             st_codes[t_idx] = code
             if code in (_ST_SIGNED, _ST_TEAM_OPT, _ST_PLAYER_OPT, _ST_MUTUAL_OPT):
                 signed_any = True
@@ -344,22 +440,55 @@ def calculate_trade_values(
             s_val = r.get(sal_col, np.nan)
             f_sal[t_idx] = 0.0 if pd.isna(s_val) else float(s_val)
 
-            # Playing-time share scales random WAR shock amplitude
+            # Playing-time share scales random WAR shock amplitude & roster-slot hurdle
             if role == "Batter":
                 pa_v = r.get("PA", r.get("pa", 600.0))
                 denom = 600.0 * (r_frac if t_idx == 0 else 1.0)
-                pt_sh[t_idx] = float(np.clip((600.0 if pd.isna(pa_v) else float(pa_v)) / max(denom, 60.0), 0.25, 1.0))
+                pt_sh[t_idx] = float(np.clip((600.0 if pd.isna(pa_v) else float(pa_v)) / max(denom, 60.0), 0.15, 1.0))
             elif role == "SP":
                 ip_v = r.get("IP", r.get("ip", 160.0))
                 denom = 160.0 * (r_frac if t_idx == 0 else 1.0)
-                pt_sh[t_idx] = float(np.clip((160.0 if pd.isna(ip_v) else float(ip_v)) / max(denom, 20.0), 0.25, 1.0))
+                pt_sh[t_idx] = float(np.clip((160.0 if pd.isna(ip_v) else float(ip_v)) / max(denom, 20.0), 0.15, 1.0))
             else:
                 ip_v = r.get("IP", r.get("ip", 65.0))
                 denom = 65.0 * (r_frac if t_idx == 0 else 1.0)
-                pt_sh[t_idx] = float(np.clip((65.0 if pd.isna(ip_v) else float(ip_v)) / max(denom, 10.0), 0.30, 1.0))
+                pt_sh[t_idx] = float(np.clip((65.0 if pd.isna(ip_v) else float(ip_v)) / max(denom, 10.0), 0.25, 1.0))
 
         if (st_codes == _ST_FA).all():
             continue
+
+        # Upstream Bayesian scouting prior blend on `mu_war` for young (<25.5yo) pedigreed
+        # Top-100 / FV>=50 rookies with <1 full MLB season (`c_vol < stab_vol`).
+        # Blending `mu_war` BEFORE contract simulation ensures pre-FA rookie extensions
+        # (e.g. Colt Emerson, Roman Anthony, Konnor Griffin, Samuel Basallo) honor BOTH
+        # their elite scouting prior AND their exact guaranteed Spotrac contract obligations.
+        pinfo_up = recent_prospects.get(int(pid))
+        if pinfo_up is not None and base_age <= 25.5:
+            fv_num = float(pinfo_up.get("fv") or 0.0)
+            t100 = pinfo_up.get("top_100")
+            has_elite_pedigree = (fv_num >= 50.0) or pd.notna(t100)
+            s_vol = float(mc_cfg.STABILIZATION_VOLUME[role])
+            if has_elite_pedigree and c_vol < s_vol:
+                eff_fv = fv_num if fv_num >= 45.0 else 50.0
+                # Map scouting FV (45..70) -> prime annual fWAR expectation
+                fv_prime_war = 1.1 + 4.1 * float(np.clip((eff_fv - 45.0) / 25.0, 0.0, 1.0)) ** 1.15
+                if pd.notna(t100) and float(t100) <= 25.0:
+                    fv_prime_war += 0.35 * (1.0 - (float(t100) - 1.0) / 25.0)
+                if role == "RP":
+                    fv_prime_war *= 0.42
+                elif role == "SP":
+                    fv_prime_war *= 0.92
+                w_mlb_up = float(np.clip(c_vol / s_vol, 0.15, 1.0))
+                for t_idx in range(T):
+                    if st_codes[t_idx] == _ST_FA:
+                        continue
+                    age_t = ages[t_idx]
+                    # Ramp in age 20-21, plateau 22-28, decline 29+
+                    age_mult = min(1.0, 0.82 + 0.09 * max(0.0, age_t - 20.0)) if age_t < 22.0 else max(0.25, 1.0 - 0.075 * max(0.0, age_t - 28.5))
+                    scout_w = fv_prime_war * age_mult * (r_frac if t_idx == 0 else 1.0)
+                    mu_w[t_idx] = w_mlb_up * mu_w[t_idx] + (1.0 - w_mlb_up) * scout_w
+                    if t_idx >= 1:
+                        pt_sh[t_idx] = max(pt_sh[t_idx], w_mlb_up * pt_sh[t_idx] + (1.0 - w_mlb_up) * 0.88)
 
         player_ids.append(int(pid))
         player_roles.append(role)
@@ -391,7 +520,21 @@ def calculate_trade_values(
     role_rates = np.array([mkt_cfg.role_rate(r) for r in player_roles])
     base_sigmas = np.array([mc_cfg.SIGMA_ESTABLISHED[r] for r in player_roles])
     stab_vols = np.array([mc_cfg.STABILIZATION_VOLUME[r] for r in player_roles])
-    exp_mult = 1.0 + (mc_cfg.SIGMA_ROOKIE_MULTIPLIER - 1.0) * np.clip(
+
+    # Gate rookie ceiling dispersion by age & scouting pedigree so unpedigreed 26-30yo
+    # call-ups do not manufacture phantom star-upside variance out of low MLB sample size
+    has_pedigree = np.array([
+        (
+            pid in recent_prospects
+            and (
+                float(recent_prospects[pid].get("fv") or 0.0) >= 45.0
+                or pd.notna(recent_prospects[pid].get("top_100"))
+            )
+        )
+        for pid in player_ids
+    ], dtype=bool)
+    upside_gate = np.where(has_pedigree, 1.0, np.clip((26.0 - ages[:, 0]) / 2.5, 0.0, 1.0))
+    exp_mult = 1.0 + upside_gate * (mc_cfg.SIGMA_ROOKIE_MULTIPLIER - 1.0) * np.clip(
         1.0 - np.array(career_vols) / stab_vols, 0.0, 1.0
     )
     player_sigma = base_sigmas * exp_mult    # (N,)
@@ -399,10 +542,10 @@ def calculate_trade_values(
     h_base = np.array([mc_cfg.ATTRITION_BASE_HAZARD[r] for r in player_roles])[:, None]
     h_slope = np.array([mc_cfg.ATTRITION_AGE_SLOPE[r] for r in player_roles])[:, None]
     hazards = np.clip(h_base + h_slope * np.maximum(0.0, ages - mc_cfg.ATTRITION_AGE_PIVOT), 0.0, 0.45)
-    hazards[:, 0] = 0.0  # Current-season IL already reflected in Year-0 playing time
 
-    # Pre-compute year-level inflation & remaining-season-aware discount matrix (N, T)
+    # Pre-compute year-level inflation, WORP minimum salary, & remaining-season-aware discount matrix
     inflation_vec = (1.0 + mkt_cfg.INFLATION_RATE) ** (years_grid - mkt_cfg.BASE_YEAR)
+    s_min_vec = np.array([mkt_cfg.min_salary_for_year(int(y)) for y in years_grid])
     elapsed_tau = np.maximum(0.0, np.arange(T, dtype=float)[None, :] - (1.0 - rem_frac_arr[:, None]))
     discount_mat = (1.0 + mkt_cfg.DISCOUNT_RATE) ** -elapsed_tau
     prearb_min_vec = np.array([get_min_salary_for_year(int(y), "Pre-Arb") for y in years_grid])
@@ -417,7 +560,7 @@ def calculate_trade_values(
         for c in (_ST_ARB1, _ST_ARB2, _ST_ARB3, _ST_ARB4)
     }
 
-    # ── 1. Simulate AR(1) shocks & survival indicators (N, M, T) ────────────
+    # ── 1. Simulate Martingale AR(1) shocks & survival indicators (N, M, T) ──
     eps = rng.standard_normal((N, M, T))
     unif = rng.random((N, M, T))
 
@@ -434,9 +577,32 @@ def calculate_trade_values(
         ref_war[~low_rem, 0] = mu_war[~low_rem, 0] / np.maximum(rem_frac_arr[~low_rem], 0.25)
         pt_full[low_rem, 0] = pt_share[low_rem, 1]
 
-    # Talent-amplitude moderator so 0-WAR replacement players don't invent 4-WAR noise
-    talent_mod = 0.60 + 0.40 * np.clip(ref_war / 2.5, 0.0, 1.0)  # (N, T)
-    sigma_it = player_sigma[:, None] * pt_full * talent_mod      # (N, T)
+    # Full-season 26-man WORP roster-slot hurdle per player-year (N, T) — no part-time discount
+    hurdle_base = np.array([mkt_cfg.WORP_HURDLE_FULL[r] for r in player_roles], dtype=float)[:, None]
+    w_slot_full = np.broadcast_to(hurdle_base, (N, T)).copy()
+
+    # Skill-conditioned 40-man roster churn hazard on non-guaranteed years (t >= 1):
+    # sub-hurdle depth faces high annual DFA / waiver / AAA replacement turnover
+    sub_hurdle_gap = np.clip((w_slot_full - ref_war) / np.maximum(w_slot_full, 0.25), 0.0, 1.0)
+    non_guar_mask = st_codes != _ST_SIGNED
+    hazards = np.where(non_guar_mask, np.clip(hazards + 0.30 * sub_hurdle_gap, 0.0, 0.65), hazards)
+    hazards[:, 0] = 0.0  # Current-season IL already reflected in Year-0 playing time
+
+    # Talent-amplitude moderator (scaled by role's star WAR benchmark) so 0-WAR / middle-depth
+    # players do not invent superstar or elite-closer noise out of symmetric Gaussian shocks
+    star_war_scale = np.array([1.4 if r == "RP" else 2.8 for r in player_roles], dtype=float)[:, None]
+    talent_mod = 0.42 + 0.58 * np.clip(np.maximum(ref_war, 0.0) / star_war_scale, 0.0, 1.0)  # (N, T)
+    sigma_it = player_sigma[:, None] * pt_full * talent_mod                                  # (N, T)
+
+    # Exact marginal variance of the AR(1) shock process z_{i,t} for Martingale conservation
+    s_var = np.zeros((N, T), dtype=float)
+    s_var[:, 0] = sigma_it[:, 0] ** 2
+    for t in range(1, T):
+        s_var[:, t] = (rho * rho) * s_var[:, t - 1] + (1.0 - rho * rho) * (sigma_it[:, t] ** 2)
+    s_marginal = np.sqrt(np.maximum(s_var, 1e-12))
+
+    # Solve Martingale location `m_loc` so E[max(m_loc + z, 0)] == max(ref_war, 0)
+    m_loc = _solve_martingale_location(np.maximum(ref_war, 0.0), s_marginal)  # (N, T)
 
     z = np.zeros((N, M, T), dtype=float)
     z[:, :, 0] = sigma_it[:, 0][:, None] * eps[:, :, 0]
@@ -447,19 +613,33 @@ def calculate_trade_values(
     for t in range(1, T):
         survived[:, :, t] = survived[:, :, t - 1] & (unif[:, :, t] > hazards[:, t][:, None])
 
-    sim_war = np.where(survived, mu_war[:, None, :] + z, 0.0)
-    z_rem_0 = (sigma_it[:, 0] * np.sqrt(np.clip(rem_frac_arr, 0.0, 1.0)))[:, None] * eps[:, :, 0]
-    sim_war[:, :, 0] = np.where(rem_frac_arr[:, None] <= 1e-6, 0.0, mu_war[:, None, 0] + z_rem_0)
+    sim_war = np.where(survived, m_loc[:, None, :] + z, 0.0)
+    s_rem_0 = sigma_it[:, 0] * np.sqrt(np.clip(rem_frac_arr, 0.0, 1.0))
+    m_loc_0 = _solve_martingale_location(np.maximum(mu_war[:, 0], 0.0), s_rem_0)
+    z_rem_0 = s_rem_0[:, None] * eps[:, :, 0]
+    sim_war[:, :, 0] = np.where(rem_frac_arr[:, None] <= 1e-6, 0.0, m_loc_0[:, None] + z_rem_0)
     eff_war = np.maximum(sim_war, 0.0)
-    prod_val = (
-        role_rates[:, None, None]
-        * (eff_war ** mkt_cfg.WAR_BETA)
-        * inflation_vec[None, None, :]
+
+    # Vectorized WORP production value (sf = rem_frac in Year 0, 1.0 in Years 1..T-1)
+    sf_mat = np.ones((N, 1, T), dtype=float)
+    sf_mat[:, 0, 0] = rem_frac_arr
+    prod_val = _worp_prod_val(
+        eff_war=eff_war,
+        w_slot_full=w_slot_full[:, None, :],
+        s_min_full=s_min_vec[None, None, :],
+        role_rate=role_rates[:, None, None],
+        inflation=inflation_vec[None, None, :],
+        beta=mkt_cfg.WAR_BETA,
+        sf=sf_mat,
     )  # (N, M, T)
-    full_prod_0 = (
-        role_rates[:, None]
-        * (np.maximum(0.0, ref_war[:, 0][:, None] + z[:, :, 0]) ** mkt_cfg.WAR_BETA)
-        * inflation_vec[0]
+    full_prod_0 = _worp_prod_val(
+        eff_war=np.maximum(0.0, m_loc[:, 0][:, None] + z[:, :, 0]),
+        w_slot_full=w_slot_full[:, 0:1],
+        s_min_full=s_min_vec[0],
+        role_rate=role_rates[:, None],
+        inflation=inflation_vec[0],
+        beta=mkt_cfg.WAR_BETA,
+        sf=1.0,
     )  # (N, M)
 
     # ── 2. Non-anticipative pathwise contract & option valuation ─────────────
@@ -475,18 +655,31 @@ def calculate_trade_values(
         if not control_alive.any():
             break
 
-        # Conditional expectation of year t..T-1 given F_{t-1} (before year t is played!)
+        sf_t = rem_frac_arr[:, None] if t == 0 else 1.0
+
+        # Exact conditional expectation E[eff_war_t | F_{t-1}] before year t is played
         if t == 0:
             z_prev = np.zeros((N, M), dtype=float)
             surv_prev = np.ones((N, M), dtype=float)
+            exp_war_t = np.broadcast_to(np.maximum(mu_war[:, 0:1], 0.0), (N, M)).copy()
         else:
             z_prev = z[:, :, t - 1]
             surv_prev = survived[:, :, t - 1].astype(float)
+            cond_pos_w = _truncated_normal_pos_mean(
+                m_loc[:, t][:, None] + rho * z_prev,
+                (sigma_it[:, t] * innov_scale)[:, None],
+            )
+            exp_war_t = surv_prev * (1.0 - hazards[:, t][:, None]) * cond_pos_w
 
-        exp_war_t = surv_prev * (1.0 - hazards[:, t][:, None]) * np.maximum(
-            0.0, mu_war[:, t][:, None] + (rho * z_prev if t > 0 else 0.0)
+        exp_prod_t = _worp_prod_val(
+            eff_war=exp_war_t,
+            w_slot_full=w_slot_full[:, t:t + 1],
+            s_min_full=s_min_vec[t],
+            role_rate=role_rates[:, None],
+            inflation=inflation_vec[t],
+            beta=mkt_cfg.WAR_BETA,
+            sf=sf_t,
         )
-        exp_prod_t = role_rates[:, None] * (exp_war_t ** mkt_cfg.WAR_BETA) * inflation_vec[t]
 
         sal_t = np.zeros((N, M), dtype=float)
         buyout_cost_t = np.zeros((N, M), dtype=float)
@@ -496,12 +689,12 @@ def calculate_trade_values(
         if m_signed.any():
             sal_t[m_signed] = fixed_sal[m_signed, t][:, None]
 
-        # (b) Pre-Arb years (club tenders if expected production >= min salary * 0.75, else replaces at 0)
+        # (b) Pre-Arb years: club tenders for 26-man roster iff expected production >= p_min
+        # (equivalently exp_war_t >= w_slot under WORP; sub-hurdle Pre-Arb is replaced via waivers/AAA)
         m_prearb = st_t == _ST_PREARB
         if m_prearb.any():
             n_pre = int(m_prearb.sum())
             p_min = prearb_min_vec[t] * (rem_frac_arr[m_prearb] if t == 0 else np.ones(n_pre, dtype=float))
-            # In year 0, player is already tendered for current season
             if t == 0:
                 sal_t[m_prearb] = np.where(
                     fixed_sal[m_prearb, 0][:, None] > 0,
@@ -509,7 +702,7 @@ def calculate_trade_values(
                     p_min[:, None],
                 )
             else:
-                keep_pre = exp_prod_t[m_prearb] >= (p_min[:, None] * 0.75)
+                keep_pre = exp_prod_t[m_prearb] >= p_min[:, None]
                 control_alive[m_prearb] = control_alive[m_prearb] & keep_pre
                 sal_t[m_prearb] = p_min[:, None]
 
@@ -522,30 +715,25 @@ def calculate_trade_values(
             floor_sal = arb_floor_by_code[arb_code][t]
 
             if t == 0:
-                # Current-year arb salaries are already settled in Spotrac/Payroll (prorated by rem_frac)
                 r_f = rem_frac_arr[m_arb]
+                est_prod_0 = exp_prod_t[m_arb, 0]
                 settled = np.where(
                     r_f <= 1e-6,
                     0.0,
                     np.where(
                         fixed_sal[m_arb, 0] > 0,
                         fixed_sal[m_arb, 0],
-                        np.maximum(
-                            floor_sal * r_f,
-                            mu_war[m_arb, 0].clip(min=0.0) ** mkt_cfg.WAR_BETA * role_rates[m_arb] * inflation_vec[0] * arb_share,
-                        ),
+                        np.maximum(floor_sal * r_f, est_prod_0 * arb_share),
                     ),
                 )
                 sal_t[m_arb] = settled[:, None]
             else:
-                # Dynamic arb award based on prior-season realized production + 80% max-cut rule
                 based_on_prev = prev_prod_val[m_arb] * arb_share
                 based_on_exp = exp_prod_t[m_arb] * arb_share
                 proposed_arb = np.maximum(
                     floor_sal,
                     np.maximum(0.55 * based_on_prev + 0.45 * based_on_exp, prev_arb_sal[m_arb] * 0.80),
                 )
-                # Club tenders iff expected season production covers proposed arb salary
                 tender = exp_prod_t[m_arb] >= proposed_arb
                 control_alive[m_arb] = control_alive[m_arb] & tender
                 sal_t[m_arb] = proposed_arb
@@ -560,13 +748,11 @@ def calculate_trade_values(
                 if code_i == _ST_TEAM_OPT:
                     buyout = opt_sal * mc_cfg.OPTION_BUYOUT_FRACTION
                     exercise = (exp_prod_t[idx_i] - opt_sal) >= -buyout
-                    # Where declined while alive, club pays buyout and control ends
                     declined_now = control_alive[idx_i] & (~exercise)
                     buyout_cost_t[idx_i, declined_now] = buyout
                     control_alive[idx_i] = control_alive[idx_i] & exercise
                     sal_t[idx_i] = opt_sal
                 elif code_i == _ST_PLAYER_OPT:
-                    # Compute remaining guaranteed contract cash vs expected open-market value from F_{t-1}
                     rem_prod_npv = np.zeros(M, dtype=float)
                     rem_sal_npv = np.zeros(M, dtype=float)
                     cum_surv = surv_prev[idx_i].copy()
@@ -575,11 +761,25 @@ def calculate_trade_values(
                         if c_tau in (_ST_FA, _ST_TEAM_OPT, _ST_MUTUAL_OPT):
                             break
                         cum_surv = cum_surv * (1.0 - hazards[idx_i, tau])
-                        rho_pow = rho ** (tau - t + (1 if t > 0 else 0))
-                        e_war_tau = cum_surv * np.maximum(
-                            0.0, mu_war[idx_i, tau] + (rho_pow * z_prev[idx_i] if t > 0 else 0.0)
+                        if t == 0:
+                            e_war_tau = cum_surv * max(0.0, float(ref_war[idx_i, tau]))
+                        else:
+                            steps_ahead = tau - t + 1
+                            rho_pow = rho ** steps_ahead
+                            cond_var_tau = max(1e-8, s_var[idx_i, tau] - (rho_pow * rho_pow) * s_var[idx_i, t - 1])
+                            e_war_tau = cum_surv * _truncated_normal_pos_mean(
+                                m_loc[idx_i, tau] + rho_pow * z_prev[idx_i],
+                                math.sqrt(cond_var_tau),
+                            )
+                        e_prod_tau = _worp_prod_val(
+                            eff_war=np.asarray(e_war_tau, dtype=float),
+                            w_slot_full=w_slot_full[idx_i, tau],
+                            s_min_full=s_min_vec[tau],
+                            role_rate=role_rates[idx_i],
+                            inflation=inflation_vec[tau],
+                            beta=mkt_cfg.WAR_BETA,
+                            sf=1.0,
                         )
-                        e_prod_tau = role_rates[idx_i] * (e_war_tau ** mkt_cfg.WAR_BETA) * inflation_vec[tau]
                         dfac = (1.0 + mkt_cfg.DISCOUNT_RATE) ** -(tau - t)
                         rem_prod_npv += e_prod_tau * dfac
                         rem_sal_npv += fixed_sal[idx_i, tau] * dfac
@@ -595,8 +795,19 @@ def calculate_trade_values(
                     control_alive[idx_i] = control_alive[idx_i] & both_agree
                     sal_t[idx_i] = opt_sal
 
-        # Accrue discounted realized year-t surplus for paths still under club control
-        year_surplus = np.where(control_alive, prod_val[:, :, t] - sal_t, 0.0) - buyout_cost_t
+        # Accrue discounted realized year-t surplus for paths still under club control.
+        # Optionable / renewable Pre-Arb players (salary near MLB minimum) can be shuttled to AAA
+        # on sub-hurdle seasons rather than burning a full guaranteed MLB salary on the 26-man roster.
+        raw_net = prod_val[:, :, t] - sal_t
+        p_min_full_t = prearb_min_vec[t] * (rem_frac_arr if t == 0 else 1.0)
+        renewable_prearb = (st_t == _ST_PREARB) & (fixed_sal[:, t] <= p_min_full_t * 1.35)
+        sub_hurdle_prearb = renewable_prearb & (ref_war[:, t] < w_slot_full[:, t])
+        raw_net = np.where(
+            sub_hurdle_prearb[:, None],
+            np.maximum(0.0, raw_net),
+            np.where(renewable_prearb[:, None], np.maximum(-0.25 * sal_t, raw_net), raw_net),
+        )
+        year_surplus = np.where(control_alive, raw_net, 0.0) - buyout_cost_t
         npv_surplus += discount_mat[:, t][:, None] * year_surplus
 
         if t == 0:
@@ -622,12 +833,16 @@ def calculate_trade_values(
         c_vol = career_vols[i]
         blend_thresh = mc_cfg.ROOKIE_PROSPECT_BLEND_VOLUME[role]
 
+        # Cup-of-coffee (<120 PA / <35 IP) smoothing for un-extended recent prospects
+        # whose MLB playing-time projection hasn't ramped to full-time starter volume yet
+        cup_thresh = 0.35 * blend_thresh
+        pinfo = recent_prospects.get(pid)
         if (
-            pid in recent_prospects
-            and c_vol < blend_thresh
+            pinfo is not None
+            and (float(pinfo.get("fv") or 0.0) >= 45.0 or pd.notna(pinfo.get("top_100")))
+            and c_vol < cup_thresh
             and not has_signed_extension[i]
         ):
-            pinfo = recent_prospects[pid]
             pval = compute_single_prospect_valuation(
                 fv=pinfo.get("fv"),
                 top_100=pinfo.get("top_100"),
@@ -636,7 +851,7 @@ def calculate_trade_values(
                 delta_eta_years=0.0,  # Already reached MLB
                 valuation_year=current_year,
             )
-            w_mlb = float(np.clip(c_vol / blend_thresh, 0.15, 1.0))
+            w_mlb = float(np.clip(c_vol / max(cup_thresh, 1.0), 0.20, 1.0))
             tv_mean[i] = w_mlb * tv_mean[i] + (1.0 - w_mlb) * pval["trade_value"]
             tv_p10[i] = w_mlb * tv_p10[i] + (1.0 - w_mlb) * pval["trade_value_p10"]
             tv_p50[i] = w_mlb * tv_p50[i] + (1.0 - w_mlb) * pval["trade_value_p50"]

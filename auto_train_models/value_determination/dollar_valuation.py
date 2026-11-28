@@ -25,6 +25,8 @@ def calculate_production_value(
     war: float,
     year: int,
     player_role: str = "Batter",
+    pt_share: float = 1.0,
+    season_fraction: float = 1.0,
     **kwargs,
 ) -> float:
     """Convert single-season WAR into nominal year-specific production dollars."""
@@ -32,6 +34,8 @@ def calculate_production_value(
         war=war,
         year=year,
         player_role=player_role,
+        pt_share=pt_share,
+        season_fraction=season_fraction,
     )
 
 
@@ -83,7 +87,7 @@ def join_predictions_with_timeline(
     # Collapse two-way players to one combined WAR row per (IDfg, prediction_year):
     # sum positive contributions; if one side is sub-replacement (e.g. pitcher batting),
     # keep the primary positive side.
-    component_cols = [c for c in ("Bat", "BsR", "Def") if c in preds.columns]
+    component_cols = [c for c in ("Bat", "BsR", "Def", "PA", "IP") if c in preds.columns]
 
     if preds.duplicated(subset=["IDfg", "prediction_year"]).any():
         dup_mask = preds.duplicated(subset=["IDfg", "prediction_year"], keep=False)
@@ -131,14 +135,26 @@ def join_predictions_with_timeline(
     roles = timeline_with_war.get(role_col, pd.Series("Batter", index=timeline_with_war.index)).fillna("Batter")
     wars = pd.to_numeric(timeline_with_war["WAR"], errors="coerce")
     years = pd.to_numeric(timeline_with_war["Year"], errors="coerce").fillna(Config.Market.BASE_YEAR).astype(int)
+    pa_col = "PA" if "PA" in timeline_with_war.columns else ("PA_pred" if "PA_pred" in timeline_with_war.columns else None)
+    ip_col = "IP" if "IP" in timeline_with_war.columns else ("IP_pred" if "IP_pred" in timeline_with_war.columns else None)
+    pas = pd.to_numeric(timeline_with_war[pa_col], errors="coerce") if pa_col else pd.Series(np.nan, index=timeline_with_war.index)
+    ips = pd.to_numeric(timeline_with_war[ip_col], errors="coerce") if ip_col else pd.Series(np.nan, index=timeline_with_war.index)
 
-    timeline_with_war["production_value"] = [
-        calculate_production_value(w, y, player_role=r)
-        for w, y, r in zip(wars, years, roles)
-    ]
+    prod_vals = []
+    for w, y, r, pa_v, ip_v in zip(wars, years, roles, pas, ips):
+        r_str = str(r)
+        if r_str == "SP":
+            pt_sh = float(np.clip((165.0 if pd.isna(ip_v) else float(ip_v)) / 165.0, 0.45, 1.0))
+        elif r_str == "RP":
+            pt_sh = float(np.clip((62.0 if pd.isna(ip_v) else float(ip_v)) / 62.0, 0.65, 1.0))
+        else:
+            pt_sh = float(np.clip((600.0 if pd.isna(pa_v) else float(pa_v)) / 600.0, 0.45, 1.0))
+        prod_vals.append(calculate_production_value(w, y, player_role=r_str, pt_share=pt_sh))
+    timeline_with_war["production_value"] = prod_vals
 
-    if "prediction_year" in timeline_with_war.columns:
-        timeline_with_war = timeline_with_war.drop(columns=["prediction_year"])
+    for extra_col in ("prediction_year", "PA_pred", "IP_pred"):
+        if extra_col in timeline_with_war.columns:
+            timeline_with_war = timeline_with_war.drop(columns=[extra_col])
 
     logger.info(
         "Joined predictions onto timeline: %d rows (mean production_value=$%.2fM)",

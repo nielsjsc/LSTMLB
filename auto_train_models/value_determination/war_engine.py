@@ -38,6 +38,8 @@ LG_RUNS_PER_PA = Config.WAR.LG_RUNS_PER_PA
 LG_WRC_PER_PA = Config.WAR.LG_WRC_PER_PA
 POSITIONAL_ADJUSTMENTS = Config.WAR.POSITIONAL_ADJUSTMENTS
 REPLACEMENT_LEVEL_RUNS_200IP = Config.WAR.REPLACEMENT_LEVEL_RUNS_200IP
+REPLACEMENT_LEVEL_RUNS_200IP_SP = Config.WAR.REPLACEMENT_LEVEL_RUNS_200IP_SP
+REPLACEMENT_LEVEL_RUNS_200IP_RP = Config.WAR.REPLACEMENT_LEVEL_RUNS_200IP_RP
 LG_RA9 = Config.WAR.LG_RA9
 DEFAULT_IP_PER_START = Config.WAR.DEFAULT_IP_PER_START
 DEFAULT_IP_PER_APPEARANCE_RP = Config.WAR.DEFAULT_IP_PER_APPEARANCE_RP
@@ -118,10 +120,29 @@ def calculate_pitcher_war(
             **(rate_stats or {}),
         }
 
+    is_rp = str(role).upper().strip() == "RP"
     park_factor = get_park_factor(team)
-    park_adjusted_fip = fip / park_factor if park_factor != 0 else fip
-    fip_runs = (LG_FIP - park_adjusted_fip) / 9.0 * ip
-    replacement_runs = REPLACEMENT_LEVEL_RUNS_200IP * (ip / 200.0)
+    # Causal Kalman / Marcel FIP is already regressed toward neutral pitch physics (Stuff+/botERA/SIERA);
+    # apply residual HR-component park factor (28% of runs PF) rather than dividing the entire FIP + 3.15 constant
+    eff_pf = 1.0 + 0.28 * ((park_factor if park_factor > 0 else 1.0) - 1.0)
+    park_adjusted_fip = fip / eff_pf
+    raw_fip_runs = (LG_FIP - park_adjusted_fip) / 9.0 * ip
+
+    if is_rp:
+        gmli_raw = rate_stats.get("gmLI", 1.0) if rate_stats else 1.0
+        gmli = 1.0 if (gmli_raw is None or pd.isna(gmli_raw)) else float(np.clip(gmli_raw, 0.55, 2.00))
+        lev_mult = (1.0 + gmli) / 2.0
+        if raw_fip_runs >= 0.0:
+            fip_runs = raw_fip_runs * lev_mult
+        else:
+            # Struggling relievers are demoted from high-leverage spots rather than compounding 1.5x losses
+            fip_runs = raw_fip_runs * float(np.clip(lev_mult, 0.65, 1.0))
+        rep_runs_200 = REPLACEMENT_LEVEL_RUNS_200IP_RP
+    else:
+        fip_runs = raw_fip_runs
+        rep_runs_200 = REPLACEMENT_LEVEL_RUNS_200IP_SP
+
+    replacement_runs = rep_runs_200 * (ip / 200.0)
     rar = fip_runs + replacement_runs
 
     era = rate_stats.get("ERA", LG_RA9) if rate_stats else LG_RA9
@@ -191,7 +212,11 @@ def calculate_pitcher_war_dataframe(
             team = team_lookup.get(int(row["IDfg"]), "")
 
         era = row.get("ERA", LG_RA9)
-        rate_stats = {"ERA": float(era) if pd.notna(era) else LG_RA9}
+        gmli = row.get("gmLI", 1.0)
+        rate_stats = {
+            "ERA": float(era) if pd.notna(era) else LG_RA9,
+            "gmLI": float(gmli) if pd.notna(gmli) else 1.0,
+        }
         war, _ = calculate_pitcher_war(
             fip=float(row["FIP"]),
             ip=float(ip),
