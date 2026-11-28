@@ -585,7 +585,7 @@ def calculate_trade_values(
     # sub-hurdle depth faces high annual DFA / waiver / AAA replacement turnover
     sub_hurdle_gap = np.clip((w_slot_full - ref_war) / np.maximum(w_slot_full, 0.25), 0.0, 1.0)
     non_guar_mask = st_codes != _ST_SIGNED
-    hazards = np.where(non_guar_mask, np.clip(hazards + 0.30 * sub_hurdle_gap, 0.0, 0.65), hazards)
+    hazards = np.where(non_guar_mask, np.clip(hazards + 0.42 * sub_hurdle_gap, 0.0, 0.72), hazards)
     hazards[:, 0] = 0.0  # Current-season IL already reflected in Year-0 playing time
 
     # Talent-amplitude moderator (scaled by role's star WAR benchmark) so 0-WAR / middle-depth

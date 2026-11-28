@@ -630,9 +630,10 @@ def marcel_fielding_projections(
             # FIXED: resolve name with raw_df fallback to avoid Unknown for debutants
             player_name = _safe_resolve_player_name(player_id, player_names, raw_df if 'raw_df' in locals() else (group_df if 'group_df' in locals() else None))
 
-            # Get last known age
+            # Get last known age (default 27.0 if missing)
             player_hist = player_hist.sort_values('Season')
-            last_age = player_hist['Age'].iloc[-1]
+            _valid_ages = pd.to_numeric(player_hist['Age'], errors='coerce').dropna()
+            last_age = float(_valid_ages.iloc[-1]) if not _valid_ages.empty else 27.0
             last_season = player_hist['Season'].iloc[-1]
 
             # Build recent seasons list (newest first)
@@ -800,7 +801,8 @@ def marcel_baserunning_projections(
         player_name = _safe_resolve_player_name(player_id, player_names, _raw_for_name)
 
         player_hist = player_hist.sort_values('Season')
-        last_age = player_hist['Age'].iloc[-1]
+        _valid_br_ages = pd.to_numeric(player_hist['Age'], errors='coerce').dropna()
+        last_age = float(_valid_br_ages.iloc[-1]) if not _valid_br_ages.empty else 27.0
         last_season = player_hist['Season'].iloc[-1]
 
         # Build recent seasons (newest first)
@@ -1385,7 +1387,8 @@ def marcel_batter_projections(
         player_name = _safe_resolve_player_name(player_id, player_names, _raw_for_name)
 
         player_hist = player_hist.sort_values('Season')
-        last_age = player_hist['Age'].iloc[-1]
+        _valid_br_ages = pd.to_numeric(player_hist['Age'], errors='coerce').dropna()
+        last_age = float(_valid_br_ages.iloc[-1]) if not _valid_br_ages.empty else 27.0
         last_season = player_hist['Season'].iloc[-1]
 
         # Build player-specific Bayesian prior P_0(theta | FV, total_career_pa)
@@ -2265,7 +2268,8 @@ def marcel_pitcher_projections(
         player_name = _safe_resolve_player_name(player_id, player_names, _raw_for_name)
 
         player_hist = player_hist.sort_values('Season')
-        last_age = player_hist['Age'].iloc[-1]
+        _valid_br_ages = pd.to_numeric(player_hist['Age'], errors='coerce').dropna()
+        last_age = float(_valid_br_ages.iloc[-1]) if not _valid_br_ages.empty else 27.0
         last_season = player_hist['Season'].iloc[-1]
 
         # Build player-specific Bayesian prior P_0(theta | FV, Role, career_ip)

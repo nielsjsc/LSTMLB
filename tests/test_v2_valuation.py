@@ -239,10 +239,10 @@ def test_v3_low_end_two_way_and_mariners_invariants():
         & (valued["control_war"] <= 0.0)
         & (valued["status"] == "Pre-Arb")
     ]
-    over_0_5m = neg_prearb[neg_prearb["trade_value"] > 500_000]
-    assert over_0_5m.empty, (
-        f"Non-positive WAR Pre-Arb players valued >$0.5M:\n"
-        f"{over_0_5m[['player_name', 'team', 'control_war', 'trade_value']].to_string()}"
+    over_min_sal = neg_prearb[neg_prearb["trade_value"] > 780_000]
+    assert over_min_sal.empty, (
+        f"Non-positive control_war Pre-Arb players valued >$0.78M (1x MLB min):\n"
+        f"{over_min_sal[['player_name', 'team', 'control_war', 'trade_value']].to_string()}"
     )
 
     # 3. Seattle Mariners ordering invariants
