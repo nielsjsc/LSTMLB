@@ -321,7 +321,7 @@ class MarketValuation:
     WORP_HURDLE_FULL = {
         "Batter": 0.55,
         "SP": 0.90,
-        "RP": 0.50,
+        "RP": 0.51,
     }
 
     _calibration_loaded = False
